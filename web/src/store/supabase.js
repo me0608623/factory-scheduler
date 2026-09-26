@@ -58,6 +58,18 @@ export class SupabaseStore {
     await this._profile();
   }
 
+  async requestPasswordReset(email, redirectTo) {
+    const { error } = await this.sb.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) throw new Error("寄送密碼設定信失敗：" + error.message);
+  }
+
+  async setPassword(password) {
+    if (!this.session) throw new Error("請先登入或開啟邀請信中的連結");
+    if (password.length < 12) throw new Error("密碼至少需要 12 個字元");
+    const { error } = await this.sb.auth.updateUser({ password });
+    if (error) throw new Error("設定密碼失敗：" + error.message);
+  }
+
   async logout() {
     await this.sb.auth.signOut();
     this.session = null;

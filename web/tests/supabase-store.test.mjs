@@ -38,6 +38,22 @@ test("登入：密碼錯誤、角色", async () => {
   assert.equal((await store("tv@x")).role, "viewer");
 });
 
+test("受邀帳號可設定密碼，忘記密碼信導向指定網址", async () => {
+  const { db } = await setup();
+  const sb = new FakeSupabase(db, structuredClone(USERS));
+  const s = new SupabaseStore(sb);
+  await s.requestPasswordReset("lead@x", "https://factory-scheduler-web.onrender.com/");
+  assert.deepEqual(sb.resetRequests, [{ email: "lead@x", redirectTo: "https://factory-scheduler-web.onrender.com/" }]);
+  await assert.rejects(s.setPassword("a-very-long-password"), /請先登入/);
+  await s.login("lead@x", "pw");
+  await assert.rejects(s.setPassword("short"), /至少需要 12 個字元/);
+  await s.setPassword("a-very-long-password");
+  await s.logout();
+  await assert.rejects(s.login("lead@x", "pw"), /帳號或密碼不對/);
+  await s.login("lead@x", "a-very-long-password");
+  assert.equal(s.role, "lead");
+});
+
 test("讀取、只寫有變的列、紀錄", async () => {
   const { store, count } = await setup();
   const boss = await store("boss@x");

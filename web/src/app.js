@@ -1899,27 +1899,50 @@ MODALS.account=()=>({title:"帳號與連線",
     (STORE.kind==="supabase"?'<dt>帳號</dt><dd>'+esc(STORE.userName)+'</dd><dt>角色</dt><dd>'+esc(ROLE_NAME[STORE.role]||"未設定")+'</dd>':"")+
     '<dt>排程計算</dt><dd>'+(SOLVER.up?"OR-Tools "+esc(SOLVER.version):"瀏覽器內的演算法（排程服務未連線）")+'</dd></dl>'+
     (STORE.kind==="local"?'<div class="hint">要多人使用、手機和電視即時同步，請設定雲端資料庫（見 README）。</div>':""),
-  foot:(STORE.kind==="supabase"?'<button class="btn" data-act="logout">登出</button>':'<button class="btn danger" data-act="reset-local">清除這台電腦的資料</button>')+
+  foot:(STORE.kind==="supabase"?'<button class="btn" data-act="password-open">設定登入密碼</button><button class="btn" data-act="logout">登出</button>':'<button class="btn danger" data-act="reset-local">清除這台電腦的資料</button>')+
     '<div class="spacer"></div><button class="btn" data-act="solver-check">重新連線排程服務</button><button class="btn primary" data-act="close">關閉</button>'});
+MODALS.password=()=>({title:"設定登入密碼",
+  body:'<div class="hint">收到邀請信或重設密碼信後，開啟信中連結登入，再在這裡設定新密碼。</div>'+
+    '<div class="field"><label for="new-password">新密碼（至少 12 個字元）</label><input class="inp" id="new-password" type="password" autocomplete="new-password" minlength="12"></div>'+
+    '<div class="field"><label for="confirm-password">再次輸入新密碼</label><input class="inp" id="confirm-password" type="password" autocomplete="new-password" minlength="12"></div>',
+  foot:'<button class="btn" data-act="account">返回</button><div class="spacer"></div><button class="btn primary" data-act="password-save">儲存新密碼</button>'});
 Object.assign(MODAL_ACT,{
   "logout":async()=>{await STORE.logout();location.reload();},
+  "password-open":()=>openModal({t:"password"}),
+  "password-save":async a=>{
+    const pw=$("#new-password").value,again=$("#confirm-password").value;
+    if(pw.length<12){toast("密碼至少需要 12 個字元");return;}
+    if(pw!==again){toast("兩次密碼不一致");return;}
+    a.disabled=true;
+    try{await STORE.setPassword(pw);closeModal();toast("登入密碼已設定");}
+    catch(e){a.disabled=false;toast(e.message);}
+  },
   "reset-local":a=>{if(!confirmStep(a,"reset-local"))return;STORE.reset().then(()=>location.reload());},
   "solver-check":async()=>{await SOLVER.check();renderModal();toast(SOLVER.up?"已連上 OR-Tools 排程服務":"排程服務沒有回應："+SOLVER.url);}
 });
 
 // ---------- 登入畫面 ----------
-function showLogin(err){
+function showLogin(err="",email=""){
   $("#app").innerHTML='<main class="login"><form class="login-card" id="loginf">'+
     '<div class="brand"><span class="brand-mark"><span></span></span>產線排程</div>'+
-    '<div class="field"><label for="lg-email">帳號（Email）</label><input class="inp" id="lg-email" type="email" autocomplete="username" required></div>'+
+    '<div class="field"><label for="lg-email">帳號（Email）</label><input class="inp" id="lg-email" type="email" autocomplete="username" value="'+esc(email)+'" required></div>'+
     '<div class="field"><label for="lg-pw">密碼</label><input class="inp" id="lg-pw" type="password" autocomplete="current-password" required></div>'+
     (err?'<div class="issue">'+esc(err)+'</div>':"")+
     '<button class="btn primary" type="submit" style="justify-content:center;height:56px;font-size:19px">登入</button>'+
-    '<div class="hint">帳號由老闆建立；忘記密碼請找老闆。</div></form></main>';
+    '<button class="btn" type="button" id="lg-reset">忘記密碼／設定邀請帳號密碼</button>'+
+    '<div class="hint">帳號由管理者邀請。收到邀請信，先開啟信中的連結，再到「帳號與連線」設定密碼。</div></form></main>';
   $("#loginf").addEventListener("submit",async e=>{
-    e.preventDefault();const btn=e.target.querySelector("button");btn.disabled=true;btn.textContent="登入中…";
-    try{await STORE.login($("#lg-email").value.trim(),$("#lg-pw").value);await start();}
-    catch(err){showLogin(err.message);}
+    e.preventDefault();const btn=e.target.querySelector("button"),email=$("#lg-email").value.trim();btn.disabled=true;btn.textContent="登入中…";
+    try{await STORE.login(email,$("#lg-pw").value);await start();}
+    catch(err){showLogin(err.message,email);}
+  });
+  $("#lg-reset").addEventListener("click",async e=>{
+    const input=$("#lg-email"),email=input.value.trim();
+    if(!input.checkValidity()||!email){showLogin("請先填寫有效的電子郵件",email);return;}
+    const btn=e.currentTarget;btn.disabled=true;
+    try{await STORE.requestPasswordReset(email,location.origin+location.pathname);
+      showLogin("若此帳號存在，密碼設定信已寄出。請開啟信中的連結。",email);}
+    catch(err){showLogin(err.message,email);}
   });
 }
 

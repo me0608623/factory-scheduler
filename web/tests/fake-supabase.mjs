@@ -37,6 +37,7 @@ export class FakeSupabase {
     this.db = db;
     this.users = users;        // email → {id, password}
     this.uid = null;
+    this.resetRequests = [];
     this.auth = {
       getSession: async () => ({ data: { session: this.uid ? this._session() : null } }),
       signInWithPassword: async ({ email, password }) => {
@@ -44,6 +45,16 @@ export class FakeSupabase {
         if (!u || u.password !== password) return { data: {}, error: { message: "Invalid login credentials" } };
         this.uid = u.id;
         return { data: { session: this._session() }, error: null };
+      },
+      resetPasswordForEmail: async (email, options) => {
+        this.resetRequests.push({ email, ...options });
+        return { error: null };
+      },
+      updateUser: async ({ password }) => {
+        if (!this.uid) return { error: { message: "Not authenticated" } };
+        const user = Object.values(this.users).find(u => u.id === this.uid);
+        user.password = password;
+        return { error: null };
       },
       signOut: async () => { this.uid = null; return { error: null }; },
     };
