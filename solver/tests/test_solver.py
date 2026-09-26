@@ -414,6 +414,22 @@ def test_very_large_on_time_draft_skips_full_model():
     assert result.search_mode == "restricted_pairs"
 
 
+def test_very_large_absences_keep_two_pair_candidates():
+    snap = snapshot_for(20, 40, 250, cross_factory=True, leave_days=5, fault_days=5)
+    now = Now(date="2026-09-28", min=480)
+    draft = Result(
+        blocks=[Block(order=order.id, step=3, machine="m3", employee="e3",
+                      date=order.due, start=480, end=490, qty=order.qty)
+                for order in snap.orders],
+        status="FEASIBLE", objective=1, wall=0.1, n_ops=1000,
+        search_mode="restricted_pairs", candidate_pairs=2,
+    )
+    with patch("app.model.solve", return_value=draft) as recursive, patch("app.model.check", return_value=[]):
+        result = solve(snap, now, PRESETS["on_time"], time_limit=5)
+    assert recursive.call_args.kwargs["pair_cap"] == 2
+    assert result.candidate_pairs == 2
+
+
 def test_restricted_draft_balances_early_orders_across_machines():
     snap = snapshot_for(20, 40, 100, cross_factory=True, due_base_days=0)
     now = Now(date="2026-09-28", min=480)

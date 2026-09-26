@@ -109,7 +109,9 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
                                         "applicable": option["applicable"],
                                         "late_orders": len(option["metrics"]["late"]),
                                         "score": option["score"],
-                                        "solver_method": option["solver_method"]} for option in result["options"]],
+                                        "solver_method": option["solver_method"],
+                                        "solver_candidate_pairs": option["solver_candidate_pairs"]}
+                                       for option in result["options"]],
                           "seconds": round(time.monotonic() - started, 2)}), flush=True)
         return
     result = solve(snap, now, PRESETS["on_time"],
@@ -121,6 +123,7 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
     late = sum(value is not None and value > abs_min(order.due, 1440)
                for order in snap.orders for value in [finish[order.id]])
     print(json.dumps({"status": result.status, "solver_method": result.search_mode,
+                      "solver_candidate_pairs": result.candidate_pairs,
                       "objective": result.objective,
                       "operations": result.n_ops,
                       "blocks": len(result.blocks), "solve_seconds": round(result.wall, 2),

@@ -75,6 +75,7 @@ class Result:
     unplaced: list[str] = field(default_factory=list)
     released: list[Block] = field(default_factory=list)   # 因為故障、請假被迫移動的原排程
     search_mode: str = "full"         # full 或 restricted_pairs（完整搜尋超時後的初稿）
+    candidate_pairs: int | None = None
 
 
 def _cut_for_conflicts(b: Block, snap: Snapshot) -> int | None:
@@ -219,9 +220,11 @@ def solve(
     if pair_cap is None and len(ops) >= 1000 and not unplaced:
         # 大模型先給受限人機候選完整的求解預算；若可準時且驗證通過，省去
         # 大量可選區間的完整模型。若初稿仍逾期，保留它並繼續嘗試完整模型。
+        delayed_pairs = sum(ready > t_now for ready in first_available.values())
+        draft_pair_cap = 2 if delayed_pairs * 4 >= len(first_available) else 1
         candidate = solve(snap, now, weights, reference=reference, movable=movable,
                           extra_overtime=extra_overtime, time_limit=time_limit,
-                          days=days, workers=workers, pair_cap=1)
+                          days=days, workers=workers, pair_cap=draft_pair_cap)
         if (candidate.status in ("OPTIMAL", "FEASIBLE") and not candidate.unplaced
                 and not check(snap, candidate.blocks, now)):
             candidate.status = "FEASIBLE"
@@ -465,7 +468,11 @@ def solve(
     m.minimize(sum(terms) if terms else 0)
 
     solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = time_limit
+    # 2,000 道以上若已有合法初稿，完整模型僅作短時間改善，避免多方案預覽
+    # 連續兩次「初稿 5 秒＋完整模型 5 秒」逼近 HTTP 請求逾時。
+    solver.parameters.max_time_in_seconds = (
+        min(time_limit, 1.0) if early_draft is not None and len(ops) >= 2000 else time_limit
+    )
     solver.parameters.num_workers = workers
     status = solver.solve(m)
     name = solver.status_name(status)
@@ -539,4 +546,5 @@ def solve(
                 used.add(oid)
     out.sort(key=lambda b: (b.date, b.machine, b.start))
     return Result(out, name, solver.objective_value, time.time() - t_start, len(ops),
-                  unplaced, released, "restricted_pairs" if pair_cap is not None else "full")
+                  unplaced, released, "restricted_pairs" if pair_cap is not None else "full",
+                  pair_cap)
