@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
-from .model import PRESETS, Result, Weights, solve
+from .model import PRESETS, Result, Weights, configured_workers, solve
 from .schemas import Block, Event, Fault, Now, Order, PlanRequest, Snapshot
 from .timeline import abs_min, add_days, s2d, Timeline
 from .validate import check
@@ -337,7 +337,8 @@ def make_plans(req: PlanRequest) -> dict:
     operation_count = sum(len(products[order.product].steps) for order in a.snap.orders
                           if order.product in products)
     large = operation_count >= 150
-    workers = 8 if large else max(1, 8 // max(1, len(strategies)))
+    worker_cap = configured_workers()
+    workers = worker_cap if large else max(1, worker_cap // max(1, len(strategies)))
 
     def run(st: Strategy):
         if st.preset is None:

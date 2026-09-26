@@ -134,6 +134,7 @@ Render Blueprint 已於 2026-09-26 建立兩個服務：
    | `SUPABASE_SERVICE_ROLE_KEY` | Supabase 的 **service_role secret key**，只存在排程服務的私密環境變數 |
    | `SOLVER_DISABLE_SNAPSHOT_API` | `1`，公開部署必設；關閉不需登入的 `/plans`、`/solve` |
    | `ALLOWED_ORIGINS` | 正式前端的 `https://` 網址；多個用逗號隔開，不加結尾 `/` |
+   | `SOLVER_MAX_WORKERS` | 選填，OR-Tools 每次求解最多使用的工作者數，允許 1–16；未設定或填錯時維持 8。降低數值通常可省記憶體，但可能讓方案變差或時限內找不到方案，須用現場資料量測後再調整。 |
 
    不要在前端、Git、建置參數或公開文件中放 `SUPABASE_SERVICE_ROLE_KEY`。排程服務的 `/plans/db` 仍須使用者登入憑證，並檢查老闆／組長角色。部署後先確認 `https://排程服務網址/health` 回傳 `"database":true`。
 

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import math
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Callable
@@ -34,6 +35,15 @@ PRESETS: dict[str, Weights] = {
     "keep_assign": Weights(tard=1000, comp=1, dev=20, change=60000),   # 盡量不換人不換機
     "on_time": Weights(tard=1000, comp=10, dev=1, change=50),          # 準時、提早優先
 }
+
+
+def configured_workers() -> int:
+    """每次求解最多使用的工作者數；未設定或填錯時維持既有預設。"""
+    try:
+        value = int(os.environ.get("SOLVER_MAX_WORKERS", "8"))
+    except ValueError:
+        return 8
+    return value if 1 <= value <= 16 else 8
 
 
 def dur_of(qty: int, rate: float) -> int:
@@ -104,10 +114,11 @@ def solve(
     extra_overtime: frozenset[str] | set[str] = frozenset(),
     time_limit: float = 5.0,
     days: int = 45,
-    workers: int = 8,
+    workers: int | None = None,
     pair_cap: int | None = None,
 ) -> Result:
     t_start = time.time()
+    workers = configured_workers() if workers is None else workers
     now_min = math.ceil(now.min / 10) * 10
     tl = Timeline(snap.calendar, now.date, days, extra_overtime)
     t_now = tl.to_t(now.date, now_min)

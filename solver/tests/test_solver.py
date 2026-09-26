@@ -8,8 +8,9 @@ from pydantic import ValidationError
 import pytest
 
 from app import main as api
+from app import plans as plan_api
 from app.main import app
-from app.model import PRESETS, Result, Weights, solve
+from app.model import PRESETS, Result, Weights, configured_workers, solve
 from app.plans import make_plans
 from app.schemas import Block, Calendar, Employee, Event, Fault, Machine, Now, Order, PlanRequest, Product, Snapshot, Step
 from app.timeline import Timeline, abs_min
@@ -120,6 +121,41 @@ def test_employee_machine_limit_allows_two_machines_but_not_three():
 
 
 # ---------- 模型 ----------
+def test_solver_worker_limit_can_be_configured_without_changing_default(demo, monkeypatch):
+    snap, now = demo
+    monkeypatch.delenv("SOLVER_MAX_WORKERS", raising=False)
+    assert configured_workers() == 8
+    monkeypatch.setenv("SOLVER_MAX_WORKERS", "4")
+    assert configured_workers() == 4
+    used = []
+
+    def report_workers(solver, model):
+        used.append(solver.parameters.num_workers)
+        return cp_model.UNKNOWN
+
+    with patch.object(cp_model.CpSolver, "solve", report_workers):
+        solve(snap, now, PRESETS["on_time"], time_limit=0.01)
+    assert used == [4]
+    monkeypatch.setenv("SOLVER_MAX_WORKERS", "invalid")
+    assert configured_workers() == 8
+
+
+def test_plan_worker_limit_is_shared_across_parallel_options(monkeypatch):
+    monkeypatch.setenv("SOLVER_MAX_WORKERS", "4")
+    snap = Snapshot(calendar=Calendar(week=[False, True, True, True, True, True, False]),
+                    machines=[], employees=[], products=[], orders=[])
+    used = []
+
+    def fake_solve(snapshot, now, weights, **kwargs):
+        used.append(kwargs["workers"])
+        return Result([], "UNKNOWN", None, 0, 0, ["測試用未完成方案"])
+
+    monkeypatch.setattr(plan_api, "solve", fake_solve)
+    make_plans(PlanRequest(snapshot=snap, event=Event(type="auto"),
+                           now=Now(date="2026-09-28", min=480), time_limit=0.1))
+    assert used == [1, 1], "兩個實際求解選項同時執行時，總工作者不超過設定上限"
+
+
 def test_cross_factory_steps_keep_one_order_and_precedence():
     day = "2026-09-28"
     snap = Snapshot(
