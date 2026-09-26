@@ -30,6 +30,7 @@ if (measureRpc) {
   await db.query("select set_config('request.jwt.claim.sub',$1,false)", [userId]);
 }
 const product = "00000000-0000-4000-8000-0000000000a1";
+const employee = [1, 2, 3].map(n => `00000000-0000-4000-8000-0000000000e${n}`);
 for (const count of sizes) {
   const orders = (await db.query(`
     insert into orders (code, product_id, qty, due_date)
@@ -41,9 +42,9 @@ for (const count of sizes) {
     // 每張工單分到不同日期，避免合成測試本身造成機台衝突。
     const date = new Date(Date.UTC(2026, 9, 5 + index)).toISOString().slice(0, 10);
     return [
-      { order_id: id, step_seq: 0, machine_id: "a", date, start_min: 480, end_min: 540, qty: 120 },
-      { order_id: id, step_seq: 1, machine_id: "c", date, start_min: 540, end_min: 580, qty: 120 },
-      { order_id: id, step_seq: 2, machine_id: "e", date, start_min: 580, end_min: 610, qty: 120 },
+      { order_id: id, step_seq: 0, machine_id: "a", employee_id: employee[0], date, start_min: 480, end_min: 540, qty: 120 },
+      { order_id: id, step_seq: 1, machine_id: "c", employee_id: employee[1], date, start_min: 540, end_min: 580, qty: 120 },
+      { order_id: id, step_seq: 2, machine_id: "e", employee_id: employee[2], date, start_min: 580, end_min: 610, qty: 120 },
     ];
   });
   const start = performance.now();
