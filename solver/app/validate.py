@@ -26,7 +26,14 @@ def check(snap: Snapshot, blocks: list[Block], now: Now | None = None) -> list[s
         if not o or not m:
             issues.append(f"{name(b)}：工單或機台不存在")
             continue
-        st = prods[o.product].steps[b.step]
+        product = prods.get(o.product)
+        if not product:
+            issues.append(f"{name(b)}：找不到產品資料")
+            continue
+        if not 0 <= b.step < len(product.steps):
+            issues.append(f"{name(b)}：產品沒有這道工序")
+            continue
+        st = product.steps[b.step]
         if not e:
             issues.append(f"{name(b)}：沒有人員")
         elif b.machine not in e.skills:
@@ -74,7 +81,10 @@ def check(snap: Snapshot, blocks: list[Block], now: Now | None = None) -> list[s
     for b in blocks:
         by[(b.order, b.step)].append(b)
     for o in snap.orders:
-        p = prods[o.product]
+        p = prods.get(o.product)
+        if not p:
+            issues.append(f"{o.code}：找不到產品資料")
+            continue
         for k, st in enumerate(p.steps):
             q = sum(b.qty for b in by[(o.id, k)])
             if q != o.qty:

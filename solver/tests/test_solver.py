@@ -236,6 +236,12 @@ def test_missing_product_explains_instead_of_crashing():
     plan = make_plans(PlanRequest(snapshot=snap, event=Event(type="auto"), now=Now(date=day, min=480), time_limit=0.2))
     assert all(not o["applicable"] for o in plan["options"])
     assert any("找不到產品" in reason for reason in plan["options"][0]["diagnostics"])
+    result = solve(snap, Now(date=day, min=480), PRESETS["on_time"], time_limit=0.2)
+    assert result.status == "INCOMPLETE"
+    response = TestClient(app).post("/solve", json={"snapshot": snap.model_dump(),
+                                               "now": {"date": day, "min": 480}})
+    assert response.status_code == 200
+    assert response.json()["status"] == "INCOMPLETE"
 
 
 def test_prototype_schedule_is_valid(demo):
@@ -666,6 +672,43 @@ def test_fixed_cross_factory_downstream_accepts_completed_transfer_batch():
     result = solve(snap, now, PRESETS["on_time"], time_limit=1, days=5)
     assert result.status in ("OPTIMAL", "FEASIBLE")
     assert check(snap, result.blocks, now) == []
+
+
+def test_invalid_fixed_cross_factory_precedence_is_not_reported_optimal():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="cut", factory=1, process="cut", products=["p"]),
+                  Machine(id="weld", factory=2, process="weld", products=["p"])],
+        employees=[Employee(id="e1", name="Cut", factory=1, skills=["cut"]),
+                   Employee(id="e2", name="Weld", factory=2, skills=["weld"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", factory=1, rate=1),
+                                                       Step(process="weld", factory=2, rate=1)])],
+        orders=[Order(id="o", code="O", product="p", qty=120, due="2026-09-28")],
+        blocks=[Block(order="o", step=0, machine="cut", employee="e1",
+                      date="2026-09-28", start=540, end=660, qty=120, pinned=True),
+                Block(order="o", step=1, machine="weld", employee="e2",
+                      date="2026-09-28", start=480, end=600, qty=120, pinned=True)],
+    )
+    now = Now(date="2026-09-28", min=480)
+    result = solve(snap, now, PRESETS["on_time"], time_limit=1, days=5)
+    assert result.status == "INVALID_SCHEDULE"
+    assert any("前站還沒做到可以開始" in reason for reason in result.unplaced)
+
+
+def test_unknown_step_is_reported_without_validator_crash():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="cut", process="cut", products=["p"])],
+        employees=[Employee(id="e", name="Cut", skills=["cut"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=1)])],
+        orders=[Order(id="o", code="O", product="p", qty=60, due="2026-09-28")],
+        blocks=[Block(order="o", step=2, machine="cut", employee="e",
+                      date="2026-09-28", start=480, end=540, qty=60, pinned=True)],
+    )
+    now = Now(date="2026-09-28", min=480)
+    assert any("產品沒有這道工序" in issue for issue in check(snap, snap.blocks, now))
+    result = solve(snap, now, PRESETS["on_time"], time_limit=1, days=5)
+    assert result.status == "INVALID_SCHEDULE"
 
 
 def test_only_one_plan_computation_per_service_process(demo, monkeypatch):

@@ -569,6 +569,16 @@ def solve(
                 b.id = oid
                 used.add(oid)
     out.sort(key=lambda b: (b.date, b.machine, b.start))
+    search_mode = "restricted_pairs" if pair_cap is not None else "full"
+    if unplaced:
+        # CP-SAT 只看到可建模的工序；其最優不等於整張排程已完成。
+        return Result(out, "INCOMPLETE", None, time.time() - t_start, len(ops),
+                      unplaced, released, search_mode, pair_cap)
+    issues = check(snap, out, now)
+    if issues:
+        # 固定方塊可能本來就互相矛盾（例如跨廠前後站顛倒）。
+        # 即使 CP-SAT 的子模型可行，也不能對外宣稱整份排程有效。
+        return Result(out, "INVALID_SCHEDULE", None, time.time() - t_start, len(ops),
+                      issues[:5], released, search_mode, pair_cap)
     return Result(out, name, solver.objective_value, time.time() - t_start, len(ops),
-                  unplaced, released, "restricted_pairs" if pair_cap is not None else "full",
-                  pair_cap)
+                  unplaced, released, search_mode, pair_cap)
