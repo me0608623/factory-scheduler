@@ -129,6 +129,7 @@ def solve(
     tl = Timeline(snap.calendar, now.date, days, extra_overtime)
     t_now = tl.to_t(now.date, now_min)
     now_abs = abs_min(now.date, now_min)
+    actual_now_abs = abs_min(now.date, now.min)
 
     orders = {o.id: o for o in snap.orders}
     prods = {p.id: p for p in snap.products}
@@ -144,13 +145,19 @@ def solve(
         keep = b.pinned or abs_min(b.date, b.start) < now_abs or (movable is not None and not movable(b))
         if not keep:
             continue
+        if abs_min(b.date, b.end) <= actual_now_abs:
+            # 已完成的歷史不因事後補登故障／請假而被抹掉或重做。
+            fixed.append(b)
+            continue
         cut = _cut_for_conflicts(b, snap)
         if cut is None:
             fixed.append(b)
             continue
         released.append(b)
         if cut > b.start:                               # 衝突前做完的部分留著
-            q = round(b.qty * (cut - b.start) / (b.end - b.start))
+            # 已完成部分只能向下取整；四捨五入可能把 7.5 件記成 8 件，
+            # 超過這 10 分鐘按工序速率實際做得出的整數產能。
+            q = math.floor(b.qty * (cut - b.start) / (b.end - b.start) + 1e-8)
             if q > 0:
                 fixed.append(b.model_copy(update={"end": cut, "qty": q}))
 

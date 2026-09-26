@@ -245,6 +245,7 @@ def describe(base: Snapshot, a: Applied, blocks: list[Block], res: Result | None
     bk, ak = {_key(b) for b in base.blocks}, {_key(b) for b in blocks}
     gone = [b for b in base.blocks if _key(b) not in ak]
     added = [b for b in blocks if _key(b) not in bk]
+    displaced_pins = [b for b in gone if b.pinned] if kind in ("fault", "leave") else []
     changed = [b for b in added if b.order != a.new_order]
     fb, fa = _finish(base, base.blocks), _finish(a.snap, blocks)
 
@@ -262,6 +263,8 @@ def describe(base: Snapshot, a: Applied, blocks: list[Block], res: Result | None
 
     # 一句話總結
     parts = []
+    if displaced_pins:
+        parts.append(f"{len(displaced_pins)} 段固定工作受突發狀況影響，未完成部分會解除固定並重排")
     later = [s for s in shifts if s["a"] > s["b"]]
     earlier = [s for s in shifts if s["a"] < s["b"]]
     if later:
@@ -281,6 +284,9 @@ def describe(base: Snapshot, a: Applied, blocks: list[Block], res: Result | None
 
     # 每站的變動說明
     lines = []
+    for b in displaced_pins:
+        code = orders[b.order].code if b.order in orders else b.order
+        lines.append({"k": "info", "t": f"固定工作 {code} {step_name(b)} {mdw(b.date)} {hm(b.start)}–{hm(b.end)} 與故障或請假衝突；確認方案後，未完成部分會解除固定並重新排入"})
     groups: dict[tuple, dict] = {}
     for b in gone:
         groups.setdefault((b.order, b.step), {"old": [], "new": []})["old"].append(b)

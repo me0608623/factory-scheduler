@@ -505,6 +505,56 @@ def test_pinned_block_stays(demo):
     assert check(snap, r.blocks, now) == []
 
 
+def test_fault_cuts_pinned_block_at_integer_capacity_and_warns():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="m", process="cut", products=["p"])],
+        employees=[Employee(id="e", name="Worker", skills=["m"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=0.75)])],
+        orders=[Order(id="o", code="O", product="p", qty=15, due=day)],
+        blocks=[Block(id="pinned", order="o", step=0, machine="m", employee="e",
+                      date=day, start=480, end=500, qty=15, pinned=True)],
+    )
+    now = Now(date=day, min=480)
+    plan = make_plans(PlanRequest(snapshot=snap,
+                                  event=Event(type="fault", machine="m", date=day, start=490, end=520),
+                                  now=now, time_limit=2))
+    option = plan["options"][0]
+    assert option["applicable"]
+    after = snapshot_after(plan, option, snap)
+    assert any(b.pinned and b.start == 480 and b.end == 490 and b.qty == 7 for b in after.blocks)
+    assert sum(b.qty for b in after.blocks) == 15
+    assert check(after, after.blocks, now) == []
+    assert any("固定" in line["t"] and "解除" in line["t"] for line in option["lines"])
+
+
+@pytest.mark.parametrize("late_record", ["fault", "leave"])
+def test_late_incident_record_does_not_erase_completed_history(late_record):
+    past = "2026-09-28"
+    now = Now(date="2026-09-29", min=480)
+    machine = Machine(id="m", process="cut", products=["p"])
+    employee = Employee(id="e", name="Worker", skills=["m"])
+    if late_record == "fault":
+        machine.faults.append(Fault(date=past, start=480, end=540))
+    else:
+        employee.leaves.append(past)
+    original = Block(id="finished", order="o", step=0, machine="m", employee="e",
+                     date=past, start=480, end=540, qty=60, pinned=True)
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[machine], employees=[employee],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=1)])],
+        orders=[Order(id="o", code="O", product="p", qty=60, due="2026-09-30")],
+        blocks=[original],
+    )
+    result = solve(snap, now, PRESETS["on_time"], time_limit=2)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert [(b.id, b.date, b.start, b.end, b.qty) for b in result.blocks] == [
+        ("finished", past, 480, 540, 60)]
+    assert check(snap, result.blocks, now) == []
+
+
 # ---------- 突發狀況 → 方案 ----------
 def test_fault_plans(demo):
     snap, now = demo
