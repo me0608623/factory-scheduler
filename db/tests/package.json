@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node migrations.test.mjs"
+    "test": "node migrations.test.mjs",
+    "test:integration": "node integration_solver_apply.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.0"
