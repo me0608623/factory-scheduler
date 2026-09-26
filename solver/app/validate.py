@@ -109,4 +109,25 @@ def check(snap: Snapshot, blocks: list[Block], now: Now | None = None) -> list[s
             cur_end = max(abs_min(b.date, b.end) for b in by[(o.id, k)])
             if cur_end < prev_end:
                 issues.append(f"{o.code} 第{k + 1}站：比前站先做完")
+            if 0 < st.batch < o.qty:
+                current = by[(o.id, k)]
+
+                def produced_at(pieces: list[Block], minute: int) -> float:
+                    total = 0.0
+                    for piece in pieces:
+                        begin = abs_min(piece.date, piece.start)
+                        finish = abs_min(piece.date, piece.end)
+                        if finish <= begin:
+                            continue
+                        total += piece.qty * min(1.0, max(0.0, (minute - begin) / (finish - begin)))
+                    return total
+
+                # 每段內產量線性變化；差額的最小值必在某段起點或終點。
+                # 逐一檢查這些點，防止首批交接後、下一批尚未做出時後站超量加工。
+                boundaries = sorted({abs_min(b.date, minute)
+                                     for b in (*prev, *current) for minute in (b.start, b.end)})
+                for minute in boundaries:
+                    if produced_at(current, minute) > produced_at(prev, minute) + 0.5:
+                        issues.append(f"{o.code} 第{k + 1}站：前站累積產量不足，後站不能先做完這些件數")
+                        break
     return issues

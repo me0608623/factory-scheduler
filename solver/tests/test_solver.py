@@ -614,6 +614,29 @@ def test_faster_cross_factory_step_can_finish_with_upstream():
     assert check(snap, result.blocks, now) == []
 
 
+def test_validator_rejects_downstream_consuming_unfinished_batch():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="cut", factory=1, process="cut", products=["p"]),
+                  Machine(id="weld", factory=2, process="weld", products=["p"])],
+        employees=[Employee(id="e1", name="Cut", factory=1, skills=["cut"]),
+                   Employee(id="e2", name="Weld", factory=2, skills=["weld"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", factory=1, rate=1),
+                                                       Step(process="weld", factory=2, rate=0.4, batch=60)])],
+        orders=[Order(id="o", code="O", product="p", qty=120, due="2026-09-28")],
+        blocks=[Block(order="o", step=0, machine="cut", employee="e1",
+                      date="2026-09-28", start=480, end=540, qty=60),
+                Block(order="o", step=0, machine="cut", employee="e1",
+                      date="2026-09-28", start=960, end=1020, qty=60),
+                Block(order="o", step=1, machine="weld", employee="e2",
+                      date="2026-09-28", start=660, end=720, qty=24),
+                Block(order="o", step=1, machine="weld", employee="e2",
+                      date="2026-09-28", start=780, end=1020, qty=96)],
+    )
+    issues = check(snap, snap.blocks, Now(date="2026-09-28", min=480))
+    assert any("前站累積產量不足" in issue for issue in issues)
+
+
 def test_completed_batch_allows_cross_factory_step_to_start_now():
     snap = Snapshot(
         calendar=Calendar(week=[False, True, True, True, True, True, False]),
