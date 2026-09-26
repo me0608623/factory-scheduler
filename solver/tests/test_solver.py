@@ -12,7 +12,7 @@ from app import plans as plan_api
 from app.main import app
 from app.model import PRESETS, Result, Weights, configured_workers, solve
 from app.plans import make_plans
-from app.schemas import Block, Calendar, Employee, Event, Fault, Machine, Now, Order, PlanRequest, Product, Snapshot, Step
+from app.schemas import Block, Calendar, Employee, Event, Fault, Machine, Now, Order, PlanRequest, Product, Snapshot, Step, WindowDef
 from app.timeline import Timeline, abs_min
 from app.validate import check
 
@@ -294,6 +294,15 @@ def test_solver_snapshot_rejects_invalid_quantities_and_priority():
               start=540, end=540, qty=1)
     with pytest.raises(ValidationError):
         Calendar(week=[True, False])
+    with pytest.raises(ValidationError):
+        Step(process="裁切", rate=float("inf"))
+    with pytest.raises(ValidationError):
+        Fault(date="2026-09-28", start=540, end=540)
+    with pytest.raises(ValidationError):
+        WindowDef(start=720, end=720)
+    with pytest.raises(ValidationError):
+        Calendar(week=[True] * 7, windows=[WindowDef(start=480, end=720),
+                                            WindowDef(start=700, end=1020)])
 
 
 def test_solve_api_returns_validation_error_for_zero_order_quantity(demo):
@@ -313,6 +322,10 @@ def test_api_rejects_invalid_date_and_incomplete_fault_event(demo):
     preview = {"snapshot": snap.model_dump(), "now": now.model_dump(),
                "event": {"type": "fault", "machine": "c", "date": now.date, "start": 480}}
     assert TestClient(app).post("/plans", json=preview).status_code == 422
+    invalid_windows = {"snapshot": snap.model_dump(), "now": now.model_dump()}
+    invalid_windows["snapshot"]["calendar"]["windows"] = [
+        {"start": 480, "end": 720}, {"start": 700, "end": 1020}]
+    assert TestClient(app).post("/solve", json=invalid_windows).status_code == 422
 
 
 def test_missing_product_explains_instead_of_crashing():

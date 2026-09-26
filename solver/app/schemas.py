@@ -24,7 +24,7 @@ def iso_day(value: str) -> str:
 class Step(BaseModel):
     process: str
     factory: int = Field(default=1, ge=1, le=2)
-    rate: float = Field(gt=0)        # 一個人每分鐘做幾件；不能為零
+    rate: float = Field(gt=0, allow_inf_nan=False)  # 一個人每分鐘做幾件；須為有限正數
     batch: int = Field(default=0, ge=0)  # 前站完成幾件就能傳到這站；0 = 前站全部完成
 
 
@@ -37,8 +37,8 @@ class Product(BaseModel):
 class Fault(BaseModel):
     id: str | None = None
     date: str
-    start: int
-    end: int
+    start: int = Field(ge=0, lt=1440)
+    end: int = Field(gt=0, le=1440)
     note: str | None = None
     fixed: bool = False
     original_blocks: list[dict] = Field(default_factory=list)
@@ -47,6 +47,12 @@ class Fault(BaseModel):
     @classmethod
     def valid_date(cls, value: str) -> str:
         return iso_day(value)
+
+    @model_validator(mode="after")
+    def end_after_start(self):
+        if self.end <= self.start:
+            raise ValueError("故障結束時間必須晚於開始時間")
+        return self
 
 
 class Machine(BaseModel):
@@ -117,9 +123,15 @@ class Block(BaseModel):
 
 
 class WindowDef(BaseModel):
-    start: int
-    end: int
+    start: int = Field(ge=0, lt=1440)
+    end: int = Field(gt=0, le=1440)
     overtime: bool = False
+
+    @model_validator(mode="after")
+    def end_after_start(self):
+        if self.end <= self.start:
+            raise ValueError("上班時段結束時間必須晚於開始時間")
+        return self
 
 
 DEFAULT_WINDOWS = [WindowDef(start=480, end=720), WindowDef(start=780, end=1020), WindowDef(start=1020, end=1200, overtime=True)]
@@ -131,6 +143,13 @@ class Calendar(BaseModel):
     overtime: dict[str, bool] = Field(default_factory=dict)    # 開加班的日子
     holidays: dict[str, str] = Field(default_factory=dict)
     windows: list[WindowDef] = Field(default_factory=lambda: list(DEFAULT_WINDOWS))
+
+    @model_validator(mode="after")
+    def no_overlapping_windows(self):
+        ordered = sorted(self.windows, key=lambda window: window.start)
+        if any(right.start < left.end for left, right in zip(ordered, ordered[1:])):
+            raise ValueError("上班時段不可重疊")
+        return self
 
 
 class Now(BaseModel):
