@@ -10,7 +10,7 @@ import pytest
 from app import main as api
 from app import plans as plan_api
 from app.main import app
-from app.model import PRESETS, Result, Weights, configured_workers, solve
+from app.model import PRESETS, Result, Weights, configured_workers, full_capacity_spans, solve
 from app.plans import make_plans
 from app.schemas import Block, Calendar, Employee, Event, Fault, Machine, Now, Order, PlanRequest, Product, Snapshot, Step, WindowDef
 from app.timeline import Timeline, abs_min
@@ -119,6 +119,42 @@ def test_employee_machine_limit_allows_two_machines_but_not_three():
     single = solve(snap, now, PRESETS["on_time"], time_limit=3)
     assert single.status in ("OPTIMAL", "FEASIBLE")
     assert check(snap, single.blocks, now) == []
+
+
+def test_restricted_pair_prefers_free_worker_when_two_machine_worker_is_full():
+    day = "2026-09-28"
+    fixed = [Block(order=oid, step=0, machine=mid, employee="busy", date=day,
+                   start=start, end=end, qty=60, pinned=True)
+             for oid, mid in (("oa", "a"), ("ob", "b"))
+             for start, end in ((480, 720), (780, 1020))]
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        employees=[Employee(id="busy", name="已顧兩台", skills=["a", "b", "c"], max_concurrent_machines=2),
+                   Employee(id="free", name="可用員工", skills=["c"])],
+        machines=[Machine(id="a", process="cut", products=["fixed"]),
+                  Machine(id="b", process="cut", products=["fixed"]),
+                  Machine(id="c", process="pack", products=["new"])],
+        products=[Product(id="fixed", name="原工作", steps=[Step(process="cut", rate=1)]),
+                  Product(id="new", name="急件", steps=[Step(process="pack", rate=1)])],
+        orders=[Order(id="new", code="NEW", product="new", qty=60, due=day),
+                Order(id="oa", code="OA", product="fixed", qty=120, due=day),
+                Order(id="ob", code="OB", product="fixed", qty=120, due=day)],
+        blocks=fixed,
+    )
+    now = Now(date=day, min=480)
+    result = solve(snap, now, PRESETS["on_time"],
+                   pair_cap=1, days=2, time_limit=2, workers=2)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert check(snap, result.blocks, now) == []
+    new_block = next(b for b in result.blocks if b.order == "new")
+    assert (new_block.employee, new_block.date) == ("free", day)
+
+
+def test_full_capacity_spans_handles_partial_overlap_and_handoffs():
+    intervals = [(0, 60), (30, 90), (60, 120)]
+    assert full_capacity_spans(intervals, 1) == [(0, 120)]
+    assert full_capacity_spans(intervals, 2) == [(30, 90)]
+    assert full_capacity_spans(intervals, 3) == []
 
 
 # ---------- 模型 ----------

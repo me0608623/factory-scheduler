@@ -70,6 +70,27 @@ def first_free_start(now: int, duration: int, horizon: int,
     return start if start + duration <= horizon else None
 
 
+def full_capacity_spans(intervals: list[tuple[int, int]], capacity: int) -> list[tuple[int, int]]:
+    """員工已顧滿設定台數的時段；只供快速候選排序，不取代正式累積限制。"""
+    changes: dict[int, int] = {}
+    for start, end in intervals:
+        if end > start:
+            changes[start] = changes.get(start, 0) + 1
+            changes[end] = changes.get(end, 0) - 1
+    spans = []
+    load = 0
+    full_from = None
+    for minute, delta in sorted(changes.items()):
+        previous = load
+        load += delta
+        if previous < capacity <= load:
+            full_from = minute
+        elif previous >= capacity > load and full_from is not None:
+            spans.append((full_from, minute))
+            full_from = None
+    return spans
+
+
 @dataclass
 class Op:
     key: tuple[str, int]              # (工單, 第幾站)
@@ -279,6 +300,7 @@ def solve(
     if pair_cap is not None:
         machine_busy: dict[str, list[tuple[int, int]]] = {mid: [] for mid in machs}
         employee_busy: dict[str, list[tuple[int, int]]] = {eid: [] for eid in emps}
+        employee_load: dict[str, list[tuple[int, int]]] = {eid: [] for eid in emps}
 
         def occupy(target: list[tuple[int, int]], start: int, end: int):
             if end > start:
@@ -292,8 +314,12 @@ def solve(
             start, end = tl.to_t(block.date, block.start), tl.to_t(block.date, block.end)
             if block.machine in machine_busy:
                 occupy(machine_busy[block.machine], start, end)
-            if block.employee in employee_busy and emps[block.employee].max_concurrent_machines == 1:
-                occupy(employee_busy[block.employee], start, end)
+            if block.employee in employee_load:
+                occupy(employee_load[block.employee], start, end)
+        for employee in snap.employees:
+            employee_busy[employee.id].extend(
+                full_capacity_spans(employee_load[employee.id], employee.max_concurrent_machines)
+            )
         for employee in snap.employees:
             for day in employee.leaves:
                 span = tl.day_span(day)
