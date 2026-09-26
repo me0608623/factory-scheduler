@@ -14,7 +14,7 @@ from threading import BoundedSemaphore
 import ortools
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from .db import Supabase, SupabaseError
@@ -80,7 +80,7 @@ def plans(req: PlanRequest):
 class DbPlanRequest(BaseModel):
     event: Event
     now: Now | None = None
-    time_limit: float = 5.0
+    time_limit: float = Field(default=5.0, gt=0, le=10)
 
 
 @app.post("/plans/db")

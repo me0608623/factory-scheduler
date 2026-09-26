@@ -352,6 +352,16 @@ def test_public_deployment_disables_snapshot_endpoints(demo, monkeypatch):
     assert c.get("/health").status_code == 200
 
 
+def test_api_rejects_unbounded_solver_time(demo):
+    snap, now = demo
+    c = TestClient(app)
+    payload = {"snapshot": snap.model_dump(), "now": now.model_dump(), "time_limit": 20}
+    assert c.post("/solve", json=payload).status_code == 422
+    assert c.post("/plans", json={**payload, "event": {"type": "auto"}}).status_code == 422
+    assert c.post("/plans/db", json={"event": {"type": "auto"}, "time_limit": 20},
+                  headers={"Authorization": "Bearer token"}).status_code == 422
+
+
 def test_only_one_plan_computation_per_service_process(demo, monkeypatch):
     snap, now = demo
     c = TestClient(app)

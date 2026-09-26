@@ -132,11 +132,11 @@ class PlanRequest(BaseModel):
     snapshot: Snapshot
     event: Event
     now: Now | None = None
-    time_limit: float = 5.0          # 每個方案最多算幾秒
+    time_limit: float = Field(default=5.0, gt=0, le=10)  # 每個方案最多算幾秒
 
 
 class SolveRequest(BaseModel):
     snapshot: Snapshot
     now: Now | None = None
     preset: Literal["min_change", "on_time"] = "on_time"
-    time_limit: float = 5.0
+    time_limit: float = Field(default=5.0, gt=0, le=10)
