@@ -833,6 +833,17 @@ def test_mixed_fixed_and_shared_operator_scenarios(seed, with_fixed, shared_oper
     assert check(snap, result.blocks, now) == []
 
 
+@pytest.mark.parametrize("seed,shared_operators", [(6, False), (7, True)])
+def test_mixed_parallel_fixed_upstream_scenarios(seed, shared_operators):
+    snap, now, pair_cap = mixed_case(seed, parallel_fixed=True,
+                                     shared_operators=shared_operators)
+    result = solve(snap, now, PRESETS["on_time"], days=10,
+                   time_limit=1, workers=2, pair_cap=pair_cap)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert result.unplaced == []
+    assert check(snap, result.blocks, now) == []
+
+
 def test_fixed_downstream_cannot_precede_rescheduled_cross_factory_upstream():
     snap = Snapshot(
         calendar=Calendar(week=[False, True, True, True, True, True, False]),
