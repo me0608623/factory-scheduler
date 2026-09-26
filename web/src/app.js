@@ -1,6 +1,6 @@
 // 產線排程看板（正式版）：畫面沿用原型，資料層與排程服務可替換
 import { SOLVER } from "./solver.js";
-import { planTimeLimit } from "./plan-budget.js";
+import { planTimeLimit, planEngineLabel } from "./plan-budget.js";
 import { toSnapshot, applyOption, newId } from "./convert.js";
 import { ALL_WEEKDAYS, overtimeAllowed, overtimeDefault, overtimeWeekdays } from "./overtime.js";
 import { capacityIntervals as occupiedCapacityIntervals } from "./capacity.js";
@@ -1478,7 +1478,7 @@ function pvPanelHTML(o){
       (PV.ai.pick!==o.id?'<button class="btn" data-act="pv-pick" data-v="'+esc(PV.ai.pick)+'">看方案 '+esc(PV.ai.pick)+'</button>':"")+'</div>';
   }else ai='<div class="hint">AI 助理下一階段由伺服器提供。</div>';
   return '<section class="pv" aria-label="預覽">'+
-   '<div class="pv-h"><span class="pv-badge">預覽中</span><div class="pv-t"><b>'+esc(PV.title)+'</b><small>還沒套用，排程不會變。看清楚再按「套用」。　計算：'+(o.solverMethod==="restricted_pairs"?"OR-Tools 快速初稿（可行但不保證最佳）":PV.engine==="OR-Tools"?"OR-Tools":"瀏覽器備援")+'</small></div><div class="spacer"></div>'+
+   '<div class="pv-h"><span class="pv-badge">預覽中</span><div class="pv-t"><b>'+esc(PV.title)+'</b><small>還沒套用，排程不會變。看清楚再按「套用」。　計算：'+planEngineLabel(o.solverMethod,PV.engine)+'</small></div><div class="spacer"></div>'+
    '<button class="btn" data-act="pv-cancel">取消</button><button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+(o.applicable===false?'不可套用':'套用方案 '+o.id)+'</button></div>'+
    '<div class="pv-opts">'+tabs+'</div>'+
    (o.applicable===false?'<div class="pv-sum"><b>目前不能套用：</b>'+o.diagnostics.map(esc).join('；')+'</div>':'')+
