@@ -17,7 +17,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 def snapshot_for(machine_count: int, employee_count: int, order_count: int,
                  cross_factory: bool = False, due_base_days: int = 10,
-                 leave_days: int = 0, fault_days: int = 0):
+                 leave_days: int = 0, fault_days: int = 0,
+                 heterogeneous: bool = False):
     from app.schemas import Calendar, Employee, Fault, Machine, Order, Product, Snapshot, Step
 
     processes = ("cut", "press", "weld", "pack")
@@ -25,27 +26,35 @@ def snapshot_for(machine_count: int, employee_count: int, order_count: int,
     start = date(2026, 9, 28)
     machines = [
         Machine(id=f"m{i}", factory=factory_for(processes[i % 4]),
-                process=processes[i % 4], products=["p"],
+                process=processes[i % 4],
+                products=(["p0", "p1"] if i // 4 % 3 == 0 else
+                          ["p0"] if i // 4 % 3 == 1 else ["p1"]) if heterogeneous else ["p"],
                 faults=[Fault(date=(start + timedelta(days=day)).isoformat(), start=480, end=1020)
                         for day in range(fault_days)] if i < machine_count // 2 else [])
         for i in range(machine_count)
     ]
     employees = [
         Employee(id=f"e{i}", name=f"Employee {i}", factory=factory_for(processes[i % 4]),
-                 skills=[m.id for m in machines if m.process == processes[i % 4]],
+                 skills=[m.id for index, m in enumerate(machines)
+                         if m.process == processes[i % 4]
+                         and (not heterogeneous or (index // 4 + i // 4) % 3 != 0)],
                  leaves=[(start + timedelta(days=day)).isoformat() for day in range(leave_days)]
                  if i < employee_count // 2 else [])
         for i in range(employee_count)
     ]
     orders = [
-        Order(id=f"o{i}", code=f"O{i:03}", product="p", qty=120,
+        Order(id=f"o{i}", code=f"O{i:03}",
+              product=("p0" if i % 2 == 0 else "p1") if heterogeneous else "p", qty=120,
               due=(start + timedelta(days=due_base_days + i // 12)).isoformat())
         for i in range(order_count)
     ]
     return Snapshot(
         calendar=Calendar(week=[False, True, True, True, True, True, False]),
         machines=machines, employees=employees,
-        products=[Product(id="p", name="Product", steps=[
+        products=[Product(id=product_id, name=product_id, steps=[
+            Step(process=p, factory=factory_for(p), rate=rate) for p in processes
+        ]) for product_id, rate in (("p0", 2), ("p1", 1.5))] if heterogeneous else
+        [Product(id="p", name="Product", steps=[
             Step(process=p, factory=factory_for(p), rate=2) for p in processes
         ])],
         orders=orders,
@@ -77,7 +86,8 @@ def stop_process_tree(proc: subprocess.Popen):
 
 def run_case(machines: int, employees: int, orders: int, cross_factory: bool = False,
              time_limit: float = 5.0, plans: bool = False, pair_cap: int | None = None,
-             due_base_days: int = 10, leave_days: int = 0, fault_days: int = 0):
+             due_base_days: int = 10, leave_days: int = 0, fault_days: int = 0,
+             heterogeneous: bool = False, workers: int = 8):
     from app.model import PRESETS, solve
     from app.plans import make_plans
     from app.schemas import Event, Now, PlanRequest
@@ -85,7 +95,7 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
     from app.validate import check
 
     snap = snapshot_for(machines, employees, orders, cross_factory,
-                        due_base_days, leave_days, fault_days)
+                        due_base_days, leave_days, fault_days, heterogeneous)
     now = Now(date="2026-09-28", min=480)
     if plans:
         started = time.monotonic()
@@ -98,7 +108,7 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
                           "seconds": round(time.monotonic() - started, 2)}), flush=True)
         return
     result = solve(snap, now, PRESETS["on_time"],
-                   time_limit=time_limit, days=45, workers=8, pair_cap=pair_cap)
+                   time_limit=time_limit, days=45, workers=workers, pair_cap=pair_cap)
     last_step = len(snap.products[0].steps) - 1
     finish = {order.id: max((abs_min(block.date, block.end) for block in result.blocks
                              if block.order == order.id and block.step == last_step), default=None)
@@ -123,20 +133,24 @@ def main():
     parser.add_argument("--due-base-days", type=int, default=10)
     parser.add_argument("--leave-days", type=int, default=0)
     parser.add_argument("--fault-days", type=int, default=0)
+    parser.add_argument("--heterogeneous", action="store_true")
     parser.add_argument("--time-limit", type=float, default=5.0)
+    parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--large-only", action="store_true")
     parser.add_argument("--cross-only", action="store_true")
     parser.add_argument("--memory-limit-mb", type=int, default=1500)
     args = parser.parse_args()
     if (not 0 < args.time_limit <= 60 or not 100 <= args.memory_limit_mb <= 4096
             or args.pair_cap is not None and args.pair_cap < 1
-            or args.due_base_days < 0 or args.leave_days < 0 or args.fault_days < 0):
+            or args.due_base_days < 0 or args.leave_days < 0 or args.fault_days < 0
+            or not 1 <= args.workers <= 16):
         parser.error("time limit must be 0-60 seconds and memory limit 100-4096 MB")
     if args.case:
         run_case(*args.case, cross_factory=args.cross_factory,
                  time_limit=args.time_limit, plans=args.plans, pair_cap=args.pair_cap,
                  due_base_days=args.due_base_days, leave_days=args.leave_days,
-                 fault_days=args.fault_days)
+                 fault_days=args.fault_days, heterogeneous=args.heterogeneous,
+                 workers=args.workers)
         return
     for machines, employees, orders, cross_factory in ((5, 10, 10, False), (10, 20, 30, False),
                                                        (10, 20, 30, True),
@@ -155,6 +169,9 @@ def main():
         command.extend(("--due-base-days", str(args.due_base_days)))
         command.extend(("--leave-days", str(args.leave_days)))
         command.extend(("--fault-days", str(args.fault_days)))
+        command.extend(("--workers", str(args.workers)))
+        if args.heterogeneous:
+            command.append("--heterogeneous")
         started = time.monotonic()
         proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         peak = 0
@@ -178,6 +195,8 @@ def main():
                           "due_base_days": args.due_base_days,
                           "leave_days": args.leave_days,
                           "fault_days": args.fault_days,
+                          "heterogeneous": args.heterogeneous,
+                          "workers": args.workers,
                           "time_limit": args.time_limit,
                           "elapsed_seconds": round(time.monotonic() - started, 2),
                           "peak_rss_mb": round(peak / 1048576, 1) if peak else None,

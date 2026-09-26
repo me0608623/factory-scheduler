@@ -62,6 +62,7 @@ class Op:
     pairs: list[tuple[str, str]]      # (機台, 員工)
     ref_start: int | None = None      # 原本的開始時間（時間軸）
     ref_pair: tuple[str, str] | None = None
+    forced_change: bool = False       # 受限候選排除原人機組合時仍須計入換組合成本
 
 
 @dataclass
@@ -289,6 +290,7 @@ def solve(
                     chosen[-1] = op.ref_pair
                 op.pairs = chosen
             if op.ref_pair not in op.pairs:
+                op.forced_change = op.ref_pair is not None
                 op.ref_pair = None
 
     m = cp_model.CpModel()
@@ -400,6 +402,8 @@ def solve(
             terms.append(weights.dev * d)
         if weights.change and op.ref_pair:
             terms.append(weights.change * (1 - X[key, op.ref_pair]))
+        elif weights.change and op.forced_change:
+            terms.append(weights.change)
     m.minimize(sum(terms) if terms else 0)
 
     solver = cp_model.CpSolver()
@@ -407,16 +411,24 @@ def solve(
     solver.parameters.num_workers = workers
     status = solver.solve(m)
     name = solver.status_name(status)
+
+    def restricted_draft() -> Result | None:
+        if pair_cap is not None or len(ops) < 150 or unplaced:
+            return None
+        draft = solve(snap, now, weights, reference=reference, movable=movable,
+                      extra_overtime=extra_overtime, time_limit=min(1.0, time_limit),
+                      days=days, workers=workers, pair_cap=1)
+        if (draft.status not in ("OPTIMAL", "FEASIBLE") or draft.unplaced
+                or check(snap, draft.blocks, now)):
+            return None
+        draft.status = "FEASIBLE"  # 受限候選的最優，不代表完整問題的最優
+        draft.wall = time.time() - t_start
+        return draft
+
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        if status == cp_model.UNKNOWN and pair_cap is None and len(ops) >= 150 and not unplaced:
-            draft = solve(snap, now, weights, reference=reference, movable=movable,
-                          extra_overtime=extra_overtime, time_limit=min(1.0, time_limit),
-                          days=days, workers=workers, pair_cap=1)
-            if (draft.status in ("OPTIMAL", "FEASIBLE") and not draft.unplaced
-                    and not check(snap, draft.blocks, now)):
-                draft.status = "FEASIBLE"  # 受限候選中的 OPTIMAL 不代表完整問題的最優解
-                draft.search_mode = "restricted_pairs"
-                draft.wall = time.time() - t_start
+        if status == cp_model.UNKNOWN:
+            draft = restricted_draft()
+            if draft is not None:
                 return draft
         if status == cp_model.INFEASIBLE and days < 120 and pair_cap is None:
             # 受限候選的無解不代表完整問題無解；不替備援搜尋擴大範圍。
@@ -431,6 +443,12 @@ def solve(
             reason = "排程模型無法完成計算；請檢查產品速率、工單與固定方塊資料，必要時交由開發者診斷"
         return Result(list(snap.blocks), name, None, time.time() - t_start, len(ops),
                       unplaced + [reason], released)
+
+    if status == cp_model.FEASIBLE:
+        draft = restricted_draft()
+        if (draft is not None and draft.objective is not None
+                and draft.objective + 1e-6 < solver.objective_value):
+            return draft
 
     # ---------- 5. 換回真實時間的方塊 ----------
     out: list[Block] = list(fixed)

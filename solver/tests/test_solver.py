@@ -9,7 +9,7 @@ import pytest
 
 from app import main as api
 from app.main import app
-from app.model import PRESETS, solve
+from app.model import PRESETS, Weights, solve
 from app.plans import make_plans
 from app.schemas import Block, Calendar, Employee, Event, Fault, Machine, Now, Order, PlanRequest, Product, Snapshot, Step
 from app.timeline import Timeline, abs_min
@@ -385,6 +385,16 @@ def test_large_unknown_uses_valid_restricted_draft():
     assert check(snap, result.blocks, now) == []
 
 
+def test_large_plan_generation_limits_concurrent_models():
+    snap = snapshot_for(20, 40, 100, cross_factory=True)
+    req = PlanRequest(snapshot=snap, event=Event(type="auto"),
+                      now=Now(date="2026-09-28", min=480))
+    with patch("app.plans.ThreadPoolExecutor") as executor:
+        executor.return_value.__enter__.return_value.map.return_value = []
+        make_plans(req)
+    assert executor.call_args.kwargs["max_workers"] == 1
+
+
 def test_restricted_draft_balances_early_orders_across_machines():
     snap = snapshot_for(20, 40, 100, cross_factory=True, due_base_days=0)
     now = Now(date="2026-09-28", min=480)
@@ -483,6 +493,28 @@ def test_restricted_pair_respects_fixed_machine_work():
     result = solve(snap, now, PRESETS["on_time"], pair_cap=1, time_limit=1)
     assert result.status in ("OPTIMAL", "FEASIBLE")
     assert {block.machine for block in result.blocks if block.order == "new"} == {"m1"}
+    assert check(snap, result.blocks, now) == []
+
+
+def test_restricted_objective_counts_forced_assignment_change():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="m0", process="cut", products=["p"],
+                          faults=[Fault(date="2026-09-28", start=480, end=1020)]),
+                  Machine(id="m1", process="cut", products=["p"])],
+        employees=[Employee(id="e0", name="A", skills=["m0"]),
+                   Employee(id="e1", name="B", skills=["m1"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=2)])],
+        orders=[Order(id="o", code="O", product="p", qty=120, due="2026-09-28")],
+        blocks=[Block(order="o", step=0, machine="m0", employee="e0",
+                      date="2026-09-29", start=480, end=540, qty=120)],
+    )
+    now = Now(date="2026-09-28", min=480)
+    result = solve(snap, now, Weights(tard=0, comp=0, dev=0, change=123),
+                   pair_cap=1, time_limit=1)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert {block.machine for block in result.blocks} == {"m1"}
+    assert result.objective == 123
     assert check(snap, result.blocks, now) == []
 
 

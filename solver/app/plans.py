@@ -333,7 +333,11 @@ def make_plans(req: PlanRequest) -> dict:
     base = req.snapshot
     a = apply_event(base, req.event, now)
     strategies = [s for s in STRATEGIES[req.event.type] if s.when(a, now)]
-    workers = max(1, 8 // max(1, len(strategies)))
+    products = {product.id: product for product in a.snap.products}
+    operation_count = sum(len(products[order.product].steps) for order in a.snap.orders
+                          if order.product in products)
+    large = operation_count >= 150
+    workers = 8 if large else max(1, 8 // max(1, len(strategies)))
 
     def run(st: Strategy):
         if st.preset is None:
@@ -343,7 +347,7 @@ def make_plans(req: PlanRequest) -> dict:
                     extra_overtime=frozenset(ot), time_limit=req.time_limit, workers=workers)
         return st, res, res.blocks
 
-    with ThreadPoolExecutor(max_workers=len(strategies)) as pool:
+    with ThreadPoolExecutor(max_workers=1 if large else len(strategies)) as pool:
         results = list(pool.map(run, strategies))
 
     now_abs = abs_min(now.date, now.min)
