@@ -314,6 +314,28 @@ def test_preview_reports_quantity_and_pin_changes_without_time_move():
     assert any("（固定）" in line["t"] for line in pin_details["lines"])
 
 
+def test_preview_finish_summary_handles_split_late_and_incomplete_orders():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        employees=[], machines=[],
+        products=[Product(id="p", name="產品", steps=[Step(process="裁切", rate=1),
+                                                  Step(process="包裝", rate=1)])],
+        orders=[Order(id="complete", code="A", product="p", qty=60, due="2026-09-28"),
+                Order(id="partial", code="B", product="p", qty=60, due="2026-09-29"),
+                Order(id="missing", code="C", product="unknown", qty=60, due="2026-09-29")],
+    )
+    blocks = [
+        Block(order="complete", step=1, machine="m", employee=None, date="2026-09-28", start=480, end=510, qty=30),
+        Block(order="complete", step=1, machine="m", employee=None, date="2026-09-30", start=480, end=510, qty=30),
+        Block(order="partial", step=1, machine="m", employee=None, date="2026-09-28", start=480, end=510, qty=30),
+    ]
+    finish = plan_api._finish(snap, blocks)
+    assert finish["complete"] == {"k": "late", "fin": abs_min("2026-09-30", 510),
+                                  "date": "2026-09-30", "min": 510}
+    assert finish["partial"] == {"k": "part", "fin": None, "date": None}
+    assert finish["missing"] == {"k": "part", "fin": None, "date": None}
+
+
 def test_unknown_does_not_retry_with_larger_horizon(demo):
     snap, now = demo
     with patch.object(cp_model.CpSolver, "solve", return_value=cp_model.UNKNOWN) as mocked:

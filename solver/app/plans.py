@@ -210,14 +210,18 @@ def _key(b: Block):
 
 def _finish(snap: Snapshot, blocks: list[Block]) -> dict[str, dict]:
     prods = {p.id: p for p in snap.products}
+    last_steps = {o.id: len(prods[o.product].steps) - 1 for o in snap.orders
+                  if o.product in prods and prods[o.product].steps}
+    last_blocks: dict[str, list[Block]] = {}
+    for b in blocks:
+        if b.step == last_steps.get(b.order):
+            last_blocks.setdefault(b.order, []).append(b)
     out = {}
     for o in snap.orders:
-        product = prods.get(o.product)
-        if not product or not product.steps:
+        if o.id not in last_steps:
             out[o.id] = {"k": "part", "fin": None, "date": None}
             continue
-        last = len(product.steps) - 1
-        lb = [b for b in blocks if b.order == o.id and b.step == last]
+        lb = last_blocks.get(o.id, [])
         if not lb or sum(b.qty for b in lb) < o.qty:
             out[o.id] = {"k": "part", "fin": None, "date": None}
             continue
