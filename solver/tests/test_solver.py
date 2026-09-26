@@ -288,6 +288,32 @@ def test_cross_factory_steps_keep_one_order_and_precedence():
     assert "影響 1 廠、2 廠" in option["summary"]
 
 
+def test_preview_reports_quantity_and_pin_changes_without_time_move():
+    day = "2026-09-28"
+    original = Block(order="o", step=0, machine="a", employee="e",
+                     date=day, start=480, end=540, qty=60, pinned=True)
+    base = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        employees=[Employee(id="e", name="甲", factory=1, skills=["a"])],
+        machines=[Machine(id="a", factory=1, process="裁切", products=["p"])],
+        products=[Product(id="p", name="產品", steps=[Step(process="裁切", factory=1, rate=1)])],
+        orders=[Order(id="o", code="O1", product="p", qty=60, due=day)],
+        blocks=[original],
+    )
+    changed = original.model_copy(update={"qty": 50, "pinned": False})
+    applied = plan_api.Applied(snap=base, effects={}, title="", date=day)
+    details = plan_api.describe(base, applied, [changed], None, Now(date=day, min=480), "auto")
+    assert details["metrics"]["factories"] == [1]
+    assert details["metrics"]["moved"] == 1
+    assert any("60件" in line["t"] and "50件" in line["t"] for line in details["lines"])
+    assert any(item["t"] == "out" for item in details["people"][0]["items"])
+    assert any(item["t"] == "in" for item in details["people"][0]["items"])
+    pin_only = original.model_copy(update={"pinned": False})
+    pin_details = plan_api.describe(base, applied, [pin_only], None, Now(date=day, min=480), "auto")
+    assert pin_details["metrics"]["moved"] == 1
+    assert any("（固定）" in line["t"] for line in pin_details["lines"])
+
+
 def test_unknown_does_not_retry_with_larger_horizon(demo):
     snap, now = demo
     with patch.object(cp_model.CpSolver, "solve", return_value=cp_model.UNKNOWN) as mocked:

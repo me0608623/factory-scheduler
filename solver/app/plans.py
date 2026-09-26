@@ -205,7 +205,7 @@ STRATEGIES["leave"] = [s for s in STRATEGIES["fault"]]
 
 # ---------- 前後差異：給人看的 ----------
 def _key(b: Block):
-    return (b.order, b.step, b.date, b.start, b.end, b.machine, b.employee)
+    return (b.order, b.step, b.date, b.start, b.end, b.machine, b.employee, b.qty, b.pinned)
 
 
 def _finish(snap: Snapshot, blocks: list[Block]) -> dict[str, dict]:
@@ -304,7 +304,7 @@ def describe(base: Snapshot, a: Applied, blocks: list[Block], res: Result | None
             continue
         o = orders[oid]
         proc = prods[o.product].steps[k].process if o.product in prods and k < len(prods[o.product].steps) else "未知工序"
-        where = lambda bs: "、".join(f"{mdw(b.date)} {hm(b.start)} {b.machine} {names.get(b.employee, '')}" for b in sorted(bs, key=lambda x: abs_min(x.date, x.start))[:2]) + ("…" if len(bs) > 2 else "")
+        where = lambda bs: "、".join(f"{mdw(b.date)} {hm(b.start)} {b.machine} {names.get(b.employee, '')} {b.qty}件{'（固定）' if b.pinned else ''}" for b in sorted(bs, key=lambda x: abs_min(x.date, x.start))[:2]) + ("…" if len(bs) > 2 else "")
         if not g["old"]:
             lines.append({"k": "info", "t": f"{o.code} {proc}：新排入 {where(g['new'])}"})
         elif not g["new"]:
