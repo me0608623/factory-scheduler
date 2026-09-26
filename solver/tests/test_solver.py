@@ -19,6 +19,7 @@ from app.validate import check
 from .conftest import snapshot_after
 from scripts.benchmark import snapshot_for
 from scripts.stress_batch import case as batch_case
+from scripts.stress_mixed import case as mixed_case
 
 
 def finish_total(snap, blocks):
@@ -776,6 +777,16 @@ def test_rounded_remaining_work_cannot_release_batch_early():
     result = solve(snap, now, PRESETS["on_time"], time_limit=1, days=5, workers=2)
     assert result.status in ("OPTIMAL", "FEASIBLE")
     assert min(block.start for block in result.blocks if block.step == 1) >= 550
+    assert check(snap, result.blocks, now) == []
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_mixed_cross_factory_scenarios_remain_valid(seed):
+    snap, now, pair_cap = mixed_case(seed)
+    result = solve(snap, now, PRESETS["on_time"], days=10,
+                   time_limit=1, workers=2, pair_cap=pair_cap)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert result.unplaced == []
     assert check(snap, result.blocks, now) == []
 
 
