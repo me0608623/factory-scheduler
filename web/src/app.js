@@ -4,7 +4,7 @@ import { toSnapshot, applyOption, newId } from "./convert.js";
 import { ALL_WEEKDAYS, overtimeAllowed, overtimeDefault, overtimeWeekdays } from "./overtime.js";
 import { capacityIntervals as occupiedCapacityIntervals } from "./capacity.js";
 import { FACTORIES, factoryOf, factoryName, inFactory, orderRoute, orderInFactory, compatible } from "./factory.js";
-import { remainingQty, quantityForMinutes } from "./manual.js";
+import { batchReadyMinute, materialFlowIssue, remainingQty, quantityForMinutes } from "./manual.js";
 /* ===== 1. 常數與工具 ===== */
 const COLORS=["#FFE14D","#4CDB6E","#F58CF0","#4FE3EE","#FFA64D","#AFC0FF","#FF9A9A","#BFEA6C"];
 const PROCS=["裁切","沖壓","焊接","組裝","包裝"];
@@ -188,15 +188,7 @@ function manualQty(oid,step,minutes,exceptId=null){
 function readyAbs(oid,k,ex=new Set()){
   if(k===0)return 0;
   const o=order(oid),st=prod(o.pid).steps[k];
-  const prev=S.blocks.filter(b=>b.oid===oid&&b.step===k-1&&!ex.has(b.id)).sort(byAbs);
-  if(!prev.length||sum(prev,b=>b.qty)<o.qty)return Infinity;
-  const batch=st.batch>0&&st.batch<o.qty?st.batch:o.qty;
-  let cum=0;
-  for(const b of prev){
-    if(cum+b.qty>=batch){const t=b.s+Math.ceil((batch-cum)/b.qty*(b.e-b.s)/10)*10;return absOf(b.date,Math.min(t,b.e));}
-    cum+=b.qty;
-  }
-  const L=prev[prev.length-1];return bEnd(L);
+  return batchReadyMinute(o.qty,st.batch,S.blocks,oid,k,absOf,ex);
 }
 function prevEndAbs(oid,k){
   if(k===0)return 0;
@@ -579,7 +571,8 @@ function issuesOf(b,opt={}){
     if(x.m===b.m){if(opt.pushOK&&!x.pin){opt.push++;continue;}out.push(x.pin?"和固定的 "+label(x)+" 重疊":"和 "+label(x)+" 撞同一台機器");break;}}
   if(E&&capacityIntervals(b.date,E,new Set([b.id])).some(([s,e])=>s<b.e&&e>b.s))
     out.push(E.name+" 同時顧機台超過上限 "+(E.maxMachines||1)+" 台");
-  if(b.step>0){const r=readyAbs(b.oid,b.step);if(bAbs(b)<r)out.push("前站還沒做完（"+(isFinite(r)?mdw(dateOfAbs(r))+" "+hm(r%1440)+" 後才能做":"前站未排")+"）");}
+  if(b.step>0){const r=readyAbs(b.oid,b.step);if(bAbs(b)<r)out.push("前站還沒完成交接批量（"+(isFinite(r)?mdw(dateOfAbs(r))+" "+hm(r%1440)+" 後才能做":"前站未排")+"）");
+    if(materialFlowIssue(S.blocks,b.oid,b.step,absOf))out.push("前站累積產量不足，後站不能先做完這些件數");}
   return out;
 }
 /* ===== 6. 畫面 ===== */
