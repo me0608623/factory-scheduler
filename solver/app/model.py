@@ -41,6 +41,19 @@ def dur_of(qty: int, rate: float) -> int:
     return max(10, math.ceil(qty / rate / 10) * 10)
 
 
+def first_free_start(now: int, duration: int, horizon: int,
+                     busy: list[tuple[int, int]]) -> int | None:
+    """在壓縮後的工作時間軸找一段完整空檔；候選搜尋用，不取代 CP-SAT 限制。"""
+    start = math.ceil(now / 10) * 10
+    for occupied_start, occupied_end in busy:
+        if occupied_end <= start:
+            continue
+        if start + duration <= occupied_start:
+            break
+        start = math.ceil(occupied_end / 10) * 10
+    return start if start + duration <= horizon else None
+
+
 @dataclass
 class Op:
     key: tuple[str, int]              # (工單, 第幾站)
@@ -202,16 +215,59 @@ def solve(
                       unplaced + availability, released)
 
     if pair_cap is not None:
+        machine_busy: dict[str, list[tuple[int, int]]] = {mid: [] for mid in machs}
+        employee_busy: dict[str, list[tuple[int, int]]] = {eid: [] for eid in emps}
+
+        def occupy(target: list[tuple[int, int]], start: int, end: int):
+            if end > start:
+                target.append((start, end))
+
+        for machine in snap.machines:
+            for fault in machine.faults:
+                occupy(machine_busy[machine.id], tl.to_t(fault.date, fault.start),
+                       tl.to_t(fault.date, fault.end))
+        for block in fixed:
+            start, end = tl.to_t(block.date, block.start), tl.to_t(block.date, block.end)
+            if block.machine in machine_busy:
+                occupy(machine_busy[block.machine], start, end)
+            if block.employee in employee_busy and emps[block.employee].max_concurrent_machines == 1:
+                occupy(employee_busy[block.employee], start, end)
+        for employee in snap.employees:
+            for day in employee.leaves:
+                span = tl.day_span(day)
+                if span:
+                    employee_busy[employee.id].append(span)
+            for window in tl.wins:
+                if (window.overtime or window.special) and not employee.allows_overtime(window.date):
+                    occupy(employee_busy[employee.id], window.t0, window.t1)
+        pair_busy = {pair: sorted(machine_busy[pair[0]] + employee_busy[pair[1]])
+                     for pair in pairs_used}
+        earliest_cache: dict[tuple[tuple[str, str], int], int | None] = {}
         order_positions = {order.id: index for index, order in enumerate(snap.orders)}
         for op in ops.values():
-            candidates = [pair for pair in op.pairs if pair in available_pairs]
+            earliest = {}
+            for pair in op.pairs:
+                if pair not in available_pairs:
+                    continue
+                cache_key = (pair, op.dur)
+                if cache_key not in earliest_cache:
+                    earliest_cache[cache_key] = first_free_start(t_now, op.dur, H, pair_busy[pair])
+                if earliest_cache[cache_key] is not None:
+                    earliest[pair] = earliest_cache[cache_key]
+            if not earliest:
+                order = orders[op.key[0]]
+                return Result(list(snap.blocks), "NO_AVAILABLE_PAIR", None,
+                              time.time() - t_start, len(ops),
+                              unplaced + [f"{order.code}：受限候選在搜尋期內找不到足夠長的機台與員工空檔"],
+                              released)
+            candidates = list(earliest)
             due_t = tl.end_of_date(orders[op.key[0]].due)
-            on_time = [pair for pair in candidates if first_available[pair] + op.dur <= due_t]
+            on_time = [pair for pair in candidates if earliest[pair] + op.dur <= due_t]
             if on_time:
                 candidates = on_time
             else:
-                earliest = min(first_available[pair] for pair in candidates)
-                candidates = [pair for pair in candidates if first_available[pair] == earliest]
+                first = min(earliest.values())
+                candidates = [pair for pair in candidates if earliest[pair] == first]
             if len(candidates) <= pair_cap:
                 op.pairs = candidates
             else:

@@ -11,7 +11,7 @@ from app import main as api
 from app.main import app
 from app.model import PRESETS, solve
 from app.plans import make_plans
-from app.schemas import Block, Calendar, Employee, Event, Machine, Now, Order, PlanRequest, Product, Snapshot, Step
+from app.schemas import Block, Calendar, Employee, Event, Fault, Machine, Now, Order, PlanRequest, Product, Snapshot, Step
 from app.timeline import Timeline, abs_min
 from app.validate import check
 
@@ -445,6 +445,45 @@ def test_restricted_pairs_skip_long_leave_and_keep_reference():
     assert with_reference.status in ("OPTIMAL", "FEASIBLE")
     assert {block.machine for block in with_reference.blocks} == {"m1"}
     assert check(snap, with_reference.blocks, now) == []
+
+
+def test_restricted_pair_needs_complete_gap_before_due():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="m0", process="cut", products=["p"],
+                          faults=[Fault(date="2026-09-28", start=480, end=660)]),
+                  Machine(id="m1", process="cut", products=["p"])],
+        employees=[Employee(id="e0", name="A", skills=["m0"]),
+                   Employee(id="e1", name="B", skills=["m1"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=2)])],
+        orders=[Order(id="o", code="O", product="p", qty=840, due="2026-09-28")],
+    )
+    now = Now(date="2026-09-28", min=480)
+    result = solve(snap, now, PRESETS["on_time"], pair_cap=1, time_limit=1)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert {block.machine for block in result.blocks} == {"m1"}
+    assert all(block.date == "2026-09-28" for block in result.blocks)
+    assert check(snap, result.blocks, now) == []
+
+
+def test_restricted_pair_respects_fixed_machine_work():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="m0", process="cut", products=["p"]),
+                  Machine(id="m1", process="cut", products=["p"])],
+        employees=[Employee(id="e0", name="A", skills=["m0"]),
+                   Employee(id="e1", name="B", skills=["m1"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=2)])],
+        orders=[Order(id="fixed", code="F", product="p", qty=480, due="2026-09-28"),
+                Order(id="new", code="N", product="p", qty=840, due="2026-09-28")],
+        blocks=[Block(order="fixed", step=0, machine="m0", employee="e0",
+                      date="2026-09-28", start=480, end=720, qty=480, pinned=True)],
+    )
+    now = Now(date="2026-09-28", min=480)
+    result = solve(snap, now, PRESETS["on_time"], pair_cap=1, time_limit=1)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert {block.machine for block in result.blocks if block.order == "new"} == {"m1"}
+    assert check(snap, result.blocks, now) == []
 
 
 def test_only_one_plan_computation_per_service_process(demo, monkeypatch):
