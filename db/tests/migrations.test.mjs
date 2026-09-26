@@ -414,6 +414,13 @@ await as(LEAD, () => expectErr("select save_blocks(13,$1,'過時快照含結案�
 ok((await db.query("select version::int n from schedule_state")).rows[0].n === 13 &&
   (await db.query("select count(*)::int n from schedule_blocks where order_id=$1", [closedOrder])).rows[0].n === 2,
   "結案方塊寫入被拒後，版本及歷史皆不變");
+const reusedClosedId = currentHistory.map(block => block.order_id === historicalOrder && block.date === "2026-10-07"
+  ? { ...block, id: closedRow.id } : block);
+await as(LEAD, () => expectErr("select save_blocks(13,$1,'重用結案方塊 ID')",
+  [JSON.stringify(reusedClosedId)], /只能修改未結案工單/, "未結案工單不能重用已結案歷史方塊的 ID"));
+ok((await db.query("select version::int n from schedule_state")).rows[0].n === 13 &&
+  (await db.query("select count(*)::int n from schedule_blocks where order_id=$1", [closedOrder])).rows[0].n === 2,
+  "重用結案 ID 被拒後，版本及歷史皆不變");
 
 console.log(`\n通過 ${pass}，失敗 ${fail}`);
 process.exit(fail ? 1 : 0);
