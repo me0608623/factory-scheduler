@@ -971,7 +971,7 @@ async function openLegacyHistory(preferredId){
     const archive=archives.find(a=>a.id===preferredId)||archives[0]||null;
     const legacy=archive?await STORE.getLegacyArchive(archive.id):null;
     if(UI.modal?.t!=="legacy-history")return;
-    UI.modal={t:"legacy-history",archives,archive,legacy,date:legacy?.selectedDate||legacy?.dates.at(-1)||"",factory:"全部"};
+    UI.modal={t:"legacy-history",archives,archive,legacy,date:legacy?.selectedDate||legacy?.dates.at(-1)||"",factory:"全部",section:"day"};
     renderModal();
   }catch(e){if(UI.modal?.t==="legacy-history"){UI.modal={t:"legacy-history",error:e.message};renderModal();}}
 }
@@ -982,7 +982,7 @@ async function changeLegacyHistorySource(id){
     const archive=m.archives.find(a=>a.id===id);
     const legacy=archive?await STORE.getLegacyArchive(archive.id):null;
     if(UI.modal!==m)return;
-    Object.assign(m,{loading:false,archive,legacy,date:legacy?.selectedDate||legacy?.dates.at(-1)||"",factory:"全部"});
+    Object.assign(m,{loading:false,archive,legacy,date:legacy?.selectedDate||legacy?.dates.at(-1)||"",factory:"全部",section:"day"});
   }catch(e){m.loading=false;m.error=e.message;}
   if(UI.modal===m)renderModal();
 }
@@ -1017,6 +1017,13 @@ function legacyFactoryHTML(day,factory){
   return '<div class="field"><span class="lab">'+factory+' · '+entries.length+' 格'+(day?.overtime?.[factory]?' · 原表標示加班':'')+'</span>'+
     (notes.length?'<div class="hint">日期欄：'+notes.map(x=>esc(x.value)).join('、')+'</div>':'')+
     (entries.length?'<div class="result">'+entries.map(item=>'<div class="rline"><span class="k info">'+esc(item.cell)+'</span><span style="white-space:pre-wrap">'+esc(item.machine)+(item.operator?' · '+esc(item.operator):'')+'：'+esc(item.value)+'</span></div>').join('')+'</div>':'<div class="hint">這天原表沒有內容</div>')+'</div>';
+}
+function legacyCatalogHTML(catalog,factory){
+  const c=catalog?.[factory];
+  if(!c)return '<div class="hint">這份歷史檔尚無製作項目名冊，需重新匯入原檔。</div>';
+  const group=(title,items)=>'<div class="field"><span class="lab">'+factory+' · '+title+'（'+(items||[]).length+'）</span>'+
+    ((items||[]).length?'<div class="result">'+items.map(x=>'<div class="rline"><span class="k info">'+esc(x.cell)+'</span><span>'+esc(x.label)+(x.note?'<small class="hint"> · '+esc(x.note)+'</small>':'')+'</span></div>').join('')+'</div>':'<div class="hint">原表沒有明確欄名</div>')+'</div>';
+  return group('製作站別／機台欄名',c.stations)+group('員工／人名候選',c.people)+group('原表人力備註',c.notes);
 }
 
 const MODALS={
@@ -1247,10 +1254,11 @@ export(){
   const source=names.length>1?'<div class="field"><span class="lab">來源檔案</span><select id="history-source" aria-label="來源檔案">'+names.map(x=>'<option value="'+esc(x.id)+'"'+(x.id===m.archive.id?' selected':'')+'>'+esc(x.source_name)+'</option>').join('')+'</select></div>':'';
   const dates='<div class="field"><span class="lab">日期</span><select id="history-date" aria-label="歷史日期">'+(legacy?.dates||[]).map(d=>'<option value="'+esc(d)+'"'+(d===m.date?' selected':'')+'>'+esc(d)+'</option>').join('')+'</select></div>';
   const factories='<div class="seg" role="group" aria-label="廠別">'+['全部','1廠','2廠'].map(x=>'<button data-act="history-factory" data-v="'+x+'" aria-pressed="'+(m.factory===x)+'">'+x+'</button>').join('')+'</div>';
+  const sections='<div class="seg" role="group" aria-label="歷史資料類型">'+[['day','每日安排'],['catalog','製作項目與人員']].map(([v,t])=>'<button data-act="history-section" data-v="'+v+'" aria-pressed="'+(m.section===v)+'">'+t+'</button>').join('')+'</div>';
   return {title:'歷史排程 · '+esc(m.archive.source_name),body:
-    '<div class="hint">原檔日期 '+esc(m.archive.date_from)+'～'+esc(m.archive.date_to)+'。僅供查閱，不影響目前排程。</div>'+source+dates+factories+
-    (m.factory==='全部'||m.factory==='1廠'?legacyFactoryHTML(day,'1廠'):'')+
-    (m.factory==='全部'||m.factory==='2廠'?legacyFactoryHTML(day,'2廠'):''),
+    '<div class="hint">原檔日期 '+esc(m.archive.date_from)+'～'+esc(m.archive.date_to)+'。原檔名冊尚待確認，不影響目前排程。</div>'+source+sections+(m.section==='catalog'?'':dates)+factories+
+    (m.factory==='全部'||m.factory==='1廠'?(m.section==='catalog'?legacyCatalogHTML(legacy?.catalog,'1廠'):legacyFactoryHTML(day,'1廠')):'')+
+    (m.factory==='全部'||m.factory==='2廠'?(m.section==='catalog'?legacyCatalogHTML(legacy?.catalog,'2廠'):legacyFactoryHTML(day,'2廠')):''),
     foot:'<button class="btn" data-act="close">關閉</button>'};
 }
 };
@@ -1834,7 +1842,8 @@ Object.assign(MODAL_ACT,{
       await openLegacyHistory(saved.id);
     }catch(e){if(UI.modal===m){m.saving=false;m.error=e.message;renderModal();}}
   },
-  "history-factory":a=>{if(UI.modal?.t==="legacy-history"){UI.modal.factory=a.dataset.v;renderModal();}}
+  "history-factory":a=>{if(UI.modal?.t==="legacy-history"){UI.modal.factory=a.dataset.v;renderModal();}},
+  "history-section":a=>{if(UI.modal?.t==="legacy-history"){UI.modal.section=a.dataset.v;renderModal();}}
 });
 document.addEventListener("change",async e=>{
   if(e.target.id==="legacy-date"&&UI.modal?.t==="legacy-preview"){

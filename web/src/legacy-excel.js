@@ -58,6 +58,36 @@ function colName(n) {
   for (; n; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + (n - 1) % 26) + s;
   return s;
 }
+const headerText = value => String(value ?? "").replace(/\s+/g, " ").trim();
+export function legacyCatalog(first, second) {
+  const catalog = { "1廠": { stations: [], people: [], notes: [] }, "2廠": { stations: [], people: [], notes: [] } };
+  const add = (factory, kind, col, row, label, note = "") => {
+    const name = headerText(label);
+    if (name) catalog[factory][kind].push({ cell: `${col}${row}`, label: name, ...(note ? { note } : {}) });
+  };
+  const oneHead = first.get(2) || new Map();
+  for (let n = 2; n <= 27; n++) add("1廠", "stations", colName(n), 2, oneHead.get(colName(n)));
+  for (let n = 28; n <= 31; n++) add("1廠", "people", colName(n), 2, oneHead.get(colName(n)), "原表以人名作欄名；是否仍在職、會操作哪些設備待確認");
+  const oneTop = first.get(1) || new Map();
+  for (const col of ["A", "J", "Q", "AB"]) add("1廠", "notes", col, 1, oneTop.get(col));
+
+  const twoPeople = second.get(2) || new Map();
+  const twoHead = second.get(3) || new Map();
+  const twoSide = second.get(4) || new Map();
+  let machine = "";
+  for (let n = 2; n <= 27; n++) {
+    const col = colName(n);
+    machine = headerText(twoHead.get(col)) || machine;
+    const side = headerText(twoSide.get(col));
+    if (twoHead.get(col) || side) add("2廠", "stations", col, 3, machine + (side ? `（${side}）` : ""));
+    add("2廠", "people", col, 2, twoPeople.get(col), machine ? `原表標在 ${machine} 上方；技能與目前是否在職待確認` : "是否在職待確認");
+  }
+  add("2廠", "stations", "AC", 2, "包裝");
+  add("2廠", "people", "AC", 2, twoPeople.get("AC"), "原表為包裝組合欄，需確認實際人員");
+  const twoTop = second.get(1) || new Map();
+  for (const col of ["A", "B", "N", "AC"]) add("2廠", "notes", col, 1, twoTop.get(col));
+  return catalog;
+}
 function factoryDays(rows, factory, days) {
   const headers = rows.get(factory === "1廠" ? 2 : 3) || new Map();
   const upper = rows.get(2) || new Map();
@@ -115,14 +145,16 @@ export async function readLegacyXlsx(arrayBuffer, filename = "") {
   });
   const strings = zip.file("xl/sharedStrings.xml") ? sharedStrings(await safeXml(zip, "xl/sharedStrings.xml")) : [];
   const days = {};
+  const sourceRows = {};
   for (const factory of ["1廠", "2廠"]) {
     const target = targets.get(sheets.get(factory));
     if (!target || target.includes("..")) throw new Error(`找不到「${factory}」工作表`);
     const path = target.startsWith("/") ? target.slice(1) : `xl/${target}`;
-    factoryDays(sheetCells(await safeXml(zip, path), strings), factory, days);
+    sourceRows[factory] = sheetCells(await safeXml(zip, path), strings);
+    factoryDays(sourceRows[factory], factory, days);
   }
   const dates = Object.keys(days).sort();
   const match = /(?:^|\D)(\d{1,2})(\d{2})(?:\D|$)/.exec(filename);
   const hinted = match && dates.find(d => +d.slice(5, 7) === +match[1] && +d.slice(8, 10) === +match[2]);
-  return { dates, days, selectedDate: hinted || dates.at(-1) || "" };
+  return { dates, days, catalog: legacyCatalog(sourceRows["1廠"], sourceRows["2廠"]), selectedDate: hinted || dates.at(-1) || "" };
 }

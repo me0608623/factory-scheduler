@@ -61,12 +61,15 @@ await as(LEAD, async () => {
 });
 
 console.log("舊版排程歷史資料");
-const archiveHash = "a".repeat(64);
+const archiveHash = "0f118c081f872fc05f08e699f91582799fe98077fdbeb62e0ad0b7e0c9e6c913";
 await as(LEAD, async () => {
   const r = await db.query("insert into legacy_schedule_archives (source_name,source_sha256,date_from,date_to,payload) values ('排程1023.xlsx',$1,'2024-06-19','2024-11-02',$2::jsonb) returning id,imported_by", [archiveHash, JSON.stringify({ dates: ["2024-10-23"], days: { "2024-10-23": { "1廠": [{ cell: "B788", value: "A040*2400" }], "2廠": [] } } })]);
   ok(r.rows.length === 1 && r.rows[0].imported_by === LEAD, "組長可存入獨立的歷史排程");
   await expectErr("insert into legacy_schedule_archives (source_name,source_sha256,date_from,date_to,payload) values ('重複',$1,'2024-06-19','2024-11-02','{}')", [archiveHash], /duplicate key|unique constraint/, "相同來源不能重複匯入");
 });
+await db.exec(fs.readFileSync(path.join(ROOT, "migrations", "0013_legacy_catalog.sql"), "utf8"));
+const catalog = (await as(LEAD, () => db.query("select payload->'catalog' as catalog from legacy_schedule_archives where source_sha256=$1", [archiveHash]))).rows[0].catalog;
+ok(catalog?.["1廠"]?.stations?.length === 24 && catalog?.["2廠"]?.people?.length === 13, "原檔製作項目與人名候選存進歷史名冊，不更動正式基本資料");
 await as(TV, async () => {
   const n = (await db.query("select count(*)::int n from legacy_schedule_archives")).rows[0].n;
   ok(n === 0, "唯讀電視帳號看不到歷史原表");
