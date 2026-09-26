@@ -107,7 +107,9 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
                         due_base_days, leave_days, fault_days, heterogeneous, transfer_batch)
     now = Now(date="2026-09-28", min=480)
     affected = None
+    prefill_seconds = 0.0
     if prefill:
+        prefill_started = time.monotonic()
         initial = solve(snap, now, PRESETS["on_time"], time_limit=max(10, time_limit), workers=workers)
         if initial.status not in ("OPTIMAL", "FEASIBLE") or check(snap, initial.blocks, now):
             print(json.dumps({"prefill_status": initial.status,
@@ -117,6 +119,7 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
                        for index, block in enumerate(initial.blocks)]
         affected = min(snap.blocks, key=lambda block: abs_min(block.date, block.start))
         now = Now(date=affected.date, min=affected.start)
+        prefill_seconds = round(time.monotonic() - prefill_started, 2)
     selected_event = (Event(type="fault", machine=affected.machine if affected else snap.machines[0].id,
                             date=now.date, start=now.min, end=min(1020, now.min + 120)) if event == "fault" else
                       Event(type="leave", employee=affected.employee if affected else snap.employees[0].id,
@@ -142,6 +145,7 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
         gzip_seconds = time.monotonic() - compressed_started
         print(json.dumps({"event": event, "option": option, "workers": workers,
                           "prefill": prefill, "prefill_blocks": len(snap.blocks),
+                          "prefill_seconds": prefill_seconds,
                           "event_day": now.date,
                           "response_bytes": response_bytes,
                           "serialization_seconds": round(serialization_seconds, 3),
