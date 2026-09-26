@@ -95,7 +95,7 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
              due_base_days: int = 10, leave_days: int = 0, fault_days: int = 0,
              heterogeneous: bool = False, workers: int = 8, transfer_batch: int = 0,
              details: bool = False, event: str = "auto", option: str | None = None,
-             extra_overtime: bool = False):
+             extra_overtime: bool = False, prefill: bool = False):
     from app.model import PRESETS, solve
     from app.plans import STRATEGIES, apply_event, make_plans
     from app.schemas import Event, Now, PlanRequest
@@ -105,9 +105,21 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
     snap = snapshot_for(machines, employees, orders, cross_factory,
                         due_base_days, leave_days, fault_days, heterogeneous, transfer_batch)
     now = Now(date="2026-09-28", min=480)
-    selected_event = (Event(type="fault", machine=snap.machines[0].id, date=now.date,
-                            start=480, end=720) if event == "fault" else
-                      Event(type="leave", employee=snap.employees[0].id, date=now.date)
+    affected = None
+    if prefill:
+        initial = solve(snap, now, PRESETS["on_time"], time_limit=max(10, time_limit), workers=workers)
+        if initial.status not in ("OPTIMAL", "FEASIBLE") or check(snap, initial.blocks, now):
+            print(json.dumps({"prefill_status": initial.status,
+                              "diagnostics": initial.unplaced[:2]}, ensure_ascii=False), flush=True)
+            return
+        snap.blocks = [block.model_copy(update={"id": f"seed-{index}"})
+                       for index, block in enumerate(initial.blocks)]
+        affected = min(snap.blocks, key=lambda block: abs_min(block.date, block.start))
+        now = Now(date=affected.date, min=affected.start)
+    selected_event = (Event(type="fault", machine=affected.machine if affected else snap.machines[0].id,
+                            date=now.date, start=now.min, end=min(1020, now.min + 120)) if event == "fault" else
+                      Event(type="leave", employee=affected.employee if affected else snap.employees[0].id,
+                            date=now.date)
                       if event == "leave" else Event(type="auto"))
     if plans:
         os.environ["SOLVER_MAX_WORKERS"] = str(workers)
@@ -121,9 +133,14 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
         finally:
             STRATEGIES[event] = original
         print(json.dumps({"event": event, "option": option, "workers": workers,
+                          "prefill": prefill, "prefill_blocks": len(snap.blocks),
+                          "event_day": now.date,
+                          "affected_machine": affected.machine if affected and event == "fault" else None,
+                          "affected_employee": affected.employee if affected and event == "leave" else None,
                           "options": [{"id": option["id"], "status": option["status"],
                                         "applicable": option["applicable"],
                                         "late_orders": len(option["metrics"]["late"]) if option["applicable"] else None,
+                                        "moved_blocks": option["metrics"]["moved"],
                                         "diagnostics": option["diagnostics"][:2] if not option["applicable"] else [],
                                         "score": option["score"],
                                         "solver_method": option["solver_method"],
@@ -204,6 +221,8 @@ def main():
                         help="run one synthetic size through the memory-capped parent")
     parser.add_argument("--cross-factory", action="store_true")
     parser.add_argument("--plans", action="store_true")
+    parser.add_argument("--prefill", action="store_true",
+                        help="first solve and ID existing work, then inject an event on its first workday")
     parser.add_argument("--event", choices=("auto", "fault", "leave"), default="auto",
                         help="event to exercise with --plans")
     parser.add_argument("--option", choices=("A", "B", "C", "D"),
@@ -230,6 +249,8 @@ def main():
         parser.error("time limit must be 0-60 seconds and memory limit 100-4096 MB")
     if args.option and not args.plans:
         parser.error("--option requires --plans")
+    if args.prefill and not args.plans:
+        parser.error("--prefill requires --plans")
     if args.case:
         run_case(*args.case, cross_factory=args.cross_factory,
                  time_limit=args.time_limit, plans=args.plans, pair_cap=args.pair_cap,
@@ -237,7 +258,7 @@ def main():
                  fault_days=args.fault_days, heterogeneous=args.heterogeneous,
                  workers=args.workers, transfer_batch=args.transfer_batch,
                  details=args.details, event=args.event, option=args.option,
-                 extra_overtime=args.extra_overtime)
+                 extra_overtime=args.extra_overtime, prefill=args.prefill)
         return
     cases = ([(*args.sized_case, args.cross_factory)] if args.sized_case else
              [(5, 10, 10, False), (10, 20, 30, False), (10, 20, 30, True),
@@ -251,6 +272,8 @@ def main():
             command.append("--cross-factory")
         if args.plans:
             command.append("--plans")
+        if args.prefill:
+            command.append("--prefill")
         command.extend(("--event", args.event))
         if args.option:
             command.extend(("--option", args.option))
@@ -273,7 +296,8 @@ def main():
         memory_limited = False
         # 多方案在大模型上逐案求解；外層保護時限需涵蓋所有策略，不能在
         # 每案合法的 10 秒預算下提早殺掉整個預覽程序。
-        parent_limit = max(30, args.time_limit * (4 if args.plans else 1) + 30)
+        parent_limit = max(30, args.time_limit * (4 if args.plans else 1) + 30
+                           + (max(10, args.time_limit) + 20 if args.prefill else 0))
         while proc.poll() is None and time.monotonic() - started < parent_limit:
             peak = max(peak, rss_bytes(proc.pid) or 0)
             if peak >= args.memory_limit_mb * 1048576:
@@ -289,6 +313,7 @@ def main():
         print(json.dumps({"machines": machines, "employees": employees, "orders": orders,
                           "cross_factory": cross_factory,
                           "plans": args.plans,
+                          "prefill": args.prefill,
                           "event": args.event,
                           "option": args.option,
                           "extra_overtime": args.extra_overtime,
