@@ -356,17 +356,16 @@ def make_plans(req: PlanRequest) -> dict:
     for st, res, blocks in results:
         d = describe(base, a, blocks, res, now, req.event.type)
         diagnostics = list(res.unplaced) if res else []
+        overtime_days = st.overtime(a, now) if st.preset else set()
         missing_products = [o for o in a.snap.orders if o.product not in {p.id for p in a.snap.products}]
         if missing_products:
             diagnostics.extend(f"{o.code}：找不到產品資料；請先建立產品與工序" for o in missing_products)
         else:
-            diagnostics.extend(check(a.snap, blocks, now)[:5])
+            diagnostics.extend(check(a.snap, blocks, now, overtime_days)[:5])
         applicable = (res is None or res.status in ("OPTIMAL", "FEASIBLE")) and not diagnostics
         eff = copy.deepcopy(a.effects)
-        if st.preset:
-            ot = sorted(st.overtime(a, now))
-            if ot:
-                eff["overtime_on"] = ot
+        if overtime_days:
+            eff["overtime_on"] = sorted(overtime_days)
         if "faults_insert" in eff:          # 記住故障前的位置，恢復時「搬回原位」用
             eff["faults_insert"][0]["original_blocks"] = [g for g in d.pop("gone") if abs_min(g["date"], g["end_min"]) > now_abs]
         else:

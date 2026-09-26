@@ -241,7 +241,7 @@ def solve(
                           extra_overtime=extra_overtime, time_limit=time_limit,
                           days=days, workers=workers, pair_cap=draft_pair_cap)
         if (candidate.status in ("OPTIMAL", "FEASIBLE") and not candidate.unplaced
-                and not check(snap, candidate.blocks, now)):
+                and not check(snap, candidate.blocks, now, extra_overtime)):
             candidate.status = "FEASIBLE"
             early_draft = candidate
             finish_dates: dict[str, str] = {}
@@ -523,7 +523,7 @@ def solve(
                       extra_overtime=extra_overtime, time_limit=min(1.0, time_limit),
                       days=days, workers=workers, pair_cap=1)
         if (draft.status not in ("OPTIMAL", "FEASIBLE") or draft.unplaced
-                or check(snap, draft.blocks, now)):
+                or check(snap, draft.blocks, now, extra_overtime)):
             return None
         draft.status = "FEASIBLE"  # 受限候選的最優，不代表完整問題的最優
         draft.wall = time.time() - t_start
@@ -586,7 +586,7 @@ def solve(
         # CP-SAT 只看到可建模的工序；其最優不等於整張排程已完成。
         return Result(out, "INCOMPLETE", None, time.time() - t_start, len(ops),
                       unplaced, released, search_mode, pair_cap)
-    issues = check(snap, out, now)
+    issues = check(snap, out, now, extra_overtime)
     if issues:
         # 固定方塊可能本來就互相矛盾（例如跨廠前後站顛倒）。
         # 即使 CP-SAT 的子模型可行，也不能對外宣稱整份排程有效。

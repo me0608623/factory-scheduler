@@ -430,6 +430,12 @@ def test_fault_plans(demo):
     a, d = plan["options"][0], plan["options"][3]
     assert a["metrics"]["moved"] <= d["metrics"]["moved"], "少動為主應該比準時優先動得少"
     assert plan["options"][2]["effects"]["overtime_on"] == ["2026-09-28"]
+    assert plan["options"][2]["applicable"], "加班方案應按方案中的加班日驗證，不應誤判為下班工作"
+    assert any(b["date"] == "2026-09-28" and b["start_min"] >= 1020 for b in plan["options"][2]["blocks"]), "此案例須真的使用加班時段"
+    fault_snap = plan_api.apply_event(snap, ev, now).snap
+    overtime_blocks = [plan_api.from_db(b) for b in plan["options"][2]["blocks"]]
+    assert any("不在上班時段內" in issue for issue in check(fault_snap, overtime_blocks, now))
+    assert check(fault_snap, overtime_blocks, now, {"2026-09-28"}) == []
 
 
 def test_leave_plans_move_work_off_the_person(demo):

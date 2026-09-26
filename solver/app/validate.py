@@ -8,7 +8,8 @@ from .material import batch_ready, produced_at
 from .timeline import Timeline, abs_min
 
 
-def check(snap: Snapshot, blocks: list[Block], now: Now | None = None) -> list[str]:
+def check(snap: Snapshot, blocks: list[Block], now: Now | None = None,
+          extra_overtime: frozenset[str] | set[str] = frozenset()) -> list[str]:
     issues: list[str] = []
     orders = {o.id: o for o in snap.orders}
     prods = {p.id: p for p in snap.products}
@@ -46,7 +47,7 @@ def check(snap: Snapshot, blocks: list[Block], now: Now | None = None) -> list[s
             issues.append(f"{name(b)}：機台不能做這道工序")
         is_new = now_abs is None or abs_min(b.date, b.start) >= now_abs
         if b.date not in days:
-            days[b.date] = Timeline(snap.calendar, b.date, 1)
+            days[b.date] = Timeline(snap.calendar, b.date, 1, extra_overtime)
         w = days[b.date].window_of(b.date, b.start, b.end)
         if is_new and not w:
             issues.append(f"{name(b)}：不在上班時段內")

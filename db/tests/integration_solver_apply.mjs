@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const solver = path.resolve(root, "../solver");
+const preferredOption = process.argv[2] || "A";
+if (!["A", "B", "C", "D"].includes(preferredOption)) throw new Error(`Unknown strategy ${preferredOption}`);
 const db = new PGlite();
 await db.exec(`
   create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls;
@@ -50,8 +52,10 @@ try {
   async function planAndApply(event) {
     const snapshot = await readSnapshot();
     const plan = solverCall({ snapshot, event, now, time_limit: 3 });
-    const option = plan.options.find(item => item.applicable && item.solver_method !== "keep");
-    if (!option) throw new Error(`${event.type}: no applicable OR-Tools option: ${JSON.stringify(plan.options.map(o => ({ id: o.id, status: o.status, diagnostics: o.diagnostics })))}`);
+    const target = event.type === "auto" && ["C", "D"].includes(preferredOption) ? "A"
+      : event.type === "recover" && preferredOption === "D" ? "C" : preferredOption;
+    const option = plan.options.find(item => item.id === target && item.applicable && item.solver_method !== "keep");
+    if (!option) throw new Error(`${event.type}: option ${target} unavailable: ${JSON.stringify(plan.options.map(o => ({ id: o.id, status: o.status, applicable: o.applicable, diagnostics: o.diagnostics })))}`);
     const preview = (await db.query(`insert into plan_previews (kind,title,event,base_version,options)
       values ($1,$2,$3::jsonb,$4,$5::jsonb) returning id`,
     [plan.kind, plan.title, JSON.stringify(plan.event), plan.base_version, JSON.stringify(plan.options)])).rows[0].id;
@@ -84,10 +88,12 @@ try {
     (select count(*)::int from machine_faults where id=$1) as remaining_faults,
     (select count(*)::int from leaves where employee_id=$2 and date='2026-09-30') as leaves,
     (select count(*)::int from orders where code='Z07' and qty=80) as rush_orders,
+    (select count(*)::int from calendar_days where overtime) as overtime_days,
     (select count(*)::int from change_sets) as changes`,
   [fault.effects.faults_insert[0].id, "00000000-0000-4000-8000-0000000000e3"])).rows[0];
   if (version !== outcomes.length || counts.blocks < 21 || counts.second_factory < 7 || earlyTransfers < 1 ||
-      effects.remaining_faults !== 0 || effects.leaves !== 1 || effects.rush_orders !== 1 || effects.changes !== 5) {
+      effects.remaining_faults !== 0 || effects.leaves !== 1 || effects.rush_orders !== 1 || effects.changes !== 5 ||
+      (preferredOption === "C" && effects.overtime_days < 1)) {
     throw new Error(JSON.stringify({ version, counts, effects, outcomes }));
   }
   console.log(JSON.stringify({ version, second_factory_blocks: counts.second_factory, earlyTransfers, effects, outcomes }));
