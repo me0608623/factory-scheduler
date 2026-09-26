@@ -37,11 +37,15 @@ for (const count of sizes) {
       from generate_series(1, $2) n
     on conflict (code) do update set qty = excluded.qty
     returning id`, [product, count])).rows;
-  const blocks = orders.flatMap(({ id }) => [
-    { order_id: id, step_seq: 0, machine_id: "a", date: "2026-10-05", start_min: 480, end_min: 540, qty: 120 },
-    { order_id: id, step_seq: 1, machine_id: "c", date: "2026-10-05", start_min: 540, end_min: 580, qty: 120 },
-    { order_id: id, step_seq: 2, machine_id: "e", date: "2026-10-05", start_min: 580, end_min: 610, qty: 120 },
-  ]);
+  const blocks = orders.flatMap(({ id }, index) => {
+    // 每張工單分到不同日期，避免合成測試本身造成機台衝突。
+    const date = new Date(Date.UTC(2026, 9, 5 + index)).toISOString().slice(0, 10);
+    return [
+      { order_id: id, step_seq: 0, machine_id: "a", date, start_min: 480, end_min: 540, qty: 120 },
+      { order_id: id, step_seq: 1, machine_id: "c", date, start_min: 540, end_min: 580, qty: 120 },
+      { order_id: id, step_seq: 2, machine_id: "e", date, start_min: 580, end_min: 610, qty: 120 },
+    ];
+  });
   const start = performance.now();
   await db.query("select _assert_manual_material_flow($1::jsonb)", [JSON.stringify(blocks)]);
   const fullMs = Math.round(performance.now() - start);

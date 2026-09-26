@@ -189,6 +189,14 @@ const anotherOrder = (await db.query("insert into orders (code, product_id, qty,
 const movedOrder = [{ ...partialBatch[0], order_id: anotherOrder }, partialBatch[1]];
 await as(LEAD, () => expectErr("select save_blocks(4, $1, '換工單')", [JSON.stringify(movedOrder)], /交接批量/, "方塊改屬其他工單時，舊工單也會重驗"));
 ok((await db.query("select version::int v from schedule_state")).rows[0].v === 4, "刪除與換工單被拒絕後版本保持不變");
+const machineClash = [...partialBatch,
+  { ...partialBatch[0], id: null, order_id: anotherOrder, qty: 30, start_min: 500, end_min: 550 }];
+await as(LEAD, () => expectErr("select save_blocks(4, $1, '重疊機台')", [JSON.stringify(machineClash)], /機台.*重疊/, "RPC 不接受同一機台同時排兩段工作"));
+const employeeOverload = [...partialBatch,
+  { ...partialBatch[0], id: null, order_id: anotherOrder, machine_id: "b", qty: 30, start_min: 500, end_min: 550 },
+  { ...partialBatch[0], id: null, order_id: anotherOrder, machine_id: "d", qty: 30, start_min: 500, end_min: 550 }];
+await as(LEAD, () => expectErr("select save_blocks(4, $1, '超出顧機台上限')", [JSON.stringify(employeeOverload)], /同時顧機台數超過上限/, "RPC 不接受員工同時顧超過設定台數"));
+ok((await db.query("select version::int v from schedule_state")).rows[0].v === 4, "資源衝突被拒後版本保持不變");
 
 await as(LEAD, () => expectErr("select _apply_blocks('[]'::jsonb)", [], /permission denied/, "前端不能直接呼叫內部函式"));
 

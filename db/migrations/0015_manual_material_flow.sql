@@ -63,6 +63,59 @@ begin
   end if;
 end $$;
 
+-- 只檢查此次異動工單涉及的資源，但與完整新排程的所有方塊比較。
+create function _assert_manual_resources(p_blocks jsonb, p_order_ids uuid[]) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  bad_machine text;
+  bad_employee uuid;
+begin
+  with b as (
+    select x.position, (x.value ->> 'order_id')::uuid as order_id,
+           x.value ->> 'machine_id' as machine_id,
+           (x.value ->> 'employee_id')::uuid as employee_id,
+           (x.value ->> 'date')::date as work_date,
+           (x.value ->> 'start_min')::integer as start_min,
+           (x.value ->> 'end_min')::integer as end_min
+      from jsonb_array_elements(coalesce(p_blocks, '[]'::jsonb)) with ordinality as x(value, position)
+  )
+  select a.machine_id into bad_machine
+    from b a join b other on other.position <> a.position
+     and other.machine_id = a.machine_id and other.work_date = a.work_date
+     and other.start_min < a.end_min and other.end_min > a.start_min
+   where a.order_id = any(p_order_ids) limit 1;
+  if found then
+    raise exception '機台 % 同一時段有重疊工作', bad_machine;
+  end if;
+
+  with b as (
+    select (x.value ->> 'order_id')::uuid as order_id,
+           x.value ->> 'machine_id' as machine_id,
+           (x.value ->> 'employee_id')::uuid as employee_id,
+           (x.value ->> 'date')::date as work_date,
+           (x.value ->> 'start_min')::integer as start_min,
+           (x.value ->> 'end_min')::integer as end_min
+      from jsonb_array_elements(coalesce(p_blocks, '[]'::jsonb)) as x(value)
+  ), touched as (
+    select distinct employee_id from b
+     where order_id = any(p_order_ids) and employee_id is not null
+  ), starts as (
+    select distinct b.employee_id, b.work_date, b.start_min as minute
+      from b join touched using (employee_id)
+  )
+  select s.employee_id into bad_employee
+    from starts s
+    join b work on work.employee_id = s.employee_id and work.work_date = s.work_date
+               and work.start_min <= s.minute and work.end_min > s.minute
+    join employees e on e.id = s.employee_id
+   group by s.employee_id, s.work_date, s.minute, e.max_concurrent_machines
+  having count(distinct work.machine_id) > e.max_concurrent_machines
+   limit 1;
+  if found then
+    raise exception '員工 % 同時顧機台數超過上限', bad_employee;
+  end if;
+end $$;
+
 create or replace function save_blocks(p_base_version bigint, p_blocks jsonb, p_title text,
                             p_detail jsonb default '{}', p_kind text default 'move')
 returns uuid language plpgsql security definer set search_path = public as $$
@@ -97,6 +150,7 @@ begin
           union select old_order from changed where old_order is not null) x;
   if changed_orders is not null then
     perform _assert_manual_material_flow(p_blocks, changed_orders);
+    perform _assert_manual_resources(p_blocks, changed_orders);
   end if;
   perform set_config('app.change_set_id', cs::text, true);
   insert into change_sets (id, kind, title, summary, detail, version_before, version_after)
@@ -107,3 +161,4 @@ begin
 end $$;
 
 revoke all on function _assert_manual_material_flow(jsonb, uuid[]) from public, anon, authenticated;
+revoke all on function _assert_manual_resources(jsonb, uuid[]) from public, anon, authenticated;
