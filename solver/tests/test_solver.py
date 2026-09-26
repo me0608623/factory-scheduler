@@ -276,6 +276,34 @@ def test_step_rate_must_be_positive():
         Step(process="裁切", rate=0)
 
 
+def test_solver_snapshot_rejects_invalid_quantities_and_priority():
+    with pytest.raises(ValidationError):
+        Step(process="裁切", rate=1, batch=-1)
+    with pytest.raises(ValidationError):
+        Order(id="o", code="O", product="p", qty=0, due="2026-09-28")
+    with pytest.raises(ValidationError):
+        Order(id="o", code="O", product="p", qty=1, due="2026-09-28", priority=4)
+    with pytest.raises(ValidationError):
+        Block(order="o", step=0, machine="m", employee="e", date="2026-09-28",
+              start=480, end=540, qty=0)
+    with pytest.raises(ValidationError):
+        Block(order="o", step=-1, machine="m", employee="e", date="2026-09-28",
+              start=480, end=540, qty=1)
+    with pytest.raises(ValidationError):
+        Block(order="o", step=0, machine="m", employee="e", date="2026-09-28",
+              start=540, end=540, qty=1)
+    with pytest.raises(ValidationError):
+        Calendar(week=[True, False])
+
+
+def test_solve_api_returns_validation_error_for_zero_order_quantity(demo):
+    snap, now = demo
+    payload = {"snapshot": snap.model_dump(), "now": now.model_dump()}
+    payload["snapshot"]["orders"][0]["qty"] = 0
+    response = TestClient(app).post("/solve", json=payload)
+    assert response.status_code == 422
+
+
 def test_missing_product_explains_instead_of_crashing():
     day = "2026-09-28"
     snap = Snapshot(

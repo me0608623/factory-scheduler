@@ -7,14 +7,14 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class Step(BaseModel):
     process: str
     factory: int = Field(default=1, ge=1, le=2)
     rate: float = Field(gt=0)        # 一個人每分鐘做幾件；不能為零
-    batch: int = 0                   # 前站完成幾件就能傳到這站；0 = 前站全部完成
+    batch: int = Field(default=0, ge=0)  # 前站完成幾件就能傳到這站；0 = 前站全部完成
 
 
 class Product(BaseModel):
@@ -66,22 +66,28 @@ class Order(BaseModel):
     id: str
     code: str
     product: str
-    qty: int
+    qty: int = Field(gt=0)
     due: str                         # 最晚完成日
-    priority: int = 2                # 0 特急、1 急、2 一般、3 不急
+    priority: int = Field(default=2, ge=0, le=3)  # 0 特急、1 急、2 一般、3 不急
 
 
 class Block(BaseModel):
     id: str | None = None
     order: str
-    step: int
+    step: int = Field(ge=0)
     machine: str
     employee: str | None
     date: str
-    start: int
-    end: int
-    qty: int
+    start: int = Field(ge=0, lt=1440)
+    end: int = Field(gt=0, le=1440)
+    qty: int = Field(gt=0)
     pinned: bool = False
+
+    @model_validator(mode="after")
+    def end_after_start(self):
+        if self.end <= self.start:
+            raise ValueError("工作結束時間必須晚於開始時間")
+        return self
 
 
 class WindowDef(BaseModel):
@@ -94,7 +100,7 @@ DEFAULT_WINDOWS = [WindowDef(start=480, end=720), WindowDef(start=780, end=1020)
 
 
 class Calendar(BaseModel):
-    week: list[bool]                                     # 0 = 週日
+    week: list[bool] = Field(min_length=7, max_length=7)  # 0 = 週日
     overrides: dict[str, bool] = Field(default_factory=dict)   # 單日改為上班／停工
     overtime: dict[str, bool] = Field(default_factory=dict)    # 開加班的日子
     holidays: dict[str, str] = Field(default_factory=dict)
