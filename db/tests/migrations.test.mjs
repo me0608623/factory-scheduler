@@ -310,7 +310,7 @@ await db.query("insert into product_steps (product_id,seq,process,rate) values (
 await db.query("insert into machine_products (machine_id,product_id) values ('a',$1)", [planProduct]);
 await db.query("update orders set status='done' where id<>$1", [anotherOrder]);
 await db.query("update orders set product_id=$1,qty=90 where id=$2", [planProduct, anotherOrder]);
-const previewBlocks = (await db.query("select id, order_id, step_seq, machine_id, employee_id, date::text, start_min, end_min, qty, pinned from schedule_blocks")).rows;
+const previewBlocks = (await db.query("select b.id, b.order_id, b.step_seq, b.machine_id, b.employee_id, b.date::text, b.start_min, b.end_min, b.qty, b.pinned from schedule_blocks b join orders o on o.id=b.order_id where o.status='open'")).rows;
 const pvSkill = (await db.query("insert into plan_previews (kind,title,event,base_version,options) values ('auto','技能變更前方案','{}',8,$1) returning id",
   [JSON.stringify([{ ...opt("A", previewBlocks), applicable: true }])])).rows[0].id;
 await db.query("delete from employee_skills where employee_id=$1 and machine_id='a'", ["00000000-0000-4000-8000-0000000000e5"]);
@@ -363,7 +363,7 @@ const historicalFuture = { ...newManual, order_id: historicalOrder, date: "2026-
 await db.query("select _apply_blocks($1::jsonb)", [JSON.stringify([...previewBlocks, historicalPast, historicalFuture])]);
 await db.query("insert into leaves (employee_id,date,note) values ($1,'2025-10-05','後補歷史請假')", [EMP1]);
 await db.query("insert into machine_faults (machine_id,date,start_min,end_min,note) values ('a','2025-10-05',480,540,'後補歷史故障')");
-const historicalBlocks = (await db.query("select id,order_id,step_seq,machine_id,employee_id,date::text,start_min,end_min,qty,pinned from schedule_blocks")).rows;
+const historicalBlocks = (await db.query("select b.id,b.order_id,b.step_seq,b.machine_id,b.employee_id,b.date::text,b.start_min,b.end_min,b.qty,b.pinned from schedule_blocks b join orders o on o.id=b.order_id where o.status='open'")).rows;
 const futureSaved = historicalBlocks.find(b => b.order_id === historicalOrder && b.date === "2026-10-07");
 const historicalChanged = historicalBlocks.map(b => b.id === futureSaved.id ? { ...b, pinned: true } : b);
 await as(LEAD, () => db.query("select save_blocks(9, $1, '只固定未來方塊')", [JSON.stringify(historicalChanged)]));
@@ -374,7 +374,7 @@ const pvHistory = (await db.query("insert into plan_previews (kind,title,event,b
 await as(LEAD, () => db.query("select apply_plan($1,'A')", [pvHistory]));
 ok((await db.query("select version::int v from schedule_state")).rows[0].v === 11,
   "完整方案保留已完成的歷史方塊時仍可套用");
-const currentHistory = (await db.query("select id,order_id,step_seq,machine_id,employee_id,date::text,start_min,end_min,qty,pinned from schedule_blocks")).rows;
+const currentHistory = (await db.query("select b.id,b.order_id,b.step_seq,b.machine_id,b.employee_id,b.date::text,b.start_min,b.end_min,b.qty,b.pinned from schedule_blocks b join orders o on o.id=b.order_id where o.status='open'")).rows;
 const changedPast = currentHistory.map(b => b.order_id === historicalOrder && b.date === "2025-10-05"
   ? { ...b, start_min: 540, end_min: 600 } : b);
 await as(LEAD, () => expectErr("select save_blocks(11, $1, '改動過去停工日工作')", [JSON.stringify(changedPast)], /停工日/,
@@ -391,6 +391,29 @@ ok((await db.query("select version::int v from schedule_state")).rows[0].v === 1
   "缺工序方案被拒後版本保持不變");
 await db.query("delete from orders where id=$1", [emptyOrder]);
 await db.query("delete from products where id=$1", [emptyProduct]);
+
+console.log("已結案工單的歷史方塊不可被新排程抹除");
+const closedOrder = (await db.query(`insert into orders (code,product_id,qty,due_date,status)
+  values ('ARCHIVED-WORK',$1,60,'2026-10-09','done') returning id`, [planProduct])).rows[0].id;
+await db.query(`insert into schedule_blocks (order_id,step_seq,machine_id,employee_id,date,start_min,end_min,qty)
+  values ($1,0,'a',$2,'2024-07-01',480,510,30),($1,0,'a',$2,'2026-10-07',540,570,30)`, [closedOrder, EMP1]);
+const openSnapshot = (await db.query("select schedule_snapshot('2026-09-28','2026-12-31') as data")).rows[0].data;
+ok(!openSnapshot.blocks.some(b => b.order === closedOrder), "快照不混入已結案工單，即使歷史方塊在查詢日期內");
+await as(LEAD, () => db.query("select save_blocks(11,$1,'未結案排程微調')", [JSON.stringify(currentHistory)]));
+ok((await db.query("select count(*)::int n from schedule_blocks where order_id=$1", [closedOrder])).rows[0].n === 2,
+  "手動儲存完整未結案排程仍保留兩段已結案歷史");
+const pvOpenOnly = (await db.query(`insert into plan_previews (kind,title,event,base_version,options)
+  values ('auto','僅替換未結案工單','{}',12,$1) returning id`,
+  [JSON.stringify([{ ...opt("A", currentHistory), applicable: true }])])).rows[0].id;
+await as(LEAD, () => db.query("select apply_plan($1,'A')", [pvOpenOnly]));
+ok((await db.query("select count(*)::int n from schedule_blocks where order_id=$1", [closedOrder])).rows[0].n === 2,
+  "自動方案套用仍保留兩段已結案歷史");
+const closedRow = (await db.query("select id,order_id,step_seq,machine_id,employee_id,date::text,start_min,end_min,qty,pinned from schedule_blocks where order_id=$1 order by date limit 1", [closedOrder])).rows[0];
+await as(LEAD, () => expectErr("select save_blocks(13,$1,'過時快照含結案方塊')",
+  [JSON.stringify([...currentHistory, closedRow])], /只能修改未結案工單/, "過時手動快照不能改寫已結案工單"));
+ok((await db.query("select version::int n from schedule_state")).rows[0].n === 13 &&
+  (await db.query("select count(*)::int n from schedule_blocks where order_id=$1", [closedOrder])).rows[0].n === 2,
+  "結案方塊寫入被拒後，版本及歷史皆不變");
 
 console.log(`\n通過 ${pass}，失敗 ${fail}`);
 process.exit(fail ? 1 : 0);

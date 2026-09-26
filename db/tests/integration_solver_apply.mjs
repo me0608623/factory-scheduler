@@ -31,6 +31,12 @@ await db.query("update product_steps set factory=2 where process='包裝'");
 await db.query("update product_steps set transfer_batch=60 where process='包裝' and product_id='00000000-0000-4000-8000-0000000000a1'");
 await db.query("update machines set factory=2 where id='e'");
 await db.query("update employees set factory=2 where code in ('E03','E04')");
+const closedOrder = "00000000-0000-4000-8000-0000000000c1";
+await db.query(`insert into orders (id,code,product_id,qty,due_date,status)
+  values ($1,'CLOSED-HISTORY','00000000-0000-4000-8000-0000000000a1',60,'2026-09-28','done')`, [closedOrder]);
+await db.query(`insert into schedule_blocks (order_id,step_seq,machine_id,employee_id,date,start_min,end_min,qty)
+  values ($1,0,'a','00000000-0000-4000-8000-0000000000e1','2024-07-01',480,495,30),
+         ($1,0,'a','00000000-0000-4000-8000-0000000000e1','2026-09-28',480,495,30)`, [closedOrder]);
 const uid = "11111111-1111-4111-8111-111111111111";
 await db.query("insert into auth.users (id,email) values ($1,'integration@example.test')", [uid]);
 await db.query("update profiles set role='lead' where user_id=$1", [uid]);
@@ -48,6 +54,9 @@ function solverCall(request) {
 try {
   const readSnapshot = async () => (await db.query("select schedule_snapshot('2026-09-28','2026-12-31') as data")).rows[0].data;
   const now = { date: "2026-09-29", min: 480 };
+  if ((await readSnapshot()).blocks.some(block => block.order === closedOrder)) {
+    throw new Error("Closed-order blocks leaked into the solver snapshot");
+  }
   const outcomes = [];
   async function planAndApply(event) {
     const snapshot = await readSnapshot();
@@ -89,10 +98,12 @@ try {
     (select count(*)::int from leaves where employee_id=$2 and date='2026-09-30') as leaves,
     (select count(*)::int from orders where code='Z07' and qty=80) as rush_orders,
     (select count(*)::int from calendar_days where overtime) as overtime_days,
+    (select count(*)::int from schedule_blocks where order_id=$3) as closed_history_blocks,
     (select count(*)::int from change_sets) as changes`,
-  [fault.effects.faults_insert[0].id, "00000000-0000-4000-8000-0000000000e3"])).rows[0];
+  [fault.effects.faults_insert[0].id, "00000000-0000-4000-8000-0000000000e3", closedOrder])).rows[0];
   if (version !== outcomes.length || counts.blocks < 21 || counts.second_factory < 7 || earlyTransfers < 1 ||
       effects.remaining_faults !== 0 || effects.leaves !== 1 || effects.rush_orders !== 1 || effects.changes !== 5 ||
+      effects.closed_history_blocks !== 2 ||
       (preferredOption === "C" && effects.overtime_days < 1)) {
     throw new Error(JSON.stringify({ version, counts, effects, outcomes }));
   }
