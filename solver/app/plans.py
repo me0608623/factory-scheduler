@@ -257,10 +257,14 @@ def describe(base: Snapshot, a: Applied, blocks: list[Block], res: Result | None
     gain_h = round(sum(max(0, s["b"] - s["a"]) for s in shifts) / 60, 1)
     ot_h = round((_ot_minutes(blocks) - _ot_minutes(base.blocks)) / 60, 1)
     dates: dict[str, int] = {}
+    machine_factories = {m.id: m.factory for m in a.snap.machines}
+    affected_factories = sorted({machine_factories[b.machine] for b in gone + added
+                                 if b.machine in machine_factories})
     for b in gone + added:
         dates[b.date] = dates.get(b.date, 0) + 1
     metrics = {"late": [o.code for o in late], "late_days": late_days, "moved": len(changed),
-               "other_days": len([b for b in changed if b.date != a.date]), "gain_h": gain_h, "ot_h": ot_h, "dates": dates}
+               "other_days": len([b for b in changed if b.date != a.date]), "gain_h": gain_h,
+               "ot_h": ot_h, "dates": dates, "factories": affected_factories}
 
     # 一句話總結
     parts = []
@@ -274,6 +278,8 @@ def describe(base: Snapshot, a: Applied, blocks: list[Block], res: Result | None
     if earlier:
         parts.append(f"{len(earlier)} 張工單提早完成")
     parts.append("、".join(o.code for o in late) + " 會超過期限" if late else "所有工單都趕得上期限")
+    if affected_factories:
+        parts.append("影響 " + "、".join(f"{factory} 廠" for factory in affected_factories))
     if dates:
         parts.append(f"影響 {len(dates)} 天（{'、'.join(md(d) for d in sorted(dates))}）")
     who = sorted({b.employee for b in gone + added if b.employee}, key=lambda x: names.get(x, x))

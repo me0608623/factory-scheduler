@@ -280,6 +280,12 @@ def test_cross_factory_steps_keep_one_order_and_precedence():
     assert abs_min(second.date, second.start) >= abs_min(first.date, first.end)
     wrong = second.model_copy(update={"employee": "e1"})
     assert any("不在同一廠" in issue for issue in check(snap, [first, wrong]))
+    preview = make_plans(PlanRequest(snapshot=snap, event=Event(type="auto"),
+                                     now=Now(date=day, min=480), time_limit=2))
+    option = preview["options"][0]
+    assert option["applicable"]
+    assert option["metrics"]["factories"] == [1, 2]
+    assert "影響 1 廠、2 廠" in option["summary"]
 
 
 def test_unknown_does_not_retry_with_larger_horizon(demo):
