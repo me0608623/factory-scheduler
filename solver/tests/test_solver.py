@@ -780,6 +780,25 @@ def test_synthetic_benchmark_can_model_two_machines_per_worker():
     assert {employee.factory for employee in snap.employees} == {1, 2}
 
 
+def test_benchmark_reports_only_work_directly_hit_by_incident():
+    snap = snapshot_for(5, 10, 1)
+    snap.blocks = [
+        Block(order="o0", step=0, machine="m0", employee="e0",
+              date="2026-09-28", start=480, end=540, qty=60),
+        Block(order="o0", step=0, machine="m0", employee="e1",
+              date="2026-09-28", start=600, end=660, qty=60),
+        Block(order="o0", step=0, machine="m1", employee="e0",
+              date="2026-09-28", start=480, end=540, qty=60),
+    ]
+    assert benchmark_script.affected_block_count(
+        snap, Event(type="fault", machine="m0", date="2026-09-28", start=510, end=600)
+    ) == 1
+    assert benchmark_script.affected_block_count(
+        snap, Event(type="leave", employee="e0", date="2026-09-28")
+    ) == 2
+    assert benchmark_script.affected_block_count(snap, Event(type="auto")) == 0
+
+
 def test_memory_capped_benchmark_requires_memory_monitor(capsys):
     with patch.dict(sys.modules, {"psutil": None}), patch.object(
         sys, "argv", ["benchmark.py", "--sized-case", "5", "10", "10"]

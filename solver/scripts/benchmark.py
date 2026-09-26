@@ -70,6 +70,18 @@ def snapshot_for(machine_count: int, employee_count: int, order_count: int,
     )
 
 
+def affected_block_count(snapshot, event) -> int:
+    """Count existing work directly touched by a synthetic incident before previewing it."""
+    if event.type == "fault":
+        return sum(block.machine == event.machine and block.date == event.date
+                   and block.start < event.end and block.end > event.start
+                   for block in snapshot.blocks)
+    if event.type == "leave":
+        return sum(block.employee == event.employee and block.date == event.date
+                   for block in snapshot.blocks)
+    return 0
+
+
 def rss_bytes(pid: int) -> int | None:
     try:
         import psutil
@@ -129,6 +141,7 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
                       Event(type="leave", employee=affected.employee if affected else snap.employees[0].id,
                             date=now.date)
                       if event == "leave" else Event(type="auto"))
+    directly_affected = affected_block_count(snap, selected_event)
     if plans:
         os.environ["SOLVER_MAX_WORKERS"] = str(workers)
         started = time.monotonic()
@@ -158,6 +171,7 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
                           "gzip_seconds": round(gzip_seconds, 3),
                           "affected_machine": affected.machine if affected and event == "fault" else None,
                           "affected_employee": affected.employee if affected and event == "leave" else None,
+                          "directly_affected_blocks": directly_affected,
                           "options": [{"id": option["id"], "status": option["status"],
                                         "applicable": option["applicable"],
                                         "late_orders": len(option["metrics"]["late"]) if option["applicable"] else None,
@@ -182,6 +196,7 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
                for order in snap.orders for value in [finish[order.id]])
     output = {"status": result.status, "solver_method": result.search_mode,
               "max_machines": max_machines,
+              "directly_affected_blocks": directly_affected,
               "solver_candidate_pairs": result.candidate_pairs,
               "objective": result.objective,
               "operations": result.n_ops,
