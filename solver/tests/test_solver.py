@@ -385,6 +385,41 @@ def test_large_unknown_uses_valid_restricted_draft():
     assert check(snap, result.blocks, now) == []
 
 
+def test_restricted_draft_balances_early_orders_across_machines():
+    snap = snapshot_for(20, 40, 100, cross_factory=True, due_base_days=0)
+    now = Now(date="2026-09-28", min=480)
+    draft = solve(snap, now, PRESETS["on_time"], pair_cap=1, time_limit=5)
+    assert draft.status in ("OPTIMAL", "FEASIBLE")
+    assert check(snap, draft.blocks, now) == []
+    first_step_machines = {block.machine for block in draft.blocks
+                           if block.order in {f"o{i}" for i in range(12)} and block.step == 0}
+    assert len(first_step_machines) == 5, "前 12 張急單應分散到 5 台同工序機台"
+    late = [order for order in snap.orders if any(
+        block.order == order.id and block.step == 3 and block.date > order.due
+        for block in draft.blocks)]
+    assert late == []
+
+
+def test_restricted_draft_avoids_staff_absent_until_after_due():
+    snap = snapshot_for(20, 40, 100, cross_factory=True,
+                        due_base_days=0, leave_days=5)
+    now = Now(date="2026-09-28", min=480)
+    draft = solve(snap, now, PRESETS["on_time"], pair_cap=1, time_limit=5)
+    assert draft.status in ("OPTIMAL", "FEASIBLE")
+    assert check(snap, draft.blocks, now) == []
+    assert not any(block.step == 3 and block.date > order.due
+                   for order in snap.orders for block in draft.blocks if block.order == order.id)
+
+
+def test_restricted_draft_with_machine_faults_is_valid():
+    snap = snapshot_for(20, 40, 100, cross_factory=True,
+                        due_base_days=0, leave_days=5, fault_days=5)
+    now = Now(date="2026-09-28", min=480)
+    draft = solve(snap, now, PRESETS["on_time"], pair_cap=1, time_limit=10)
+    assert draft.status in ("OPTIMAL", "FEASIBLE")
+    assert check(snap, draft.blocks, now) == []
+
+
 def test_restricted_pairs_skip_long_leave_and_keep_reference():
     start = date(2026, 9, 28)
     snap = Snapshot(

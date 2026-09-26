@@ -176,14 +176,16 @@ def solve(
                       unplaced + [f"從 {now.date} 起的 {days} 天內沒有可排的上班時段；請在上班日設定開放工作日或調整排程起日"], released)
 
     pairs_used = {pair for op in ops.values() for pair in op.pairs}
-    available_pairs = set()
+    first_available: dict[tuple[str, str], int] = {}
     for mid, eid in pairs_used:
         employee, machine = emps[eid], machs[mid]
-        if any(w.t1 > t_now and w.date not in employee.leaves
-               and (not (w.overtime or w.special) or employee.allows_overtime(w.date))
-               and not any(f.date == w.date and f.start <= w.start and f.end >= w.end for f in machine.faults)
-               for w in tl.wins):
-            available_pairs.add((mid, eid))
+        for w in tl.wins:
+            if (w.t1 > t_now and w.date not in employee.leaves
+                    and (not (w.overtime or w.special) or employee.allows_overtime(w.date))
+                    and not any(f.date == w.date and f.start <= w.start and f.end >= w.end for f in machine.faults)):
+                first_available[mid, eid] = max(w.t0, t_now)
+                break
+    available_pairs = set(first_available)
     availability = []
     for op in ops.values():
         if any(pair in available_pairs for pair in op.pairs):
@@ -203,11 +205,30 @@ def solve(
         order_positions = {order.id: index for index, order in enumerate(snap.orders)}
         for op in ops.values():
             candidates = [pair for pair in op.pairs if pair in available_pairs]
+            due_t = tl.end_of_date(orders[op.key[0]].due)
+            on_time = [pair for pair in candidates if first_available[pair] + op.dur <= due_t]
+            if on_time:
+                candidates = on_time
+            else:
+                earliest = min(first_available[pair] for pair in candidates)
+                candidates = [pair for pair in candidates if first_available[pair] == earliest]
             if len(candidates) <= pair_cap:
                 op.pairs = candidates
             else:
-                start = order_positions[op.key[0]] % len(candidates)
-                chosen = [candidates[(start + offset) % len(candidates)] for offset in range(pair_cap)]
+                machine_pairs: dict[str, list[tuple[str, str]]] = {}
+                for pair in candidates:
+                    machine_pairs.setdefault(pair[0], []).append(pair)
+                machine_ids = list(machine_pairs)
+                position = order_positions[op.key[0]]
+                chosen = []
+                offset = 0
+                while len(chosen) < pair_cap:
+                    mid = machine_ids[(position + offset) % len(machine_ids)]
+                    on_machine = machine_pairs[mid]
+                    pair = on_machine[(position // len(machine_ids) + offset // len(machine_ids)) % len(on_machine)]
+                    if pair not in chosen:
+                        chosen.append(pair)
+                    offset += 1
                 if op.ref_pair in candidates and op.ref_pair not in chosen:
                     chosen[-1] = op.ref_pair
                 op.pairs = chosen
