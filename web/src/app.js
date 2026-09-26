@@ -1963,7 +1963,9 @@ async function start(){
   SOLVER.check().then(up=>{updateSyncChip();if(up)toast("已連上 OR-Tools 排程服務");});
   setInterval(()=>{if(!drag&&!UI.modal&&!PV&&UI.view==="day"&&UI.date===todayStr())render();},60000);
 }
-export async function boot(store){
+export async function boot(store,authLinkType=""){
   STORE=store;
   await start();
+  if(STORE.kind==="supabase"&&STORE.session&&["invite","recovery"].includes(authLinkType))
+    openModal({t:"password"});
 }

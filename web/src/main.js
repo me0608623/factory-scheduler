@@ -7,9 +7,11 @@ import { SupabaseStore } from "./store/supabase.js";
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Supabase 會在建立 client 時處理並清除邀請／重設連結的 hash；先記住用途。
+const authLinkType = new URLSearchParams(location.hash.slice(1)).get("type");
 const store = url && anon ? new SupabaseStore(createClient(url, anon)) : new LocalStore();
 
-boot(store).catch((e) => {
+boot(store, authLinkType).catch((e) => {
   console.error(e);
   document.getElementById("app").innerHTML =
     '<main class="login"><div class="login-card"><b>啟動失敗</b><div class="issue">' + String(e.message || e) + "</div></div></main>";
