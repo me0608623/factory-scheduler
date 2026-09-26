@@ -1,6 +1,7 @@
 """獨立檢查一份排程有沒有違反硬性規則（測試與 API 都會用）。"""
 from __future__ import annotations
 
+import math
 from collections import defaultdict
 
 from .schemas import Block, Now, Snapshot
@@ -37,6 +38,8 @@ def check(snap: Snapshot, blocks: list[Block], now: Now | None = None,
             issues.append(f"{name(b)}：產品沒有這道工序")
             continue
         st = product.steps[b.step]
+        if b.qty > math.floor((b.end - b.start) * st.rate + 1e-8):
+            issues.append(f"{name(b)}：件數超過工序速率可完成的數量")
         if not e:
             issues.append(f"{name(b)}：沒有人員")
         elif b.machine not in e.skills:

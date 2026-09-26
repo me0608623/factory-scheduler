@@ -48,7 +48,12 @@ def configured_workers() -> int:
 
 
 def dur_of(qty: int, rate: float) -> int:
-    """標準工序公式：數量 ÷ 每分鐘件數，以 10 分鐘為單位進位。"""
+    """10 分鐘格點進位，保留每段整數件數無法四捨五入的餘量。"""
+    capacity_per_slot = math.floor(rate * 10 + 1e-8)
+    if capacity_per_slot:
+        return max(10, math.ceil(qty / capacity_per_slot) * 10)
+    # 極慢工序不足以在 10 分鐘產出一件，仍按名目速率估時；分段後
+    # 是否足夠由獨立驗證器判斷，不能把不合法的方案標為可套用。
     return max(10, math.ceil(qty / rate / 10) * 10)
 
 
@@ -587,7 +592,7 @@ def solve(
         rate = prods[orders[key[0]].product].steps[key[1]].rate
         left = op.qty
         for i, (ds, a, b2) in enumerate(segs):
-            q = left if i == len(segs) - 1 else min(left, round((b2 - a) * rate))
+            q = left if i == len(segs) - 1 else min(left, math.floor((b2 - a) * rate + 1e-8))
             left -= q
             if q > 0:
                 out.append(Block(order=key[0], step=key[1], machine=pr[0], employee=pr[1], date=ds, start=a, end=b2, qty=q))

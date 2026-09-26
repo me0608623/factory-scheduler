@@ -24,7 +24,8 @@ PROCESSES = ("cut", "press", "weld", "pack")
 
 def case(seed: int, *, with_fixed: bool = False,
          shared_operators: bool = False,
-         parallel_fixed: bool = False) -> tuple[Snapshot, Now, int | None]:
+         parallel_fixed: bool = False,
+         fractional_rates: bool = False) -> tuple[Snapshot, Now, int | None]:
     rng = random.Random(seed)
     machines = []
     employees = []
@@ -48,7 +49,7 @@ def case(seed: int, *, with_fixed: bool = False,
     for product_id in ("p0", "p1"):
         products.append(Product(id=product_id, name=product_id, steps=[
             Step(process=process, factory=1 if index < 2 else 2,
-                 rate=rng.choice((1, 1.5, 2)),
+                 rate=rng.choice((1, 1.25, 1.333, 1.5, 2) if fractional_rates else (1, 1.5, 2)),
                  batch=rng.choice((0, 30, 60)) if index else 0)
             for index, process in enumerate(PROCESSES)
         ]))
@@ -84,6 +85,8 @@ def main() -> None:
     parser.add_argument("--with-fixed", action="store_true")
     parser.add_argument("--shared-operators", action="store_true")
     parser.add_argument("--parallel-fixed", action="store_true")
+    parser.add_argument("--fractional-rates", action="store_true",
+                        help="include rates whose ten-minute output is not an integer")
     args = parser.parse_args()
     if not 1 <= args.cases <= 300 or not 0 < args.time_limit <= 2:
         parser.error("cases must be 1-300 and time-limit must be 0-2 seconds")
@@ -91,7 +94,8 @@ def main() -> None:
     for seed in range(args.cases):
         snapshot, now, pair_cap = case(seed, with_fixed=args.with_fixed,
                                        shared_operators=args.shared_operators,
-                                       parallel_fixed=args.parallel_fixed)
+                                       parallel_fixed=args.parallel_fixed,
+                                       fractional_rates=args.fractional_rates)
         result = solve(snapshot, now, PRESETS["on_time"], days=10,
                        time_limit=args.time_limit, workers=2, pair_cap=pair_cap)
         counts[result.status] += 1
@@ -109,7 +113,7 @@ def main() -> None:
                    "shared_operators": args.shared_operators, "status": result.status,
                    "unplaced": result.unplaced})
             raise SystemExit(1)
-    print(f"{args.cases} mixed scenarios (fixed={args.with_fixed}, parallel={args.parallel_fixed}, shared={args.shared_operators}): "
+    print(f"{args.cases} mixed scenarios (fixed={args.with_fixed}, parallel={args.parallel_fixed}, shared={args.shared_operators}, fractional={args.fractional_rates}): "
           f"{dict(counts)}; all returned schedules valid")
 
 

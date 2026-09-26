@@ -141,6 +141,45 @@ def test_overlapping_fault_records_do_not_make_future_work_infeasible():
     assert check(snap, result.blocks, now) == []
 
 
+def test_split_operation_respects_each_block_integer_rate_capacity():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, False, False, False, False, False],
+                          windows=[WindowDef(start=600, end=610), WindowDef(start=710, end=720),
+                                   WindowDef(start=780, end=790)]),
+        machines=[Machine(id="m", process="cut", products=["p"])],
+        employees=[Employee(id="e", name="Worker", skills=["m"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=1.25)])],
+        orders=[Order(id="o", code="O", product="p", qty=25, due=day)],
+    )
+    now = Now(date=day, min=600)
+    impossible = [Block(order="o", step=0, machine="m", employee="e", date=day,
+                        start=minute, end=minute + 10, qty=qty)
+                  for minute, qty in ((600, 12), (710, 13))]
+    assert any("速率" in issue for issue in check(snap, impossible, now))
+    result = solve(snap, now, PRESETS["on_time"], days=1, time_limit=2)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert len(result.blocks) == 3
+    assert check(snap, result.blocks, now) == []
+
+
+def test_very_slow_rate_can_use_one_contiguous_block():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, False, False, False, False, False],
+                          windows=[WindowDef(start=600, end=620)]),
+        machines=[Machine(id="m", process="cut", products=["p"])],
+        employees=[Employee(id="e", name="Worker", skills=["m"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=0.05)])],
+        orders=[Order(id="o", code="O", product="p", qty=1, due=day)],
+    )
+    now = Now(date=day, min=600)
+    result = solve(snap, now, PRESETS["on_time"], days=1, time_limit=2)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert [(b.start, b.end, b.qty) for b in result.blocks] == [(600, 620, 1)]
+    assert check(snap, result.blocks, now) == []
+
+
 def test_large_unassigned_fault_plan_reuses_equivalent_second_strategy(monkeypatch):
     snap = snapshot_for(5, 10, 40)
     calls = []
