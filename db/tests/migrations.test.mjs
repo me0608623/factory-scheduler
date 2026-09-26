@@ -421,6 +421,11 @@ await as(LEAD, () => expectErr("select save_blocks(13,$1,'重用結案方塊 ID'
 ok((await db.query("select version::int n from schedule_state")).rows[0].n === 13 &&
   (await db.query("select count(*)::int n from schedule_blocks where order_id=$1", [closedOrder])).rows[0].n === 2,
   "重用結案 ID 被拒後，版本及歷史皆不變");
+const repeatedBlock = currentHistory.find(block => block.order_id === historicalOrder && block.date === "2026-10-07");
+await as(LEAD, () => expectErr("select save_blocks(13,$1,'重複方塊 ID')",
+  [JSON.stringify([...currentHistory, repeatedBlock])], /重複的工作方塊 ID/, "同一份提交不能重複使用方塊 ID"));
+ok((await db.query("select version::int n from schedule_state")).rows[0].n === 13,
+  "重複方塊 ID 被拒後版本不變");
 
 console.log(`\n通過 ${pass}，失敗 ${fail}`);
 process.exit(fail ? 1 : 0);

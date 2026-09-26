@@ -46,6 +46,13 @@ $$;
 create or replace function _apply_blocks(p_blocks jsonb) returns void
 language plpgsql security definer set search_path = public as $$
 begin
+  if exists (
+    select 1 from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as n(id uuid)
+     where n.id is not null group by n.id having count(*) > 1
+  ) then
+    raise exception '同一份排程有重複的工作方塊 ID，請重新載入後再提交';
+  end if;
+
   -- 舊預覽或手動請求若攜帶已結案方塊，拒絕而非修改／重用其 ID。
   if exists (
     select 1 from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as n(id uuid, order_id uuid)
