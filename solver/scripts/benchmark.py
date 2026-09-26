@@ -236,7 +236,10 @@ def main():
         proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         peak = 0
         memory_limited = False
-        while proc.poll() is None and time.monotonic() - started < max(30, args.time_limit + 15):
+        # 多方案在大模型上逐案求解；外層保護時限需涵蓋所有策略，不能在
+        # 每案合法的 10 秒預算下提早殺掉整個預覽程序。
+        parent_limit = max(30, args.time_limit * (4 if args.plans else 1) + 15)
+        while proc.poll() is None and time.monotonic() - started < parent_limit:
             peak = max(peak, rss_bytes(proc.pid) or 0)
             if peak >= args.memory_limit_mb * 1048576:
                 memory_limited = True
