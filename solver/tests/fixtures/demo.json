@@ -1,0 +1,65 @@
+{
+  "now": {"date": "2026-09-26", "min": 930},
+  "calendar": {
+    "week": [false, true, true, true, true, true, true],
+    "overrides": {},
+    "overtime": {},
+    "holidays": {"2026-09-25": "中秋節", "2026-09-28": "教師節", "2026-10-09": "國慶日補假", "2026-10-10": "國慶日", "2026-10-25": "光復節", "2026-10-26": "光復節補假"}
+  },
+  "employees": [
+    {"id": "e1", "name": "張三", "skills": ["a", "b", "e"], "leaves": [], "no_overtime": false},
+    {"id": "e2", "name": "李四", "skills": ["a", "c", "d"], "leaves": [], "no_overtime": false},
+    {"id": "e3", "name": "王五", "skills": ["c", "d", "e"], "leaves": [], "no_overtime": false},
+    {"id": "e4", "name": "陳六", "skills": ["b", "c", "e"], "leaves": [], "no_overtime": false},
+    {"id": "e5", "name": "林七", "skills": ["a", "d", "e"], "leaves": ["2026-10-01"], "no_overtime": true}
+  ],
+  "machines": [
+    {"id": "a", "label": "裁切機 1", "process": "裁切", "products": ["p1", "p2"], "faults": []},
+    {"id": "b", "label": "裁切機 2", "process": "裁切", "products": ["p1"], "faults": []},
+    {"id": "c", "label": "沖壓機", "process": "沖壓", "products": ["p1", "p3"], "faults": []},
+    {"id": "d", "label": "焊接機", "process": "焊接", "products": ["p2", "p3"], "faults": []},
+    {"id": "e", "label": "包裝線", "process": "包裝", "products": ["p1", "p2", "p3"], "faults": []}
+  ],
+  "products": [
+    {"id": "p1", "name": "外殼", "steps": [{"process": "裁切", "rate": 2, "batch": 0}, {"process": "沖壓", "rate": 3, "batch": 60}, {"process": "包裝", "rate": 4, "batch": 0}]},
+    {"id": "p2", "name": "支架", "steps": [{"process": "裁切", "rate": 1.5, "batch": 0}, {"process": "焊接", "rate": 1, "batch": 0}, {"process": "包裝", "rate": 4, "batch": 0}]},
+    {"id": "p3", "name": "底座", "steps": [{"process": "沖壓", "rate": 2, "batch": 0}, {"process": "焊接", "rate": 1.5, "batch": 0}, {"process": "包裝", "rate": 3, "batch": 0}]}
+  ],
+  "orders": [
+    {"id": "o1", "code": "A01", "product": "p1", "qty": 120, "due": "2026-09-30", "priority": 1},
+    {"id": "o2", "code": "B02", "product": "p2", "qty": 180, "due": "2026-10-01", "priority": 1},
+    {"id": "o3", "code": "C03", "product": "p3", "qty": 240, "due": "2026-10-02", "priority": 2},
+    {"id": "o4", "code": "A04", "product": "p1", "qty": 400, "due": "2026-10-05", "priority": 2},
+    {"id": "o5", "code": "B05", "product": "p2", "qty": 90, "due": "2026-10-06", "priority": 3},
+    {"id": "o6", "code": "C06", "product": "p3", "qty": 150, "due": "2026-10-07", "priority": 3}
+  ],
+  "blocks": [
+    {"id": "de6ht35", "order": "o1", "step": 0, "machine": "a", "employee": "e1", "date": "2026-09-26", "start": 930, "end": 990, "qty": 120, "pinned": false},
+    {"id": "78d7fv1", "order": "o1", "step": 1, "machine": "c", "employee": "e2", "date": "2026-09-26", "start": 970, "end": 1010, "qty": 120, "pinned": false},
+    {"id": "ysm2b59", "order": "o1", "step": 2, "machine": "e", "employee": "e1", "date": "2026-09-28", "start": 480, "end": 510, "qty": 120, "pinned": false},
+    {"id": "jr3uu1n", "order": "o2", "step": 0, "machine": "a", "employee": "e2", "date": "2026-09-28", "start": 480, "end": 600, "qty": 180, "pinned": false},
+    {"id": "x013l3l", "order": "o2", "step": 1, "machine": "d", "employee": "e3", "date": "2026-09-28", "start": 600, "end": 720, "qty": 120, "pinned": false},
+    {"id": "rlwz8hh", "order": "o2", "step": 1, "machine": "d", "employee": "e3", "date": "2026-09-28", "start": 780, "end": 840, "qty": 60, "pinned": false},
+    {"id": "wcm3pr7", "order": "o2", "step": 2, "machine": "e", "employee": "e4", "date": "2026-09-28", "start": 840, "end": 890, "qty": 180, "pinned": false},
+    {"id": "4nn4dsm", "order": "o3", "step": 0, "machine": "c", "employee": "e3", "date": "2026-09-26", "start": 930, "end": 970, "qty": 80, "pinned": false},
+    {"id": "npy4gq2", "order": "o3", "step": 0, "machine": "c", "employee": "e3", "date": "2026-09-28", "start": 480, "end": 560, "qty": 160, "pinned": false},
+    {"id": "uk82iv0", "order": "o3", "step": 1, "machine": "d", "employee": "e3", "date": "2026-09-28", "start": 560, "end": 600, "qty": 60, "pinned": false},
+    {"id": "kf623kx", "order": "o3", "step": 1, "machine": "d", "employee": "e3", "date": "2026-09-28", "start": 840, "end": 960, "qty": 180, "pinned": false},
+    {"id": "8pytdws", "order": "o3", "step": 2, "machine": "e", "employee": "e1", "date": "2026-09-28", "start": 960, "end": 1020, "qty": 180, "pinned": false},
+    {"id": "9w9noh2", "order": "o3", "step": 2, "machine": "e", "employee": "e1", "date": "2026-09-29", "start": 480, "end": 500, "qty": 60, "pinned": false},
+    {"id": "9w3fi5w", "order": "o4", "step": 0, "machine": "b", "employee": "e4", "date": "2026-09-26", "start": 930, "end": 1020, "qty": 180, "pinned": false},
+    {"id": "foyt18r", "order": "o4", "step": 0, "machine": "b", "employee": "e4", "date": "2026-09-28", "start": 480, "end": 590, "qty": 220, "pinned": false},
+    {"id": "c3y15tg", "order": "o4", "step": 1, "machine": "c", "employee": "e4", "date": "2026-09-28", "start": 590, "end": 720, "qty": 390, "pinned": false},
+    {"id": "xfqebfn", "order": "o4", "step": 1, "machine": "c", "employee": "e4", "date": "2026-09-28", "start": 780, "end": 790, "qty": 10, "pinned": false},
+    {"id": "66deols", "order": "o4", "step": 2, "machine": "e", "employee": "e1", "date": "2026-09-28", "start": 790, "end": 840, "qty": 200, "pinned": false},
+    {"id": "onruobd", "order": "o4", "step": 2, "machine": "e", "employee": "e1", "date": "2026-09-28", "start": 890, "end": 940, "qty": 200, "pinned": false},
+    {"id": "ptqqdlx", "order": "o5", "step": 0, "machine": "a", "employee": "e1", "date": "2026-09-26", "start": 990, "end": 1020, "qty": 45, "pinned": false},
+    {"id": "g82j3rk", "order": "o5", "step": 0, "machine": "a", "employee": "e1", "date": "2026-09-28", "start": 600, "end": 630, "qty": 45, "pinned": false},
+    {"id": "guzwvw4", "order": "o5", "step": 1, "machine": "d", "employee": "e2", "date": "2026-09-28", "start": 960, "end": 1020, "qty": 60, "pinned": false},
+    {"id": "r4568t8", "order": "o5", "step": 1, "machine": "d", "employee": "e2", "date": "2026-09-29", "start": 480, "end": 510, "qty": 30, "pinned": false},
+    {"id": "ol5ej20", "order": "o5", "step": 2, "machine": "e", "employee": "e3", "date": "2026-09-29", "start": 510, "end": 540, "qty": 90, "pinned": false},
+    {"id": "47kkycg", "order": "o6", "step": 0, "machine": "c", "employee": "e2", "date": "2026-09-28", "start": 790, "end": 870, "qty": 150, "pinned": false},
+    {"id": "rluq8ci", "order": "o6", "step": 1, "machine": "d", "employee": "e5", "date": "2026-09-29", "start": 510, "end": 610, "qty": 150, "pinned": false},
+    {"id": "mx5ock4", "order": "o6", "step": 2, "machine": "e", "employee": "e4", "date": "2026-09-29", "start": 610, "end": 660, "qty": 150, "pinned": false}
+  ]
+}

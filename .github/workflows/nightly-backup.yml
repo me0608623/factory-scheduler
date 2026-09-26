@@ -1,0 +1,30 @@
+# 每日資料庫備份：台灣時間每天 02:00 用 pg_dump 備份，保留 30 天
+# 需要在 GitHub 的 Settings → Secrets 設定 SUPABASE_DB_URL
+# （用 Supabase 的「Session pooler」連線字串，GitHub 主機沒有 IPv6，不能用 Direct connection）
+name: 每日資料庫備份
+
+on:
+  schedule:
+    - cron: "0 18 * * *"   # UTC 18:00 = 台灣時間 02:00
+  workflow_dispatch: {}      # 也可以手動按一次
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 備份 public schema（排程、工單、稽核紀錄）
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          mkdir -p backup
+          docker run --rm -e DATABASE_URL -v "$PWD/backup:/backup" postgres:17 \
+            sh -c 'pg_dump "$DATABASE_URL" --schema=public --no-owner --no-privileges --format=custom \
+                   --file=/backup/factory-$(date -u +%Y%m%d-%H%M).dump'
+          ls -lh backup
+
+      - name: 上傳備份檔（保留 30 天）
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_id }}
+          path: backup/
+          retention-days: 30

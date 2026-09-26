@@ -1,0 +1,11 @@
+{
+  "name": "factory-scheduler-db-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node migrations.test.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.0"
+  }
+}

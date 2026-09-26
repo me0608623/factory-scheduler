@@ -136,4 +136,3 @@ pg_restore --clean --if-exists --no-owner -d "$DATABASE_URL" factory-YYYYMMDD-HH
 
 - 在某些 Windows 電腦上，「應用程式控制」會擋住 pandas 的 DLL。OR-Tools 只是順帶載入 pandas，沒有真的用到，所以 `solver/app/__init__.py` 在這種情況下會換成空殼，排程服務照常運作。Linux 伺服器上不受影響。
 - 國定假日請每年依行政院人事行政總處公告更新 `holidays` 資料表。
-

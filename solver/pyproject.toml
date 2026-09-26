@@ -1,0 +1,18 @@
+[project]
+name = "factory-solver"
+version = "0.1.0"
+description = "產線排程服務：Google OR-Tools CP-SAT 排程、方案比較、AI 說明"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "ortools>=9.12",
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.32",
+  "pydantic>=2.9",
+  "httpx>=0.27",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
