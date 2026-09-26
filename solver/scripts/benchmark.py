@@ -9,6 +9,7 @@ import json
 import subprocess
 import sys
 import time
+from collections import defaultdict
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -91,11 +92,12 @@ def stop_process_tree(proc: subprocess.Popen):
 def run_case(machines: int, employees: int, orders: int, cross_factory: bool = False,
              time_limit: float = 5.0, plans: bool = False, pair_cap: int | None = None,
              due_base_days: int = 10, leave_days: int = 0, fault_days: int = 0,
-             heterogeneous: bool = False, workers: int = 8, transfer_batch: int = 0):
+             heterogeneous: bool = False, workers: int = 8, transfer_batch: int = 0,
+             details: bool = False):
     from app.model import PRESETS, solve
     from app.plans import make_plans
     from app.schemas import Event, Now, PlanRequest
-    from app.timeline import abs_min
+    from app.timeline import Timeline, abs_min
     from app.validate import check
 
     snap = snapshot_for(machines, employees, orders, cross_factory,
@@ -122,15 +124,55 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
               for order in snap.orders}
     late = sum(value is not None and value > abs_min(order.due, 1440)
                for order in snap.orders for value in [finish[order.id]])
-    print(json.dumps({"status": result.status, "solver_method": result.search_mode,
-                      "solver_candidate_pairs": result.candidate_pairs,
-                      "objective": result.objective,
-                      "operations": result.n_ops,
-                      "blocks": len(result.blocks), "solve_seconds": round(result.wall, 2),
-                      "late_orders": late if result.status in ("OPTIMAL", "FEASIBLE") else None,
-                      "unplaced": len(result.unplaced),
-                      "valid": not check(snap, result.blocks, now) if result.status in ("OPTIMAL", "FEASIBLE") else None}),
-          flush=True)
+    output = {"status": result.status, "solver_method": result.search_mode,
+              "solver_candidate_pairs": result.candidate_pairs,
+              "objective": result.objective,
+              "operations": result.n_ops,
+              "blocks": len(result.blocks), "solve_seconds": round(result.wall, 2),
+              "late_orders": late if result.status in ("OPTIMAL", "FEASIBLE") else None,
+              "unplaced": len(result.unplaced),
+              "valid": not check(snap, result.blocks, now) if result.status in ("OPTIMAL", "FEASIBLE") else None}
+    if details and output["valid"] and not result.unplaced:
+        finish_blocks = {order.id: max((block for block in result.blocks
+                                        if block.order == order.id and block.step == last_step),
+                                       key=lambda block: abs_min(block.date, block.end))
+                         for order in snap.orders}
+        late_by_product = defaultdict(int)
+        late_by_due = defaultdict(int)
+        late_days_total = 0
+        for order in snap.orders:
+            delay = max(0, (date.fromisoformat(finish_blocks[order.id].date)
+                            - date.fromisoformat(order.due)).days)
+            if delay:
+                late_by_product[order.product] += 1
+                due_delta = (date.fromisoformat(order.due) - date(2026, 9, 28)).days
+                late_by_due["0-4" if due_delta < 5 else "5-9" if due_delta < 10 else "10+"] += 1
+                late_days_total += delay
+        window_start = date.fromisoformat(now.date)
+        window_end = (window_start + timedelta(days=4)).isoformat()
+        timeline = Timeline(snap.calendar, now.date, 5)
+        load = defaultdict(int)
+        capacity = defaultdict(int)
+        products_by_id = {product.id: product for product in snap.products}
+        orders_by_id = {order.id: order for order in snap.orders}
+        for block in result.blocks:
+            if now.date <= block.date <= window_end:
+                order = orders_by_id[block.order]
+                process = products_by_id[order.product].steps[block.step].process
+                load[process] += block.end - block.start
+        for machine in snap.machines:
+            for window in timeline.wins:
+                unavailable = sum(max(0, min(window.end, fault.end) - max(window.start, fault.start))
+                                  for fault in machine.faults if fault.date == window.date)
+                capacity[machine.process] += max(0, window.end - window.start - unavailable)
+        output["details"] = {
+            "late_by_product": dict(late_by_product), "late_by_due": dict(late_by_due),
+            "late_calendar_days_total": late_days_total,
+            "first_five_day_machine_utilization_pct": {
+                process: round(100 * load[process] / minutes, 1) if minutes else None
+                for process, minutes in capacity.items()},
+        }
+    print(json.dumps(output), flush=True)
 
 
 def main():
@@ -146,6 +188,7 @@ def main():
     parser.add_argument("--fault-days", type=int, default=0)
     parser.add_argument("--heterogeneous", action="store_true")
     parser.add_argument("--transfer-batch", type=int, default=0)
+    parser.add_argument("--details", action="store_true")
     parser.add_argument("--time-limit", type=float, default=5.0)
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--large-only", action="store_true")
@@ -163,7 +206,8 @@ def main():
                  time_limit=args.time_limit, plans=args.plans, pair_cap=args.pair_cap,
                  due_base_days=args.due_base_days, leave_days=args.leave_days,
                  fault_days=args.fault_days, heterogeneous=args.heterogeneous,
-                 workers=args.workers, transfer_batch=args.transfer_batch)
+                 workers=args.workers, transfer_batch=args.transfer_batch,
+                 details=args.details)
         return
     cases = ([(*args.sized_case, args.cross_factory)] if args.sized_case else
              [(5, 10, 10, False), (10, 20, 30, False), (10, 20, 30, True),
@@ -186,6 +230,8 @@ def main():
         if args.heterogeneous:
             command.append("--heterogeneous")
         command.extend(("--transfer-batch", str(args.transfer_batch)))
+        if args.details:
+            command.append("--details")
         started = time.monotonic()
         proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         peak = 0
