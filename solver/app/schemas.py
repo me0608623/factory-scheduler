@@ -7,7 +7,18 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+
+def iso_day(value: str) -> str:
+    """保留 API 的日期字串格式，同時在進入時間軸前驗證它。"""
+    try:
+        parsed = date.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError("日期必須是 YYYY-MM-DD") from exc
+    if parsed.isoformat() != value:
+        raise ValueError("日期必須是 YYYY-MM-DD")
+    return value
 
 
 class Step(BaseModel):
@@ -31,6 +42,11 @@ class Fault(BaseModel):
     note: str | None = None
     fixed: bool = False
     original_blocks: list[dict] = Field(default_factory=list)
+
+    @field_validator("date")
+    @classmethod
+    def valid_date(cls, value: str) -> str:
+        return iso_day(value)
 
 
 class Machine(BaseModel):
@@ -70,6 +86,11 @@ class Order(BaseModel):
     due: str                         # 最晚完成日
     priority: int = Field(default=2, ge=0, le=3)  # 0 特急、1 急、2 一般、3 不急
 
+    @field_validator("due")
+    @classmethod
+    def valid_due(cls, value: str) -> str:
+        return iso_day(value)
+
 
 class Block(BaseModel):
     id: str | None = None
@@ -82,6 +103,11 @@ class Block(BaseModel):
     end: int = Field(gt=0, le=1440)
     qty: int = Field(gt=0)
     pinned: bool = False
+
+    @field_validator("date")
+    @classmethod
+    def valid_date(cls, value: str) -> str:
+        return iso_day(value)
 
     @model_validator(mode="after")
     def end_after_start(self):
@@ -109,7 +135,12 @@ class Calendar(BaseModel):
 
 class Now(BaseModel):
     date: str
-    min: int
+    min: int = Field(ge=0, le=1440)
+
+    @field_validator("date")
+    @classmethod
+    def valid_date(cls, value: str) -> str:
+        return iso_day(value)
 
 
 class Snapshot(BaseModel):
@@ -126,12 +157,30 @@ class Event(BaseModel):
     type: Literal["fault", "leave", "order", "recover", "auto"]
     machine: str | None = None       # fault
     date: str | None = None          # fault、leave
-    start: int | None = None         # fault
-    end: int | None = None           # fault
+    start: int | None = Field(default=None, ge=0, lt=1440)  # fault
+    end: int | None = Field(default=None, gt=0, le=1440)    # fault
     note: str | None = None
     employee: str | None = None      # leave
     order: Order | None = None       # order（新增或修改的工單）
     fault_id: str | None = None      # recover
+
+    @field_validator("date")
+    @classmethod
+    def valid_date(cls, value: str | None) -> str | None:
+        return iso_day(value) if value is not None else None
+
+    @model_validator(mode="after")
+    def required_fields(self):
+        if self.type == "fault" and (not self.machine or not self.date or self.start is None
+                                      or self.end is None or self.end <= self.start):
+            raise ValueError("故障需指定機台、日期與有效起訖時間")
+        if self.type == "leave" and (not self.employee or not self.date):
+            raise ValueError("請假需指定員工與日期")
+        if self.type == "order" and self.order is None:
+            raise ValueError("新增或修改工單需提供工單資料")
+        if self.type == "recover" and not self.fault_id:
+            raise ValueError("機台恢復需指定故障紀錄")
+        return self
 
 
 class PlanRequest(BaseModel):

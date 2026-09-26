@@ -304,6 +304,17 @@ def test_solve_api_returns_validation_error_for_zero_order_quantity(demo):
     assert response.status_code == 422
 
 
+def test_api_rejects_invalid_date_and_incomplete_fault_event(demo):
+    snap, now = demo
+    payload = {"snapshot": snap.model_dump(), "now": now.model_dump()}
+    payload["now"]["date"] = "not-a-date"
+    assert TestClient(app).post("/solve", json=payload).status_code == 422
+
+    preview = {"snapshot": snap.model_dump(), "now": now.model_dump(),
+               "event": {"type": "fault", "machine": "c", "date": now.date, "start": 480}}
+    assert TestClient(app).post("/plans", json=preview).status_code == 422
+
+
 def test_missing_product_explains_instead_of_crashing():
     day = "2026-09-28"
     snap = Snapshot(
