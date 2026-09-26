@@ -1,0 +1,97 @@
+name: Deployment smoke test
+
+on:
+  push:
+    paths:
+      - "web/**"
+      - "solver/**"
+      - ".github/workflows/deploy-smoke.yml"
+  pull_request:
+    paths:
+      - "web/**"
+      - "solver/**"
+      - ".github/workflows/deploy-smoke.yml"
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build frontend image
+        run: |
+          docker build -t factory-web-smoke \
+            --build-arg VITE_SUPABASE_URL=https://example.supabase.co \
+            --build-arg VITE_SUPABASE_ANON_KEY=build-check \
+            --build-arg VITE_SOLVER_URL=https://solver.example.invalid \
+            web
+      - name: Check health and Excel template
+        run: |
+          docker run -d --name factory-web-smoke -p 127.0.0.1:18080:8080 factory-web-smoke
+          python - <<'PY'
+          import io
+          import time
+          import urllib.parse
+          import urllib.request
+          import zipfile
+
+          base = "http://127.0.0.1:18080"
+          for _ in range(30):
+              try:
+                  with urllib.request.urlopen(base + "/health") as response:
+                      assert response.status == 200
+                  break
+              except Exception:
+                  time.sleep(1)
+          else:
+              raise AssertionError("frontend health check failed")
+
+          with urllib.request.urlopen(base + "/" + urllib.parse.quote("匯入範本.xlsx")) as response:
+              data = response.read()
+              assert response.status == 200
+          with zipfile.ZipFile(io.BytesIO(data)) as workbook:
+              assert "xl/workbook.xml" in workbook.namelist()
+          PY
+      - name: Stop frontend image
+        if: always()
+        run: docker rm -f factory-web-smoke || true
+
+  solver:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build solver image
+        run: docker build -t factory-solver-smoke solver
+      - name: Check health and disabled public snapshot endpoint
+        run: |
+          docker run -d --name factory-solver-smoke -p 127.0.0.1:18081:8080 \
+            -e SOLVER_DISABLE_SNAPSHOT_API=1 factory-solver-smoke
+          python - <<'PY'
+          import json
+          import time
+          import urllib.error
+          import urllib.request
+
+          base = "http://127.0.0.1:18081"
+          for _ in range(30):
+              try:
+                  with urllib.request.urlopen(base + "/health") as response:
+                      health = json.load(response)
+                      assert health["ok"] is True
+                  break
+              except Exception:
+                  time.sleep(1)
+          else:
+              raise AssertionError("solver health check failed")
+
+          request = urllib.request.Request(
+              base + "/solve", data=b"{}", headers={"Content-Type": "application/json"}, method="POST"
+          )
+          try:
+              urllib.request.urlopen(request)
+              raise AssertionError("public snapshot endpoint was not disabled")
+          except urllib.error.HTTPError as error:
+              assert error.code == 403, error.code
+          PY
+      - name: Stop solver image
+        if: always()
+        run: docker rm -f factory-solver-smoke || true
