@@ -97,14 +97,19 @@ npm test
 前端的雲端資料層用 PGlite 加上真的資料庫結構來模擬 Supabase，不用帳號也能測試。
 每次推送 `db/`、`web/` 或 `solver/` 的變更，GitHub Actions 也會執行這三組測試與前端建置；兩個容器另有部署煙霧測試。
 
-## 5. 準備公開部署（平台待選）
+## 5. 公開部署（Render）
 
 `web/Dockerfile` 和 `solver/Dockerfile` 可分別部署到支援 Docker 的平台；兩個服務都需要公開 HTTPS 網址。
-目前**只有部署檔，尚未部署或取得公開網址**，因此外部裝置仍不能使用。
+Render Blueprint 已於 2026-09-26 建立兩個服務：
+
+- 前端：<https://factory-scheduler-web.onrender.com>（靜態網站，已上線）
+- 排程服務：<https://factory-scheduler-solver.onrender.com>（`1c-2g`，已上線；`/health` 回報資料庫所需設定齊全，實際讀寫仍待登入驗收）
+
+目前公開前端會要求登入；**帳號邀請、Supabase 正式網址設定與外部裝置實際操作驗收仍待完成**，不能僅憑網站可開啟就視為可供員工使用。這個 Blueprint 是從公開 Git URL 建立，Render 尚未連接 GitHub 帳號；推送程式後須確認是否自動同步，否則到 Render 手動同步 Blueprint／部署，並核對目前服務版本。
 
 ### 選平台後可直接使用的設定檔
 
-- **Render**：根目錄的 `render.yaml` 是 Blueprint，會建立免費靜態前端和 **付費 2 GB** 排程服務（`1c-2g`）。匯入 Blueprint 前先確認當下價格與月費；僅把檔案推到 GitHub 不會建立服務。建立時要在 Render 私密變數填入兩處 Supabase publishable／anon key，以及**只給排程服務**的 service-role key。前後端網址由 Blueprint 互相引用。請勿把真實 Excel 放進 Git 倉庫。參考 [Render Blueprint 規格](https://render.com/docs/blueprint-spec)。
+- **Render（目前使用）**：根目錄的 `render.yaml` Blueprint 已建立免費靜態前端和 **付費 2 GB** 排程服務（`1c-2g`，建立時 Render 預估 US$25／月）。兩處 Supabase anon key 與**只給排程服務**的 service-role key 已填入 Render 環境變數；前後端網址由 Blueprint 互相引用。金鑰不要放入 Git；真實 Excel 也不要放進 Git 倉庫。參考 [Render Blueprint 規格](https://render.com/docs/blueprint-spec)。
 - **Railway**：`web/railway.json`、`solver/railway.json` 設定 Docker 建置、健康檢查與重啟。從同一 GitHub 倉庫建立兩個服務，分別設定 Root Directory `/web` 與 `/solver`、Config File Path `/web/railway.json` 與 `/solver/railway.json`，然後各自產生公開網域。兩個服務都要**關閉 Serverless／App Sleeping**，才能避免閒置後冷啟動；排程服務記憶體上限至少 2 GB。參考 [Railway monorepo](https://docs.railway.com/deployments/monorepo) 與 [Serverless 說明](https://docs.railway.com/deployments/serverless)。
   - Railway 的 `web` 變數：`VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`，以及 `VITE_SOLVER_URL=https://${{solver.RAILWAY_PUBLIC_DOMAIN}}`。
   - Railway 的 `solver` 變數：`SUPABASE_URL`、`SUPABASE_ANON_KEY`、`SUPABASE_SERVICE_ROLE_KEY`、`SOLVER_DISABLE_SNAPSHOT_API=1`，以及 `ALLOWED_ORIGINS=https://${{web.RAILWAY_PUBLIC_DOMAIN}}`。參照變數取決於服務名稱正好為 `solver` 與 `web`；若命名不同，需同步改名。設定網域或建置時變數後，重建前端，確保 Vite 將正式網址寫入產物。
@@ -137,7 +142,7 @@ npm test
 4. **公開前關閉自助註冊**。`0009` 已套用；等老闆信箱確定後邀請帳號，由管理員核對後設為 `boss`，驗證角色再讓外部人員使用。開發者信箱不是老闆帳號；不要靠「第一個註冊」取得權限。
 5. 從手機行動網路或外部電腦登入正式網址，驗證示範資料、計算預覽顯示「OR-Tools」、套用與即時同步；再檢查 `POST /plans`、`POST /solve` 已回 403。
 
-選定平台後還需建立兩個服務、設定 DNS／HTTPS 和環境變數，並做上述現場驗收。這些步驟尚未執行。
+Render 已提供 HTTPS 網址並完成服務建立與環境變數設定；Supabase 登入設定及上述現場驗收仍須完成。若需要自己的網域，另行設定 DNS。
 
 ### 排程服務容量測試（2026-09-26，本機模擬資料）
 
