@@ -13,8 +13,9 @@ def check(snap: Snapshot, blocks: list[Block], now: Now | None = None) -> list[s
     prods = {p.id: p for p in snap.products}
     machs = {m.id: m for m in snap.machines}
     emps = {e.id: e for e in snap.employees}
-    start = min([b.date for b in blocks] + ([now.date] if now else [])) if blocks else (now.date if now else "2000-01-01")
-    tl = Timeline(snap.calendar, start, 90)
+    # 只建立實際有方塊的日期；避免固定 90 天視窗把遠期合法排程誤判成休息日，
+    # 也避免因兩個日期相距多年而配置龐大的連續時間軸。
+    days: dict[str, Timeline] = {}
     now_abs = abs_min(now.date, now.min) if now else None
 
     def name(b: Block) -> str:
@@ -43,7 +44,9 @@ def check(snap: Snapshot, blocks: list[Block], now: Now | None = None) -> list[s
         if m.factory != st.factory or m.process != st.process or o.product not in m.products:
             issues.append(f"{name(b)}：機台不能做這道工序")
         is_new = now_abs is None or abs_min(b.date, b.start) >= now_abs
-        w = tl.window_of(b.date, b.start, b.end)
+        if b.date not in days:
+            days[b.date] = Timeline(snap.calendar, b.date, 1)
+        w = days[b.date].window_of(b.date, b.start, b.end)
         if is_new and not w:
             issues.append(f"{name(b)}：不在上班時段內")
         if e and is_new:

@@ -47,6 +47,20 @@ def test_timeline_overtime_window_only_when_enabled(demo):
     assert Timeline(snap.calendar, "2026-09-29", 1, {"2026-09-29"}).horizon == 660
 
 
+def test_validator_accepts_workday_beyond_ninety_days():
+    future_day = "2027-01-04"  # 2026-09-28 起第 99 天，週一上班
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="m", process="cut", products=["p"])],
+        employees=[Employee(id="e", name="Worker", skills=["m"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=1)])],
+        orders=[Order(id="o", code="O", product="p", qty=60, due=future_day)],
+        blocks=[Block(order="o", step=0, machine="m", employee="e",
+                      date=future_day, start=480, end=540, qty=60)],
+    )
+    assert check(snap, snap.blocks, Now(date="2026-09-28", min=480)) == []
+
+
 def test_employee_weekly_overtime_and_one_day_override(demo):
     snap, now = demo
     employee = next(e for e in snap.employees if e.id == "e1")
