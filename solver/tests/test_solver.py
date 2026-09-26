@@ -1,8 +1,11 @@
 """排程服務測試：時間軸、OR-Tools 模型、各種突發狀況的方案、API。"""
 from fastapi.testclient import TestClient
+from datetime import date, timedelta
 from unittest.mock import patch
 
 from ortools.sat.python import cp_model
+from pydantic import ValidationError
+import pytest
 
 from app import main as api
 from app.main import app
@@ -134,6 +137,15 @@ def test_unknown_does_not_retry_with_larger_horizon(demo):
     assert any("計算時間內" in reason for reason in result.unplaced)
 
 
+def test_invalid_model_is_not_reported_as_resource_shortage(demo):
+    snap, now = demo
+    with patch.object(cp_model.CpSolver, "solve", return_value=cp_model.MODEL_INVALID) as mocked:
+        result = solve(snap, now, PRESETS["on_time"], time_limit=0.01)
+    assert mocked.call_count == 1
+    assert result.status == "MODEL_INVALID"
+    assert any("模型無法完成" in reason for reason in result.unplaced)
+
+
 def test_missing_cross_factory_machine_explains_and_blocks_apply():
     day = "2026-09-28"
     snap = Snapshot(
@@ -147,6 +159,69 @@ def test_missing_cross_factory_machine_explains_and_blocks_apply():
     assert not any(o.get("recommended") for o in plan["options"])
     assert all(not o["applicable"] for o in plan["options"])
     assert any("2 廠" in reason and "機台" in reason for reason in plan["options"][0]["diagnostics"])
+    assert any("其他廠有 a" in reason for reason in plan["options"][0]["diagnostics"])
+
+
+def test_no_working_day_gives_specific_action():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False] * 7),
+        employees=[Employee(id="e", name="甲", skills=["a"])],
+        machines=[Machine(id="a", process="裁切", products=["p"])],
+        products=[Product(id="p", name="產品", steps=[Step(process="裁切", rate=1)])],
+        orders=[Order(id="o", code="O1", product="p", qty=60, due=day)],
+    )
+    result = solve(snap, Now(date=day, min=480), PRESETS["on_time"], days=7)
+    assert result.status == "NO_WORKING_TIME"
+    assert any("上班日設定" in reason for reason in result.unplaced)
+
+
+def test_all_skilled_staff_on_leave_gives_specific_action():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        employees=[Employee(id="e", name="甲", skills=["a"],
+                            leaves=[(date.fromisoformat(day) + timedelta(days=i)).isoformat() for i in range(240)])],
+        machines=[Machine(id="a", process="裁切", products=["p"])],
+        products=[Product(id="p", name="產品", steps=[Step(process="裁切", rate=1)])],
+        orders=[Order(id="o", code="O1", product="p", qty=60, due=day)],
+    )
+    result = solve(snap, Now(date=day, min=480), PRESETS["on_time"], days=1)
+    assert result.status == "NO_AVAILABLE_PAIR"
+    assert any("請假" in reason and "故障" in reason for reason in result.unplaced)
+
+
+def test_short_horizon_leave_expands_to_next_available_day():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        employees=[Employee(id="e", name="甲", skills=["a"], leaves=[day])],
+        machines=[Machine(id="a", process="裁切", products=["p"])],
+        products=[Product(id="p", name="產品", steps=[Step(process="裁切", rate=1)])],
+        orders=[Order(id="o", code="O1", product="p", qty=60, due="2026-09-30")],
+    )
+    result = solve(snap, Now(date=day, min=480), PRESETS["on_time"], days=1, time_limit=1)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert result.blocks[0].date == "2026-09-29"
+
+
+def test_machine_without_same_factory_operator_names_action():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        employees=[Employee(id="e", name="一廠員工", factory=1, skills=["b"])],
+        machines=[Machine(id="b", factory=2, process="焊接", products=["p"])],
+        products=[Product(id="p", name="產品", steps=[Step(process="焊接", factory=2, rate=1)])],
+        orders=[Order(id="o", code="O1", product="p", qty=60, due=day)],
+    )
+    plan = make_plans(PlanRequest(snapshot=snap, event=Event(type="auto"), now=Now(date=day, min=480), time_limit=0.2))
+    assert all(not o["applicable"] for o in plan["options"])
+    assert any("機台 b" in reason and "同廠人員" in reason for reason in plan["options"][0]["diagnostics"])
+
+
+def test_step_rate_must_be_positive():
+    with pytest.raises(ValidationError):
+        Step(process="裁切", rate=0)
 
 
 def test_missing_product_explains_instead_of_crashing():

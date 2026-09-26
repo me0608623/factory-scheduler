@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 class Step(BaseModel):
     process: str
     factory: int = Field(default=1, ge=1, le=2)
-    rate: float                      # 一個人每分鐘做幾件
+    rate: float = Field(gt=0)        # 一個人每分鐘做幾件；不能為零
     batch: int = 0                   # 前站完成幾件就能傳到這站；0 = 前站全部完成
 
 

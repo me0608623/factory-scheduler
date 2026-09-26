@@ -145,9 +145,12 @@ def solve(
                      for e in snap.employees if e.factory == m.factory and m.id in e.skills]
             if not pairs:
                 if not eligible_machines:
-                    unplaced.append(f"{o.code} {st.process}（{st.factory} 廠）：沒有可加工此產品的機台；請檢查機台工序、所屬廠與可加工產品")
+                    elsewhere = [m.id for m in snap.machines if m.factory != st.factory and m.process == st.process and o.product in m.products]
+                    alternative = (f"；其他廠有 {', '.join(elsewhere[:3])}，若製程允許可改該站廠別" if elsewhere else "")
+                    unplaced.append(f"{o.code} {st.process}（{st.factory} 廠）：沒有可加工此產品的機台；請設定該廠機台的工序與可加工產品{alternative}")
                 else:
-                    unplaced.append(f"{o.code} {st.process}（{st.factory} 廠）：機台有空間但沒有具操作資格的人員；請指派同廠且會操作該機台的員工")
+                    mids = ', '.join(m.id for m in eligible_machines[:3])
+                    unplaced.append(f"{o.code} {st.process}（{st.factory} 廠）：機台 {mids} 可加工，但沒有具操作資格的同廠人員；請確認員工技能並指派可操作 {mids} 的員工")
                 continue
             op = Op((o.id, k), rem, dur_of(rem, st.rate), pairs)
             rb = refs.get((o.id, k))
@@ -161,6 +164,36 @@ def solve(
 
     # ---------- 3. 建模 ----------
     H = tl.horizon
+    if ops and not any(w.t1 > t_now for w in tl.wins):
+        if days < 120:
+            return solve(snap, now, weights, reference=reference, movable=movable,
+                         extra_overtime=extra_overtime, time_limit=time_limit, days=days * 2, workers=workers)
+        return Result(list(snap.blocks), "NO_WORKING_TIME", None, time.time() - t_start, len(ops),
+                      unplaced + [f"從 {now.date} 起的 {days} 天內沒有可排的上班時段；請在上班日設定開放工作日或調整排程起日"], released)
+
+    pairs_used = {pair for op in ops.values() for pair in op.pairs}
+    available_pairs = set()
+    for mid, eid in pairs_used:
+        employee, machine = emps[eid], machs[mid]
+        if any(w.t1 > t_now and w.date not in employee.leaves
+               and (not (w.overtime or w.special) or employee.allows_overtime(w.date))
+               and not any(f.date == w.date and f.start <= w.start and f.end >= w.end for f in machine.faults)
+               for w in tl.wins):
+            available_pairs.add((mid, eid))
+    availability = []
+    for op in ops.values():
+        if any(pair in available_pairs for pair in op.pairs):
+            continue
+        order = orders[op.key[0]]
+        process = prods[order.product].steps[op.key[1]].process
+        availability.append(f"{order.code} {process}：未來 {days} 天合格人員的請假／加班限制或機台故障覆蓋所有可上班時段；請檢查請假、加班意願與故障結束時間")
+    if availability:
+        if days < 120:
+            return solve(snap, now, weights, reference=reference, movable=movable,
+                         extra_overtime=extra_overtime, time_limit=time_limit, days=days * 2, workers=workers)
+        return Result(list(snap.blocks), "NO_AVAILABLE_PAIR", None, time.time() - t_start, len(ops),
+                      unplaced + availability, released)
+
     m = cp_model.CpModel()
     S, E, X = {}, {}, {}
     mach_iv: dict[str, list] = {mid: [] for mid in machs}
@@ -282,9 +315,11 @@ def solve(
             return solve(snap, now, weights, reference=reference, movable=movable,
                          extra_overtime=extra_overtime, time_limit=time_limit, days=days * 2, workers=workers)
         if status == cp_model.UNKNOWN:
-            reason = "計算時間內尚未找到可行方案；請縮小工單範圍、增加計算時間，或減少固定排程後重試"
-        else:
+            reason = "計算時間內尚未找到可行方案（不代表無解）；可先用手動排班安排急件，或請管理員提高求解時限後重試"
+        elif status == cp_model.INFEASIBLE:
             reason = "目前限制下排不出可行方案；請檢查固定工作、機台故障、請假與可上班日期"
+        else:
+            reason = "排程模型無法完成計算；請檢查產品速率、工單與固定方塊資料，必要時交由開發者診斷"
         return Result(list(snap.blocks), name, None, time.time() - t_start, len(ops),
                       unplaced + [reason], released)
 
