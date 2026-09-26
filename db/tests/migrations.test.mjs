@@ -184,6 +184,11 @@ ok((await db.query("select version::int v from schedule_state")).rows[0].v === 3
 const partialBatch = [{ ...all[0], qty: 60 }, { ...all[1], start_min: 540, end_min: 550, qty: 30 }];
 await as(LEAD, () => db.query("select save_blocks(3, $1, '先交接一批')", [JSON.stringify(partialBatch)]));
 ok((await db.query("select version::int v from schedule_state")).rows[0].v === 4, "前站只做滿首批、後站先做一部分可儲存");
+await as(LEAD, () => expectErr("select save_blocks(4, $1, '刪掉前站')", [JSON.stringify([partialBatch[1]])], /交接批量/, "刪除前站時也會重驗受影響工單"));
+const anotherOrder = (await db.query("insert into orders (code, product_id, qty, due_date) values ('MOVE-TEST',$1,120,'2026-10-05') returning id", ["00000000-0000-4000-8000-0000000000a1"])).rows[0].id;
+const movedOrder = [{ ...partialBatch[0], order_id: anotherOrder }, partialBatch[1]];
+await as(LEAD, () => expectErr("select save_blocks(4, $1, '換工單')", [JSON.stringify(movedOrder)], /交接批量/, "方塊改屬其他工單時，舊工單也會重驗"));
+ok((await db.query("select version::int v from schedule_state")).rows[0].v === 4, "刪除與換工單被拒絕後版本保持不變");
 
 await as(LEAD, () => expectErr("select _apply_blocks('[]'::jsonb)", [], /permission denied/, "前端不能直接呼叫內部函式"));
 

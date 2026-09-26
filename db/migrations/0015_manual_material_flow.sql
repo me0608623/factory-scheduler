@@ -1,6 +1,6 @@
 -- 手動排程 RPC 也檢查跨工序物料交接，避免繞過瀏覽器預覽直接寫入。
 -- 方塊中的件數按其起訖時間線性累積；與排程服務驗證器使用相同的半件容差。
-create function _assert_manual_material_flow(p_blocks jsonb) returns void
+create function _assert_manual_material_flow(p_blocks jsonb, p_order_ids uuid[] default null) returns void
 language plpgsql security definer set search_path = public as $$
 declare
   bad_order uuid;
@@ -12,6 +12,7 @@ begin
            ((x.date - date '2000-01-01') * 1440 + x.end_min)::numeric as end_at
       from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(
         order_id uuid, step_seq smallint, date date, start_min smallint, end_min smallint, qty integer)
+     where p_order_ids is null or x.order_id = any(p_order_ids)
   ), starts as (
     select c.order_id, c.step_seq,
            case when ps.transfer_batch > 0 and ps.transfer_batch < o.qty
@@ -36,6 +37,7 @@ begin
            ((x.date - date '2000-01-01') * 1440 + x.end_min)::numeric as end_at
       from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(
         order_id uuid, step_seq smallint, date date, start_min smallint, end_min smallint, qty integer)
+     where p_order_ids is null or x.order_id = any(p_order_ids)
   ), steps as (
     select distinct order_id, step_seq from b where step_seq > 0
   ), points as (
@@ -67,6 +69,7 @@ returns uuid language plpgsql security definer set search_path = public as $$
 declare
   ver bigint;
   cs uuid := gen_random_uuid();
+  changed_orders uuid[];
 begin
   if not is_editor() then
     raise exception '只有老闆或組長可以調整排程' using errcode = '42501';
@@ -75,7 +78,26 @@ begin
   if ver <> p_base_version then
     raise exception '排程剛被其他人更新，請重新整理後再調整' using errcode = '40001';
   end if;
-  perform _assert_manual_material_flow(p_blocks);
+  with incoming as (
+    select * from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(
+      id uuid, order_id uuid, step_seq smallint, machine_id text, employee_id uuid,
+      date date, start_min smallint, end_min smallint, qty integer, pinned boolean)
+  ), changed as (
+    select n.order_id as new_order, old.order_id as old_order
+      from incoming n full join schedule_blocks old on old.id = n.id
+     where n.id is null or old.id is null
+        or (old.order_id, old.step_seq, old.machine_id, old.employee_id,
+            old.date, old.start_min, old.end_min, old.qty, old.pinned)
+           is distinct from
+           (n.order_id, n.step_seq, n.machine_id, n.employee_id,
+            n.date, n.start_min, n.end_min, n.qty, coalesce(n.pinned, false))
+  )
+  select array_agg(distinct order_id) into changed_orders
+    from (select new_order as order_id from changed where new_order is not null
+          union select old_order from changed where old_order is not null) x;
+  if changed_orders is not null then
+    perform _assert_manual_material_flow(p_blocks, changed_orders);
+  end if;
   perform set_config('app.change_set_id', cs::text, true);
   insert into change_sets (id, kind, title, summary, detail, version_before, version_after)
   values (cs, p_kind, p_title, p_detail ->> 'summary', p_detail, ver, ver + 1);
@@ -84,4 +106,4 @@ begin
   return cs;
 end $$;
 
-revoke all on function _assert_manual_material_flow(jsonb) from public, anon, authenticated;
+revoke all on function _assert_manual_material_flow(jsonb, uuid[]) from public, anon, authenticated;

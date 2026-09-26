@@ -20,13 +20,14 @@
 ## 1. 建立資料庫（Supabase）
 
 1. 到 [supabase.com](https://supabase.com) 建立專案（目前使用東京 `ap-northeast-1`）。
-2. 打開 **SQL Editor**，依序貼上執行 `db/migrations/0001` 到 `0013`；要示範資料再執行 `db/seed.sql`。已建好的專案只需接續執行尚未套用的 migration。
+2. 打開 **SQL Editor**，依序貼上執行 `db/migrations/0001` 到 `0015`；要示範資料再執行 `db/seed.sql`。已建好的專案只需接續執行尚未套用的 migration，先在測試環境驗證。
 3. 到 **Authentication → Sign In / Providers** 關閉「Allow new users to sign up」，避免任何人自行註冊後讀取排程資料。若刻意開放示範帳號測試，請只放非敏感示範資料。
 4. 等老闆信箱確認後，由管理員在 **Authentication → Users** 邀請老闆。**所有新帳號預設只能看**；管理員核對身分後，在 SQL Editor 把該帳號的 `profiles.role` 設為 `boss`，再驗證角色。註冊順序不決定權限。
 5. 其他人的角色（組長 lead、員工 worker、電視 viewer）由老闆在 `profiles` 資料表修改（之後會做成畫面）。
 
 目前的雲端專案為 `factory-scheduler`（`https://kjnnguekhshkhgycmryl.supabase.co`）。
 `0001`–`0012` 已於 2026-09-26 套用；`0011` 新增獨立歷史排程資料表，與現行排程快照分離，只允許老闆和組長查閱、存入；`0012` 為員工、機台及產品工序加入 1／2 廠別，舊資料預設 1 廠。`0013` 將排程1023原檔的製作站別與人名欄位加入同一歷史封存的待確認名冊，不建立正式資源。先前資料庫已核對 RLS 和即時推送；`0009` 的新帳號觸發器不再依註冊順序給老闆權限；`0010` 新增每位員工同時顧機台上限。`0007`–`0008` 新增的加班星期與單日覆寫已在雲端驗證；工單與排程資料未刪除。
+此獨立分支另有 `0014`（阻止直接套用未完成方案）與 `0015`（手動排程的跨工序物料檢查），目前只在本機測試資料庫執行，尚未在正式 Supabase 套用。
 `db/seed.sql` 已匯入：5 位示範員工、5 台機台、3 種產品、6 張工單；排程方塊尚未建立。
 `web/.env.local` 已設為雲端模式。`me0608623@gmail.com` 是測試用組長帳號，不是老闆帳號；老闆帳號等實際持有人確認後再邀請並授權。Supabase Dashboard 的「Allow new users to sign up」已關閉。
 
