@@ -367,6 +367,21 @@ def test_api_rejects_invalid_date_and_incomplete_fault_event(demo):
     assert TestClient(app).post("/solve", json=invalid_windows).status_code == 422
 
 
+def test_large_plan_response_is_compressed_without_changing_json(demo, monkeypatch):
+    snap, now = demo
+    payload = {"snapshot": snap.model_dump(), "now": now.model_dump(), "event": {"type": "auto"}}
+    expected = {"options": [{"id": "A", "blocks": [{"order": "o", "note": "排程方塊"} for _ in range(300)]}]}
+    monkeypatch.setattr(api, "make_plans", lambda request: expected)
+    client = TestClient(app)
+    compressed = client.post("/plans", json=payload, headers={"Accept-Encoding": "gzip"})
+    plain = client.post("/plans", json=payload, headers={"Accept-Encoding": "identity"})
+    assert compressed.status_code == plain.status_code == 200
+    assert compressed.json() == plain.json() == expected
+    assert compressed.headers["content-encoding"] == "gzip"
+    assert "content-encoding" not in plain.headers
+    assert int(compressed.headers["content-length"]) < int(plain.headers["content-length"])
+
+
 def test_missing_product_explains_instead_of_crashing():
     day = "2026-09-28"
     snap = Snapshot(

@@ -5,6 +5,7 @@ Run from solver/: uv run --with psutil python scripts/benchmark.py
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import os
 import subprocess
@@ -132,9 +133,20 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
                                             now=now, time_limit=time_limit))
         finally:
             STRATEGIES[event] = original
+        encoded_started = time.monotonic()
+        encoded = json.dumps(result, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        response_bytes = len(encoded)
+        serialization_seconds = time.monotonic() - encoded_started
+        compressed_started = time.monotonic()
+        gzip_bytes = len(gzip.compress(encoded, compresslevel=6))
+        gzip_seconds = time.monotonic() - compressed_started
         print(json.dumps({"event": event, "option": option, "workers": workers,
                           "prefill": prefill, "prefill_blocks": len(snap.blocks),
                           "event_day": now.date,
+                          "response_bytes": response_bytes,
+                          "serialization_seconds": round(serialization_seconds, 3),
+                          "gzip_bytes": gzip_bytes,
+                          "gzip_seconds": round(gzip_seconds, 3),
                           "affected_machine": affected.machine if affected and event == "fault" else None,
                           "affected_employee": affected.employee if affected and event == "leave" else None,
                           "options": [{"id": option["id"], "status": option["status"],

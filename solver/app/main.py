@@ -14,6 +14,7 @@ from threading import BoundedSemaphore
 import ortools
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -24,6 +25,7 @@ from .schemas import Event, Now, PlanRequest, Snapshot, SolveRequest
 from .validate import check
 
 app = FastAPI(title="產線排程服務", version="0.1.0")
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "*").split(",")],
