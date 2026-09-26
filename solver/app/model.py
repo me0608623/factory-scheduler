@@ -133,17 +133,21 @@ def solve(
     for o in snap.orders:
         p = prods.get(o.product)
         if not p:
-            unplaced.append(f"{o.code}：找不到產品")
+            unplaced.append(f"{o.code}：找不到產品資料；請先建立產品與工序，再重新排程")
             continue
         for k, st in enumerate(p.steps):
             rem = o.qty - done.get((o.id, k), 0)
             if rem <= 0:
                 continue
-            pairs = [(m.id, e.id) for m in snap.machines
-                     if m.factory == st.factory and m.process == st.process and o.product in m.products
+            eligible_machines = [m for m in snap.machines
+                                 if m.factory == st.factory and m.process == st.process and o.product in m.products]
+            pairs = [(m.id, e.id) for m in eligible_machines
                      for e in snap.employees if e.factory == m.factory and m.id in e.skills]
             if not pairs:
-                unplaced.append(f"{o.code} {st.process}：沒有能做的機台或人員")
+                if not eligible_machines:
+                    unplaced.append(f"{o.code} {st.process}（{st.factory} 廠）：沒有可加工此產品的機台；請檢查機台工序、所屬廠與可加工產品")
+                else:
+                    unplaced.append(f"{o.code} {st.process}（{st.factory} 廠）：機台有空間但沒有具操作資格的人員；請指派同廠且會操作該機台的員工")
                 continue
             op = Op((o.id, k), rem, dur_of(rem, st.rate), pairs)
             rb = refs.get((o.id, k))
@@ -274,11 +278,15 @@ def solve(
     status = solver.solve(m)
     name = solver.status_name(status)
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        if days < 120:                                       # 排不下：把時間範圍拉長再試一次
+        if status == cp_model.INFEASIBLE and days < 120:      # 確認無解才擴大時間範圍
             return solve(snap, now, weights, reference=reference, movable=movable,
                          extra_overtime=extra_overtime, time_limit=time_limit, days=days * 2, workers=workers)
+        if status == cp_model.UNKNOWN:
+            reason = "計算時間內尚未找到可行方案；請縮小工單範圍、增加計算時間，或減少固定排程後重試"
+        else:
+            reason = "目前限制下排不出可行方案；請檢查固定工作、機台故障、請假與可上班日期"
         return Result(list(snap.blocks), name, None, time.time() - t_start, len(ops),
-                      unplaced + ["排不出可行的排程，請檢查人員技能、機台與故障設定"], released)
+                      unplaced + [reason], released)
 
     # ---------- 5. 換回真實時間的方塊 ----------
     out: list[Block] = list(fixed)

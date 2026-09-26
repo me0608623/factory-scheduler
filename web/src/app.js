@@ -1381,7 +1381,7 @@ function pvPanelHTML(o){
   const tabs=PV.opts.map(x=>{const ai=PV.ai&&PV.ai.pick===x.id;
     return '<button class="pv-opt" data-act="pv-pick" data-v="'+x.id+'" aria-pressed="'+(x.id===o.id)+'"><span class="pid num">'+x.id+'</span><span class="pv-opt-t"><b>'+esc(x.name)+'</b>'+
       '<small>延誤 '+x.mt.lateCodes.length+' · 異動 '+x.mt.moved+' · 他天 '+x.mt.otherDays+(x.mt.otH>0?' · 加班 '+x.mt.otH+'h':"")+(PV.kind==="recover"&&x.mt.gainH>0?' · 提早 '+x.mt.gainH+'h':"")+'</small>'+
-      '<span>'+(x.best?'<span class="tag ok">系統推薦</span>':"")+(ai?'<span class="tag ai">AI 推薦</span>':"")+'</span></span></button>';}).join("");
+      '<span>'+(x.applicable===false?'<span class="tag bad">不可套用</span>':"")+(x.best?'<span class="tag ok">系統推薦</span>':"")+(ai?'<span class="tag ai">AI 推薦</span>':"")+'</span></span></button>';}).join("");
   const sub=[["gantt","跨日影響圖"],["people","每個人的變動"],["lines","系統怎麼調"]];
   const body=PV.tab==="people"?peopleHTML(o):PV.tab==="lines"?'<div class="hint">'+esc(o.desc)+'</div>'+resultHTML(o.lines):ganttHTML(o);
   let ai="";
@@ -1394,8 +1394,9 @@ function pvPanelHTML(o){
   }else ai='<div class="hint">AI 助理下一階段由伺服器提供。</div>';
   return '<section class="pv" aria-label="預覽">'+
    '<div class="pv-h"><span class="pv-badge">預覽中</span><div class="pv-t"><b>'+esc(PV.title)+'</b><small>還沒套用，排程不會變。看清楚再按「套用」。　計算：'+(PV.engine==="OR-Tools"?"OR-Tools":"瀏覽器備援")+'</small></div><div class="spacer"></div>'+
-   '<button class="btn" data-act="pv-cancel">取消</button><button class="btn primary" data-act="pv-apply">套用方案 '+o.id+'</button></div>'+
+   '<button class="btn" data-act="pv-cancel">取消</button><button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+(o.applicable===false?'不可套用':'套用方案 '+o.id)+'</button></div>'+
    '<div class="pv-opts">'+tabs+'</div>'+
+   (o.applicable===false?'<div class="pv-sum"><b>目前不能套用：</b>'+o.diagnostics.map(esc).join('；')+'</div>':'')+
    '<div class="pv-sum"><b>方案 '+o.id+'：</b>'+esc(pvSummary(o))+'</div>'+
    '<div class="pv-row"><div class="seg" role="group" aria-label="預覽圖與下方排程表顯示"><button data-act="pv-mode" data-v="cmp" aria-pressed="'+(PV.mode==="cmp")+'">對照</button><button data-act="pv-mode" data-v="new" aria-pressed="'+(PV.mode==="new")+'">調整後</button><button data-act="pv-mode" data-v="orig" aria-pressed="'+(PV.mode==="orig")+'">原本</button></div>'+
    '<span class="hint">'+(PV.mode==="cmp"?"虛線／上排＝原本，彩色／下排＝調整後":PV.mode==="new"?"只看調整後，粗框＝有變動的工作":"只看原本，虛線框＝會被移動的工作")+'</span><div class="spacer"></div>'+
@@ -1421,7 +1422,7 @@ async function openPlansSolver(title,logTitle,kind,applyEvent,strategies,extra){
   }
   if(!plan.options||!plan.options.length){toast("算不出可行的排法，請手動處理");return;}
   const B=JSON.parse(JSON.stringify(S)),ev={date:plan.date,oid:extra.event.order?extra.event.order.id:undefined};
-  const opts=plan.options.map(o=>{const A=applyOption(B,o);return {id:o.id,name:o.name,desc:o.desc,lines:o.lines||[],mt:measure(B,A,ev),score:o.score,best:!!o.recommended,state:JSON.stringify(A),A,sec:o.solve_seconds};});
+  const opts=plan.options.map(o=>{const A=applyOption(B,o);return {id:o.id,name:o.name,desc:o.desc,lines:o.lines||[],mt:measure(B,A,ev),score:o.score,best:!!o.recommended,applicable:o.applicable!==false,diagnostics:o.diagnostics||[],state:JSON.stringify(A),A,sec:o.solve_seconds};});
   const fi=plan.options[0].effects&&plan.options[0].effects.faults_insert;
   enterPreview({title,logTitle,kind,base:JSON.stringify(B),B,opts,ev,extra:{...extra,fid:fi&&fi[0]?fi[0].id:extra.fid,previewId:plan.preview_id||null,engine:"OR-Tools"}});
 }
@@ -1473,6 +1474,7 @@ async function askAI(){
 }
 async function pvApply(){
   const o=pvOpt();if(!o)return;
+  if(o.applicable===false){toast('這個方案尚無法套用，請查看原因與建議');return;}
   const P=PV,noteEl=$("#pv-note");if(noteEl)P.note=noteEl.value.trim();
   if(P.previewId&&STORE.applyPlan){
     toast("套用中…");

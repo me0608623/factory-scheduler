@@ -15,16 +15,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-def snapshot_for(machine_count: int, employee_count: int, order_count: int):
+def snapshot_for(machine_count: int, employee_count: int, order_count: int, cross_factory: bool = False):
     from app.schemas import Calendar, Employee, Machine, Order, Product, Snapshot, Step
 
     processes = ("cut", "press", "weld", "pack")
+    factory_for = lambda process: 2 if cross_factory and process in ("weld", "pack") else 1
     machines = [
-        Machine(id=f"m{i}", process=processes[i % 4], products=["p"])
+        Machine(id=f"m{i}", factory=factory_for(processes[i % 4]),
+                process=processes[i % 4], products=["p"])
         for i in range(machine_count)
     ]
     employees = [
-        Employee(id=f"e{i}", name=f"Employee {i}",
+        Employee(id=f"e{i}", name=f"Employee {i}", factory=factory_for(processes[i % 4]),
                  skills=[m.id for m in machines if m.process == processes[i % 4]])
         for i in range(employee_count)
     ]
@@ -38,7 +40,7 @@ def snapshot_for(machine_count: int, employee_count: int, order_count: int):
         calendar=Calendar(week=[False, True, True, True, True, True, False]),
         machines=machines, employees=employees,
         products=[Product(id="p", name="Product", steps=[
-            Step(process=p, rate=2) for p in processes
+            Step(process=p, factory=factory_for(p), rate=2) for p in processes
         ])],
         orders=orders,
     )
@@ -67,27 +69,37 @@ def stop_process_tree(proc: subprocess.Popen):
     proc.kill()
 
 
-def run_case(machines: int, employees: int, orders: int):
+def run_case(machines: int, employees: int, orders: int, cross_factory: bool = False):
     from app.model import PRESETS, solve
     from app.schemas import Now
+    from app.validate import check
 
-    snap = snapshot_for(machines, employees, orders)
-    result = solve(snap, Now(date="2026-09-28", min=480), PRESETS["on_time"],
+    snap = snapshot_for(machines, employees, orders, cross_factory)
+    now = Now(date="2026-09-28", min=480)
+    result = solve(snap, now, PRESETS["on_time"],
                    time_limit=5.0, days=45, workers=8)
     print(json.dumps({"status": result.status, "operations": result.n_ops,
-                      "blocks": len(result.blocks), "solve_seconds": round(result.wall, 2)}),
+                      "blocks": len(result.blocks), "solve_seconds": round(result.wall, 2),
+                      "unplaced": len(result.unplaced),
+                      "valid": not check(snap, result.blocks, now) if result.status in ("OPTIMAL", "FEASIBLE") else None}),
           flush=True)
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--case", nargs=3, type=int)
+    parser.add_argument("--cross-factory", action="store_true")
     args = parser.parse_args()
     if args.case:
-        run_case(*args.case)
+        run_case(*args.case, cross_factory=args.cross_factory)
         return
-    for case in ((5, 10, 10), (10, 20, 30), (20, 40, 50), (20, 40, 100)):
-        command = [sys.executable, __file__, "--case", *map(str, case)]
+    for machines, employees, orders, cross_factory in ((5, 10, 10, False), (10, 20, 30, False),
+                                                       (10, 20, 30, True),
+                                                       (20, 40, 50, False), (20, 40, 100, False),
+                                                       (20, 40, 100, True)):
+        command = [sys.executable, __file__, "--case", *map(str, (machines, employees, orders))]
+        if cross_factory:
+            command.append("--cross-factory")
         started = time.monotonic()
         proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         peak = 0
@@ -99,7 +111,8 @@ def main():
             stop_process_tree(proc)
         stdout, stderr = proc.communicate()
         peak = max(peak, rss_bytes(proc.pid) or 0)
-        print(json.dumps({"machines": case[0], "employees": case[1], "orders": case[2],
+        print(json.dumps({"machines": machines, "employees": employees, "orders": orders,
+                          "cross_factory": cross_factory,
                           "elapsed_seconds": round(time.monotonic() - started, 2),
                           "peak_rss_mb": round(peak / 1048576, 1) if peak else None,
                           "timeout": timed_out, "exit_code": proc.returncode,

@@ -17,6 +17,7 @@ from typing import Callable
 from .model import PRESETS, Result, Weights, solve
 from .schemas import Block, Event, Fault, Now, Order, PlanRequest, Snapshot
 from .timeline import abs_min, add_days, s2d, Timeline
+from .validate import check
 
 TW = timezone(timedelta(hours=8))   # 台灣沒有日光節約時間
 WD = "日一二三四五六"
@@ -210,7 +211,11 @@ def _finish(snap: Snapshot, blocks: list[Block]) -> dict[str, dict]:
     prods = {p.id: p for p in snap.products}
     out = {}
     for o in snap.orders:
-        last = len(prods[o.product].steps) - 1
+        product = prods.get(o.product)
+        if not product or not product.steps:
+            out[o.id] = {"k": "part", "fin": None, "date": None}
+            continue
+        last = len(product.steps) - 1
         lb = [b for b in blocks if b.order == o.id and b.step == last]
         if not lb or sum(b.qty for b in lb) < o.qty:
             out[o.id] = {"k": "part", "fin": None, "date": None}
@@ -234,7 +239,9 @@ def describe(base: Snapshot, a: Applied, blocks: list[Block], res: Result | None
     orders = {o.id: o for o in a.snap.orders}
     prods = {p.id: p for p in a.snap.products}
     names = {e.id: e.name for e in a.snap.employees}
-    step_name = lambda b: prods[orders[b.order].product].steps[b.step].process if b.order in orders else "?"
+    step_name = lambda b: (prods[orders[b.order].product].steps[b.step].process
+                           if b.order in orders and orders[b.order].product in prods
+                           and b.step < len(prods[orders[b.order].product].steps) else "?")
     bk, ak = {_key(b) for b in base.blocks}, {_key(b) for b in blocks}
     gone = [b for b in base.blocks if _key(b) not in ak]
     added = [b for b in blocks if _key(b) not in bk]
@@ -283,7 +290,7 @@ def describe(base: Snapshot, a: Applied, blocks: list[Block], res: Result | None
         if oid not in orders:
             continue
         o = orders[oid]
-        proc = prods[o.product].steps[k].process
+        proc = prods[o.product].steps[k].process if o.product in prods and k < len(prods[o.product].steps) else "未知工序"
         where = lambda bs: "、".join(f"{mdw(b.date)} {hm(b.start)} {b.machine} {names.get(b.employee, '')}" for b in sorted(bs, key=lambda x: abs_min(x.date, x.start))[:2]) + ("…" if len(bs) > 2 else "")
         if not g["old"]:
             lines.append({"k": "info", "t": f"{o.code} {proc}：新排入 {where(g['new'])}"})
@@ -343,6 +350,13 @@ def make_plans(req: PlanRequest) -> dict:
     options = []
     for st, res, blocks in results:
         d = describe(base, a, blocks, res, now, req.event.type)
+        diagnostics = list(res.unplaced) if res else []
+        missing_products = [o for o in a.snap.orders if o.product not in {p.id for p in a.snap.products}]
+        if missing_products:
+            diagnostics.extend(f"{o.code}：找不到產品資料；請先建立產品與工序" for o in missing_products)
+        else:
+            diagnostics.extend(check(a.snap, blocks, now)[:5])
+        applicable = (res is None or res.status in ("OPTIMAL", "FEASIBLE")) and not diagnostics
         eff = copy.deepcopy(a.effects)
         if st.preset:
             ot = sorted(st.overtime(a, now))
@@ -354,8 +368,10 @@ def make_plans(req: PlanRequest) -> dict:
             d.pop("gone")
         options.append({"id": st.id, "name": st.name, "desc": st.desc, **d,
                         "status": res.status if res else "KEEP", "solve_seconds": round(res.wall, 2) if res else 0,
+                        "applicable": applicable, "diagnostics": diagnostics,
                         "blocks": [to_db(b) for b in blocks], "effects": eff})
-    if options:
-        min(options, key=lambda o: o["score"])["recommended"] = True
+    applicable_options = [o for o in options if o["applicable"]]
+    if applicable_options:
+        min(applicable_options, key=lambda o: o["score"])["recommended"] = True
     return {"kind": req.event.type, "title": a.title, "date": a.date, "base_version": base.version,
             "event": req.event.model_dump(), "options": options}

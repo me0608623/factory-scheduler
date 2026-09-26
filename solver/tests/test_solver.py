@@ -1,5 +1,8 @@
 """排程服務測試：時間軸、OR-Tools 模型、各種突發狀況的方案、API。"""
 from fastapi.testclient import TestClient
+from unittest.mock import patch
+
+from ortools.sat.python import cp_model
 
 from app import main as api
 from app.main import app
@@ -120,6 +123,42 @@ def test_cross_factory_steps_keep_one_order_and_precedence():
     assert abs_min(second.date, second.start) >= abs_min(first.date, first.end)
     wrong = second.model_copy(update={"employee": "e1"})
     assert any("不在同一廠" in issue for issue in check(snap, [first, wrong]))
+
+
+def test_unknown_does_not_retry_with_larger_horizon(demo):
+    snap, now = demo
+    with patch.object(cp_model.CpSolver, "solve", return_value=cp_model.UNKNOWN) as mocked:
+        result = solve(snap, now, PRESETS["on_time"], time_limit=0.01)
+    assert mocked.call_count == 1, "求解超時不是無解，不應擴大日期再跑兩次"
+    assert result.status == "UNKNOWN"
+    assert any("計算時間內" in reason for reason in result.unplaced)
+
+
+def test_missing_cross_factory_machine_explains_and_blocks_apply():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        employees=[Employee(id="e", name="一廠員工", factory=1, skills=["a"])],
+        machines=[Machine(id="a", factory=1, process="裁切", products=["p"])],
+        products=[Product(id="p", name="產品", steps=[Step(process="裁切", factory=2, rate=1)])],
+        orders=[Order(id="o", code="O1", product="p", qty=60, due=day)],
+    )
+    plan = make_plans(PlanRequest(snapshot=snap, event=Event(type="auto"), now=Now(date=day, min=480), time_limit=0.2))
+    assert not any(o.get("recommended") for o in plan["options"])
+    assert all(not o["applicable"] for o in plan["options"])
+    assert any("2 廠" in reason and "機台" in reason for reason in plan["options"][0]["diagnostics"])
+
+
+def test_missing_product_explains_instead_of_crashing():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        employees=[], machines=[], products=[],
+        orders=[Order(id="o", code="O1", product="missing", qty=60, due=day)],
+    )
+    plan = make_plans(PlanRequest(snapshot=snap, event=Event(type="auto"), now=Now(date=day, min=480), time_limit=0.2))
+    assert all(not o["applicable"] for o in plan["options"])
+    assert any("找不到產品" in reason for reason in plan["options"][0]["diagnostics"])
 
 
 def test_prototype_schedule_is_valid(demo):

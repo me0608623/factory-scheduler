@@ -130,6 +130,10 @@ const blocks = [
   { order_id: "00000000-0000-4000-8000-0000000000b1", step_seq: 1, machine_id: "c", employee_id: "00000000-0000-4000-8000-0000000000e2", date: "2026-10-05", start_min: 540, end_min: 580, qty: 120 },
 ];
 const opt = (id, bl, eff = {}) => ({ id, name: "方案" + id, summary: "測試", metrics: { moved: 1 }, lines: [], blocks: bl, effects: eff });
+const blockedPreview = (await db.query("insert into plan_previews (kind, title, event, base_version, options) values ('auto','超時方案','{}',0,$1) returning id",
+  [JSON.stringify([{ ...opt("A", []), applicable: false, diagnostics: ["計算超時"] }])])).rows[0].id;
+await as(LEAD, () => expectErr("select apply_plan($1,'A')", [blockedPreview], /不能套用/, "計算超時或不完整的方案不能透過資料庫直接套用"));
+ok((await db.query("select version::int v from schedule_state")).rows[0].v === 0, "被拒絕的方案不會修改排程版本");
 const pv1 = (await db.query("insert into plan_previews (kind, title, event, base_version, options) values ('auto','重新排程','{}',0,$1) returning id",
   [JSON.stringify([opt("A", blocks, { overtime_on: ["2026-10-05"] })])])).rows[0].id;
 await as(TV, () => expectErr("select apply_plan($1,'A')", [pv1], /只有老闆或組長/, "電視帳號不能套用方案"));
