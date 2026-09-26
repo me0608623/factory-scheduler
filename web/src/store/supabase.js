@@ -134,6 +134,13 @@ export class SupabaseStore {
   // ---------- 寫：只寫有變的列；排程方塊整批用 save_blocks（有版本號檢查） ----------
   async sync(S, entry) {
     const d = diffRows(this.base, rowsOf(S));
+    // 基本資料逐表寫入，若排程版本已過期，應在第一筆寫入前先拒絕；
+    // 否則後續 save_blocks 才報衝突時，工單等列可能已部分留下。
+    if (Object.values(d).some(change => change.upsert.length || change.del.length)) {
+      const { data, error } = await this.sb.from("schedule_state").select("version").single();
+      if (error) throw new Error("檢查排程版本失敗：" + error.message);
+      if (Number(data.version) !== this.version) throw new ConflictError();
+    }
     for (const t of UPSERT_ORDER) {
       if (!d[t]?.upsert.length) continue;
       const { error } = await this.sb.from(t).upsert(d[t].upsert, { onConflict: TABLE_KEYS[t].join(",") });

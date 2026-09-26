@@ -149,6 +149,20 @@ test("兩個人同時改：後存的人收到衝突", async () => {
   assert.equal(fresh.blocks[0].m, "a", "重新讀取後看到老闆的版本");
 });
 
+test("排程版本已變時，不得先把同次修改的工單寫入資料庫", async () => {
+  const { store, count } = await setup();
+  const boss = await store("boss@x"), lead = await store("lead@x");
+  const Sb = await boss.load(), Sl = await lead.load();
+  Sb.blocks.push(blk());
+  await boss.sync(Sb, { kind: "move", title: "老闆排的" });
+  Sl.orders[0].qty = 121;
+  Sl.blocks.push(blk({ m: "b" }));
+  await assert.rejects(lead.sync(Sl, { kind: "move", title: "組長過期的排程" }),
+    (e) => e.conflict === true);
+  assert.equal(await count("select qty n from orders where code='A01'"), 120,
+    "整次過期操作不應留下先寫入的工單數量");
+});
+
 test("權限：電視帳號寫不進去、組長不能改基本資料", async () => {
   const { store, count } = await setup();
   const tv = await store("tv@x");
