@@ -63,6 +63,44 @@ begin
   end if;
 end $$;
 
+-- 手動安排可以只做部分數量，但每站合計不得超過工單數量，單段也不得超出標準產能。
+create function _assert_manual_quantity(p_blocks jsonb, p_order_ids uuid[]) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  bad_order uuid;
+  bad_step smallint;
+begin
+  with b as (
+    select x.order_id, x.step_seq, x.qty, x.end_min - x.start_min as minutes
+      from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(
+        order_id uuid, step_seq smallint, start_min smallint, end_min smallint, qty integer)
+     where x.order_id = any(p_order_ids)
+  )
+  select b.order_id, b.step_seq into bad_order, bad_step
+    from b join orders o on o.id = b.order_id
+           join product_steps ps on ps.product_id = o.product_id and ps.seq = b.step_seq
+   where b.qty > floor(b.minutes * ps.rate + 0.00000001)
+   limit 1;
+  if found then
+    raise exception '工單 % 第 % 道工序：宣稱件數超過工序速率可完成的數量', bad_order, bad_step;
+  end if;
+
+  with b as (
+    select x.order_id, x.step_seq, x.qty
+      from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(
+        order_id uuid, step_seq smallint, qty integer)
+     where x.order_id = any(p_order_ids)
+  )
+  select b.order_id, b.step_seq into bad_order, bad_step
+    from b join orders o on o.id = b.order_id
+   group by b.order_id, b.step_seq, o.qty
+  having sum(b.qty) > o.qty
+   limit 1;
+  if found then
+    raise exception '工單 % 第 % 道工序：已排件數超過工單件數', bad_order, bad_step;
+  end if;
+end $$;
+
 -- 拖曳與手動新增不只要避開時間衝突；被改動工單的人、機、產品工序和廠別也需相容。
 create function _assert_manual_assignments(p_blocks jsonb, p_order_ids uuid[]) returns void
 language plpgsql security definer set search_path = public as $$
@@ -195,6 +233,7 @@ begin
     from (select new_order as order_id from changed where new_order is not null
           union select old_order from changed where old_order is not null) x;
   if changed_orders is not null then
+    perform _assert_manual_quantity(p_blocks, changed_orders);
     perform _assert_manual_material_flow(p_blocks, changed_orders);
     perform _assert_manual_assignments(p_blocks, changed_orders);
     perform _assert_manual_resources(p_blocks, changed_orders);
@@ -208,5 +247,6 @@ begin
 end $$;
 
 revoke all on function _assert_manual_material_flow(jsonb, uuid[]) from public, anon, authenticated;
+revoke all on function _assert_manual_quantity(jsonb, uuid[]) from public, anon, authenticated;
 revoke all on function _assert_manual_assignments(jsonb, uuid[]) from public, anon, authenticated;
 revoke all on function _assert_manual_resources(jsonb, uuid[]) from public, anon, authenticated;

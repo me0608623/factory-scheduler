@@ -189,6 +189,14 @@ const anotherOrder = (await db.query("insert into orders (code, product_id, qty,
 const movedOrder = [{ ...partialBatch[0], order_id: anotherOrder }, partialBatch[1]];
 await as(LEAD, () => expectErr("select save_blocks(4, $1, '換工單')", [JSON.stringify(movedOrder)], /交接批量/, "方塊改屬其他工單時，舊工單也會重驗"));
 ok((await db.query("select version::int v from schedule_state")).rows[0].v === 4, "刪除與換工單被拒絕後版本保持不變");
+const tooManyPieces = [{ ...partialBatch[0], end_min: 550, qty: 121 }, partialBatch[1]];
+await as(LEAD, () => expectErr("select save_blocks(4, $1, '超出工單件數')", [JSON.stringify(tooManyPieces)], /超過工單件數/, "RPC 不接受一道工序排出超過工單總件數"));
+const tooManyParts = [...partialBatch,
+  { ...partialBatch[0], id: null, start_min: 960, end_min: 1020, qty: 70 }];
+await as(LEAD, () => expectErr("select save_blocks(4, $1, '分段超出工單件數')", [JSON.stringify(tooManyParts)], /超過工單件數/, "RPC 不接受多段各自合理、合計卻超量"));
+const tooFast = [{ ...partialBatch[0], end_min: 510, qty: 61 }, partialBatch[1]];
+await as(LEAD, () => expectErr("select save_blocks(4, $1, '超出工序速率')", [JSON.stringify(tooFast)], /超過工序速率/, "RPC 不接受工作時間不足以做出宣稱件數"));
+ok((await db.query("select version::int v from schedule_state")).rows[0].v === 4, "超量與超速被拒後版本保持不變");
 const machineClash = [...partialBatch,
   { ...partialBatch[0], id: null, order_id: anotherOrder, qty: 30, start_min: 500, end_min: 550 }];
 await as(LEAD, () => expectErr("select save_blocks(4, $1, '重疊機台')", [JSON.stringify(machineClash)], /機台.*重疊/, "RPC 不接受同一機台同時排兩段工作"));
