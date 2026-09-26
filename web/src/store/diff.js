@@ -26,7 +26,7 @@ export function rowsOf(S) {
   for (const e of S.employees) {
     const weekdays=overtimeWeekdays(e);
     put("employees", e.id, { id: e.id, name: e.name, color: e.color || 0, no_overtime: weekdays.length===0,
-      overtime_weekdays: weekdays });
+      overtime_weekdays: weekdays, max_concurrent_machines: e.maxMachines || 1 });
     for (const m of e.skills) put("employee_skills", e.id + "|" + m, { employee_id: e.id, machine_id: m });
     for (const d of e.leaves) put("leaves", e.id + "|" + d, { employee_id: e.id, date: d });
     for (const [d, available] of Object.entries(e.otOverrides || {}))

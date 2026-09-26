@@ -1,7 +1,7 @@
 """OR-Tools CP-SAT 排程模型。
 
 每張工單的每一站 = 一個「工作」。每個可行的「機台＋人」組合是一個可選區間，恰好選一個。
-硬性限制：同一台機台、同一個人同時只做一件事；故障、請假時段不能排；不能加班的人不排加班與假日；
+硬性限制：同一台機台同時只排一件事；每人同時顧機台數不超過其設定上限；故障、請假時段不能排；不能加班的人不排加班與假日；
 前站做完（或做到可傳下站的件數）才開始下站；已經過去、手動固定的工作不動。
 目標：延誤 × 急件權重 ＞ 完成時間 ＞ 跟原本排程的差異（開始時間移動、換人換機台）。
 """
@@ -160,6 +160,7 @@ def solve(
     S, E, X = {}, {}, {}
     mach_iv: dict[str, list] = {mid: [] for mid in machs}
     emp_iv: dict[str, list] = {eid: [] for eid in emps}
+    emp_unavailable: dict[str, list] = {eid: [] for eid in emps}
 
     for key, op in ops.items():
         s10 = m.new_int_var(math.ceil(t_now / 10), H // 10, f"s10_{key}")
@@ -204,14 +205,21 @@ def solve(
         for d in em.leaves:
             span = tl.day_span(d)
             if span:
-                emp_iv[em.id].append(fixed_iv(*span, f"leave_{em.id}_{d}"))
+                emp_unavailable[em.id].append(fixed_iv(*span, f"leave_{em.id}_{d}"))
         for i, w in enumerate(tl.wins):
             if (w.overtime or w.special) and not em.allows_overtime(w.date):
-                emp_iv[em.id].append(fixed_iv(w.t0, w.t1, f"noot_{em.id}_{i}"))
-    for ivs in list(mach_iv.values()) + list(emp_iv.values()):
+                emp_unavailable[em.id].append(fixed_iv(w.t0, w.t1, f"noot_{em.id}_{i}"))
+    for ivs in mach_iv.values():
         ivs = [iv for iv in ivs if iv is not None]
         if len(ivs) > 1:
             m.add_no_overlap(ivs)
+    for em in snap.employees:
+        ivs = [iv for iv in emp_iv[em.id] if iv is not None]
+        unavailable = [iv for iv in emp_unavailable[em.id] if iv is not None]
+        if ivs or unavailable:
+            m.add_cumulative(ivs + unavailable,
+                             [1] * len(ivs) + [em.max_concurrent_machines] * len(unavailable),
+                             em.max_concurrent_machines)
 
     # 工序順序（前站 → 下站）
     for o in snap.orders:

@@ -46,16 +46,26 @@ def check(snap: Snapshot, blocks: list[Block], now: Now | None = None) -> list[s
             if f.date == b.date and f.start < b.end and f.end > b.start and is_new:
                 issues.append(f"{name(b)}：機台故障中")
 
-    # 重疊：同一台機台、同一個人
-    for attr in ("machine", "employee"):
-        groups = defaultdict(list)
-        for b in blocks:
-            groups[(getattr(b, attr), b.date)].append(b)
-        for (_, _), bl in groups.items():
-            bl.sort(key=lambda x: x.start)
-            for a, c in zip(bl, bl[1:]):
-                if c.start < a.end:
-                    issues.append(f"{name(a)} 和 {name(c)}：同一個{'機台' if attr == 'machine' else '人'}時間重疊")
+    # 同一機台仍不能重疊；人員可依個別上限同時顧多台。
+    machines_by_day = defaultdict(list)
+    employees_by_day = defaultdict(list)
+    for b in blocks:
+        machines_by_day[(b.machine, b.date)].append(b)
+        if b.employee in emps:
+            employees_by_day[(b.employee, b.date)].append(b)
+    for bl in machines_by_day.values():
+        bl.sort(key=lambda x: x.start)
+        for a, c in zip(bl, bl[1:]):
+            if c.start < a.end:
+                issues.append(f"{name(a)} 和 {name(c)}：同一個機台時間重疊")
+    for (employee_id, day), bl in employees_by_day.items():
+        events = sorted([(b.start, 1) for b in bl] + [(b.end, -1) for b in bl])
+        concurrent = 0
+        for minute, change in events:
+            concurrent += change
+            if concurrent > emps[employee_id].max_concurrent_machines:
+                issues.append(f"{emps[employee_id].name} {day} {minute}：同時顧機台數超過上限 {emps[employee_id].max_concurrent_machines}")
+                break
 
     # 數量、工序順序
     by = defaultdict(list)

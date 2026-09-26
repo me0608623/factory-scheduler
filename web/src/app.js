@@ -2,6 +2,7 @@
 import { SOLVER } from "./solver.js";
 import { toSnapshot, applyOption, newId } from "./convert.js";
 import { ALL_WEEKDAYS, overtimeAllowed, overtimeDefault, overtimeWeekdays } from "./overtime.js";
+import { capacityIntervals as occupiedCapacityIntervals } from "./capacity.js";
 /* ===== 1. 常數與工具 ===== */
 const COLORS=["#FFE14D","#4CDB6E","#F58CF0","#4FE3EE","#FFA64D","#AFC0FF","#FF9A9A","#BFEA6C"];
 const PROCS=["裁切","沖壓","焊接","組裝","包裝"];
@@ -84,11 +85,11 @@ function workdaysFrom(ds,n){const out=[];let d=ds;for(let i=0;out.length<n&&i<40
 function makeDemo(){
   S={v:1,demo:true,savedAt:null,dayOT:{},cal:{week:[...DEF_WEEK],over:{}},log:[],blocks:[],
     employees:[
-      {id:"e1",name:"張三",color:0,skills:["a","b","e"],leaves:[],noOT:false},
-      {id:"e2",name:"李四",color:1,skills:["a","c","d"],leaves:[],noOT:false},
-      {id:"e3",name:"王五",color:2,skills:["c","d","e"],leaves:[],noOT:false},
-      {id:"e4",name:"陳六",color:3,skills:["b","c","e"],leaves:[],noOT:false},
-      {id:"e5",name:"林七",color:4,skills:["a","d","e"],leaves:[],noOT:true}],
+      {id:"e1",name:"張三",color:0,skills:["a","b","e"],maxMachines:1,leaves:[],noOT:false},
+      {id:"e2",name:"李四",color:1,skills:["a","c","d"],maxMachines:1,leaves:[],noOT:false},
+      {id:"e3",name:"王五",color:2,skills:["c","d","e"],maxMachines:1,leaves:[],noOT:false},
+      {id:"e4",name:"陳六",color:3,skills:["b","c","e"],maxMachines:1,leaves:[],noOT:false},
+      {id:"e5",name:"林七",color:4,skills:["a","d","e"],maxMachines:1,leaves:[],noOT:true}],
     machines:[
       {id:"a",label:"裁切機 1",proc:"裁切",products:["p1","p2"],faults:[]},
       {id:"b",label:"裁切機 2",proc:"裁切",products:["p1"],faults:[]},
@@ -125,10 +126,15 @@ function undo(){
   S=JSON.parse(undoStack.pop());commit({kind:"edit",title:"復原上一步",lines:[]});toast("已復原上一步");
 }
 /* ===== 5. 排程引擎 ===== */
+// 某人達到同時顧機台上限的時段；每段工作對應一台機台。
+function capacityIntervals(ds,E,ex=new Set(),over=0){
+  return occupiedCapacityIntervals(S.blocks,ds,E,ex,over);
+}
 // 某日某機台＋某人的忙碌時段（含機台故障）
 function busyFor(ds,mid,eid,ex){
   const iv=[];
-  for(const b of S.blocks){if(b.date!==ds||ex.has(b.id))continue;if(b.m===mid||b.emp===eid)iv.push([b.s,b.e]);}
+  for(const b of S.blocks){if(b.date!==ds||ex.has(b.id))continue;if(b.m===mid)iv.push([b.s,b.e]);}
+  iv.push(...capacityIntervals(ds,emp(eid),ex));
   const M=mach(mid);if(M)for(const f of M.faults)if(f.date===ds)iv.push([f.s,f.e]);
   return mergeIv(iv);
 }
@@ -254,7 +260,8 @@ function slotFree(ds,mid,E,s,e,exId){
   const w=di.win.find(w=>s>=w.s&&e<=w.e);if(!w)return false;
   if(w.ot&&!overtimeAllowed(E,ds))return false;
   const M=mach(mid);if(M.faults.some(f=>f.date===ds&&f.s<e&&f.e>s))return false;
-  return !S.blocks.some(b=>b.id!==exId&&b.date===ds&&(b.m===mid||b.emp===E.id)&&b.s<e&&b.e>s);
+  if(S.blocks.some(b=>b.id!==exId&&b.date===ds&&b.m===mid&&b.s<e&&b.e>s))return false;
+  return !capacityIntervals(ds,E,exId?new Set([exId]):new Set()).some(([bs,be])=>bs<e&&be>s);
 }
 function canDo(E,M,pid,k){const st=prod(pid).steps[k];return E.skills.includes(M.id)&&M.proc===st.proc&&M.products.includes(pid);}
 function trySwap(b,mode){
@@ -345,7 +352,8 @@ function insertOrder(oid){
   }
   const mine=S.blocks.filter(b=>b.oid===oid&&bAbs(b)>=now);
   // 同一個人在別台機器上撞時間 → 先試著換人
-  const empConf=S.blocks.filter(x=>x.oid!==oid&&movable.has(x.id)&&mine.some(n=>n.emp===x.emp&&n.m!==x.m&&n.date===x.date&&n.s<x.e&&n.e>x.s));
+  const empConf=S.blocks.filter(x=>x.oid!==oid&&movable.has(x.id)&&mine.some(n=>n.emp===x.emp&&n.m!==x.m&&n.date===x.date&&n.s<x.e&&n.e>x.s)&&
+    capacityIntervals(x.date,emp(x.emp),new Set(),1).some(([s,e])=>s<x.e&&e>x.s));
   for(const m of new Set(mine.map(b=>b.m)))reflow(m,Math.min(...mine.filter(b=>b.m===m).map(bAbs)),lines,movable);
   const still=empConf.filter(b=>S.blocks.includes(b));
   if(still.length)lines.push(...repair(still,"leave",true));
@@ -556,8 +564,9 @@ function issuesOf(b,opt={}){
   if(!inWin)out.push(di.open?"超出上班時間（午休或未開加班）":"這天停工");
   else if(E&&!overtimeAllowed(E,b.date)&&di.win.some(w=>w.ot&&b.s<w.e&&b.e>w.s))out.push(E.name+" 當日不可加班（假日出勤也不排）");
   for(const x of S.blocks){if(x===b||x.date!==b.date||x.s>=b.e||x.e<=b.s)continue;
-    if(x.m===b.m){if(opt.pushOK&&!x.pin){opt.push++;continue;}out.push(x.pin?"和固定的 "+label(x)+" 重疊":"和 "+label(x)+" 撞同一台機器");break;}
-    if(x.emp===b.emp){out.push((E?E.name:"")+" 同時段已在 "+x.m+" 機台工作");break;}}
+    if(x.m===b.m){if(opt.pushOK&&!x.pin){opt.push++;continue;}out.push(x.pin?"和固定的 "+label(x)+" 重疊":"和 "+label(x)+" 撞同一台機器");break;}}
+  if(E&&capacityIntervals(b.date,E,new Set([b.id])).some(([s,e])=>s<b.e&&e>b.s))
+    out.push(E.name+" 同時顧機台超過上限 "+(E.maxMachines||1)+" 台");
   if(b.step>0){const r=readyAbs(b.oid,b.step);if(bAbs(b)<r)out.push("前站還沒做完（"+(isFinite(r)?mdw(dateOfAbs(r))+" "+hm(r%1440)+" 後才能做":"前站未排")+"）");}
   return out;
 }
@@ -1013,7 +1022,7 @@ ot(m){
 },
 emp(m){
   if(!m.draft){const E=m.id?emp(m.id):null;
-    m.draft=E?JSON.parse(JSON.stringify(E)):{id:uid(),name:"",color:S.employees.length%COLORS.length,skills:[],leaves:[],noOT:false,otWeekdays:[...ALL_WEEKDAYS],otOverrides:{}};
+    m.draft=E?JSON.parse(JSON.stringify(E)):{id:uid(),name:"",color:S.employees.length%COLORS.length,skills:[],maxMachines:1,leaves:[],noOT:false,otWeekdays:[...ALL_WEEKDAYS],otOverrides:{}};
     m.draft.otWeekdays=overtimeWeekdays(m.draft);m.draft.otOverrides ||= {};}
   const D=m.draft,ro=readOnly||!canMaster();
   const start=weekStart(UI.date<todayStr()?todayStr():UI.date);
@@ -1023,6 +1032,7 @@ emp(m){
    '<div class="field"><label for="f-name">姓名</label><input class="inp" id="f-name" data-bind="name" value="'+esc(D.name)+'" '+(ro?"disabled":"")+' autocomplete="off"></div>'+
    '<div class="field"><span class="lab">代表顏色</span><div class="swatches">'+COLORS.map((c,i)=>'<button class="swatch" style="background:'+c+'" data-act="m-color" data-v="'+i+'" aria-pressed="'+(D.color===i)+'" aria-label="顏色 '+(i+1)+'"></button>').join("")+'</div></div>'+
    '<div class="field"><span class="lab">會操作的機台</span><div class="toggles">'+S.machines.map(M=>tg("m-skill",M.id,D.skills.includes(M.id),'<span class="num">'+esc(M.id)+'</span><small>'+esc(M.label)+'</small>')).join("")+'</div></div>'+
+   '<div class="field"><label for="f-max-machines">同時最多顧幾台機台</label><input class="inp num" type="number" min="1" max="100" step="1" id="f-max-machines" data-bind="maxMachines" value="'+(D.maxMachines||1)+'" '+(ro?"disabled":"")+'><div class="hint">預設 1 台；只計算同時運轉的不同機台，不影響會操作的機台清單。</div></div>'+
    '<div class="field"><span class="lab">固定每週可加班日</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("m-ot-week",w,D.otWeekdays.includes(w),"週"+WD[w])).join("")+'</div><div class="hint">當天是否加班另由排程表開放；臨時意願可在當天的「加班設定」調整。</div></div>'+
    '<div class="field"><span class="lab">請假（點日期切換，紅色 = 請假）</span><div class="toggles">'+days+'</div></div>';
   const foot=ro?'<button class="btn" data-act="close">關閉</button>':
@@ -1531,7 +1541,7 @@ const HELP=[
   "局部調整（請假、故障）會先試 <b>換人 → 換機台 → 延後 → 順延</b>，盡量不動其他天。"],
   "以後工單變多時，可以把計算換成 Google OR-Tools（開源的工廠排程求解器），畫面和操作都不用改。"],
  ["員工、機台、工序設定",[
-  "<b>員工</b>：點名字 → 設定會操作的機台、固定每週哪幾天可加班，以及請假日期。",
+  "<b>員工</b>：點名字 → 設定會操作的機台、同時最多顧幾台、固定每週哪幾天可加班，以及請假日期。",
   "<b>機台</b>：點機台 → 設定做哪一道工序、可以生產哪些產品（有哪些模具）。",
   "<b>產品工序</b>（工單格下方）：每個產品要經過哪幾站、一個人每分鐘做幾件、前站做完幾件就能傳到下一站。",
   "順序不能跳：前一站沒做完（或還沒做到設定的件數），下一站不會開始。"],
@@ -1575,9 +1585,16 @@ Object.assign(MODAL_ACT,{
   "m-emp-save":()=>{
     syncInputs();const m=UI.modal,D=m.draft;D.name=D.name.trim();
     if(!D.name){toast("請輸入姓名");return;}
+    if(!Number.isInteger(D.maxMachines)||D.maxMachines<1||D.maxMachines>100){toast("同時顧機台上限請填 1–100 台");return;}
+    const old=emp(D.id);
+    if(old&&D.maxMachines<old.maxMachines){
+      const future=S.blocks.filter(b=>b.emp===D.id&&bEnd(b)>nowAbs());
+      const overloaded=[...new Set(future.map(b=>b.date))].find(ds=>
+        occupiedCapacityIntervals(S.blocks,ds,D,new Set(),1).some(([s,e])=>absOf(ds,e)>nowAbs()));
+      if(overloaded){toast("降低上限後，"+mdw(overloaded)+"已有工作超過新上限；請先調整排程");return;}
+    }
     D.otWeekdays=overtimeWeekdays(D);D.noOT=D.otWeekdays.length===0;
     pushUndo();
-    const old=emp(D.id);
     const addLv=D.leaves.filter(d=>!old||!old.leaves.includes(d));
     const delLv=old?old.leaves.filter(d=>!D.leaves.includes(d)):[];
     if(old)Object.assign(old,JSON.parse(JSON.stringify(D)));else S.employees.push(JSON.parse(JSON.stringify(D)));
@@ -1856,7 +1873,7 @@ function normalizeState(){
   if(!S.cal)S.cal={week:[...DEF_WEEK],over:{}};
   if(!S.dayOT)S.dayOT={};
   if(!S.log)S.log=[];
-  for(const e of S.employees){e.otWeekdays=overtimeWeekdays(e);e.otOverrides ||= {};e.noOT=e.otWeekdays.length===0;}
+  for(const e of S.employees){e.otWeekdays=overtimeWeekdays(e);e.otOverrides ||= {};e.noOT=e.otWeekdays.length===0;e.maxMachines ||= 1;}
   for(const M of S.machines)for(const f of M.faults)if(!f.id)f.id=uid();
   if(S.holidays)Object.assign(HOLI,S.holidays);
 }

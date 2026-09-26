@@ -43,6 +43,7 @@ test("讀取、只寫有變的列、紀錄", async () => {
   const boss = await store("boss@x");
   const S = await boss.load();
   assert.equal(S.employees.length, 5);
+  assert.equal(S.employees[0].maxMachines, 1, "既有員工預設同時顧一台");
   assert.equal(S.orders.length, 6);
   assert.equal(S.blocks.length, 0);
 
@@ -56,6 +57,7 @@ test("讀取、只寫有變的列、紀錄", async () => {
   // 改名字、請假、報故障、開加班：不動排程 → 各表只寫有變的列，紀錄走 log_change
   const before = await count("select count(*)::int n from audit_log");
   S.employees[0].name = "張三豐";
+  S.employees[0].maxMachines = 2;
   S.employees[1].leaves.push("2026-10-06");
   S.machines.find((m) => m.id === "c").faults.push({ id: crypto.randomUUID(), date: "2026-10-06", s: 480, e: 600, note: "馬達", fixed: false, orig: [S.blocks[1]] });
   S.dayOT["2026-10-06"] = true;
@@ -73,6 +75,8 @@ test("讀取、只寫有變的列、紀錄", async () => {
   // 重新讀回來，資料一致（故障的原本位置也在）
   const S2 = await boss.load();
   assert.equal(S2.employees.find((e) => e.id === E1).name, "張三豐");
+  assert.equal(S2.employees.find((e) => e.id === E1).maxMachines, 2);
+  assert.equal(await count("select max_concurrent_machines::int n from employees where id=$1", [E1]), 2);
   const f = S2.machines.find((m) => m.id === "c").faults[0];
   assert.equal(f.note, "馬達");
   assert.equal(f.orig.length, 1);
@@ -154,7 +158,7 @@ test("套用排程服務的方案（apply_plan）", async () => {
 
 test("格式轉換：畫面 → 快照 → 畫面", () => {
   const S = { cal: { week: [false, true, true, true, true, true, true], over: { "2026-10-01": "off" } }, dayOT: { "2026-10-02": true },
-    employees: [{ id: "e", name: "甲", color: 1, skills: ["a"], leaves: ["2026-10-03"], noOT: true,
+    employees: [{ id: "e", name: "甲", color: 1, skills: ["a"], maxMachines: 2, leaves: ["2026-10-03"], noOT: true,
       otWeekdays: [], otOverrides: {} }],
     machines: [{ id: "a", label: "A", proc: "裁切", products: ["p"], faults: [{ id: "f", date: "2026-10-04", s: 480, e: 600, note: "", fixed: false, orig: [] }] }],
     products: [{ id: "p", name: "P", steps: [{ proc: "裁切", rate: 2, batch: 0 }] }],

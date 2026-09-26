@@ -1,6 +1,6 @@
 // 畫面用的資料格式（沿用原型的 S） ↔ 排程服務／資料庫的格式
 //
-// 畫面：employees[{id,name,color,skills,leaves,noOT,otWeekdays,otOverrides}]、machines[{id,label,proc,products,faults[{id,date,s,e,note,fixed,orig}]}]
+// 畫面：employees[{id,name,color,skills,maxMachines,leaves,noOT,otWeekdays,otOverrides}]、machines[{id,label,proc,products,faults[{id,date,s,e,note,fixed,orig}]}]
 //       products[{id,name,steps[{proc,rate,batch}]}]、orders[{id,code,pid,qty,due,pri}]
 //       blocks[{id,oid,step,m,emp,date,s,e,qty,pin}]、cal{week,over{date:"work"|"off"}}、dayOT{date:true}、log[]
 
@@ -30,6 +30,7 @@ export function toSnapshot(S, holidays = {}) {
       holidays: { ...holidays },
     },
     employees: S.employees.map((e) => ({ id: e.id, name: e.name, color: e.color || 0, skills: [...e.skills],
+      max_concurrent_machines: e.maxMachines || 1,
       leaves: [...e.leaves], no_overtime: !!e.noOT, overtime_weekdays: overtimeWeekdays(e),
       overtime_overrides: { ...(e.otOverrides || {}) } })),
     machines: S.machines.map((m) => ({ id: m.id, label: m.label, process: m.proc, products: [...m.products],
@@ -54,6 +55,7 @@ export function fromSnapshot(snap) {
     dayOT: { ...(c.overtime || {}) },
     holidays: { ...(c.holidays || {}) },
     employees: (snap.employees || []).map((e) => ({ id: e.id, name: e.name, color: e.color || 0, skills: [...e.skills],
+      maxMachines: e.max_concurrent_machines || 1,
       leaves: [...(e.leaves || [])], noOT: !!e.no_overtime,
       otWeekdays: Array.isArray(e.overtime_weekdays) ? e.overtime_weekdays : e.no_overtime ? [] : [0,1,2,3,4,5,6],
       otOverrides: { ...(e.overtime_overrides || {}) } })),

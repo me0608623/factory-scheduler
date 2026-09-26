@@ -5,7 +5,7 @@ from app import main as api
 from app.main import app
 from app.model import PRESETS, solve
 from app.plans import make_plans
-from app.schemas import Event, Now, Order, PlanRequest
+from app.schemas import Calendar, Employee, Event, Machine, Now, Order, PlanRequest, Product, Snapshot, Step
 from app.timeline import Timeline, abs_min
 from app.validate import check
 
@@ -68,6 +68,33 @@ def test_solver_respects_one_day_overtime_change(demo):
     employee.overtime_overrides["2026-09-26"] = True
     changed = solve(snap, now, PRESETS["on_time"], time_limit=2)
     assert changed.blocks and all(b.date == "2026-09-26" for b in changed.blocks)
+
+
+def test_employee_machine_limit_allows_two_machines_but_not_three():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        employees=[Employee(id="e", name="甲", skills=["a", "b", "c"], max_concurrent_machines=2)],
+        machines=[Machine(id=id, process="裁切", products=["p"]) for id in ("a", "b", "c")],
+        products=[Product(id="p", name="產品", steps=[Step(process="裁切", rate=1)])],
+        orders=[Order(id=f"o{i}", code=f"O{i}", product="p", qty=120, due=day) for i in range(3)],
+    )
+    now = Now(date=day, min=480)
+    result = solve(snap, now, PRESETS["on_time"], time_limit=3)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert check(snap, result.blocks, now) == []
+    events = sorted([(b.start, 1) for b in result.blocks if b.date == day] +
+                    [(b.end, -1) for b in result.blocks if b.date == day])
+    concurrent = peak = 0
+    for _, change in events:
+        concurrent += change
+        peak = max(peak, concurrent)
+    assert peak == 2
+    snap.employees[0].max_concurrent_machines = 1
+    assert any("超過上限 1" in issue for issue in check(snap, result.blocks, now))
+    single = solve(snap, now, PRESETS["on_time"], time_limit=3)
+    assert single.status in ("OPTIMAL", "FEASIBLE")
+    assert check(snap, single.blocks, now) == []
 
 
 # ---------- 模型 ----------

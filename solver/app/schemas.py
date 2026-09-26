@@ -44,6 +44,7 @@ class Employee(BaseModel):
     id: str
     name: str
     skills: list[str]                # 會操作的機台
+    max_concurrent_machines: int = Field(default=1, ge=1, le=100)
     leaves: list[str] = Field(default_factory=list)
     no_overtime: bool = False        # 不能加班（也不排國定假日、週末出勤）
     overtime_weekdays: list[int] | None = None  # 0=週日；舊快照用 no_overtime

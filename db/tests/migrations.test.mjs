@@ -96,6 +96,15 @@ const otEmp = otSnap.employees.find(e => e.id === EMP1);
 ok(JSON.stringify(otEmp.overtime_weekdays) === JSON.stringify([1,3,5]) && otEmp.overtime_overrides["2026-10-01"] === true,
   "快照含固定星期與單日臨時意願");
 
+console.log("員工同時顧機台上限");
+ok(otEmp.max_concurrent_machines === 1, "既有員工預設最多顧一台");
+await as(BOSS, () => db.query("update employees set max_concurrent_machines=2 where id=$1", [EMP1]));
+const capacitySnap = await as(TV, async () => (await db.query("select schedule_snapshot() s")).rows[0].s);
+ok(capacitySnap.employees.find(e => e.id === EMP1).max_concurrent_machines === 2, "快照含老闆設定的上限");
+await as(BOSS, () => expectErr("update employees set max_concurrent_machines=0 where id=$1", [EMP1], /check constraint/, "上限不可小於一台"));
+const leadCapacity = await as(LEAD, () => db.query("update employees set max_concurrent_machines=3 where id=$1", [EMP1]));
+ok(leadCapacity.affectedRows === 0, "組長不能修改員工上限");
+
 console.log("套用方案 apply_plan()");
 const blocks = [
   { order_id: "00000000-0000-4000-8000-0000000000b1", step_seq: 0, machine_id: "a", employee_id: "00000000-0000-4000-8000-0000000000e1", date: "2026-10-05", start_min: 480, end_min: 540, qty: 120 },
