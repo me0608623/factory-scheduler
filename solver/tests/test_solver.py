@@ -9,7 +9,7 @@ import pytest
 
 from app import main as api
 from app.main import app
-from app.model import PRESETS, Weights, solve
+from app.model import PRESETS, Result, Weights, solve
 from app.plans import make_plans
 from app.schemas import Block, Calendar, Employee, Event, Fault, Machine, Now, Order, PlanRequest, Product, Snapshot, Step
 from app.timeline import Timeline, abs_min
@@ -394,6 +394,24 @@ def test_large_plan_generation_limits_concurrent_models():
         executor.return_value.__enter__.return_value.map.return_value = []
         make_plans(req)
     assert executor.call_args.kwargs["max_workers"] == 1
+
+
+def test_very_large_on_time_draft_skips_full_model():
+    snap = snapshot_for(20, 40, 250, cross_factory=True)
+    now = Now(date="2026-09-28", min=480)
+    draft = Result(
+        blocks=[Block(order=order.id, step=3, machine="m3", employee="e3",
+                      date=order.due, start=480, end=490, qty=order.qty)
+                for order in snap.orders],
+        status="OPTIMAL", objective=1, wall=0.1, n_ops=1000,
+        search_mode="restricted_pairs",
+    )
+    with patch("app.model.solve", return_value=draft) as recursive, patch("app.model.check", return_value=[]):
+        result = solve(snap, now, PRESETS["on_time"], time_limit=5)
+    assert recursive.call_count == 1
+    assert recursive.call_args.kwargs["pair_cap"] == 1
+    assert result.status == "FEASIBLE", "受限初稿不能宣稱是完整問題的最優解"
+    assert result.search_mode == "restricted_pairs"
 
 
 def test_restricted_draft_balances_early_orders_across_machines():

@@ -133,6 +133,8 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--case", nargs=3, type=int)
+    parser.add_argument("--sized-case", nargs=3, type=int,
+                        help="run one synthetic size through the memory-capped parent")
     parser.add_argument("--cross-factory", action="store_true")
     parser.add_argument("--plans", action="store_true")
     parser.add_argument("--pair-cap", type=int)
@@ -150,7 +152,8 @@ def main():
     if (not 0 < args.time_limit <= 60 or not 100 <= args.memory_limit_mb <= 4096
             or args.pair_cap is not None and args.pair_cap < 1
             or args.due_base_days < 0 or args.leave_days < 0 or args.fault_days < 0
-            or not 1 <= args.workers <= 16 or args.transfer_batch < 0):
+            or not 1 <= args.workers <= 16 or args.transfer_batch < 0
+            or args.sized_case is not None and min(args.sized_case) < 1):
         parser.error("time limit must be 0-60 seconds and memory limit 100-4096 MB")
     if args.case:
         run_case(*args.case, cross_factory=args.cross_factory,
@@ -159,10 +162,10 @@ def main():
                  fault_days=args.fault_days, heterogeneous=args.heterogeneous,
                  workers=args.workers, transfer_batch=args.transfer_batch)
         return
-    for machines, employees, orders, cross_factory in ((5, 10, 10, False), (10, 20, 30, False),
-                                                       (10, 20, 30, True),
-                                                       (20, 40, 50, False), (20, 40, 100, False),
-                                                       (20, 40, 100, True)):
+    cases = ([(*args.sized_case, args.cross_factory)] if args.sized_case else
+             [(5, 10, 10, False), (10, 20, 30, False), (10, 20, 30, True),
+              (20, 40, 50, False), (20, 40, 100, False), (20, 40, 100, True)])
+    for machines, employees, orders, cross_factory in cases:
         if args.large_only and orders < 100 or args.cross_only and not cross_factory:
             continue
         command = [sys.executable, __file__, "--case", *map(str, (machines, employees, orders)),

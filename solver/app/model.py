@@ -215,6 +215,26 @@ def solve(
         return Result(list(snap.blocks), "NO_AVAILABLE_PAIR", None, time.time() - t_start, len(ops),
                       unplaced + availability, released)
 
+    early_draft: Result | None = None
+    if pair_cap is None and len(ops) >= 1000 and not unplaced:
+        # 大模型先給受限人機候選完整的求解預算；若可準時且驗證通過，省去
+        # 大量可選區間的完整模型。若初稿仍逾期，保留它並繼續嘗試完整模型。
+        candidate = solve(snap, now, weights, reference=reference, movable=movable,
+                          extra_overtime=extra_overtime, time_limit=time_limit,
+                          days=days, workers=workers, pair_cap=1)
+        if (candidate.status in ("OPTIMAL", "FEASIBLE") and not candidate.unplaced
+                and not check(snap, candidate.blocks, now)):
+            candidate.status = "FEASIBLE"
+            early_draft = candidate
+            finish_dates: dict[str, str] = {}
+            for block in candidate.blocks:
+                order = orders.get(block.order)
+                if order and block.step == len(prods[order.product].steps) - 1:
+                    finish_dates[order.id] = max(finish_dates.get(order.id, ""), block.date)
+            if all(finish_dates.get(order.id, "9999-12-31") <= order.due for order in snap.orders):
+                candidate.wall = time.time() - t_start
+                return candidate
+
     if pair_cap is not None:
         machine_busy: dict[str, list[tuple[int, int]]] = {mid: [] for mid in machs}
         employee_busy: dict[str, list[tuple[int, int]]] = {eid: [] for eid in emps}
@@ -451,6 +471,9 @@ def solve(
     name = solver.status_name(status)
 
     def restricted_draft() -> Result | None:
+        if early_draft is not None:
+            early_draft.wall = time.time() - t_start
+            return early_draft
         if pair_cap is not None or len(ops) < 150 or unplaced:
             return None
         draft = solve(snap, now, weights, reference=reference, movable=movable,
@@ -464,6 +487,9 @@ def solve(
         return draft
 
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        if early_draft is not None:
+            early_draft.wall = time.time() - t_start
+            return early_draft
         if status == cp_model.UNKNOWN:
             draft = restricted_draft()
             if draft is not None:
