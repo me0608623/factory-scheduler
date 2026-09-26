@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 from .schemas import Block, Now, Snapshot
+from .material import batch_ready, produced_at
 from .timeline import Timeline, abs_min
 
 
@@ -94,15 +95,13 @@ def check(snap: Snapshot, blocks: list[Block], now: Now | None = None) -> list[s
                 issues.append(f"{o.code} 第{k + 1}站：數量 {q} 不等於 {o.qty}")
             if k == 0 or not by[(o.id, k)] or not by[(o.id, k - 1)]:
                 continue
-            prev = sorted(by[(o.id, k - 1)], key=lambda b: abs_min(b.date, b.start))
+            prev = by[(o.id, k - 1)]
             cur_start = min(abs_min(b.date, b.start) for b in by[(o.id, k)])
             prev_end = max(abs_min(b.date, b.end) for b in prev)
             batch = st.batch if 0 < st.batch < o.qty else o.qty
-            cum, ready = 0, prev_end
-            for b in prev:
-                if cum + b.qty >= batch:
-                    ready = abs_min(b.date, b.start) + (batch - cum) / b.qty * (b.end - b.start)
-                    break
+            ready = batch_ready(prev, batch, abs_min)
+            if ready is None:
+                ready = prev_end
                 cum += b.qty
             if cur_start < ready - 0.5:
                 issues.append(f"{o.code} 第{k + 1}站：前站還沒做到可以開始")
@@ -112,22 +111,12 @@ def check(snap: Snapshot, blocks: list[Block], now: Now | None = None) -> list[s
             if 0 < st.batch < o.qty:
                 current = by[(o.id, k)]
 
-                def produced_at(pieces: list[Block], minute: int) -> float:
-                    total = 0.0
-                    for piece in pieces:
-                        begin = abs_min(piece.date, piece.start)
-                        finish = abs_min(piece.date, piece.end)
-                        if finish <= begin:
-                            continue
-                        total += piece.qty * min(1.0, max(0.0, (minute - begin) / (finish - begin)))
-                    return total
-
                 # 每段內產量線性變化；差額的最小值必在某段起點或終點。
                 # 逐一檢查這些點，防止首批交接後、下一批尚未做出時後站超量加工。
                 boundaries = sorted({abs_min(b.date, minute)
                                      for b in (*prev, *current) for minute in (b.start, b.end)})
                 for minute in boundaries:
-                    if produced_at(current, minute) > produced_at(prev, minute) + 0.5:
+                    if produced_at(current, minute, abs_min) > produced_at(prev, minute, abs_min) + 0.5:
                         issues.append(f"{o.code} 第{k + 1}站：前站累積產量不足，後站不能先做完這些件數")
                         break
     return issues

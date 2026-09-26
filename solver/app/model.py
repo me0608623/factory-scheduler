@@ -16,6 +16,7 @@ from typing import Callable
 from ortools.sat.python import cp_model
 
 from .schemas import Block, Now, Snapshot
+from .material import batch_ready
 from .timeline import Timeline, abs_min
 from .validate import check
 
@@ -398,15 +399,8 @@ def solve(
         fixed_by_key.setdefault((block.order, block.step), []).append(block)
 
     def fixed_batch_ready(key: tuple[str, int], batch_qty: int) -> int | None:
-        made = 0
-        for block in sorted(fixed_by_key.get(key, []), key=lambda b: abs_min(b.date, b.start)):
-            if made + block.qty >= batch_qty:
-                start = tl.to_t(block.date, block.start)
-                end = tl.to_t(block.date, block.end)
-                portion = (batch_qty - made) / block.qty
-                return math.ceil((start + portion * (end - start)) / 10) * 10
-            made += block.qty
-        return None
+        ready = batch_ready(fixed_by_key.get(key, []), batch_qty, tl.to_t)
+        return math.ceil((ready - 1e-8) / 10) * 10 if ready is not None else None
 
     for o in snap.orders:
         p = prods.get(o.product)

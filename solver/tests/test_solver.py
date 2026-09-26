@@ -770,6 +770,36 @@ def test_fixed_previous_step_releases_batch_before_its_final_block():
     assert check(snap, result.blocks, now) == []
 
 
+def test_parallel_fixed_upstream_blocks_release_batch_by_combined_output():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="cut1", factory=1, process="cut", products=["p"]),
+                  Machine(id="cut2", factory=1, process="cut", products=["p"]),
+                  Machine(id="weld", factory=2, process="weld", products=["p"])],
+        employees=[Employee(id="e1", name="Cut1", factory=1, skills=["cut1"]),
+                   Employee(id="e2", name="Cut2", factory=1, skills=["cut2"]),
+                   Employee(id="e3", name="Weld", factory=2, skills=["weld"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", factory=1, rate=1),
+                                                       Step(process="weld", factory=2, rate=1, batch=60)])],
+        orders=[Order(id="o", code="O", product="p", qty=100, due="2026-09-28")],
+        blocks=[Block(order="o", step=0, machine="cut1", employee="e1",
+                      date="2026-09-28", start=480, end=540, qty=50, pinned=True),
+                Block(order="o", step=0, machine="cut2", employee="e2",
+                      date="2026-09-28", start=480, end=540, qty=50, pinned=True)],
+    )
+    early = snap.blocks + [Block(order="o", step=1, machine="weld", employee="e3",
+                                 date="2026-09-28", start=500, end=600, qty=100)]
+    assert any("前站還沒做到可以開始" in issue for issue in check(snap, early))
+    now = Now(date="2026-09-28", min=470)
+    result = solve(snap, now, PRESETS["on_time"], time_limit=1)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert min(block.start for block in result.blocks if block.step == 1) >= 520
+    assert check(snap, result.blocks, now) == []
+    earlier_batch = snap.model_copy(deep=True)
+    earlier_batch.products[0].steps[1].batch = 30
+    assert check(earlier_batch, early) == [], "兩台合計產量可比任一單台更早達成首批"
+
+
 def test_rounded_remaining_work_cannot_release_batch_early():
     snap, now, description = batch_case(21)
     assert description == {"seed": 21, "qty": 90, "first_rate": 1.5,
