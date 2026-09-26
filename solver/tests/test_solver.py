@@ -518,6 +518,70 @@ def test_restricted_objective_counts_forced_assignment_change():
     assert check(snap, result.blocks, now) == []
 
 
+def test_cross_factory_batch_can_overlap_previous_step():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="cut", factory=1, process="cut", products=["p"]),
+                  Machine(id="weld", factory=2, process="weld", products=["p"])],
+        employees=[Employee(id="e1", name="Cut", factory=1, skills=["cut"]),
+                   Employee(id="e2", name="Weld", factory=2, skills=["weld"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", factory=1, rate=1),
+                                                       Step(process="weld", factory=2, rate=1, batch=60)])],
+        orders=[Order(id="o", code="O", product="p", qty=120, due="2026-09-28")],
+    )
+    now = Now(date="2026-09-28", min=480)
+    result = solve(snap, now, PRESETS["on_time"], time_limit=1)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    cut = next(block for block in result.blocks if block.step == 0)
+    weld = next(block for block in result.blocks if block.step == 1)
+    assert cut.start + 60 <= weld.start < cut.end
+    assert check(snap, result.blocks, now) == []
+
+
+def test_completed_batch_allows_cross_factory_step_to_start_now():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="cut", factory=1, process="cut", products=["p"]),
+                  Machine(id="weld", factory=2, process="weld", products=["p"])],
+        employees=[Employee(id="e1", name="Cut", factory=1, skills=["cut"]),
+                   Employee(id="e2", name="Weld", factory=2, skills=["weld"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", factory=1, rate=1),
+                                                       Step(process="weld", factory=2, rate=1, batch=60)])],
+        orders=[Order(id="o", code="O", product="p", qty=120, due="2026-09-28")],
+        blocks=[Block(order="o", step=0, machine="cut", employee="e1",
+                      date="2026-09-28", start=480, end=540, qty=60)],
+    )
+    now = Now(date="2026-09-28", min=540)
+    result = solve(snap, now, PRESETS["on_time"], time_limit=1)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    weld_start = min(block.start for block in result.blocks if block.step == 1)
+    assert weld_start == 540, "前站已完成交接批量，後站不應等待尚未完成的剩餘件數"
+    assert check(snap, result.blocks, now) == []
+
+
+def test_fixed_previous_step_releases_batch_before_its_final_block():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="cut", factory=1, process="cut", products=["p"]),
+                  Machine(id="weld", factory=2, process="weld", products=["p"])],
+        employees=[Employee(id="e1", name="Cut", factory=1, skills=["cut"]),
+                   Employee(id="e2", name="Weld", factory=2, skills=["weld"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", factory=1, rate=1),
+                                                       Step(process="weld", factory=2, rate=1, batch=60)])],
+        orders=[Order(id="o", code="O", product="p", qty=120, due="2026-09-28")],
+        blocks=[Block(order="o", step=0, machine="cut", employee="e1",
+                      date="2026-09-28", start=480, end=540, qty=60),
+                Block(order="o", step=0, machine="cut", employee="e1",
+                      date="2026-09-28", start=540, end=600, qty=60, pinned=True)],
+    )
+    now = Now(date="2026-09-28", min=540)
+    result = solve(snap, now, PRESETS["on_time"], time_limit=1)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    weld_start = min(block.start for block in result.blocks if block.step == 1)
+    assert weld_start == 540
+    assert check(snap, result.blocks, now) == []
+
+
 def test_only_one_plan_computation_per_service_process(demo, monkeypatch):
     snap, now = demo
     c = TestClient(app)

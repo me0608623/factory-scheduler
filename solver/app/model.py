@@ -359,6 +359,21 @@ def solve(
                              em.max_concurrent_machines)
 
     # 工序順序（前站 → 下站）
+    fixed_by_key: dict[tuple[str, int], list[Block]] = {}
+    for block in fixed:
+        fixed_by_key.setdefault((block.order, block.step), []).append(block)
+
+    def fixed_batch_ready(key: tuple[str, int], batch_qty: int) -> int | None:
+        made = 0
+        for block in sorted(fixed_by_key.get(key, []), key=lambda b: abs_min(b.date, b.start)):
+            if made + block.qty >= batch_qty:
+                start = tl.to_t(block.date, block.start)
+                end = tl.to_t(block.date, block.end)
+                portion = (batch_qty - made) / block.qty
+                return math.ceil((start + portion * (end - start)) / 10) * 10
+            made += block.qty
+        return None
+
     for o in snap.orders:
         p = prods.get(o.product)
         if not p:
@@ -369,16 +384,35 @@ def solve(
                 continue
             prev = ops.get((o.id, k - 1))
             batch = p.steps[k].batch
+            fixed_prev = fixed_by_key.get((o.id, k - 1), [])
+            fixed_end = max((tl.to_t(b.date, b.end) for b in fixed_prev), default=None)
             if prev:
                 if 0 < batch < o.qty:
-                    m.add(S[cur.key] >= S[prev.key] + dur_of(batch, p.steps[k - 1].rate))
+                    completed = done.get((o.id, k - 1), 0)
+                    if completed >= batch:
+                        ready = fixed_batch_ready((o.id, k - 1), batch)
+                        if ready is not None:
+                            m.add(S[cur.key] >= ready)
+                    else:
+                        m.add(S[cur.key] >= S[prev.key] + dur_of(batch - completed, p.steps[k - 1].rate))
+                        if fixed_end is not None:
+                            m.add(S[cur.key] >= fixed_end)
                     m.add(E[cur.key] >= E[prev.key] + dur_of(batch, p.steps[k].rate))
                 else:
                     m.add(S[cur.key] >= E[prev.key])
+                    if fixed_end is not None:
+                        m.add(S[cur.key] >= fixed_end)
+                if fixed_end is not None:
+                    m.add(E[cur.key] >= fixed_end)
             else:
-                fe = [tl.to_t(b.date, b.end) for b in fixed if b.order == o.id and b.step == k - 1]
-                if fe:
-                    m.add(S[cur.key] >= max(fe))
+                if 0 < batch < o.qty:
+                    ready = fixed_batch_ready((o.id, k - 1), batch)
+                    if ready is not None:
+                        m.add(S[cur.key] >= ready)
+                elif fixed_end is not None:
+                    m.add(S[cur.key] >= fixed_end)
+                if fixed_end is not None:
+                    m.add(E[cur.key] >= fixed_end)
 
     # ---------- 4. 目標 ----------
     terms = []

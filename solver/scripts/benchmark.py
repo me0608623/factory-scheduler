@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 def snapshot_for(machine_count: int, employee_count: int, order_count: int,
                  cross_factory: bool = False, due_base_days: int = 10,
                  leave_days: int = 0, fault_days: int = 0,
-                 heterogeneous: bool = False):
+                 heterogeneous: bool = False, transfer_batch: int = 0):
     from app.schemas import Calendar, Employee, Fault, Machine, Order, Product, Snapshot, Step
 
     processes = ("cut", "press", "weld", "pack")
@@ -52,10 +52,14 @@ def snapshot_for(machine_count: int, employee_count: int, order_count: int,
         calendar=Calendar(week=[False, True, True, True, True, True, False]),
         machines=machines, employees=employees,
         products=[Product(id=product_id, name=product_id, steps=[
-            Step(process=p, factory=factory_for(p), rate=rate) for p in processes
+            Step(process=p, factory=factory_for(p), rate=rate,
+                 batch=transfer_batch if index else 0)
+            for index, p in enumerate(processes)
         ]) for product_id, rate in (("p0", 2), ("p1", 1.5))] if heterogeneous else
         [Product(id="p", name="Product", steps=[
-            Step(process=p, factory=factory_for(p), rate=2) for p in processes
+            Step(process=p, factory=factory_for(p), rate=2,
+                 batch=transfer_batch if index else 0)
+            for index, p in enumerate(processes)
         ])],
         orders=orders,
     )
@@ -87,7 +91,7 @@ def stop_process_tree(proc: subprocess.Popen):
 def run_case(machines: int, employees: int, orders: int, cross_factory: bool = False,
              time_limit: float = 5.0, plans: bool = False, pair_cap: int | None = None,
              due_base_days: int = 10, leave_days: int = 0, fault_days: int = 0,
-             heterogeneous: bool = False, workers: int = 8):
+             heterogeneous: bool = False, workers: int = 8, transfer_batch: int = 0):
     from app.model import PRESETS, solve
     from app.plans import make_plans
     from app.schemas import Event, Now, PlanRequest
@@ -95,7 +99,7 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
     from app.validate import check
 
     snap = snapshot_for(machines, employees, orders, cross_factory,
-                        due_base_days, leave_days, fault_days, heterogeneous)
+                        due_base_days, leave_days, fault_days, heterogeneous, transfer_batch)
     now = Now(date="2026-09-28", min=480)
     if plans:
         started = time.monotonic()
@@ -136,6 +140,7 @@ def main():
     parser.add_argument("--leave-days", type=int, default=0)
     parser.add_argument("--fault-days", type=int, default=0)
     parser.add_argument("--heterogeneous", action="store_true")
+    parser.add_argument("--transfer-batch", type=int, default=0)
     parser.add_argument("--time-limit", type=float, default=5.0)
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--large-only", action="store_true")
@@ -145,14 +150,14 @@ def main():
     if (not 0 < args.time_limit <= 60 or not 100 <= args.memory_limit_mb <= 4096
             or args.pair_cap is not None and args.pair_cap < 1
             or args.due_base_days < 0 or args.leave_days < 0 or args.fault_days < 0
-            or not 1 <= args.workers <= 16):
+            or not 1 <= args.workers <= 16 or args.transfer_batch < 0):
         parser.error("time limit must be 0-60 seconds and memory limit 100-4096 MB")
     if args.case:
         run_case(*args.case, cross_factory=args.cross_factory,
                  time_limit=args.time_limit, plans=args.plans, pair_cap=args.pair_cap,
                  due_base_days=args.due_base_days, leave_days=args.leave_days,
                  fault_days=args.fault_days, heterogeneous=args.heterogeneous,
-                 workers=args.workers)
+                 workers=args.workers, transfer_batch=args.transfer_batch)
         return
     for machines, employees, orders, cross_factory in ((5, 10, 10, False), (10, 20, 30, False),
                                                        (10, 20, 30, True),
@@ -174,6 +179,7 @@ def main():
         command.extend(("--workers", str(args.workers)))
         if args.heterogeneous:
             command.append("--heterogeneous")
+        command.extend(("--transfer-batch", str(args.transfer_batch)))
         started = time.monotonic()
         proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         peak = 0
@@ -199,6 +205,7 @@ def main():
                           "fault_days": args.fault_days,
                           "heterogeneous": args.heterogeneous,
                           "workers": args.workers,
+                          "transfer_batch": args.transfer_batch,
                           "time_limit": args.time_limit,
                           "elapsed_seconds": round(time.monotonic() - started, 2),
                           "peak_rss_mb": round(peak / 1048576, 1) if peak else None,
