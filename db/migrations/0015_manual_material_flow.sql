@@ -151,6 +151,25 @@ begin
   end if;
 end $$;
 
+-- 已完成且人、機、日期、時段都未變的舊方塊不因後來修改行事曆／補登請假而失效；
+-- 新方塊或舊方塊的人機／時間被改動時，仍必須驗證，即使修改的是過去日期。
+create function _check_manual_availability(p_id uuid, p_machine text, p_employee uuid,
+                                           p_date date, p_start smallint, p_end smallint) returns boolean
+language plpgsql stable security definer set search_path = public as $$
+declare
+  local_now timestamp := now() at time zone 'Asia/Taipei';
+  local_date date := local_now::date;
+  local_min integer := extract(hour from local_now)::integer * 60 + extract(minute from local_now)::integer;
+begin
+  if p_date > local_date or (p_date = local_date and p_start >= local_min) then
+    return true;
+  end if;
+  return not exists (
+    select 1 from schedule_blocks old where old.id = p_id
+      and old.machine_id = p_machine and old.employee_id is not distinct from p_employee
+      and old.date = p_date and old.start_min = p_start and old.end_min = p_end);
+end $$;
+
 -- 手動儲存須依正式行事曆、午休與個人加班意願判斷，避免只靠畫面提示。
 create function _assert_manual_calendar(p_blocks jsonb, p_order_ids uuid[]) returns void
 language plpgsql security definer set search_path = public as $$
@@ -160,8 +179,11 @@ declare
 begin
   with b as (
     select x.order_id, x.date as work_date
-      from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(order_id uuid, date date)
+      from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(
+        id uuid, order_id uuid, machine_id text, employee_id uuid,
+        date date, start_min smallint, end_min smallint)
      where x.order_id = any(p_order_ids)
+       and _check_manual_availability(x.id, x.machine_id, x.employee_id, x.date, x.start_min, x.end_min)
   )
   select b.work_date into bad_date
     from b join calendar_weekly cw on cw.weekday = extract(dow from b.work_date)::smallint
@@ -174,9 +196,11 @@ begin
 
   with b as (
     select x.order_id, x.date as work_date, x.start_min, x.end_min
-      from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(
-        order_id uuid, date date, start_min smallint, end_min smallint)
+     from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(
+        id uuid, order_id uuid, machine_id text, employee_id uuid,
+        date date, start_min smallint, end_min smallint)
      where x.order_id = any(p_order_ids)
+       and _check_manual_availability(x.id, x.machine_id, x.employee_id, x.date, x.start_min, x.end_min)
   )
   select b.work_date into bad_date
     from b left join calendar_days cd on cd.date = b.work_date
@@ -192,9 +216,11 @@ begin
   with b as (
     select x.order_id, x.employee_id, x.date as work_date, x.start_min, x.end_min,
            extract(dow from x.date)::smallint as weekday
-      from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(
-        order_id uuid, employee_id uuid, date date, start_min smallint, end_min smallint)
+     from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(
+        id uuid, order_id uuid, machine_id text, employee_id uuid,
+        date date, start_min smallint, end_min smallint)
      where x.order_id = any(p_order_ids) and x.employee_id is not null
+       and _check_manual_availability(x.id, x.machine_id, x.employee_id, x.date, x.start_min, x.end_min)
   )
   select b.employee_id, b.work_date into bad_employee, bad_date
     from b join employees e on e.id = b.employee_id
@@ -219,9 +245,11 @@ declare
 begin
   with b as (
     select x.order_id, x.employee_id, x.date as work_date, x.start_min, x.end_min
-      from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(
-        order_id uuid, employee_id uuid, date date, start_min smallint, end_min smallint)
+     from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(
+        id uuid, order_id uuid, machine_id text, employee_id uuid,
+        date date, start_min smallint, end_min smallint)
      where x.order_id = any(p_order_ids) and x.employee_id is not null
+       and _check_manual_availability(x.id, x.machine_id, x.employee_id, x.date, x.start_min, x.end_min)
   )
   select b.employee_id, b.work_date into bad_employee, bad_date
     from b join leaves l on l.employee_id = b.employee_id and l.date = b.work_date
@@ -233,9 +261,11 @@ begin
 
   with b as (
     select x.order_id, x.machine_id, x.date as work_date, x.start_min, x.end_min
-      from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(
-        order_id uuid, machine_id text, date date, start_min smallint, end_min smallint)
+     from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(
+        id uuid, order_id uuid, machine_id text, employee_id uuid,
+        date date, start_min smallint, end_min smallint)
      where x.order_id = any(p_order_ids)
+       and _check_manual_availability(x.id, x.machine_id, x.employee_id, x.date, x.start_min, x.end_min)
   )
   select b.machine_id, b.work_date into bad_machine, bad_date
     from b join machine_faults f on f.machine_id = b.machine_id and f.date = b.work_date
@@ -350,6 +380,7 @@ end $$;
 revoke all on function _assert_manual_material_flow(jsonb, uuid[]) from public, anon, authenticated;
 revoke all on function _assert_manual_quantity(jsonb, uuid[]) from public, anon, authenticated;
 revoke all on function _assert_manual_assignments(jsonb, uuid[]) from public, anon, authenticated;
+revoke all on function _check_manual_availability(uuid, text, uuid, date, smallint, smallint) from public, anon, authenticated;
 revoke all on function _assert_manual_calendar(jsonb, uuid[]) from public, anon, authenticated;
 revoke all on function _assert_manual_absences(jsonb, uuid[]) from public, anon, authenticated;
 revoke all on function _assert_manual_resources(jsonb, uuid[]) from public, anon, authenticated;

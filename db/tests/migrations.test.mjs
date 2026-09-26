@@ -338,6 +338,49 @@ const addedOrder = (await db.query("insert into orders (code,product_id,qty,due_
 await as(LEAD, () => expectErr("select apply_plan($1,'A')", [pvNewOrder], /數量.*不等於/, "預覽後新增工單，舊方案漏排該單時拒絕套用"));
 await db.query("delete from orders where id=$1", [addedOrder]);
 ok((await db.query("select version::int v from schedule_state")).rows[0].v === 9, "漏新單方案被拒後版本保持不變");
+const beforeRollbackLog = (await db.query("select count(*)::int n from change_sets")).rows[0].n;
+const rollbackEffects = { overtime_on: ["2026-10-06"], faults_insert: [
+  { machine_id: "f", date: "2026-10-06", start_min: 480, end_min: 540, note: "方案回滾測試" }] };
+const pvRollback = (await db.query("insert into plan_previews (kind,title,event,base_version,options) values ('auto','回滾測試方案','{}',9,$1) returning id",
+  [JSON.stringify([{ ...opt("A", previewBlocks, rollbackEffects), applicable: true }])])).rows[0].id;
+await db.query("delete from employee_skills where employee_id=$1 and machine_id='a'", ["00000000-0000-4000-8000-0000000000e5"]);
+await as(LEAD, () => expectErr("select apply_plan($1,'A')", [pvRollback], /不會操作機台/, "套用附帶效果後發現技能已失效，整筆方案須拒絕"));
+await db.query("insert into employee_skills (employee_id,machine_id) values ($1,'a')", ["00000000-0000-4000-8000-0000000000e5"]);
+const afterRollback = (await db.query(`select
+  (select count(*)::int from machine_faults where note='方案回滾測試') as faults,
+  (select count(*)::int from calendar_days where date='2026-10-06' and overtime) as overtime,
+  (select count(*)::int from change_sets) as logs,
+  (select version::int from schedule_state) as version,
+  (select applied_option from plan_previews where id=$1) as applied`, [pvRollback])).rows[0];
+ok(afterRollback.faults === 0 && afterRollback.overtime === 0 && afterRollback.logs === beforeRollbackLog
+  && afterRollback.version === 9 && afterRollback.applied === null,
+"驗證失敗時，故障、加班、紀錄、版本與已套用狀態全部回滾");
+
+console.log("過去已完成的方塊不因今日行事曆或請假改變而擋住未來排班");
+const historicalOrder = (await db.query("insert into orders (code,product_id,qty,due_date) values ('HIST-MOVE',$1,60,'2026-10-09') returning id", [planProduct])).rows[0].id;
+const historicalPast = { ...newManual, order_id: historicalOrder, date: "2025-10-05", qty: 30, pinned: true };
+const historicalFuture = { ...newManual, order_id: historicalOrder, date: "2026-10-07", qty: 30, pinned: false };
+await db.query("select _apply_blocks($1::jsonb)", [JSON.stringify([...previewBlocks, historicalPast, historicalFuture])]);
+await db.query("insert into leaves (employee_id,date,note) values ($1,'2025-10-05','後補歷史請假')", [EMP1]);
+await db.query("insert into machine_faults (machine_id,date,start_min,end_min,note) values ('a','2025-10-05',480,540,'後補歷史故障')");
+const historicalBlocks = (await db.query("select id,order_id,step_seq,machine_id,employee_id,date::text,start_min,end_min,qty,pinned from schedule_blocks")).rows;
+const futureSaved = historicalBlocks.find(b => b.order_id === historicalOrder && b.date === "2026-10-07");
+const historicalChanged = historicalBlocks.map(b => b.id === futureSaved.id ? { ...b, pinned: true } : b);
+await as(LEAD, () => db.query("select save_blocks(9, $1, '只固定未來方塊')", [JSON.stringify(historicalChanged)]));
+ok((await db.query("select version::int v from schedule_state")).rows[0].v === 10,
+  "過去的週日方塊有後補請假與故障時，仍可調整同張工單的未來方塊");
+const pvHistory = (await db.query("insert into plan_previews (kind,title,event,base_version,options) values ('auto','含歷史方塊方案','{}',10,$1) returning id",
+  [JSON.stringify([{ ...opt("A", historicalChanged), applicable: true }])])).rows[0].id;
+await as(LEAD, () => db.query("select apply_plan($1,'A')", [pvHistory]));
+ok((await db.query("select version::int v from schedule_state")).rows[0].v === 11,
+  "完整方案保留已完成的歷史方塊時仍可套用");
+const currentHistory = (await db.query("select id,order_id,step_seq,machine_id,employee_id,date::text,start_min,end_min,qty,pinned from schedule_blocks")).rows;
+const changedPast = currentHistory.map(b => b.order_id === historicalOrder && b.date === "2025-10-05"
+  ? { ...b, start_min: 540, end_min: 600 } : b);
+await as(LEAD, () => expectErr("select save_blocks(11, $1, '改動過去停工日工作')", [JSON.stringify(changedPast)], /停工日/,
+  "舊方塊的人機或時間真的被改動時，仍檢查現在的行事曆"));
+ok((await db.query("select version::int v from schedule_state")).rows[0].v === 11,
+  "不合法的歷史修改被拒後版本保持不變");
 
 console.log(`\n通過 ${pass}，失敗 ${fail}`);
 process.exit(fail ? 1 : 0);
