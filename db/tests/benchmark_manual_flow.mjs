@@ -1,5 +1,5 @@
 // Synthetic-only benchmark for the save_blocks material-flow guard.
-// Run here: node benchmark_manual_flow.mjs 100 500 1000 [--rpc|--plan]
+// Run here: node benchmark_manual_flow.mjs 100 500 1000 [--rpc|--plan] [--closed-history=5000]
 import { PGlite } from "@electric-sql/pglite";
 import fs from "node:fs";
 import path from "node:path";
@@ -9,7 +9,12 @@ import { performance } from "node:perf_hooks";
 const measureRpc = process.argv.includes("--rpc");
 const measurePlan = process.argv.includes("--plan");
 if (measureRpc && measurePlan) throw new Error("Use --rpc or --plan, not both");
-const sizes = process.argv.slice(2).filter(arg => arg !== "--rpc" && arg !== "--plan").map(Number);
+const closedArg = process.argv.find(arg => arg.startsWith("--closed-history="));
+const closedHistory = closedArg ? Number(closedArg.split("=")[1]) : 0;
+if (!Number.isInteger(closedHistory) || closedHistory < 0 || closedHistory > 10000) {
+  throw new Error("--closed-history must be between 0 and 10000");
+}
+const sizes = process.argv.slice(2).filter(arg => arg !== "--rpc" && arg !== "--plan" && arg !== closedArg).map(Number);
 if (!sizes.length || sizes.some(n => !Number.isInteger(n) || n < 1 || n > 2000)) {
   throw new Error("Provide order counts between 1 and 2000");
 }
@@ -38,6 +43,14 @@ if (measurePlan) {
 }
 const product = "00000000-0000-4000-8000-0000000000a1";
 const employee = [1, 2, 3].map(n => `00000000-0000-4000-8000-0000000000e${n}`);
+if (closedHistory) {
+  await db.query(`insert into orders (code,product_id,qty,due_date,status)
+    select 'CLOSED-BENCH-' || n, $1, 1, date '2000-01-01' + n, 'done'
+      from generate_series(1,$2) n`, [product, closedHistory]);
+  await db.query(`insert into schedule_blocks (order_id,step_seq,machine_id,employee_id,date,start_min,end_min,qty)
+    select o.id,0,'a',$1,date '2000-01-01' + split_part(o.code,'-',3)::int,480,490,1
+      from orders o where o.code like 'CLOSED-BENCH-%'`, [employee[0]]);
+}
 for (const count of sizes) {
   const orders = (await db.query(`
     insert into orders (code, product_id, qty, due_date)
@@ -59,12 +72,13 @@ for (const count of sizes) {
   const fullMs = Math.round(performance.now() - start);
   const changedStart = performance.now();
   await db.query("select _assert_manual_material_flow($1::jsonb, array[$2]::uuid[])", [JSON.stringify(blocks), orders[0].id]);
-  const line = { orders: count, blocks: blocks.length, fullMs,
+  const line = { orders: count, blocks: blocks.length, closedHistory, fullMs,
     oneChangedOrderMs: Math.round(performance.now() - changedStart) };
   if (measureRpc) {
     await db.query("select _apply_blocks($1::jsonb)", [JSON.stringify(blocks)]);
-    const saved = (await db.query(`select id, order_id, step_seq, machine_id, employee_id,
-      date::text, start_min, end_min, qty, pinned from schedule_blocks`)).rows;
+    const saved = (await db.query(`select b.id, b.order_id, b.step_seq, b.machine_id, b.employee_id,
+      b.date::text, b.start_min, b.end_min, b.qty, b.pinned
+      from schedule_blocks b join orders o on o.id=b.order_id where o.status='open'`)).rows;
     const first = saved.find(block => block.order_id === orders[0].id && block.step_seq === 0);
     first.start_min = 490;
     first.end_min = 550;
@@ -83,6 +97,18 @@ for (const count of sizes) {
     const planStart = performance.now();
     await db.query("select apply_plan($1,'A')", [preview]);
     line.applyPlanMs = Math.round(performance.now() - planStart);
+  }
+  if (measureRpc || measurePlan) {
+    const snapshotStart = performance.now();
+    const snapshot = (await db.query("select schedule_snapshot('2026-10-05','2026-12-31') as data")).rows[0].data;
+    line.snapshotMs = Math.round(performance.now() - snapshotStart);
+    if (snapshot.blocks.length !== blocks.length) {
+      throw new Error(`Expected ${blocks.length} open blocks in snapshot, got ${snapshot.blocks.length}`);
+    }
+  }
+  if (closedHistory) {
+    const kept = (await db.query("select count(*)::int n from schedule_blocks b join orders o on o.id=b.order_id where o.status='done' and o.code like 'CLOSED-BENCH-%'")).rows[0].n;
+    if (kept !== closedHistory) throw new Error(`Expected ${closedHistory} closed blocks, got ${kept}`);
   }
   console.log(JSON.stringify(line));
 }
