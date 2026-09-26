@@ -368,6 +368,7 @@ def make_plans(req: PlanRequest) -> dict:
             d.pop("gone")
         options.append({"id": st.id, "name": st.name, "desc": st.desc, **d,
                         "status": res.status if res else "KEEP", "solve_seconds": round(res.wall, 2) if res else 0,
+                        "solver_method": res.search_mode if res else "keep",
                         "applicable": applicable, "diagnostics": diagnostics,
                         "blocks": [to_db(b) for b in blocks], "effects": eff})
     applicable_options = [o for o in options if o["applicable"]]

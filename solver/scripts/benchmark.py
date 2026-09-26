@@ -70,10 +70,11 @@ def stop_process_tree(proc: subprocess.Popen):
 
 
 def run_case(machines: int, employees: int, orders: int, cross_factory: bool = False,
-             time_limit: float = 5.0, plans: bool = False):
+             time_limit: float = 5.0, plans: bool = False, pair_cap: int | None = None):
     from app.model import PRESETS, solve
     from app.plans import make_plans
     from app.schemas import Event, Now, PlanRequest
+    from app.timeline import abs_min
     from app.validate import check
 
     snap = snapshot_for(machines, employees, orders, cross_factory)
@@ -83,13 +84,23 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
         result = make_plans(PlanRequest(snapshot=snap, event=Event(type="auto"),
                                         now=now, time_limit=time_limit))
         print(json.dumps({"options": [{"id": option["id"], "status": option["status"],
-                                        "applicable": option["applicable"]} for option in result["options"]],
+                                        "applicable": option["applicable"],
+                                        "late_orders": len(option["metrics"]["late"]),
+                                        "solver_method": option["solver_method"]} for option in result["options"]],
                           "seconds": round(time.monotonic() - started, 2)}), flush=True)
         return
     result = solve(snap, now, PRESETS["on_time"],
-                   time_limit=time_limit, days=45, workers=8)
-    print(json.dumps({"status": result.status, "operations": result.n_ops,
+                   time_limit=time_limit, days=45, workers=8, pair_cap=pair_cap)
+    last_step = len(snap.products[0].steps) - 1
+    finish = {order.id: max((abs_min(block.date, block.end) for block in result.blocks
+                             if block.order == order.id and block.step == last_step), default=None)
+              for order in snap.orders}
+    late = sum(value is not None and value > abs_min(order.due, 1440)
+               for order in snap.orders for value in [finish[order.id]])
+    print(json.dumps({"status": result.status, "solver_method": result.search_mode,
+                      "operations": result.n_ops,
                       "blocks": len(result.blocks), "solve_seconds": round(result.wall, 2),
+                      "late_orders": late if result.status in ("OPTIMAL", "FEASIBLE") else None,
                       "unplaced": len(result.unplaced),
                       "valid": not check(snap, result.blocks, now) if result.status in ("OPTIMAL", "FEASIBLE") else None}),
           flush=True)
@@ -100,16 +111,18 @@ def main():
     parser.add_argument("--case", nargs=3, type=int)
     parser.add_argument("--cross-factory", action="store_true")
     parser.add_argument("--plans", action="store_true")
+    parser.add_argument("--pair-cap", type=int)
     parser.add_argument("--time-limit", type=float, default=5.0)
     parser.add_argument("--large-only", action="store_true")
     parser.add_argument("--cross-only", action="store_true")
     parser.add_argument("--memory-limit-mb", type=int, default=1500)
     args = parser.parse_args()
-    if not 0 < args.time_limit <= 60 or not 100 <= args.memory_limit_mb <= 4096:
+    if (not 0 < args.time_limit <= 60 or not 100 <= args.memory_limit_mb <= 4096
+            or args.pair_cap is not None and args.pair_cap < 1):
         parser.error("time limit must be 0-60 seconds and memory limit 100-4096 MB")
     if args.case:
         run_case(*args.case, cross_factory=args.cross_factory,
-                 time_limit=args.time_limit, plans=args.plans)
+                 time_limit=args.time_limit, plans=args.plans, pair_cap=args.pair_cap)
         return
     for machines, employees, orders, cross_factory in ((5, 10, 10, False), (10, 20, 30, False),
                                                        (10, 20, 30, True),
@@ -123,6 +136,8 @@ def main():
             command.append("--cross-factory")
         if args.plans:
             command.append("--plans")
+        if args.pair_cap is not None:
+            command.extend(("--pair-cap", str(args.pair_cap)))
         started = time.monotonic()
         proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         peak = 0
@@ -142,6 +157,7 @@ def main():
         print(json.dumps({"machines": machines, "employees": employees, "orders": orders,
                           "cross_factory": cross_factory,
                           "plans": args.plans,
+                          "pair_cap": args.pair_cap,
                           "time_limit": args.time_limit,
                           "elapsed_seconds": round(time.monotonic() - started, 2),
                           "peak_rss_mb": round(peak / 1048576, 1) if peak else None,

@@ -65,6 +65,7 @@ def solve_once(req: SolveRequest):
     with computation_slot():
         res = solve(req.snapshot, now, PRESETS[req.preset], time_limit=req.time_limit)
     return {"status": res.status, "seconds": round(res.wall, 2), "unplaced": res.unplaced,
+            "solver_method": res.search_mode,
             "issues": check(req.snapshot, res.blocks, now), "blocks": [b.model_dump() for b in res.blocks]}
 
 

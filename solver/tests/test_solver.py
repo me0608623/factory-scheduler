@@ -11,11 +11,12 @@ from app import main as api
 from app.main import app
 from app.model import PRESETS, solve
 from app.plans import make_plans
-from app.schemas import Calendar, Employee, Event, Machine, Now, Order, PlanRequest, Product, Snapshot, Step
+from app.schemas import Block, Calendar, Employee, Event, Machine, Now, Order, PlanRequest, Product, Snapshot, Step
 from app.timeline import Timeline, abs_min
 from app.validate import check
 
 from .conftest import snapshot_after
+from scripts.benchmark import snapshot_for
 
 
 def finish_total(snap, blocks):
@@ -360,6 +361,55 @@ def test_api_rejects_unbounded_solver_time(demo):
     assert c.post("/plans", json={**payload, "event": {"type": "auto"}}).status_code == 422
     assert c.post("/plans/db", json={"event": {"type": "auto"}, "time_limit": 20},
                   headers={"Authorization": "Bearer token"}).status_code == 422
+
+
+def test_large_unknown_uses_valid_restricted_draft():
+    snap = snapshot_for(20, 40, 50, cross_factory=True)
+    now = Now(date="2026-09-28", min=480)
+    original_solve = cp_model.CpSolver.solve
+    calls = 0
+
+    def first_search_times_out(self, model, *args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return cp_model.UNKNOWN
+        return original_solve(self, model, *args, **kwargs)
+
+    with patch.object(cp_model.CpSolver, "solve", first_search_times_out):
+        result = solve(snap, now, PRESETS["on_time"], time_limit=5)
+    assert calls == 2
+    assert result.status == "FEASIBLE", "受限問題的 OPTIMAL 不能宣稱是全局最優"
+    assert result.search_mode == "restricted_pairs"
+    assert len(result.blocks) >= 200
+    assert check(snap, result.blocks, now) == []
+
+
+def test_restricted_pairs_skip_long_leave_and_keep_reference():
+    start = date(2026, 9, 28)
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="m0", process="cut", products=["p"]),
+                  Machine(id="m1", process="cut", products=["p"])],
+        employees=[Employee(id="e0", name="Leave", skills=["m0"],
+                            leaves=[(start + timedelta(days=i)).isoformat() for i in range(45)]),
+                   Employee(id="e1", name="Ready", skills=["m1"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=2)])],
+        orders=[Order(id="o", code="O", product="p", qty=120, due="2026-10-01")],
+    )
+    now = Now(date="2026-09-28", min=480)
+    result = solve(snap, now, PRESETS["on_time"], pair_cap=1, time_limit=1)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert {block.machine for block in result.blocks} == {"m1"}
+    assert check(snap, result.blocks, now) == []
+
+    snap.employees[0].leaves = []
+    snap.blocks = [Block(order="o", step=0, machine="m1", employee="e1",
+                         date="2026-09-29", start=480, end=540, qty=120)]
+    with_reference = solve(snap, now, PRESETS["min_change"], pair_cap=1, time_limit=1)
+    assert with_reference.status in ("OPTIMAL", "FEASIBLE")
+    assert {block.machine for block in with_reference.blocks} == {"m1"}
+    assert check(snap, with_reference.blocks, now) == []
 
 
 def test_only_one_plan_computation_per_service_process(demo, monkeypatch):

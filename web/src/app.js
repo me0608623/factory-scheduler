@@ -1484,7 +1484,7 @@ function pvPanelHTML(o){
       (PV.ai.pick!==o.id?'<button class="btn" data-act="pv-pick" data-v="'+esc(PV.ai.pick)+'">看方案 '+esc(PV.ai.pick)+'</button>':"")+'</div>';
   }else ai='<div class="hint">AI 助理下一階段由伺服器提供。</div>';
   return '<section class="pv" aria-label="預覽">'+
-   '<div class="pv-h"><span class="pv-badge">預覽中</span><div class="pv-t"><b>'+esc(PV.title)+'</b><small>還沒套用，排程不會變。看清楚再按「套用」。　計算：'+(PV.engine==="OR-Tools"?"OR-Tools":"瀏覽器備援")+'</small></div><div class="spacer"></div>'+
+   '<div class="pv-h"><span class="pv-badge">預覽中</span><div class="pv-t"><b>'+esc(PV.title)+'</b><small>還沒套用，排程不會變。看清楚再按「套用」。　計算：'+(o.solverMethod==="restricted_pairs"?"OR-Tools 快速初稿（可行但不保證最佳）":PV.engine==="OR-Tools"?"OR-Tools":"瀏覽器備援")+'</small></div><div class="spacer"></div>'+
    '<button class="btn" data-act="pv-cancel">取消</button><button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+(o.applicable===false?'不可套用':'套用方案 '+o.id)+'</button></div>'+
    '<div class="pv-opts">'+tabs+'</div>'+
    (o.applicable===false?'<div class="pv-sum"><b>目前不能套用：</b>'+o.diagnostics.map(esc).join('；')+'</div>':'')+
@@ -1513,7 +1513,7 @@ async function openPlansSolver(title,logTitle,kind,applyEvent,strategies,extra){
   }
   if(!plan.options||!plan.options.length){toast("算不出可行的排法，請手動處理");return;}
   const B=JSON.parse(JSON.stringify(S)),ev={date:plan.date,oid:extra.event.order?extra.event.order.id:undefined};
-  const opts=plan.options.map(o=>{const A=applyOption(B,o);return {id:o.id,name:o.name,desc:o.desc,lines:o.lines||[],mt:measure(B,A,ev),score:o.score,best:!!o.recommended,applicable:o.applicable!==false,diagnostics:o.diagnostics||[],state:JSON.stringify(A),A,sec:o.solve_seconds};});
+  const opts=plan.options.map(o=>{const A=applyOption(B,o);return {id:o.id,name:o.name,desc:o.desc,lines:o.lines||[],mt:measure(B,A,ev),score:o.score,best:!!o.recommended,applicable:o.applicable!==false,diagnostics:o.diagnostics||[],state:JSON.stringify(A),A,sec:o.solve_seconds,solverMethod:o.solver_method};});
   const fi=plan.options[0].effects&&plan.options[0].effects.faults_insert;
   enterPreview({title,logTitle,kind,base:JSON.stringify(B),B,opts,ev,extra:{...extra,fid:fi&&fi[0]?fi[0].id:extra.fid,previewId:plan.preview_id||null,engine:"OR-Tools"}});
 }

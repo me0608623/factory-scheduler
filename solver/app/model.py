@@ -16,6 +16,7 @@ from ortools.sat.python import cp_model
 
 from .schemas import Block, Now, Snapshot
 from .timeline import Timeline, abs_min
+from .validate import check
 
 PRI_W = [8, 4, 2, 1]
 
@@ -59,6 +60,7 @@ class Result:
     n_ops: int
     unplaced: list[str] = field(default_factory=list)
     released: list[Block] = field(default_factory=list)   # 因為故障、請假被迫移動的原排程
+    search_mode: str = "full"         # full 或 restricted_pairs（完整搜尋超時後的初稿）
 
 
 def _cut_for_conflicts(b: Block, snap: Snapshot) -> int | None:
@@ -88,6 +90,7 @@ def solve(
     time_limit: float = 5.0,
     days: int = 45,
     workers: int = 8,
+    pair_cap: int | None = None,
 ) -> Result:
     t_start = time.time()
     now_min = math.ceil(now.min / 10) * 10
@@ -167,7 +170,8 @@ def solve(
     if ops and not any(w.t1 > t_now for w in tl.wins):
         if days < 120:
             return solve(snap, now, weights, reference=reference, movable=movable,
-                         extra_overtime=extra_overtime, time_limit=time_limit, days=days * 2, workers=workers)
+                         extra_overtime=extra_overtime, time_limit=time_limit, days=days * 2,
+                         workers=workers, pair_cap=pair_cap)
         return Result(list(snap.blocks), "NO_WORKING_TIME", None, time.time() - t_start, len(ops),
                       unplaced + [f"從 {now.date} 起的 {days} 天內沒有可排的上班時段；請在上班日設定開放工作日或調整排程起日"], released)
 
@@ -190,9 +194,25 @@ def solve(
     if availability:
         if days < 120:
             return solve(snap, now, weights, reference=reference, movable=movable,
-                         extra_overtime=extra_overtime, time_limit=time_limit, days=days * 2, workers=workers)
+                         extra_overtime=extra_overtime, time_limit=time_limit, days=days * 2,
+                         workers=workers, pair_cap=pair_cap)
         return Result(list(snap.blocks), "NO_AVAILABLE_PAIR", None, time.time() - t_start, len(ops),
                       unplaced + availability, released)
+
+    if pair_cap is not None:
+        order_positions = {order.id: index for index, order in enumerate(snap.orders)}
+        for op in ops.values():
+            candidates = [pair for pair in op.pairs if pair in available_pairs]
+            if len(candidates) <= pair_cap:
+                op.pairs = candidates
+            else:
+                start = order_positions[op.key[0]] % len(candidates)
+                chosen = [candidates[(start + offset) % len(candidates)] for offset in range(pair_cap)]
+                if op.ref_pair in candidates and op.ref_pair not in chosen:
+                    chosen[-1] = op.ref_pair
+                op.pairs = chosen
+            if op.ref_pair not in op.pairs:
+                op.ref_pair = None
 
     m = cp_model.CpModel()
     S, E, X = {}, {}, {}
@@ -311,9 +331,21 @@ def solve(
     status = solver.solve(m)
     name = solver.status_name(status)
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        if status == cp_model.INFEASIBLE and days < 120:      # 確認無解才擴大時間範圍
+        if status == cp_model.UNKNOWN and pair_cap is None and len(ops) >= 150 and not unplaced:
+            draft = solve(snap, now, weights, reference=reference, movable=movable,
+                          extra_overtime=extra_overtime, time_limit=min(1.0, time_limit),
+                          days=days, workers=workers, pair_cap=1)
+            if (draft.status in ("OPTIMAL", "FEASIBLE") and not draft.unplaced
+                    and not check(snap, draft.blocks, now)):
+                draft.status = "FEASIBLE"  # 受限候選中的 OPTIMAL 不代表完整問題的最優解
+                draft.search_mode = "restricted_pairs"
+                draft.wall = time.time() - t_start
+                return draft
+        if status == cp_model.INFEASIBLE and days < 120 and pair_cap is None:
+            # 受限候選的無解不代表完整問題無解；不替備援搜尋擴大範圍。
             return solve(snap, now, weights, reference=reference, movable=movable,
-                         extra_overtime=extra_overtime, time_limit=time_limit, days=days * 2, workers=workers)
+                         extra_overtime=extra_overtime, time_limit=time_limit, days=days * 2,
+                         workers=workers, pair_cap=pair_cap)
         if status == cp_model.UNKNOWN:
             reason = "計算時間內尚未找到可行方案（不代表無解）；可先用手動排班安排急件，或請管理員提高求解時限後重試"
         elif status == cp_model.INFEASIBLE:
@@ -347,4 +379,5 @@ def solve(
                 b.id = oid
                 used.add(oid)
     out.sort(key=lambda b: (b.date, b.machine, b.start))
-    return Result(out, name, solver.objective_value, time.time() - t_start, len(ops), unplaced, released)
+    return Result(out, name, solver.objective_value, time.time() - t_start, len(ops),
+                  unplaced, released, "restricted_pairs" if pair_cap is not None else "full")
