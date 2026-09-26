@@ -100,6 +100,15 @@ npm test
 `web/Dockerfile` 和 `solver/Dockerfile` 可分別部署到支援 Docker 的平台；兩個服務都需要公開 HTTPS 網址。
 目前**只有部署檔，尚未部署或取得公開網址**，因此外部裝置仍不能使用。
 
+### 選平台後可直接使用的設定檔
+
+- **Render**：根目錄的 `render.yaml` 是 Blueprint，會建立免費靜態前端和 **付費 2 GB** 排程服務（`1c-2g`）。匯入 Blueprint 前先確認當下價格與月費；僅把檔案推到 GitHub 不會建立服務。建立時要在 Render 私密變數填入兩處 Supabase publishable／anon key，以及**只給排程服務**的 service-role key。前後端網址由 Blueprint 互相引用。請勿把真實 Excel 放進 Git 倉庫。參考 [Render Blueprint 規格](https://render.com/docs/blueprint-spec)。
+- **Railway**：`web/railway.json`、`solver/railway.json` 設定 Docker 建置、健康檢查與重啟。從同一 GitHub 倉庫建立兩個服務，分別設定 Root Directory `/web` 與 `/solver`、Config File Path `/web/railway.json` 與 `/solver/railway.json`，然後各自產生公開網域。兩個服務都要**關閉 Serverless／App Sleeping**，才能避免閒置後冷啟動；排程服務記憶體上限至少 2 GB。參考 [Railway monorepo](https://docs.railway.com/deployments/monorepo) 與 [Serverless 說明](https://docs.railway.com/deployments/serverless)。
+  - Railway 的 `web` 變數：`VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`，以及 `VITE_SOLVER_URL=https://${{solver.RAILWAY_PUBLIC_DOMAIN}}`。
+  - Railway 的 `solver` 變數：`SUPABASE_URL`、`SUPABASE_ANON_KEY`、`SUPABASE_SERVICE_ROLE_KEY`、`SOLVER_DISABLE_SNAPSHOT_API=1`，以及 `ALLOWED_ORIGINS=https://${{web.RAILWAY_PUBLIC_DOMAIN}}`。參照變數取決於服務名稱正好為 `solver` 與 `web`；若命名不同，需同步改名。設定網域或建置時變數後，重建前端，確保 Vite 將正式網址寫入產物。
+
+兩種設定檔都只是部署準備，不會自動開通付費服務；Render Blueprint 同步或 Railway 建立服務後才可能產生費用。若要保證低使用量時資料庫仍在線，Supabase Free 也不夠，需先看 [專案暫停規則](https://supabase.com/docs/guides/platform/free-project-pausing) 並由你決定是否升級。
+
 1. **先部署排程服務**，以 `solver/` 為 Docker 建置目錄。平台須提供 `PORT`（沒提供時用 8080）。設定下列伺服器環境變數：
 
    | 變數 | 值 |

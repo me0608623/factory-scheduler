@@ -5,11 +5,13 @@ on:
     paths:
       - "web/**"
       - "solver/**"
+      - "render.yaml"
       - ".github/workflows/deploy-smoke.yml"
   pull_request:
     paths:
       - "web/**"
       - "solver/**"
+      - "render.yaml"
       - ".github/workflows/deploy-smoke.yml"
 
 jobs:
