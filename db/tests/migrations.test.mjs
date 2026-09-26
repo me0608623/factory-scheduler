@@ -46,8 +46,13 @@ console.log("帳號與角色");
 const BOSS = "11111111-1111-4111-8111-111111111111", LEAD = "22222222-2222-4222-8222-222222222222", TV = "33333333-3333-4333-8333-333333333333";
 await db.query("insert into auth.users (id, email) values ($1,'boss@x'),($2,'lead@x'),($3,'tv@x')", [BOSS, LEAD, TV]);
 const roles = (await db.query("select user_id, role from profiles order by created_at, role")).rows;
-ok(roles.find(r => r.user_id === BOSS)?.role === "boss", "第一個帳號自動成為老闆");
-ok(roles.find(r => r.user_id === TV)?.role === "viewer", "之後的帳號預設只能看");
+ok(roles.length === 3 && roles.every(r => r.role === "viewer"), "新帳號不分註冊順序都只能看");
+await as(BOSS, async () => {
+  const r = await db.query("update profiles set role='boss' where user_id=$1", [BOSS]);
+  ok(r.affectedRows === 0, "新帳號不能把自己升成老闆");
+});
+await db.query("update profiles set role='boss' where user_id=$1", [BOSS]);
+ok((await db.query("select role from profiles where user_id=$1", [BOSS])).rows[0].role === "boss", "管理員核對身分後可指定老闆");
 await as(BOSS, () => db.query("update profiles set role='lead' where user_id=$1", [LEAD]));
 ok((await db.query("select role from profiles where user_id=$1", [LEAD])).rows[0].role === "lead", "老闆可以把帳號改成組長");
 await as(LEAD, async () => {

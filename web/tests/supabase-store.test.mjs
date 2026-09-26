@@ -15,6 +15,7 @@ const E1 = "00000000-0000-4000-8000-0000000000e1";
 async function setup() {
   const db = await makeDb();
   await db.query("insert into auth.users (id, email) values ($1,'boss@x'),($2,'lead@x'),($3,'tv@x')", [BOSS, LEAD, TV]);
+  await db.query("update profiles set role='boss' where user_id=$1", [BOSS]);
   await db.query("update profiles set role='lead' where user_id=$1", [LEAD]);
   const store = async (email) => {
     const s = new SupabaseStore(new FakeSupabase(db, USERS));
