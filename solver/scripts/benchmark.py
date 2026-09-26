@@ -124,6 +124,7 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
                           "options": [{"id": option["id"], "status": option["status"],
                                         "applicable": option["applicable"],
                                         "late_orders": len(option["metrics"]["late"]) if option["applicable"] else None,
+                                        "diagnostics": option["diagnostics"][:2] if not option["applicable"] else [],
                                         "score": option["score"],
                                         "solver_method": option["solver_method"],
                                         "solver_candidate_pairs": option["solver_candidate_pairs"]}
@@ -148,6 +149,7 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
               "blocks": len(result.blocks), "solve_seconds": round(result.wall, 2),
               "late_orders": late if result.status in ("OPTIMAL", "FEASIBLE") else None,
               "unplaced": len(result.unplaced),
+              "diagnostics": result.unplaced[:2] if result.status not in ("OPTIMAL", "FEASIBLE") else [],
               "valid": not check(snap, result.blocks, now,
                                  frozenset({now.date}) if extra_overtime else frozenset())
               if result.status in ("OPTIMAL", "FEASIBLE") else None}

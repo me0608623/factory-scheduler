@@ -122,6 +122,44 @@ def test_employee_machine_limit_allows_two_machines_but_not_three():
 
 
 # ---------- 模型 ----------
+def test_overlapping_fault_records_do_not_make_future_work_infeasible():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="m", process="cut", products=["p"], faults=[
+            Fault(date=day, start=480, end=1020),
+            Fault(date=day, start=480, end=720),
+        ])],
+        employees=[Employee(id="e", name="Worker", skills=["m"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=1)])],
+        orders=[Order(id="o", code="O", product="p", qty=60, due="2026-09-30")],
+    )
+    now = Now(date=day, min=480)
+    result = solve(snap, now, PRESETS["on_time"], time_limit=2)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert result.blocks and all(block.date > day for block in result.blocks)
+    assert check(snap, result.blocks, now) == []
+
+
+def test_large_unassigned_fault_plan_reuses_equivalent_second_strategy(monkeypatch):
+    snap = snapshot_for(5, 10, 40)
+    calls = []
+
+    def fake_solve(snapshot, now, weights, **kwargs):
+        calls.append((weights, kwargs["extra_overtime"]))
+        return Result([], "UNKNOWN", None, 0.0, 160, ["not found"])
+
+    monkeypatch.setattr(plan_api, "solve", fake_solve)
+    plan = make_plans(PlanRequest(
+        snapshot=snap,
+        event=Event(type="fault", machine="m0", date="2026-09-28", start=480, end=720),
+        now=Now(date="2026-09-28", min=480), time_limit=1,
+    ))
+    assert [option["id"] for option in plan["options"]] == ["A", "B", "C", "D"]
+    assert len(calls) == 3
+    assert plan["options"][0]["diagnostics"] == plan["options"][1]["diagnostics"]
+
+
 def test_solver_worker_limit_can_be_configured_without_changing_default(demo, monkeypatch):
     snap, now = demo
     monkeypatch.delenv("SOLVER_MAX_WORKERS", raising=False)

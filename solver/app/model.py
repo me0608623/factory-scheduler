@@ -383,10 +383,20 @@ def solve(
         if b.employee in emp_iv:
             emp_iv[b.employee].append(iv)
     for mc in snap.machines:                                 # 機台故障
-        for f in mc.faults:
-            iv = fixed_iv(tl.to_t(f.date, f.start), tl.to_t(f.date, f.end), f"fault_{mc.id}_{f.date}_{f.start}")
-            if iv is not None:
-                mach_iv[mc.id].append(iv)
+        # 故障紀錄可以重疊（例如全天故障後再補登上午）。若直接把每筆
+        # 固定區間都交給 NoOverlap，紀錄本身就互相衝突，會誤判排程無解。
+        fault_spans = sorted((tl.to_t(f.date, f.start), tl.to_t(f.date, f.end))
+                             for f in mc.faults)
+        merged_faults: list[list[int]] = []
+        for start, end in fault_spans:
+            if end <= start:
+                continue
+            if merged_faults and start <= merged_faults[-1][1]:
+                merged_faults[-1][1] = max(merged_faults[-1][1], end)
+            else:
+                merged_faults.append([start, end])
+        for index, (start, end) in enumerate(merged_faults):
+            mach_iv[mc.id].append(fixed_iv(start, end, f"fault_{mc.id}_{index}"))
     for em in snap.employees:                                # 請假、不能加班
         for d in em.leaves:
             span = tl.day_span(d)

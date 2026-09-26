@@ -6,10 +6,10 @@ test("小型排程維持每方案 3 秒", () => {
   assert.equal(planTimeLimit({ products: [{ id: "p", steps: [{}, {}, {}] }], orders: [{ pid: "p" }] }), 3);
 });
 
-test("達到 2,200 道工序時給每方案 5 秒", () => {
+test("達到 2,200 道工序時給每方案 10 秒，避免故障與請假案例全數逾時", () => {
   const products = [{ id: "p", steps: [{}, {}, {}, {}] }];
   const orders = Array.from({ length: 550 }, () => ({ pid: "p" }));
   assert.equal(planTimeLimit({ products, orders: orders.slice(0, 549) }), 3);
-  assert.equal(planTimeLimit({ products, orders }), 5);
-  assert.equal(planTimeLimit({ products, orders: [...orders, { pid: "missing" }] }), 5);
+  assert.equal(planTimeLimit({ products, orders }), 10);
+  assert.equal(planTimeLimit({ products, orders: [...orders, { pid: "missing" }] }), 10);
 });

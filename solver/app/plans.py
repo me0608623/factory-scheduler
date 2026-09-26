@@ -339,13 +339,29 @@ def make_plans(req: PlanRequest) -> dict:
     large = operation_count >= 150
     worker_cap = configured_workers()
     workers = worker_cap if large else max(1, worker_cap // max(1, len(strategies)))
+    same_unassigned_objective = (
+        PRESETS["min_change"].tard == PRESETS["keep_assign"].tard
+        and PRESETS["min_change"].comp == PRESETS["keep_assign"].comp
+    )
+    shared_unassigned: Result | None = None
 
     def run(st: Strategy):
+        nonlocal shared_unassigned
         if st.preset is None:
             return st, None, list(a.snap.blocks)
         ot = st.overtime(a, now)
+        # 尚未有任何排程方塊時，故障／請假的 A、B 策略沒有可維持的
+        # 原時間或人機；兩者目標中的有效權重完全相同，無需重算一次。
+        # 大案採單執行緒依序求解，才可安全重用前一個結果。
+        if (large and same_unassigned_objective and not a.snap.blocks
+                and req.event.type in ("fault", "leave") and not ot
+                and st.id == "B" and shared_unassigned is not None):
+            return st, shared_unassigned, shared_unassigned.blocks
         res = solve(a.snap, now, PRESETS[st.preset], reference=st.reference(a), movable=st.movable(a),
                     extra_overtime=frozenset(ot), time_limit=req.time_limit, workers=workers)
+        if (large and same_unassigned_objective and not a.snap.blocks
+                and req.event.type in ("fault", "leave") and not ot and st.id == "A"):
+            shared_unassigned = res
         return st, res, res.blocks
 
     with ThreadPoolExecutor(max_workers=1 if large else len(strategies)) as pool:
