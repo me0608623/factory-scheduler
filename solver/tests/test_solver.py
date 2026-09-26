@@ -2,6 +2,7 @@
 from fastapi.testclient import TestClient
 from datetime import date, timedelta
 from unittest.mock import patch
+import sys
 
 from ortools.sat.python import cp_model
 from pydantic import ValidationError
@@ -18,6 +19,7 @@ from app.validate import check
 
 from .conftest import snapshot_after
 from scripts.benchmark import snapshot_for
+from scripts import benchmark as benchmark_script
 from scripts.stress_batch import case as batch_case
 from scripts.stress_mixed import case as mixed_case
 
@@ -769,6 +771,22 @@ def test_api_rejects_unbounded_solver_time(demo):
     assert c.post("/plans", json={**payload, "event": {"type": "auto"}}).status_code == 422
     assert c.post("/plans/db", json={"event": {"type": "auto"}, "time_limit": 20},
                   headers={"Authorization": "Bearer token"}).status_code == 422
+
+
+def test_synthetic_benchmark_can_model_two_machines_per_worker():
+    snap = snapshot_for(20, 40, 100, cross_factory=True, max_machines=2)
+    assert len(snap.employees) == 40
+    assert all(employee.max_concurrent_machines == 2 for employee in snap.employees)
+    assert {employee.factory for employee in snap.employees} == {1, 2}
+
+
+def test_memory_capped_benchmark_requires_memory_monitor(capsys):
+    with patch.dict(sys.modules, {"psutil": None}), patch.object(
+        sys, "argv", ["benchmark.py", "--sized-case", "5", "10", "10"]
+    ), pytest.raises(SystemExit) as stopped:
+        benchmark_script.main()
+    assert stopped.value.code == 2
+    assert "requires psutil" in capsys.readouterr().err
 
 
 def test_large_unknown_uses_valid_restricted_draft():

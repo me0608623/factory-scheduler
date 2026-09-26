@@ -21,7 +21,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 def snapshot_for(machine_count: int, employee_count: int, order_count: int,
                  cross_factory: bool = False, due_base_days: int = 10,
                  leave_days: int = 0, fault_days: int = 0,
-                 heterogeneous: bool = False, transfer_batch: int = 0):
+                 heterogeneous: bool = False, transfer_batch: int = 0,
+                 max_machines: int = 1):
     from app.schemas import Calendar, Employee, Fault, Machine, Order, Product, Snapshot, Step
 
     processes = ("cut", "press", "weld", "pack")
@@ -41,6 +42,7 @@ def snapshot_for(machine_count: int, employee_count: int, order_count: int,
                  skills=[m.id for index, m in enumerate(machines)
                          if m.process == processes[i % 4]
                          and (not heterogeneous or (index // 4 + i // 4) % 3 != 0)],
+                 max_concurrent_machines=max_machines,
                  leaves=[(start + timedelta(days=day)).isoformat() for day in range(leave_days)]
                  if i < employee_count // 2 else [])
         for i in range(employee_count)
@@ -96,7 +98,8 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
              due_base_days: int = 10, leave_days: int = 0, fault_days: int = 0,
              heterogeneous: bool = False, workers: int = 8, transfer_batch: int = 0,
              details: bool = False, event: str = "auto", option: str | None = None,
-             extra_overtime: bool = False, prefill: bool = False):
+             extra_overtime: bool = False, prefill: bool = False,
+             max_machines: int = 1):
     from app.model import PRESETS, solve
     from app.plans import STRATEGIES, apply_event, make_plans
     from app.schemas import Event, Now, PlanRequest
@@ -104,7 +107,8 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
     from app.validate import check
 
     snap = snapshot_for(machines, employees, orders, cross_factory,
-                        due_base_days, leave_days, fault_days, heterogeneous, transfer_batch)
+                        due_base_days, leave_days, fault_days, heterogeneous,
+                        transfer_batch, max_machines)
     now = Now(date="2026-09-28", min=480)
     affected = None
     prefill_seconds = 0.0
@@ -144,6 +148,7 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
         gzip_bytes = len(gzip.compress(encoded, compresslevel=6))
         gzip_seconds = time.monotonic() - compressed_started
         print(json.dumps({"event": event, "option": option, "workers": workers,
+                          "max_machines": max_machines,
                           "prefill": prefill, "prefill_blocks": len(snap.blocks),
                           "prefill_seconds": prefill_seconds,
                           "event_day": now.date,
@@ -176,6 +181,7 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
     late = sum(value is not None and value > abs_min(order.due, 1440)
                for order in snap.orders for value in [finish[order.id]])
     output = {"status": result.status, "solver_method": result.search_mode,
+              "max_machines": max_machines,
               "solver_candidate_pairs": result.candidate_pairs,
               "objective": result.objective,
               "operations": result.n_ops,
@@ -253,6 +259,8 @@ def main():
     parser.add_argument("--details", action="store_true")
     parser.add_argument("--time-limit", type=float, default=5.0)
     parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument("--max-machines", type=int, default=1,
+                        help="maximum machines each synthetic employee may supervise concurrently")
     parser.add_argument("--large-only", action="store_true")
     parser.add_argument("--cross-only", action="store_true")
     parser.add_argument("--memory-limit-mb", type=int, default=1500)
@@ -260,7 +268,8 @@ def main():
     if (not 0 < args.time_limit <= 60 or not 100 <= args.memory_limit_mb <= 4096
             or args.pair_cap is not None and args.pair_cap < 1
             or args.due_base_days < 0 or args.leave_days < 0 or args.fault_days < 0
-            or not 1 <= args.workers <= 16 or args.transfer_batch < 0
+            or not 1 <= args.workers <= 16 or not 1 <= args.max_machines <= 16
+            or args.transfer_batch < 0
             or args.sized_case is not None and min(args.sized_case) < 1):
         parser.error("time limit must be 0-60 seconds and memory limit 100-4096 MB")
     if args.option and not args.plans:
@@ -274,8 +283,13 @@ def main():
                  fault_days=args.fault_days, heterogeneous=args.heterogeneous,
                  workers=args.workers, transfer_batch=args.transfer_batch,
                  details=args.details, event=args.event, option=args.option,
-                 extra_overtime=args.extra_overtime, prefill=args.prefill)
+                 extra_overtime=args.extra_overtime, prefill=args.prefill,
+                 max_machines=args.max_machines)
         return
+    try:
+        import psutil  # noqa: F401  # Parent must actually enforce --memory-limit-mb.
+    except ImportError:
+        parser.error("memory-capped sizing requires psutil; run with: uv run --with psutil python scripts/benchmark.py ...")
     cases = ([(*args.sized_case, args.cross_factory)] if args.sized_case else
              [(5, 10, 10, False), (10, 20, 30, False), (10, 20, 30, True),
               (20, 40, 50, False), (20, 40, 100, False), (20, 40, 100, True)])
@@ -301,6 +315,7 @@ def main():
         command.extend(("--leave-days", str(args.leave_days)))
         command.extend(("--fault-days", str(args.fault_days)))
         command.extend(("--workers", str(args.workers)))
+        command.extend(("--max-machines", str(args.max_machines)))
         if args.heterogeneous:
             command.append("--heterogeneous")
         command.extend(("--transfer-batch", str(args.transfer_batch)))
@@ -339,6 +354,7 @@ def main():
                           "fault_days": args.fault_days,
                           "heterogeneous": args.heterogeneous,
                           "workers": args.workers,
+                          "max_machines": args.max_machines,
                           "transfer_batch": args.transfer_batch,
                           "time_limit": args.time_limit,
                           "elapsed_seconds": round(time.monotonic() - started, 2),
