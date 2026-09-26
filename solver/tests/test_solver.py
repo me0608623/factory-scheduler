@@ -593,6 +593,27 @@ def test_cross_factory_batch_can_overlap_previous_step():
     assert check(snap, result.blocks, now) == []
 
 
+def test_faster_cross_factory_step_can_finish_with_upstream():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="cut", factory=1, process="cut", products=["p"]),
+                  Machine(id="weld", factory=2, process="weld", products=["p"])],
+        employees=[Employee(id="e1", name="Cut", factory=1, skills=["cut"]),
+                   Employee(id="e2", name="Weld", factory=2, skills=["weld"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", factory=1, rate=1),
+                                                       Step(process="weld", factory=2, rate=2, batch=60)])],
+        orders=[Order(id="o", code="O", product="p", qty=120, due="2026-09-28")],
+    )
+    now = Now(date="2026-09-28", min=480)
+    result = solve(snap, now, PRESETS["on_time"], time_limit=1)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    cut_end = max(block.end for block in result.blocks if block.step == 0)
+    weld = next(block for block in result.blocks if block.step == 1)
+    assert weld.start == 540
+    assert weld.end == cut_end == 600
+    assert check(snap, result.blocks, now) == []
+
+
 def test_completed_batch_allows_cross_factory_step_to_start_now():
     snap = Snapshot(
         calendar=Calendar(week=[False, True, True, True, True, True, False]),

@@ -448,7 +448,11 @@ def solve(
                         m.add(S[cur.key] >= S[prev.key] + ready_delta)
                         if fixed_end is not None:
                             m.add(S[cur.key] >= fixed_end)
-                    m.add(E[cur.key] >= E[prev.key] + dur_of(batch, p.steps[k].rate))
+                    # 前站全數連續新排時，交接批量後可同步加工，兩站可以同時完工。
+                    # 若前站另有固定片段，中間可能有長空檔；仍保留一批加工時間的
+                    # 緩衝，避免後站在下一批實際做出前消耗超過已交接的數量。
+                    buffer = dur_of(batch, p.steps[k].rate) if fixed_prev else 0
+                    m.add(E[cur.key] >= E[prev.key] + buffer)
                 else:
                     m.add(S[cur.key] >= E[prev.key])
                     if fixed_end is not None:
