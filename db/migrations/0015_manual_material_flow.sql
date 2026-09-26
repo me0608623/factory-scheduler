@@ -147,6 +147,43 @@ begin
   end if;
 end $$;
 
+-- 新增／移動的工單不可占用請假或故障分鐘；已有的部分時段也需逐段檢查。
+create function _assert_manual_absences(p_blocks jsonb, p_order_ids uuid[]) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  bad_employee uuid;
+  bad_machine text;
+  bad_date date;
+begin
+  with b as (
+    select x.order_id, x.employee_id, x.date as work_date, x.start_min, x.end_min
+      from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(
+        order_id uuid, employee_id uuid, date date, start_min smallint, end_min smallint)
+     where x.order_id = any(p_order_ids) and x.employee_id is not null
+  )
+  select b.employee_id, b.work_date into bad_employee, bad_date
+    from b join leaves l on l.employee_id = b.employee_id and l.date = b.work_date
+   where coalesce(l.start_min, 0) < b.end_min and coalesce(l.end_min, 1440) > b.start_min
+   limit 1;
+  if found then
+    raise exception '員工 % 在 % 的請假時段不能排工作', bad_employee, bad_date;
+  end if;
+
+  with b as (
+    select x.order_id, x.machine_id, x.date as work_date, x.start_min, x.end_min
+      from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(
+        order_id uuid, machine_id text, date date, start_min smallint, end_min smallint)
+     where x.order_id = any(p_order_ids)
+  )
+  select b.machine_id, b.work_date into bad_machine, bad_date
+    from b join machine_faults f on f.machine_id = b.machine_id and f.date = b.work_date
+   where f.start_min < b.end_min and f.end_min > b.start_min
+   limit 1;
+  if found then
+    raise exception '機台 % 在 % 的機台故障時段不能排工作', bad_machine, bad_date;
+  end if;
+end $$;
+
 -- 只檢查此次異動工單涉及的資源，但與完整新排程的所有方塊比較。
 create function _assert_manual_resources(p_blocks jsonb, p_order_ids uuid[]) returns void
 language plpgsql security definer set search_path = public as $$
@@ -236,6 +273,7 @@ begin
     perform _assert_manual_quantity(p_blocks, changed_orders);
     perform _assert_manual_material_flow(p_blocks, changed_orders);
     perform _assert_manual_assignments(p_blocks, changed_orders);
+    perform _assert_manual_absences(p_blocks, changed_orders);
     perform _assert_manual_resources(p_blocks, changed_orders);
   end if;
   perform set_config('app.change_set_id', cs::text, true);
@@ -249,4 +287,5 @@ end $$;
 revoke all on function _assert_manual_material_flow(jsonb, uuid[]) from public, anon, authenticated;
 revoke all on function _assert_manual_quantity(jsonb, uuid[]) from public, anon, authenticated;
 revoke all on function _assert_manual_assignments(jsonb, uuid[]) from public, anon, authenticated;
+revoke all on function _assert_manual_absences(jsonb, uuid[]) from public, anon, authenticated;
 revoke all on function _assert_manual_resources(jsonb, uuid[]) from public, anon, authenticated;

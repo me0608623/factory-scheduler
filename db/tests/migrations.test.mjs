@@ -161,6 +161,8 @@ const ops = (await db.query("select op, count(*)::int n from audit_log where cha
 ok(JSON.stringify(ops) === JSON.stringify([{ op: "INSERT", n: 1 }, { op: "UPDATE", n: 1 }]), "只記真的有變的：沒動的那段不會出現在稽核裡 " + JSON.stringify(ops));
 ok((await db.query("select count(*)::int n from machine_faults where note='馬達' and jsonb_array_length(original_blocks)=1")).rows[0].n === 1, "故障記錄保存了原本位置（恢復時用）");
 ok((await db.query("select title from change_sets where id=$1", [cs2])).rows[0].title === "c 故障：採用「方案A」", "變更紀錄標題");
+// 上述方案測完後移除測試故障，避免後續部分完成量案例剛好排在該故障時段。
+await db.query("delete from machine_faults where note='馬達'");
 
 console.log("手動調整 save_blocks()");
 const all = (await db.query("select id, order_id, step_seq, machine_id, employee_id, date::text, start_min, end_min, qty, pinned from schedule_blocks")).rows;
@@ -236,6 +238,26 @@ ok((await db.query("select version::int v from schedule_state")).rows[0].v === 5
 await db.query("update product_steps set factory=1 where product_id=$1 and seq=0", ["00000000-0000-4000-8000-0000000000a1"]);
 await db.query("update machines set factory=1 where id='b'");
 await db.query("update employees set factory=1 where id=$1", [EMP1]);
+
+const laterBlocks = (await db.query("select id, order_id, step_seq, machine_id, employee_id, date::text, start_min, end_min, qty, pinned from schedule_blocks")).rows;
+const newManual = { id: null, order_id: anotherOrder, step_seq: 0, machine_id: "a", employee_id: EMP1,
+  date: "2026-10-05", start_min: 480, end_min: 540, qty: 30, pinned: true };
+await db.query("insert into leaves (employee_id,date,start_min,end_min,note) values ($1,'2026-10-05',500,560,'測試半日請假')", [EMP1]);
+await as(LEAD, () => expectErr("select save_blocks(5, $1, '請假仍排工作')", [JSON.stringify([...laterBlocks, newManual])], /請假時段/, "RPC 不接受員工請假時段內的新工作"));
+await db.query("delete from leaves where employee_id=$1 and date='2026-10-05'", [EMP1]);
+await db.query("insert into machine_faults (machine_id,date,start_min,end_min,note) values ('a','2026-10-05',500,560,'測試故障')");
+await as(LEAD, () => expectErr("select save_blocks(5, $1, '故障仍排工作')", [JSON.stringify([...laterBlocks, newManual])], /機台故障時段/, "RPC 不接受機台故障時段內的新工作"));
+await db.query("delete from machine_faults where note='測試故障'");
+ok((await db.query("select version::int v from schedule_state")).rows[0].v === 5, "請假與故障衝突被拒後版本保持不變");
+await db.query("insert into leaves (employee_id,date,note) values ($1,'2026-10-05','測試整日請假')", [EMP1]);
+await as(LEAD, () => expectErr("select save_blocks(5, $1, '整日請假仍排工作')", [JSON.stringify([...laterBlocks, newManual])], /請假時段/, "RPC 不接受整日請假時的新工作"));
+await db.query("delete from leaves where employee_id=$1 and date='2026-10-05'", [EMP1]);
+await db.query("insert into leaves (employee_id,date,start_min,end_min,note) values ($1,'2026-10-05',540,600,'測試相鄰請假')", [EMP1]);
+await db.query("insert into machine_faults (machine_id,date,start_min,end_min,note) values ('a','2026-10-05',540,600,'測試相鄰故障')");
+await as(LEAD, () => db.query("select save_blocks(5, $1, '工作在請假故障前結束')", [JSON.stringify([...laterBlocks, newManual])]));
+ok((await db.query("select version::int v from schedule_state")).rows[0].v === 6, "工作剛好在請假與故障開始時結束，仍可儲存");
+await db.query("delete from leaves where employee_id=$1 and date='2026-10-05'", [EMP1]);
+await db.query("delete from machine_faults where note='測試相鄰故障'");
 
 await as(LEAD, () => expectErr("select _apply_blocks('[]'::jsonb)", [], /permission denied/, "前端不能直接呼叫內部函式"));
 
