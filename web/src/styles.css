@@ -248,6 +248,12 @@ button{cursor:pointer}
 .mach.big{width:96px;height:84px}
 .mach.big small{font-size:12px;text-align:center}
 .help-nav{display:flex;flex-wrap:wrap;gap:8px}
+.ot-people{display:flex;flex-direction:column;gap:9px}
+.ot-person{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface2)}
+.ot-person-title{display:flex;flex-direction:column;gap:2px;min-width:140px}
+.ot-person-title b{font-size:17px}
+.ot-person-title small{font-size:13px;color:var(--muted)}
+.ot-person .toggles{gap:6px}
 .help-sec{display:flex;flex-direction:column;gap:10px}
 .help-sec ol{margin:0;padding-left:26px;display:flex;flex-direction:column;gap:10px;font-size:17px}
 .help-sec li b{font-weight:900}

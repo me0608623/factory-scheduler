@@ -40,7 +40,7 @@ def check(snap: Snapshot, blocks: list[Block], now: Now | None = None) -> list[s
         if e and is_new:
             if b.date in e.leaves:
                 issues.append(f"{name(b)}：{e.name} 請假")
-            if e.no_overtime and w and (w.overtime or w.special):
+            if not e.allows_overtime(b.date) and w and (w.overtime or w.special):
                 issues.append(f"{name(b)}：{e.name} 不能加班")
         for f in m.faults:
             if f.date == b.date and f.start < b.end and f.end > b.start and is_new:

@@ -1,8 +1,10 @@
 // 畫面用的資料格式（沿用原型的 S） ↔ 排程服務／資料庫的格式
 //
-// 畫面：employees[{id,name,color,skills,leaves,noOT}]、machines[{id,label,proc,products,faults[{id,date,s,e,note,fixed,orig}]}]
+// 畫面：employees[{id,name,color,skills,leaves,noOT,otWeekdays,otOverrides}]、machines[{id,label,proc,products,faults[{id,date,s,e,note,fixed,orig}]}]
 //       products[{id,name,steps[{proc,rate,batch}]}]、orders[{id,code,pid,qty,due,pri}]
 //       blocks[{id,oid,step,m,emp,date,s,e,qty,pin}]、cal{week,over{date:"work"|"off"}}、dayOT{date:true}、log[]
+
+import { overtimeWeekdays } from "./overtime.js";
 
 export const newId = () =>
   globalThis.crypto && crypto.randomUUID ? crypto.randomUUID()
@@ -28,7 +30,8 @@ export function toSnapshot(S, holidays = {}) {
       holidays: { ...holidays },
     },
     employees: S.employees.map((e) => ({ id: e.id, name: e.name, color: e.color || 0, skills: [...e.skills],
-      leaves: [...e.leaves], no_overtime: !!e.noOT })),
+      leaves: [...e.leaves], no_overtime: !!e.noOT, overtime_weekdays: overtimeWeekdays(e),
+      overtime_overrides: { ...(e.otOverrides || {}) } })),
     machines: S.machines.map((m) => ({ id: m.id, label: m.label, process: m.proc, products: [...m.products],
       faults: m.faults.map((f) => ({ id: f.id || null, date: f.date, start: f.s, end: f.e, note: f.note || null,
         fixed: !!f.fixed, original_blocks: (f.orig || []).map(blockToDb) })) })),
@@ -51,7 +54,9 @@ export function fromSnapshot(snap) {
     dayOT: { ...(c.overtime || {}) },
     holidays: { ...(c.holidays || {}) },
     employees: (snap.employees || []).map((e) => ({ id: e.id, name: e.name, color: e.color || 0, skills: [...e.skills],
-      leaves: [...(e.leaves || [])], noOT: !!e.no_overtime })),
+      leaves: [...(e.leaves || [])], noOT: !!e.no_overtime,
+      otWeekdays: Array.isArray(e.overtime_weekdays) ? e.overtime_weekdays : e.no_overtime ? [] : [0,1,2,3,4,5,6],
+      otOverrides: { ...(e.overtime_overrides || {}) } })),
     machines: (snap.machines || []).map((m) => ({ id: m.id, label: m.label, proc: m.process, products: [...m.products],
       faults: (m.faults || []).map((f) => ({ id: f.id, date: f.date, s: f.start, e: f.end, note: f.note || "",
         fixed: !!f.fixed, fixedAt: f.fixed_at || null, orig: (f.original_blocks || []).map(blockFromDb) })) })),

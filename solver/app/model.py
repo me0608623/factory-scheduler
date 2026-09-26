@@ -200,15 +200,14 @@ def solve(
             iv = fixed_iv(tl.to_t(f.date, f.start), tl.to_t(f.date, f.end), f"fault_{mc.id}_{f.date}_{f.start}")
             if iv is not None:
                 mach_iv[mc.id].append(iv)
-    ot_spans = tl.overtime_spans()
     for em in snap.employees:                                # 請假、不能加班
         for d in em.leaves:
             span = tl.day_span(d)
             if span:
                 emp_iv[em.id].append(fixed_iv(*span, f"leave_{em.id}_{d}"))
-        if em.no_overtime:
-            for i, (a, b2) in enumerate(ot_spans):
-                emp_iv[em.id].append(fixed_iv(a, b2, f"noot_{em.id}_{i}"))
+        for i, w in enumerate(tl.wins):
+            if (w.overtime or w.special) and not em.allows_overtime(w.date):
+                emp_iv[em.id].append(fixed_iv(w.t0, w.t1, f"noot_{em.id}_{i}"))
     for ivs in list(mach_iv.values()) + list(emp_iv.values()):
         ivs = [iv for iv in ivs if iv is not None]
         if len(ivs) > 1:

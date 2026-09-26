@@ -1,6 +1,7 @@
 // 產線排程看板（正式版）：畫面沿用原型，資料層與排程服務可替換
 import { SOLVER } from "./solver.js";
 import { toSnapshot, applyOption, newId } from "./convert.js";
+import { ALL_WEEKDAYS, overtimeAllowed, overtimeDefault, overtimeWeekdays } from "./overtime.js";
 /* ===== 1. 常數與工具 ===== */
 const COLORS=["#FFE14D","#4CDB6E","#F58CF0","#4FE3EE","#FFA64D","#AFC0FF","#FF9A9A","#BFEA6C"];
 const PROCS=["裁切","沖壓","焊接","組裝","包裝"];
@@ -136,7 +137,7 @@ function freeSegs(ds,mid,E,fromMin,ex){
   if(E.leaves.includes(ds))return [];
   const di=dayInfo(ds),busy=busyFor(ds,mid,E.id,ex),out=[];
   for(const w of di.win){
-    if(w.ot&&E.noOT)continue;
+    if(w.ot&&!overtimeAllowed(E,ds))continue;
     const s0=Math.max(w.s,fromMin),e=w.e;if(s0>=e)continue;
     let cur=s0;
     for(const [bs,be] of busy){if(be<=cur||bs>=e)continue;if(bs>cur)out.push([cur,bs]);cur=Math.max(cur,be);if(cur>=e)break;}
@@ -251,7 +252,7 @@ function slotFree(ds,mid,E,s,e,exId){
   if(!E||E.leaves.includes(ds))return false;
   const di=dayInfo(ds);
   const w=di.win.find(w=>s>=w.s&&e<=w.e);if(!w)return false;
-  if(w.ot&&E.noOT)return false;
+  if(w.ot&&!overtimeAllowed(E,ds))return false;
   const M=mach(mid);if(M.faults.some(f=>f.date===ds&&f.s<e&&f.e>s))return false;
   return !S.blocks.some(b=>b.id!==exId&&b.date===ds&&(b.m===mid||b.emp===E.id)&&b.s<e&&b.e>s);
 }
@@ -553,7 +554,7 @@ function issuesOf(b,opt={}){
   const di=dayInfo(b.date);
   const inWin=di.win.some(w=>b.s>=w.s&&b.e<=w.e);
   if(!inWin)out.push(di.open?"超出上班時間（午休或未開加班）":"這天停工");
-  else if(E&&E.noOT&&di.win.some(w=>w.ot&&b.s<w.e&&b.e>w.s))out.push(E.name+" 不加班（假日出勤也不排）");
+  else if(E&&!overtimeAllowed(E,b.date)&&di.win.some(w=>w.ot&&b.s<w.e&&b.e>w.s))out.push(E.name+" 當日不可加班（假日出勤也不排）");
   for(const x of S.blocks){if(x===b||x.date!==b.date||x.s>=b.e||x.e<=b.s)continue;
     if(x.m===b.m){if(opt.pushOK&&!x.pin){opt.push++;continue;}out.push(x.pin?"和固定的 "+label(x)+" 重疊":"和 "+label(x)+" 撞同一台機器");break;}
     if(x.emp===b.emp){out.push((E?E.name:"")+" 同時段已在 "+x.m+" 機台工作");break;}}
@@ -625,7 +626,7 @@ function bannerHTML(){
   const openBtn=readOnly?"":'<button class="btn admin '+(di.open?"ghost":"primary")+'" data-act="open">'+(di.open?"改為停工":"改為上班")+'</button>';
   if(!di.open)out.push('<div class="banner wk"><span class="grow">'+(name?esc(name)+"　":"")+'本日停工，不排工作</span>'+openBtn+'</div>');
   else if(di.special)out.push('<div class="banner hol"><span class="grow">'+esc(name)+'　有上班 · '+payNote(di)+'</span>'+openBtn+'</div>');
-  if(di.ot)out.push('<div class="banner ot"><span class="grow">今天加班到 20:00</span>'+(readOnly?"":'<button class="btn ghost admin" data-act="ot">取消加班</button>')+'</div>');
+  if(di.ot)out.push('<div class="banner ot"><span class="grow">今天加班到 20:00 · '+S.employees.filter(e=>overtimeAllowed(e,d)&&!e.leaves.includes(d)).length+' 人可加班</span>'+(readOnly?"":'<button class="btn ghost admin" data-act="ot">調整加班人員</button>')+'</div>');
   return out.join("");
 }
 function cardsHTML(){
@@ -634,7 +635,7 @@ function cardsHTML(){
   const emps=S.employees.map(e=>{
     const lv=e.leaves.includes(d);
     return '<button class="emp'+(lv?" off":"")+'" data-act="emp" data-id="'+e.id+'"><span class="sw" style="background:'+COLORS[e.color%COLORS.length]+'">'+esc(e.name.slice(0,1))+'</span>'+esc(e.name)+
-      (lv?'<span class="tag bad">請假</span>':'')+(e.noOT?'<span class="tag mute">不加班</span>':'')+'</button>';}).join("");
+      (lv?'<span class="tag bad">請假</span>':'')+(!overtimeAllowed(e,d)?'<span class="tag mute">今天不加班</span>':'')+'</button>';}).join("");
   const machs=S.machines.map(m=>{const down=m.faults.some(f=>f.date===d&&!f.fixed);
     return '<button class="mach'+(down?" down":"")+'" data-act="mach" data-id="'+m.id+'" aria-label="'+esc(m.id+" "+m.label)+'"><b>'+esc(m.id)+'</b><small>'+(down?"故障":"正常")+'</small></button>';}).join("");
   const ords=[...S.orders].sort((a,b)=>a.due.localeCompare(b.due)||a.pri-b.pri);
@@ -684,7 +685,7 @@ function dayHTML(ctx={}){
     return '<button class="colhead'+(down?" down":"")+'" data-act="mach" data-id="'+M.id+'"><span class="L">'+esc(M.id)+'</span><span class="N">'+esc(M.label)+'<small>'+esc(M.proc)+'</small></span><span class="st tag '+(down?"bad":"ok")+'">'+(down?"故障":"正常")+'</span></button>';}).join("");
   let times="";for(let m=DAY0;m<DAY1;m+=30)times+='<div class="'+(m%60?"half":"")+'">'+hm(m)+'</div>';
   const leave=S.employees.filter(e=>e.leaves.includes(d));
-  const otBtn=readOnly?"":(di.open&&!di.ot?'<button class="btn admin" data-act="ot">開加班到 20:00</button>':"")+'<button class="btn admin" data-act="cal">上班日設定</button>';
+  const otBtn=readOnly?"":(di.open?'<button class="btn admin" data-act="ot">'+(di.ot?'調整加班人員':'開加班到 20:00')+'</button>':"")+'<button class="btn admin" data-act="cal">上班日設定</button>';
   return '<section class="board" aria-label="排程表"><div class="board-h"><h2>'+mdw(d)+(ctx.pv?(PV.mode==="orig"?" 原本的排程":PV.mode==="new"?" 調整後":" 對照"):" 排程")+'</h2>'+
     (leave.length?'<span class="tag bad" style="font-size:15px;padding:4px 10px">請假：'+esc(leave.map(e=>e.name).join("、"))+'</span>':"")+
     (nBad?'<button class="btn danger" data-act="issues">'+nBad+' 個問題</button>':(blocks.length?'<span class="tag ok" style="font-size:15px;padding:4px 10px">沒有衝突</span>':""))+
@@ -865,7 +866,7 @@ document.addEventListener("click",e=>{
     case "sync":if(SYNC.state==="error")queueSync(null);else toast(STORE.kind==="local"?"資料存在這台電腦的瀏覽器":"已和雲端資料庫同步");break;
     case "account":openModal({t:"account"});break;
     case "export":openModal({t:"export"});break;
-    case "ot":toggleOT(UI.date);break;
+    case "ot":openModal({t:"ot",date:UI.date});break;
     case "open":toggleOpen(UI.date);break;
     case "cal":openModal({t:"cal"});break;
     case "emp":openModal({t:"emp",id});break;
@@ -910,20 +911,30 @@ function toggleOpen(d){
     if(r.lines.length)showResult();else toast(mdw(d)+" 已改為停工");
   }
 }
-function toggleOT(d){
+function saveDailyOT(m){
   if(readOnly)return;
+  const d=m.date;
+  const changed=!!S.dayOT[d]!==m.open||S.employees.some(e=>{
+    const old=Object.prototype.hasOwnProperty.call(e.otOverrides||{},d)?!!e.otOverrides[d]:null;
+    return old!==m.overrides[e.id];
+  });
+  if(!changed){closeModal();return;}
   pushUndo();
-  const on=!S.dayOT[d];
-  if(on){S.dayOT[d]=true;
-    commit({kind:"ot",title:mdw(d)+" 開放加班",lines:[]});
-    const late=S.orders.filter(o=>orderStatus(o).k==="late").length;
-    toast(late?"已開加班。有 "+late+" 張工單會延誤，要重排嗎？":"已開放加班",late?"重新排程":null,late?()=>openModal({t:"auto"}):null);
-  }else{
-    delete S.dayOT[d];
-    const aff=S.blocks.filter(b=>b.date===d&&!dayInfo(d).win.some(w=>b.s>=w.s&&b.e<=w.e));
-    const lines=aff.length?repair(aff,"ot"):[];
-    commit({kind:"ot",title:mdw(d)+" 取消加班"+(aff.length?"，移走 "+aff.length+" 段工作":""),lines});
-    if(lines.length)openModal({t:"logone",id:S.log[0].id});else toast("已取消加班");
+  if(m.open)S.dayOT[d]=true;else delete S.dayOT[d];
+  for(const e of S.employees){
+    e.otOverrides ||= {};
+    if(m.overrides[e.id]===null)delete e.otOverrides[d];else e.otOverrides[d]=m.overrides[e.id];
+  }
+  const aff=S.blocks.filter(b=>{
+    if(b.date!==d||!futureOf(b))return false;
+    const w=dayInfo(d).win.find(w=>b.s>=w.s&&b.e<=w.e);
+    const E=emp(b.emp);
+    return !w||(w.ot&&(!E||!overtimeAllowed(E,d)));
+  });
+  const lines=aff.length?repair(aff,"ot"):[];
+  commit({kind:"ot",title:mdw(d)+" 更新加班設定"+(aff.length?"，調整 "+aff.length+" 段工作":""),lines});
+  if(lines.length)showResult();else{
+    closeModal();toast("已儲存今天的加班設定"+(m.open?"，可加班 "+S.employees.filter(e=>overtimeAllowed(e,d)&&!e.leaves.includes(d)).length+" 人":""));
   }
 }
 /* ===== 9. 視窗（員工、機台、工單、方塊、紀錄…） ===== */
@@ -980,9 +991,30 @@ const MODALS={
     foot:'<button class="btn" data-act="close">取消</button>'+(P.problems.length?'':'<button class="btn primary" data-act="drag-confirm">確認順延</button>')};
 },
 /* ---------- 員工 ---------- */
+ot(m){
+  const d=m.date;
+  if(m.open===undefined){
+    m.open=!!S.dayOT[d];
+    m.overrides=Object.fromEntries(S.employees.map(e=>[e.id,Object.prototype.hasOwnProperty.call(e.otOverrides||{},d)?!!e.otOverrides[d]:null]));
+  }
+  const available=S.employees.filter(e=>!e.leaves.includes(d)&&(m.overrides[e.id]===null?overtimeDefault(e,d):m.overrides[e.id])).length;
+  const people=S.employees.map(e=>{
+    const base=overtimeDefault(e,d),value=m.overrides[e.id],yes=value===null?base:value;
+    return '<div class="ot-person"><div class="ot-person-title"><b>'+esc(e.name)+'</b><small>固定星期：'+(base?'可加班':'不加班')+(value===null?'':' · 今天臨時調整')+(e.leaves.includes(d)?' · 請假':'')+'</small></div>'+
+      '<div class="toggles"><button class="tg" data-act="ot-person" data-id="'+esc(e.id)+'" data-v="1" aria-label="'+esc(e.name)+' 今天可加班" aria-pressed="'+!!yes+'">今天可加班</button>'+
+      '<button class="tg" data-act="ot-person" data-id="'+esc(e.id)+'" data-v="0" aria-label="'+esc(e.name)+' 今天不加班" aria-pressed="'+!yes+'">今天不加班</button>'+
+      (value===null?'':'<button class="btn" data-act="ot-reset" data-id="'+esc(e.id)+'" aria-label="'+esc(e.name)+' 恢復固定設定">恢復固定設定</button>')+'</div></div>';
+  }).join("");
+  return {title:mdw(d)+" 加班設定",body:
+    '<div class="field"><span class="lab">今天是否開放 17:00–20:00 加班</span><div class="toggles">'+tg("ot-day","1",m.open,"開放加班")+tg("ot-day","0",!m.open,"不開放")+'</div></div>'+
+    '<div class="hint">依員工的固定星期預先顯示。下面只調整今天，不會改到其他同星期的日期；請假者仍不排工作。</div>'+
+    '<div class="field"><span class="lab">今天可加班 '+available+' 人</span><div class="ot-people">'+people+'</div></div>',
+    foot:'<button class="btn" data-act="close">取消</button><button class="btn primary" data-act="ot-save">確認並套用到排程</button>'};
+},
 emp(m){
   if(!m.draft){const E=m.id?emp(m.id):null;
-    m.draft=E?JSON.parse(JSON.stringify(E)):{id:uid(),name:"",color:S.employees.length%COLORS.length,skills:[],leaves:[],noOT:false};}
+    m.draft=E?JSON.parse(JSON.stringify(E)):{id:uid(),name:"",color:S.employees.length%COLORS.length,skills:[],leaves:[],noOT:false,otWeekdays:[...ALL_WEEKDAYS],otOverrides:{}};
+    m.draft.otWeekdays=overtimeWeekdays(m.draft);m.draft.otOverrides ||= {};}
   const D=m.draft,ro=readOnly||!canMaster();
   const start=weekStart(UI.date<todayStr()?todayStr():UI.date);
   let days="";for(let i=0;i<21;i++){const d=addDays(start,i),di=dayInfo(d);
@@ -991,7 +1023,7 @@ emp(m){
    '<div class="field"><label for="f-name">姓名</label><input class="inp" id="f-name" data-bind="name" value="'+esc(D.name)+'" '+(ro?"disabled":"")+' autocomplete="off"></div>'+
    '<div class="field"><span class="lab">代表顏色</span><div class="swatches">'+COLORS.map((c,i)=>'<button class="swatch" style="background:'+c+'" data-act="m-color" data-v="'+i+'" aria-pressed="'+(D.color===i)+'" aria-label="顏色 '+(i+1)+'"></button>').join("")+'</div></div>'+
    '<div class="field"><span class="lab">會操作的機台</span><div class="toggles">'+S.machines.map(M=>tg("m-skill",M.id,D.skills.includes(M.id),'<span class="num">'+esc(M.id)+'</span><small>'+esc(M.label)+'</small>')).join("")+'</div></div>'+
-   '<div class="field"><span class="lab">加班</span><div class="toggles">'+tg("m-ot","1",!D.noOT,"可以加班")+tg("m-ot","0",D.noOT,"不能加班")+'</div></div>'+
+   '<div class="field"><span class="lab">固定每週可加班日</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("m-ot-week",w,D.otWeekdays.includes(w),"週"+WD[w])).join("")+'</div><div class="hint">當天是否加班另由排程表開放；臨時意願可在當天的「加班設定」調整。</div></div>'+
    '<div class="field"><span class="lab">請假（點日期切換，紅色 = 請假）</span><div class="toggles">'+days+'</div></div>';
   const foot=ro?'<button class="btn" data-act="close">關閉</button>':
    (m.id?'<button class="btn danger" data-act="m-emp-del">刪除員工</button>':'')+'<div class="spacer"></div><button class="btn" data-act="close">取消</button><button class="btn primary" data-act="m-emp-save">儲存並自動調整</button>';
@@ -1485,7 +1517,7 @@ const HELP=[
   "局部調整（請假、故障）會先試 <b>換人 → 換機台 → 延後 → 順延</b>，盡量不動其他天。"],
   "以後工單變多時，可以把計算換成 Google OR-Tools（開源的工廠排程求解器），畫面和操作都不用改。"],
  ["員工、機台、工序設定",[
-  "<b>員工</b>：點名字 → 設定會操作哪幾台機台、可不可以加班、哪幾天請假。",
+  "<b>員工</b>：點名字 → 設定會操作的機台、固定每週哪幾天可加班，以及請假日期。",
   "<b>機台</b>：點機台 → 設定做哪一道工序、可以生產哪些產品（有哪些模具）。",
   "<b>產品工序</b>（工單格下方）：每個產品要經過哪幾站、一個人每分鐘做幾件、前站做完幾件就能傳到下一站。",
   "順序不能跳：前一站沒做完（或還沒做到設定的件數），下一站不會開始。"],
@@ -1493,8 +1525,8 @@ const HELP=[
  ["上班日與加班",[
   "國定假日、週六、週日只是<b>標示</b>，有沒有上班看「上班日設定」。預設週一到週六上班、週日停工。",
   "某一天要停工或加開：切到那天，按上方的 <b>改為停工／改為上班</b>。",
-  "平日要加班：按排程表上方的 <b>開加班到 20:00</b>。",
-  "不能加班的員工，系統不會排他加班，也不會排國定假日和週末出勤。"],
+  "要加班：按排程表上方的 <b>開加班到 20:00</b>，先看每位員工今天的預設意願，也可臨時改成可加班或不加班。",
+  "固定星期與今天的臨時意願會一起影響排程；當天不可加班的人也不會排國定假日或週末出勤。"],
   "國定假日出勤工資加倍，畫面會用紅色提示。"],
  ["儲存、分享、Excel",[
   "每一個動作都會<b>自動儲存</b>。接上雲端資料庫後，所有打開的畫面（電視、手機、平板）會即時更新。",
@@ -1518,20 +1550,25 @@ function toggleIn(arr,v){const i=arr.indexOf(v);if(i>=0)arr.splice(i,1);else arr
 function showResult(){openModal({t:"logone",id:S.log[0].id});}
 function captureFault(m){const fs=$("#f-fs"),nt=$("#f-note");if(fs)m.fs=+fs.value;if(nt)m.note=nt.value;}
 Object.assign(MODAL_ACT,{
+  "ot-day":a=>{UI.modal.open=a.dataset.v==="1";rerender();},
+  "ot-person":a=>{const selected=a.dataset.v==="1";UI.modal.overrides[a.dataset.id]=selected===overtimeDefault(emp(a.dataset.id),UI.modal.date)?null:selected;rerender();},
+  "ot-reset":a=>{UI.modal.overrides[a.dataset.id]=null;rerender();},
+  "ot-save":()=>saveDailyOT(UI.modal),
   "m-color":a=>{UI.modal.draft.color=+a.dataset.v;rerender();},
   "m-skill":a=>{toggleIn(UI.modal.draft.skills,a.dataset.v);rerender();},
-  "m-ot":a=>{UI.modal.draft.noOT=a.dataset.v==="0";rerender();},
+  "m-ot-week":a=>{toggleIn(UI.modal.draft.otWeekdays,+a.dataset.v);UI.modal.draft.otWeekdays.sort();rerender();},
   "m-leave":a=>{toggleIn(UI.modal.draft.leaves,a.dataset.v);rerender();},
   "m-emp-save":()=>{
     syncInputs();const m=UI.modal,D=m.draft;D.name=D.name.trim();
     if(!D.name){toast("請輸入姓名");return;}
+    D.otWeekdays=overtimeWeekdays(D);D.noOT=D.otWeekdays.length===0;
     pushUndo();
     const old=emp(D.id);
     const addLv=D.leaves.filter(d=>!old||!old.leaves.includes(d));
     const delLv=old?old.leaves.filter(d=>!D.leaves.includes(d)):[];
     if(old)Object.assign(old,JSON.parse(JSON.stringify(D)));else S.employees.push(JSON.parse(JSON.stringify(D)));
     const E=emp(D.id);
-    const aff=S.blocks.filter(b=>b.emp===E.id&&futureOf(b)&&(E.leaves.includes(b.date)||!E.skills.includes(b.m)||(E.noOT&&dayInfo(b.date).win.some(w=>w.ot&&b.s<w.e&&b.e>w.s))));
+    const aff=S.blocks.filter(b=>b.emp===E.id&&futureOf(b)&&(E.leaves.includes(b.date)||!E.skills.includes(b.m)||(!overtimeAllowed(E,b.date)&&dayInfo(b.date).win.some(w=>w.ot&&b.s<w.e&&b.e>w.s))));
     const lines=aff.length?repair(aff,"leave"):[];
     let title=(old?"":"新增員工 ")+E.name;
     if(addLv.length)title+=" "+addLv.map(md).join("、")+" 請假";
@@ -1801,6 +1838,7 @@ function normalizeState(){
   if(!S.cal)S.cal={week:[...DEF_WEEK],over:{}};
   if(!S.dayOT)S.dayOT={};
   if(!S.log)S.log=[];
+  for(const e of S.employees){e.otWeekdays=overtimeWeekdays(e);e.otOverrides ||= {};e.noOT=e.otWeekdays.length===0;}
   for(const M of S.machines)for(const f of M.faults)if(!f.id)f.id=uid();
   if(S.holidays)Object.assign(HOLI,S.holidays);
 }

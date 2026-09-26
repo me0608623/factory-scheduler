@@ -22,6 +22,7 @@ test("Excel 匯入：跨表關聯與數值讀取", async () => {
   assert.equal(parsed.data.employees[0].color, 0);
   assert.deepEqual(parsed.data.employees[0].skills, ["a", "e"]);
   assert.deepEqual(parsed.data.employees[0].leaves, ["2026-09-29"]);
+  assert.deepEqual(parsed.data.employees[0].otWeekdays, [0, 1, 2, 3, 4, 5, 6]);
   assert.equal(parsed.data.products[0].steps[1].proc, "包裝");
   assert.equal(parsed.data.orders[0].due, "2026-09-30");
 });

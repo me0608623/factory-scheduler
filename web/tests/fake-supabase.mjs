@@ -84,7 +84,7 @@ export class FakeSupabase {
           const set = cols.filter((c) => !onConflict.split(",").includes(c)).map((c) => `${c} = excluded.${c}`);
           const sql = `insert into ${table} (${cols.join(",")}) values (${cols.map((_, i) => "$" + (i + 1)).join(",")})
                        on conflict (${onConflict}) do ${set.length ? "update set " + set.join(", ") : "nothing"}`;
-          const r = await self._run(sql, cols.map((c) => val(row[c])));
+          const r = await self._run(sql, cols.map((c) => c === "overtime_weekdays" ? `{${row[c].join(",")}}` : val(row[c])));
           if (r.error) return r;
         }
         return { data: null, error: null };

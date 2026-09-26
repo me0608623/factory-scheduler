@@ -108,6 +108,27 @@ test("權限：電視帳號寫不進去、組長不能改基本資料", async ()
   assert.equal((await (await store("boss@x")).load()).machines[0].label, "裁切機 1");
 });
 
+test("每週加班設定僅老闆可改，單日臨時意願組長可改", async () => {
+  const { store, count } = await setup();
+  const lead = await store("lead@x");
+  const L = await lead.load();
+  L.employees.find(e => e.id === E1).otOverrides["2026-10-06"] = false;
+  await lead.sync(L, { kind: "ot", title: "張三今天不加班" });
+  assert.equal(await count("select count(*)::int n from employee_overtime_days where employee_id=$1 and date='2026-10-06' and not available", [E1]), 1);
+  assert.equal((await lead.load()).employees.find(e => e.id === E1).otOverrides["2026-10-06"], false);
+
+  const boss = await store("boss@x");
+  const B = await boss.load();
+  B.employees.find(e => e.id === E1).otWeekdays = [1, 3, 5];
+  await boss.sync(B, { kind: "edit", title: "張三固定加班日" });
+  assert.deepEqual((await boss.load()).employees.find(e => e.id === E1).otWeekdays, [1, 3, 5]);
+
+  const Tv = await store("tv@x");
+  const T = await Tv.load();
+  T.employees.find(e => e.id === E1).otOverrides["2026-10-07"] = true;
+  await assert.rejects(Tv.sync(T, null), /沒有權限修改「單日加班意願」/);
+});
+
 test("套用排程服務的方案（apply_plan）", async () => {
   const { db, store, count } = await setup();
   const lead = await store("lead@x");
@@ -132,7 +153,8 @@ test("套用排程服務的方案（apply_plan）", async () => {
 
 test("格式轉換：畫面 → 快照 → 畫面", () => {
   const S = { cal: { week: [false, true, true, true, true, true, true], over: { "2026-10-01": "off" } }, dayOT: { "2026-10-02": true },
-    employees: [{ id: "e", name: "甲", color: 1, skills: ["a"], leaves: ["2026-10-03"], noOT: true }],
+    employees: [{ id: "e", name: "甲", color: 1, skills: ["a"], leaves: ["2026-10-03"], noOT: true,
+      otWeekdays: [], otOverrides: {} }],
     machines: [{ id: "a", label: "A", proc: "裁切", products: ["p"], faults: [{ id: "f", date: "2026-10-04", s: 480, e: 600, note: "", fixed: false, orig: [] }] }],
     products: [{ id: "p", name: "P", steps: [{ proc: "裁切", rate: 2, batch: 0 }] }],
     orders: [{ id: "o", code: "O1", pid: "p", qty: 10, due: "2026-10-09", pri: 0 }],

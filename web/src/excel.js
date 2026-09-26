@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { ALL_WEEKDAYS } from "./overtime.js";
 
 const COLORS = ["FFE14D", "4CDB6E", "F58CF0", "4FE3EE", "FFA64D", "AFC0FF", "FF9A9A", "BFEA6C"];
 const PROCS = new Set(["裁切", "沖壓", "焊接", "組裝", "包裝"]);
@@ -170,7 +171,8 @@ export function parseImportWorkbook(workbook) {
     if (!["是", "否"].includes(ot)) errors.push(`${place}：不加班請填「是」或「否」`);
     const leaves = list(v[5]).map(x => dateValue(x, `${place}請假日期`, errors));
     if (!text(v[0]) || !text(v[1])) errors.push(`${place}：員工代號與姓名必填`);
-    return { id: text(v[0]), name: text(v[1]), color: color - 1, skills: list(v[3]), leaves, noOT: ot === "是" };
+    return { id: text(v[0]), name: text(v[1]), color: color - 1, skills: list(v[3]), leaves,
+      noOT: ot === "是", otWeekdays: ot === "是" ? [] : [...ALL_WEEKDAYS], otOverrides: {} };
   });
   const machines = machineRows.map(({ n, values: v }) => {
     const place = `機台 第 ${n} 列`;

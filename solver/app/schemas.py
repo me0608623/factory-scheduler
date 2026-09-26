@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -45,7 +46,16 @@ class Employee(BaseModel):
     skills: list[str]                # 會操作的機台
     leaves: list[str] = Field(default_factory=list)
     no_overtime: bool = False        # 不能加班（也不排國定假日、週末出勤）
+    overtime_weekdays: list[int] | None = None  # 0=週日；舊快照用 no_overtime
+    overtime_overrides: dict[str, bool] = Field(default_factory=dict)
     color: int = 0
+
+    def allows_overtime(self, day: str) -> bool:
+        if day in self.overtime_overrides:
+            return self.overtime_overrides[day]
+        if self.overtime_weekdays is None:
+            return not self.no_overtime
+        return date.fromisoformat(day).isoweekday() % 7 in self.overtime_weekdays
 
 
 class Order(BaseModel):

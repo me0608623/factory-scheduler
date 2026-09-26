@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.model import PRESETS, solve
 from app.plans import make_plans
-from app.schemas import Event, Order, PlanRequest
+from app.schemas import Event, Now, Order, PlanRequest
 from app.timeline import Timeline, abs_min
 from app.validate import check
 
@@ -36,6 +36,37 @@ def test_timeline_overtime_window_only_when_enabled(demo):
     snap, _ = demo
     assert Timeline(snap.calendar, "2026-09-29", 1).horizon == 480
     assert Timeline(snap.calendar, "2026-09-29", 1, {"2026-09-29"}).horizon == 660
+
+
+def test_employee_weekly_overtime_and_one_day_override(demo):
+    snap, now = demo
+    employee = next(e for e in snap.employees if e.id == "e1")
+    employee.overtime_weekdays = [1, 3, 5]  # 週一、三、五；週六不加班
+    assert not employee.allows_overtime("2026-09-26")
+    assert employee.allows_overtime("2026-09-28")
+    assert any("張三 不能加班" in issue for issue in check(snap, snap.blocks, now))
+    employee.overtime_overrides["2026-09-26"] = True
+    assert employee.allows_overtime("2026-09-26")
+    assert not any("張三 不能加班" in issue for issue in check(snap, snap.blocks, now))
+
+
+def test_solver_respects_one_day_overtime_change(demo):
+    snap, _ = demo
+    employee = next(e for e in snap.employees if e.id == "e1")
+    employee.overtime_weekdays = [1]  # 只允許週一（週六出勤也算加班）
+    snap.employees = [employee]
+    snap.machines = [next(m for m in snap.machines if m.id == "a")]
+    product = next(p for p in snap.products if p.id == "p1")
+    product.steps = product.steps[:1]
+    snap.products = [product]
+    snap.orders = [Order(id="test", code="T01", product="p1", qty=20, due="2026-09-30", priority=1)]
+    snap.blocks = []
+    now = Now(date="2026-09-26", min=480)
+    planned = solve(snap, now, PRESETS["on_time"], time_limit=2)
+    assert planned.blocks and all(b.date == "2026-09-28" for b in planned.blocks)
+    employee.overtime_overrides["2026-09-26"] = True
+    changed = solve(snap, now, PRESETS["on_time"], time_limit=2)
+    assert changed.blocks and all(b.date == "2026-09-26" for b in changed.blocks)
 
 
 # ---------- 模型 ----------

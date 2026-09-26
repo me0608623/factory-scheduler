@@ -1,19 +1,21 @@
 // 把畫面資料拆成資料表的列，再比較前後差異 → 只寫入真的有變的列
 
 import { blockToDb } from "../convert.js";
+import { overtimeWeekdays } from "../overtime.js";
 
 export const PROCS_ALL = ["裁切", "沖壓", "焊接", "組裝", "包裝"];
 
 // 每個資料表的主鍵（upsert 衝突判斷、刪除條件都用它）
 export const TABLE_KEYS = {
   processes: ["name"], employees: ["id"], employee_skills: ["employee_id", "machine_id"], leaves: ["employee_id", "date"],
+  employee_overtime_days: ["employee_id", "date"],
   machines: ["id"], machine_products: ["machine_id", "product_id"], machine_faults: ["id"], products: ["id"],
   product_steps: ["product_id", "seq"], orders: ["id"], calendar_weekly: ["weekday"], calendar_days: ["date"],
 };
 // 先寫上層再寫下層；刪除時反過來
 export const UPSERT_ORDER = ["processes", "employees", "machines", "products", "product_steps", "employee_skills",
-  "machine_products", "orders", "calendar_weekly", "calendar_days", "leaves", "machine_faults"];
-export const DELETE_ORDER = ["machine_faults", "leaves", "machine_products", "employee_skills", "product_steps",
+  "machine_products", "orders", "calendar_weekly", "calendar_days", "leaves", "employee_overtime_days", "machine_faults"];
+export const DELETE_ORDER = ["machine_faults", "employee_overtime_days", "leaves", "machine_products", "employee_skills", "product_steps",
   "orders", "products", "machines", "employees", "calendar_days"];
 
 export function rowsOf(S) {
@@ -22,9 +24,13 @@ export function rowsOf(S) {
   const procs = new Set([...PROCS_ALL, ...S.machines.map((m) => m.proc), ...S.products.flatMap((p) => p.steps.map((s) => s.proc))]);
   for (const p of procs) put("processes", p, { name: p });
   for (const e of S.employees) {
-    put("employees", e.id, { id: e.id, name: e.name, color: e.color || 0, no_overtime: !!e.noOT });
+    const weekdays=overtimeWeekdays(e);
+    put("employees", e.id, { id: e.id, name: e.name, color: e.color || 0, no_overtime: weekdays.length===0,
+      overtime_weekdays: weekdays });
     for (const m of e.skills) put("employee_skills", e.id + "|" + m, { employee_id: e.id, machine_id: m });
     for (const d of e.leaves) put("leaves", e.id + "|" + d, { employee_id: e.id, date: d });
+    for (const [d, available] of Object.entries(e.otOverrides || {}))
+      put("employee_overtime_days", e.id + "|" + d, { employee_id: e.id, date: d, available: !!available });
   }
   for (const m of S.machines) {
     put("machines", m.id, { id: m.id, label: m.label, process: m.proc });

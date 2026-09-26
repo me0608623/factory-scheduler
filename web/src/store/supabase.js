@@ -12,7 +12,8 @@ const jsAbs = (date, min) => {
   return Math.round(Date.UTC(y, m - 1, d) / 864e5) * 1440 + min;
 };
 
-const TABLE_NAME = { processes: "工序", employees: "員工", employee_skills: "員工技能", leaves: "請假", machines: "機台",
+const TABLE_NAME = { processes: "工序", employees: "員工", employee_skills: "員工技能", leaves: "請假",
+  employee_overtime_days: "單日加班意願", machines: "機台",
   machine_products: "機台模具", machine_faults: "機台故障", products: "產品", product_steps: "產品工序", orders: "工單",
   calendar_weekly: "每週上班日", calendar_days: "單日上班設定" };
 
@@ -133,7 +134,7 @@ export class SupabaseStore {
   // ---------- 即時推送 ----------
   subscribe(onChange) {
     const ch = this.sb.channel("schedule-changes");
-    for (const t of ["schedule_state", "change_sets", "machine_faults", "leaves", "orders", "calendar_days"]) {
+    for (const t of ["schedule_state", "change_sets", "machine_faults", "leaves", "employee_overtime_days", "orders", "calendar_days"]) {
       ch.on("postgres_changes", { event: "*", schema: "public", table: t }, () => onChange(t));
     }
     ch.subscribe();
