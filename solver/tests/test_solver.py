@@ -347,6 +347,42 @@ def test_missing_product_explains_instead_of_crashing():
     assert response.json()["status"] == "INCOMPLETE"
 
 
+def test_product_without_steps_cannot_be_called_a_complete_plan():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        employees=[], machines=[],
+        products=[Product(id="p", name="尚未建工序", steps=[])],
+        orders=[Order(id="o", code="O1", product="p", qty=60, due=day)],
+    )
+    now = Now(date=day, min=480)
+    assert any("沒有工序" in issue for issue in check(snap, [], now))
+    plan = make_plans(PlanRequest(snapshot=snap, event=Event(type="auto"), now=now, time_limit=0.2))
+    assert all(not option["applicable"] for option in plan["options"])
+    assert any("沒有工序" in reason for reason in plan["options"][0]["diagnostics"])
+    result = solve(snap, now, PRESETS["on_time"], time_limit=0.2)
+    assert result.status == "INCOMPLETE"
+    assert any("沒有工序" in reason for reason in result.unplaced)
+
+
+def test_validator_reports_missing_transfer_batch_without_crashing():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        employees=[Employee(id="e", name="甲", skills=["a", "b"])],
+        machines=[Machine(id="a", process="裁切", products=["p"]),
+                  Machine(id="b", process="包裝", products=["p"])],
+        products=[Product(id="p", name="產品", steps=[Step(process="裁切", rate=1),
+                                               Step(process="包裝", rate=1, batch=60)])],
+        orders=[Order(id="o", code="O1", product="p", qty=120, due=day)],
+        blocks=[Block(order="o", step=0, machine="a", employee="e", date=day,
+                      start=480, end=540, qty=30),
+                Block(order="o", step=1, machine="b", employee="e", date=day,
+                      start=540, end=550, qty=10)],
+    )
+    assert any("交接批量" in issue for issue in check(snap, snap.blocks, Now(date=day, min=480)))
+
+
 def test_prototype_schedule_is_valid(demo):
     snap, now = demo
     assert check(snap, snap.blocks, now) == []

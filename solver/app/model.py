@@ -165,6 +165,9 @@ def solve(
         if not p:
             unplaced.append(f"{o.code}：找不到產品資料；請先建立產品與工序，再重新排程")
             continue
+        if not p.steps:
+            unplaced.append(f"{o.code}：產品沒有工序；請先建立產品工序，再重新排程")
+            continue
         for k, st in enumerate(p.steps):
             rem = o.qty - done.get((o.id, k), 0)
             if rem <= 0:

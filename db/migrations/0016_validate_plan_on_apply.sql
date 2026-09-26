@@ -7,6 +7,14 @@ declare
   planned integer;
   required integer;
 begin
+  select o.id into bad_order from orders o
+   where o.status = 'open' and not exists (
+     select 1 from product_steps ps where ps.product_id = o.product_id)
+   limit 1;
+  if found then
+    raise exception '工單 % 的產品沒有工序，請先建立產品工序再計算方案', bad_order;
+  end if;
+
   with b as (
     select x.order_id, x.step_seq, sum(x.qty)::integer as qty
       from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(

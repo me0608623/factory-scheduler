@@ -89,6 +89,9 @@ def check(snap: Snapshot, blocks: list[Block], now: Now | None = None) -> list[s
         if not p:
             issues.append(f"{o.code}：找不到產品資料")
             continue
+        if not p.steps:
+            issues.append(f"{o.code}：產品沒有工序；請先建立產品工序")
+            continue
         for k, st in enumerate(p.steps):
             q = sum(b.qty for b in by[(o.id, k)])
             if q != o.qty:
@@ -101,8 +104,8 @@ def check(snap: Snapshot, blocks: list[Block], now: Now | None = None) -> list[s
             batch = st.batch if 0 < st.batch < o.qty else o.qty
             ready = batch_ready(prev, batch, abs_min)
             if ready is None:
+                issues.append(f"{o.code} 第{k + 1}站：前站尚未完成交接批量 {batch} 件")
                 ready = prev_end
-                cum += b.qty
             if cur_start < ready - 0.5:
                 issues.append(f"{o.code} 第{k + 1}站：前站還沒做到可以開始")
             cur_end = max(abs_min(b.date, b.end) for b in by[(o.id, k)])

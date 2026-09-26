@@ -381,6 +381,16 @@ await as(LEAD, () => expectErr("select save_blocks(11, $1, '改動過去停工�
   "舊方塊的人機或時間真的被改動時，仍檢查現在的行事曆"));
 ok((await db.query("select version::int v from schedule_state")).rows[0].v === 11,
   "不合法的歷史修改被拒後版本保持不變");
+const emptyProduct = (await db.query("insert into products (code,name) values ('NO-STEP','尚未設定工序') returning id")).rows[0].id;
+const emptyOrder = (await db.query("insert into orders (code,product_id,qty,due_date) values ('NO-STEP-ORDER',$1,20,'2026-10-09') returning id", [emptyProduct])).rows[0].id;
+const pvEmpty = (await db.query("insert into plan_previews (kind,title,event,base_version,options) values ('auto','未建工序方案','{}',11,$1) returning id",
+  [JSON.stringify([{ ...opt("A", currentHistory), applicable: true }])])).rows[0].id;
+await as(LEAD, () => expectErr("select apply_plan($1,'A')", [pvEmpty], /沒有工序/,
+  "產品還沒有任何工序時，不能把空工作當成完整方案"));
+ok((await db.query("select version::int v from schedule_state")).rows[0].v === 11,
+  "缺工序方案被拒後版本保持不變");
+await db.query("delete from orders where id=$1", [emptyOrder]);
+await db.query("delete from products where id=$1", [emptyProduct]);
 
 console.log(`\n通過 ${pass}，失敗 ${fail}`);
 process.exit(fail ? 1 : 0);
