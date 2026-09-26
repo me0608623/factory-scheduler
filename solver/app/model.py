@@ -403,12 +403,36 @@ def solve(
             continue
         for k in range(1, len(p.steps)):
             cur = ops.get((o.id, k))
-            if not cur:
-                continue
             prev = ops.get((o.id, k - 1))
             batch = p.steps[k].batch
             fixed_prev = fixed_by_key.get((o.id, k - 1), [])
             fixed_end = max((tl.to_t(b.date, b.end) for b in fixed_prev), default=None)
+            fixed_cur = fixed_by_key.get((o.id, k), [])
+            if fixed_cur and prev:
+                # 後站已固定時，不能只限制新排的後站：前站重排也必須趕上
+                # 最早一段已固定的交接時間，否則會回傳「成功但不可套用」的方案。
+                fixed_start = min(tl.to_t(b.date, b.start) for b in fixed_cur)
+                fixed_cur_end = max(tl.to_t(b.date, b.end) for b in fixed_cur)
+                if 0 < batch < o.qty:
+                    completed = done.get((o.id, k - 1), 0)
+                    if completed >= batch:
+                        ready = fixed_batch_ready((o.id, k - 1), batch)
+                        if ready is not None:
+                            m.add(ready <= fixed_start)
+                    else:
+                        remaining_batch = batch - completed
+                        ready_delta = math.ceil(remaining_batch * prev.dur / (prev.qty * 10)) * 10
+                        m.add(S[prev.key] + ready_delta <= fixed_start)
+                        if fixed_end is not None:
+                            m.add(fixed_end <= fixed_start)
+                else:
+                    m.add(E[prev.key] <= fixed_start)
+                    if fixed_end is not None:
+                        m.add(fixed_end <= fixed_start)
+                if not cur:
+                    m.add(E[prev.key] <= fixed_cur_end)
+            if not cur:
+                continue
             if prev:
                 if 0 < batch < o.qty:
                     completed = done.get((o.id, k - 1), 0)

@@ -627,6 +627,47 @@ def test_rounded_remaining_work_cannot_release_batch_early():
     assert check(snap, result.blocks, now) == []
 
 
+def test_fixed_downstream_cannot_precede_rescheduled_cross_factory_upstream():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="cut", factory=1, process="cut", products=["p"],
+                          faults=[Fault(date="2026-09-28", start=480, end=540)]),
+                  Machine(id="weld", factory=2, process="weld", products=["p"])],
+        employees=[Employee(id="e1", name="Cut", factory=1, skills=["cut"]),
+                   Employee(id="e2", name="Weld", factory=2, skills=["weld"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", factory=1, rate=1),
+                                                       Step(process="weld", factory=2, rate=1)])],
+        orders=[Order(id="o", code="O", product="p", qty=120, due="2026-09-28")],
+        blocks=[Block(order="o", step=1, machine="weld", employee="e2",
+                      date="2026-09-28", start=540, end=660, qty=120, pinned=True)],
+    )
+    now = Now(date="2026-09-28", min=480)
+    result = solve(snap, now, PRESETS["on_time"], time_limit=1, days=5)
+    assert result.status == "INFEASIBLE"
+
+
+def test_fixed_cross_factory_downstream_accepts_completed_transfer_batch():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="cut", factory=1, process="cut", products=["p"],
+                          faults=[Fault(date="2026-09-28", start=540, end=600)]),
+                  Machine(id="weld", factory=2, process="weld", products=["p"])],
+        employees=[Employee(id="e1", name="Cut", factory=1, skills=["cut"]),
+                   Employee(id="e2", name="Weld", factory=2, skills=["weld"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", factory=1, rate=1),
+                                                       Step(process="weld", factory=2, rate=1, batch=60)])],
+        orders=[Order(id="o", code="O", product="p", qty=120, due="2026-09-28")],
+        blocks=[Block(order="o", step=0, machine="cut", employee="e1",
+                      date="2026-09-28", start=480, end=540, qty=60, pinned=True),
+                Block(order="o", step=1, machine="weld", employee="e2",
+                      date="2026-09-28", start=540, end=660, qty=120, pinned=True)],
+    )
+    now = Now(date="2026-09-28", min=480)
+    result = solve(snap, now, PRESETS["on_time"], time_limit=1, days=5)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert check(snap, result.blocks, now) == []
+
+
 def test_only_one_plan_computation_per_service_process(demo, monkeypatch):
     snap, now = demo
     c = TestClient(app)
