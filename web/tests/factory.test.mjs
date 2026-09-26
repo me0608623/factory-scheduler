@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { factoryOf, inFactory, orderFactories, orderInFactory, compatible } from "../src/factory.js";
+import { factoryOf, factoryPreference, inFactory, orderFactories, orderInFactory, compatible } from "../src/factory.js";
 
 test("舊資料預設 1 廠；同一工單可在兩廠出現", () => {
   const products = [{ id: "p", steps: [{ proc: "裁切" }, { proc: "焊接", factory: 2 }] }];
@@ -19,4 +19,12 @@ test("機台、人員與工序必須同廠", () => {
   assert.equal(compatible({ factory: 2, skills: ["m"] }, machine, product, step), true);
   assert.equal(compatible({ factory: 1, skills: ["m"] }, machine, product, step), false);
   assert.equal(compatible({ factory: 2, skills: ["m"] }, machine, product, { ...step, factory: 1 }), false);
+});
+
+test("重新整理後保留跨廠檢視選擇", () => {
+  assert.equal(factoryPreference("all"), "all");
+  assert.equal(factoryPreference("2"), 2);
+  assert.equal(factoryPreference("1"), 1);
+  assert.equal(factoryPreference(null), 1);
+  assert.equal(factoryPreference("invalid"), 1);
 });

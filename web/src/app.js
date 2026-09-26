@@ -4,7 +4,7 @@ import { planTimeLimit, planEngineLabel } from "./plan-budget.js";
 import { toSnapshot, applyOption, newId } from "./convert.js";
 import { ALL_WEEKDAYS, overtimeAllowed, overtimeDefault, overtimeWeekdays } from "./overtime.js";
 import { capacityIntervals as occupiedCapacityIntervals } from "./capacity.js";
-import { FACTORIES, factoryOf, factoryName, inFactory, orderRoute, orderInFactory, compatible } from "./factory.js";
+import { FACTORIES, factoryOf, factoryPreference, factoryName, inFactory, orderRoute, orderInFactory, compatible } from "./factory.js";
 import { batchReadyMinute, materialFlowIssue, remainingQty, quantityForMinutes } from "./manual.js";
 /* ===== 1. 常數與工具 ===== */
 const COLORS=["#FFE14D","#4CDB6E","#F58CF0","#4FE3EE","#FFA64D","#AFC0FF","#FF9A9A","#BFEA6C"];
@@ -40,7 +40,7 @@ function mergeIv(iv){iv.sort((a,b)=>a[0]-b[0]);const o=[];for(const x of iv){if(
 let S=null;            // 目前排程（全部資料）
 let readOnly=false, undoStack=[];
 const UI={date:null,view:"day",factory:1,modal:null,zoom:0.85,theme:"auto"};
-function loadFactory(){try{const n=Number(localStorage.getItem("fsched-factory"));if(FACTORIES.includes(n))UI.factory=n;}catch(e){}}
+function loadFactory(){try{UI.factory=factoryPreference(localStorage.getItem("fsched-factory"));}catch(e){}}
 function setFactory(n){UI.factory=FACTORIES.includes(n)?n:"all";try{localStorage.setItem("fsched-factory",String(UI.factory));}catch(e){}}
 const shownEmployees=()=>S.employees.filter(e=>inFactory(e,UI.factory));
 const shownMachines=()=>S.machines.filter(m=>inFactory(m,UI.factory));
@@ -1281,8 +1281,8 @@ issues(){
 auto(){
   const pins=S.blocks.filter(b=>b.pin&&futureOf(b)).length;
   return {title:"自動排程",body:
-    '<div class="flow"><span class="pill">1. 急件優先</span><span class="arr">→</span><span class="pill">2. 期限早的先做</span><span class="arr">→</span><span class="pill">3. 前站做完才排下站</span><span class="arr">→</span><span class="pill">4. 找最早能完成的機台＋人</span><span class="arr">→</span><span class="pill">5. 模擬退火試上百種順序，挑最好的</span></div>'+
-    '<div class="hint">會一起計算 1 廠與 2 廠的全部工序，切換廠別只影響畫面顯示。會避開請假、故障、午休與未開放的加班時段。'+(pins?"已固定（釘）的 "+pins+" 段不會動。":"")+'已經過去的時段不會動。</div>',
+    '<div class="flow"><span class="pill">1. 急件優先</span><span class="arr">→</span><span class="pill">2. 期限早的先做</span><span class="arr">→</span><span class="pill">3. 前站達交接件數才排下站</span><span class="arr">→</span><span class="pill">4. 找最早能完成的機台＋人</span><span class="arr">→</span><span class="pill">5. 計算多種方案供預覽比較</span></div>'+
+    '<div class="hint">會一起計算 1 廠與 2 廠的全部工序，切換廠別只影響畫面顯示。會避開請假、故障、午休與未開放的加班時段。'+(pins?"已固定（釘）的 "+pins+" 段原則上不動；若與故障或請假衝突，預覽會明示未完成部分的調整。":"")+'已完成的歷史工作不會因事後事件改寫。</div>',
     foot:'<button class="btn" data-act="close">取消</button><button class="btn primary" data-act="auto-run">'+IC.bolt+'計算並預覽</button>'};
 },
 /* ---------- 匯出 ---------- */
