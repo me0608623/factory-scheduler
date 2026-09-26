@@ -17,6 +17,7 @@ from app.validate import check
 
 from .conftest import snapshot_after
 from scripts.benchmark import snapshot_for
+from scripts.stress_batch import case as batch_case
 
 
 def finish_total(snap, blocks):
@@ -579,6 +580,16 @@ def test_fixed_previous_step_releases_batch_before_its_final_block():
     assert result.status in ("OPTIMAL", "FEASIBLE")
     weld_start = min(block.start for block in result.blocks if block.step == 1)
     assert weld_start == 540
+    assert check(snap, result.blocks, now) == []
+
+
+def test_rounded_remaining_work_cannot_release_batch_early():
+    snap, now, description = batch_case(21)
+    assert description == {"seed": 21, "qty": 90, "first_rate": 1.5,
+                           "second_rate": 2, "batch": 80, "fixed_qty": 40}
+    result = solve(snap, now, PRESETS["on_time"], time_limit=1, days=5, workers=2)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert min(block.start for block in result.blocks if block.step == 1) >= 550
     assert check(snap, result.blocks, now) == []
 
 

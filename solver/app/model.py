@@ -394,7 +394,11 @@ def solve(
                         if ready is not None:
                             m.add(S[cur.key] >= ready)
                     else:
-                        m.add(S[cur.key] >= S[prev.key] + dur_of(batch - completed, p.steps[k - 1].rate))
+                        remaining_batch = batch - completed
+                        # 輸出方塊把 prev.qty 均攤到進位後的 prev.dur；不能再用名目速率
+                        # 算交接點，否則會比獨立驗證看到的實際產量更早放行。
+                        ready_delta = math.ceil(remaining_batch * prev.dur / (prev.qty * 10)) * 10
+                        m.add(S[cur.key] >= S[prev.key] + ready_delta)
                         if fixed_end is not None:
                             m.add(S[cur.key] >= fixed_end)
                     m.add(E[cur.key] >= E[prev.key] + dur_of(batch, p.steps[k].rate))
