@@ -192,11 +192,42 @@ ok((await db.query("select version::int v from schedule_state")).rows[0].v === 4
 const machineClash = [...partialBatch,
   { ...partialBatch[0], id: null, order_id: anotherOrder, qty: 30, start_min: 500, end_min: 550 }];
 await as(LEAD, () => expectErr("select save_blocks(4, $1, '重疊機台')", [JSON.stringify(machineClash)], /機台.*重疊/, "RPC 不接受同一機台同時排兩段工作"));
+await db.query("insert into machines (id,label,process) values ('f','測試裁切機','裁切')");
+await db.query("insert into machine_products (machine_id,product_id) values ('f',$1)", ["00000000-0000-4000-8000-0000000000a1"]);
+await db.query("insert into employee_skills (employee_id,machine_id) values ($1,'f')", [EMP1]);
 const employeeOverload = [...partialBatch,
   { ...partialBatch[0], id: null, order_id: anotherOrder, machine_id: "b", qty: 30, start_min: 500, end_min: 550 },
-  { ...partialBatch[0], id: null, order_id: anotherOrder, machine_id: "d", qty: 30, start_min: 500, end_min: 550 }];
+  { ...partialBatch[0], id: null, order_id: anotherOrder, machine_id: "f", qty: 30, start_min: 500, end_min: 550 }];
 await as(LEAD, () => expectErr("select save_blocks(4, $1, '超出顧機台上限')", [JSON.stringify(employeeOverload)], /同時顧機台數超過上限/, "RPC 不接受員工同時顧超過設定台數"));
 ok((await db.query("select version::int v from schedule_state")).rows[0].v === 4, "資源衝突被拒後版本保持不變");
+
+const wrongSkill = [{ ...partialBatch[0], employee_id: "00000000-0000-4000-8000-0000000000e3" }, partialBatch[1]];
+await as(LEAD, () => expectErr("select save_blocks(4, $1, '不會操作')", [JSON.stringify(wrongSkill)], /員工.*不會操作機台/, "RPC 不接受沒有該機台技能的員工"));
+const wrongProcess = [{ ...partialBatch[0], machine_id: "d" }, partialBatch[1]];
+await as(LEAD, () => expectErr("select save_blocks(4, $1, '工序不符')", [JSON.stringify(wrongProcess)], /機台.*不符合產品工序/, "RPC 不接受用焊接機做裁切工序"));
+const secondProductOrder = (await db.query("insert into orders (code, product_id, qty, due_date) values ('MOULD-TEST',$1,120,'2026-10-05') returning id", ["00000000-0000-4000-8000-0000000000a2"])).rows[0].id;
+const wrongProduct = [...partialBatch,
+  { ...partialBatch[0], id: null, order_id: secondProductOrder, machine_id: "b", qty: 30, start_min: 660, end_min: 690 }];
+await as(LEAD, () => expectErr("select save_blocks(4, $1, '缺少模具')", [JSON.stringify(wrongProduct)], /機台.*不符合產品工序/, "RPC 不接受機台沒有此產品模具的指派"));
+await db.query("update machines set factory=2 where id='b'");
+const wrongMachineFactory = [{ ...partialBatch[0], machine_id: "b" }, partialBatch[1]];
+await as(LEAD, () => expectErr("select save_blocks(4, $1, '機台跨廠')", [JSON.stringify(wrongMachineFactory)], /機台.*不符合產品工序/, "RPC 不接受一廠工序分給二廠機台"));
+await db.query("update machines set factory=1 where id='b'");
+await db.query("update employees set factory=2 where id=$1", [EMP1]);
+const wrongEmployeeFactory = [{ ...partialBatch[0], pinned: false }, partialBatch[1]];
+await as(LEAD, () => expectErr("select save_blocks(4, $1, '員工跨廠')", [JSON.stringify(wrongEmployeeFactory)], /員工.*不會操作機台/, "RPC 不接受二廠員工分到一廠機台"));
+await db.query("update employees set factory=1 where id=$1", [EMP1]);
+ok((await db.query("select version::int v from schedule_state")).rows[0].v === 4, "不相容指派被拒後版本保持不變");
+
+await db.query("update machines set factory=2 where id='b'");
+await db.query("update employees set factory=2 where id=$1", [EMP1]);
+await db.query("update product_steps set factory=2 where product_id=$1 and seq=0", ["00000000-0000-4000-8000-0000000000a1"]);
+const validCrossFactory = [{ ...partialBatch[0], machine_id: "b" }, partialBatch[1]];
+await as(LEAD, () => db.query("select save_blocks(4, $1, '兩廠交接')", [JSON.stringify(validCrossFactory)]));
+ok((await db.query("select version::int v from schedule_state")).rows[0].v === 5, "人機及工序廠別一致時，可儲存真正的跨廠安排");
+await db.query("update product_steps set factory=1 where product_id=$1 and seq=0", ["00000000-0000-4000-8000-0000000000a1"]);
+await db.query("update machines set factory=1 where id='b'");
+await db.query("update employees set factory=1 where id=$1", [EMP1]);
 
 await as(LEAD, () => expectErr("select _apply_blocks('[]'::jsonb)", [], /permission denied/, "前端不能直接呼叫內部函式"));
 

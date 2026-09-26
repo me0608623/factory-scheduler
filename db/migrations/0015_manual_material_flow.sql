@@ -63,6 +63,52 @@ begin
   end if;
 end $$;
 
+-- 拖曳與手動新增不只要避開時間衝突；被改動工單的人、機、產品工序和廠別也需相容。
+create function _assert_manual_assignments(p_blocks jsonb, p_order_ids uuid[]) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  bad_order uuid;
+  bad_step smallint;
+  bad_machine text;
+  bad_employee uuid;
+begin
+  with b as (
+    select x.order_id, x.step_seq, x.machine_id, x.employee_id
+      from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(
+        order_id uuid, step_seq smallint, machine_id text, employee_id uuid)
+     where x.order_id = any(p_order_ids)
+  )
+  select b.order_id, b.step_seq, b.machine_id
+    into bad_order, bad_step, bad_machine
+    from b join orders o on o.id = b.order_id
+    left join product_steps ps on ps.product_id = o.product_id and ps.seq = b.step_seq
+    left join machines m on m.id = b.machine_id
+    left join machine_products mp on mp.machine_id = b.machine_id and mp.product_id = o.product_id
+   where ps.product_id is null or m.active is not true
+      or m.process is distinct from ps.process or m.factory is distinct from ps.factory
+      or mp.machine_id is null
+   limit 1;
+  if found then
+    raise exception '工單 % 第 % 道工序：機台 % 不符合產品工序、廠別或可加工產品', bad_order, bad_step, bad_machine;
+  end if;
+
+  with b as (
+    select x.order_id, x.machine_id, x.employee_id
+      from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(
+        order_id uuid, machine_id text, employee_id uuid)
+     where x.order_id = any(p_order_ids) and x.employee_id is not null
+  )
+  select b.employee_id, b.machine_id into bad_employee, bad_machine
+    from b join machines m on m.id = b.machine_id
+    left join employees e on e.id = b.employee_id
+    left join employee_skills es on es.employee_id = b.employee_id and es.machine_id = b.machine_id
+   where e.active is not true or e.factory is distinct from m.factory or es.employee_id is null
+   limit 1;
+  if found then
+    raise exception '員工 % 不會操作機台 % 或所屬廠別不符', bad_employee, bad_machine;
+  end if;
+end $$;
+
 -- 只檢查此次異動工單涉及的資源，但與完整新排程的所有方塊比較。
 create function _assert_manual_resources(p_blocks jsonb, p_order_ids uuid[]) returns void
 language plpgsql security definer set search_path = public as $$
@@ -150,6 +196,7 @@ begin
           union select old_order from changed where old_order is not null) x;
   if changed_orders is not null then
     perform _assert_manual_material_flow(p_blocks, changed_orders);
+    perform _assert_manual_assignments(p_blocks, changed_orders);
     perform _assert_manual_resources(p_blocks, changed_orders);
   end if;
   perform set_config('app.change_set_id', cs::text, true);
@@ -161,4 +208,5 @@ begin
 end $$;
 
 revoke all on function _assert_manual_material_flow(jsonb, uuid[]) from public, anon, authenticated;
+revoke all on function _assert_manual_assignments(jsonb, uuid[]) from public, anon, authenticated;
 revoke all on function _assert_manual_resources(jsonb, uuid[]) from public, anon, authenticated;
