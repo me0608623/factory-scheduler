@@ -751,6 +751,10 @@ def test_invalid_fixed_cross_factory_precedence_is_not_reported_optimal():
     result = solve(snap, now, PRESETS["on_time"], time_limit=1, days=5)
     assert result.status == "INVALID_SCHEDULE"
     assert any("前站還沒做到可以開始" in reason for reason in result.unplaced)
+    preview = make_plans(PlanRequest(snapshot=snap, event=Event(type="auto"),
+                                     now=now, time_limit=1))
+    assert all(not option["applicable"] for option in preview["options"])
+    assert not any(option.get("recommended") for option in preview["options"])
 
 
 def test_unknown_step_is_reported_without_validator_crash():
