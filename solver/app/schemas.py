@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 class Step(BaseModel):
     process: str
+    factory: int = Field(default=1, ge=1, le=2)
     rate: float                      # 一個人每分鐘做幾件
     batch: int = 0                   # 前站完成幾件就能傳到這站；0 = 前站全部完成
 
@@ -35,6 +36,7 @@ class Fault(BaseModel):
 class Machine(BaseModel):
     id: str
     label: str = ""
+    factory: int = Field(default=1, ge=1, le=2)
     process: str
     products: list[str]
     faults: list[Fault] = Field(default_factory=list)
@@ -43,6 +45,7 @@ class Machine(BaseModel):
 class Employee(BaseModel):
     id: str
     name: str
+    factory: int = Field(default=1, ge=1, le=2)
     skills: list[str]                # 會操作的機台
     max_concurrent_machines: int = Field(default=1, ge=1, le=100)
     leaves: list[str] = Field(default_factory=list)

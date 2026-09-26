@@ -98,6 +98,30 @@ def test_employee_machine_limit_allows_two_machines_but_not_three():
 
 
 # ---------- 模型 ----------
+def test_cross_factory_steps_keep_one_order_and_precedence():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        employees=[Employee(id="e1", name="一廠員工", factory=1, skills=["a"]),
+                   Employee(id="e2", name="二廠員工", factory=2, skills=["b"])],
+        machines=[Machine(id="a", factory=1, process="裁切", products=["p"]),
+                  Machine(id="b", factory=2, process="焊接", products=["p"])],
+        products=[Product(id="p", name="跨廠產品", steps=[Step(process="裁切", factory=1, rate=1),
+                                                Step(process="焊接", factory=2, rate=1)])],
+        orders=[Order(id="o", code="O1", product="p", qty=60, due=day)],
+    )
+    result = solve(snap, Now(date=day, min=480), PRESETS["on_time"], time_limit=3)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert check(snap, result.blocks) == []
+    first = next(b for b in result.blocks if b.step == 0)
+    second = next(b for b in result.blocks if b.step == 1)
+    assert (first.machine, first.employee) == ("a", "e1")
+    assert (second.machine, second.employee) == ("b", "e2")
+    assert abs_min(second.date, second.start) >= abs_min(first.date, first.end)
+    wrong = second.model_copy(update={"employee": "e1"})
+    assert any("不在同一廠" in issue for issue in check(snap, [first, wrong]))
+
+
 def test_prototype_schedule_is_valid(demo):
     snap, now = demo
     assert check(snap, snap.blocks, now) == []

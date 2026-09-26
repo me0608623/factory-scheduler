@@ -25,7 +25,7 @@ export function rowsOf(S) {
   for (const p of procs) put("processes", p, { name: p });
   for (const e of S.employees) {
     const weekdays=overtimeWeekdays(e);
-    put("employees", e.id, { id: e.id, name: e.name, color: e.color || 0, no_overtime: weekdays.length===0,
+    put("employees", e.id, { id: e.id, name: e.name, factory: e.factory || 1, color: e.color || 0, no_overtime: weekdays.length===0,
       overtime_weekdays: weekdays, max_concurrent_machines: e.maxMachines || 1 });
     for (const m of e.skills) put("employee_skills", e.id + "|" + m, { employee_id: e.id, machine_id: m });
     for (const d of e.leaves) put("leaves", e.id + "|" + d, { employee_id: e.id, date: d });
@@ -33,7 +33,7 @@ export function rowsOf(S) {
       put("employee_overtime_days", e.id + "|" + d, { employee_id: e.id, date: d, available: !!available });
   }
   for (const m of S.machines) {
-    put("machines", m.id, { id: m.id, label: m.label, process: m.proc });
+    put("machines", m.id, { id: m.id, label: m.label, factory: m.factory || 1, process: m.proc });
     for (const p of m.products) put("machine_products", m.id + "|" + p, { machine_id: m.id, product_id: p });
     for (const f of m.faults) {
       put("machine_faults", f.id, { id: f.id, machine_id: m.id, date: f.date, start_min: f.s, end_min: f.e, note: f.note || null,
@@ -43,7 +43,7 @@ export function rowsOf(S) {
   for (const p of S.products) {
     put("products", p.id, { id: p.id, name: p.name });
     p.steps.forEach((s, i) => put("product_steps", p.id + "|" + i,
-      { product_id: p.id, seq: i, process: s.proc, rate: +s.rate, transfer_batch: +s.batch || 0 }));
+      { product_id: p.id, seq: i, process: s.proc, factory: s.factory || 1, rate: +s.rate, transfer_batch: +s.batch || 0 }));
   }
   for (const o of S.orders) {
     put("orders", o.id, { id: o.id, code: o.code, product_id: o.pid, qty: o.qty, due_date: o.due, priority: o.pri });

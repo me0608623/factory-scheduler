@@ -31,7 +31,9 @@ def check(snap: Snapshot, blocks: list[Block], now: Now | None = None) -> list[s
             issues.append(f"{name(b)}：沒有人員")
         elif b.machine not in e.skills:
             issues.append(f"{name(b)}：{e.name} 不會操作 {b.machine}")
-        if m.process != st.process or o.product not in m.products:
+        if e and e.factory != m.factory:
+            issues.append(f"{name(b)}：員工與機台不在同一廠")
+        if m.factory != st.factory or m.process != st.process or o.product not in m.products:
             issues.append(f"{name(b)}：機台不能做這道工序")
         is_new = now_abs is None or abs_min(b.date, b.start) >= now_abs
         w = tl.window_of(b.date, b.start, b.end)

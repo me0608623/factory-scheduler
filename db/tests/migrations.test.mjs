@@ -95,6 +95,8 @@ ok(auditF.length === 1 && auditF[0].actor === LEAD && auditF[0].op === "INSERT",
 console.log("快照 schedule_snapshot()");
 const snap = await as(TV, async () => (await db.query("select schedule_snapshot() s")).rows[0].s);
 ok(snap.machines.length === 5 && snap.employees.length === 5 && snap.orders.length === 6, "快照含機台 5、員工 5、工單 6");
+ok(snap.machines.every(m => m.factory === 1) && snap.employees.every(e => e.factory === 1)
+  && snap.products.every(p => p.steps.every(s => s.factory === 1)), "既有示範資料留在 1 廠，快照帶廠別");
 ok(snap.calendar.week.length === 7 && snap.products[0].steps.length === 3, "快照含每週上班日與產品工序");
 ok(snap.machines.find(m => m.id === "c").faults.length === 1, "快照含故障");
 

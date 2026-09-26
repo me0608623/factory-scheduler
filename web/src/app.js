@@ -3,6 +3,7 @@ import { SOLVER } from "./solver.js";
 import { toSnapshot, applyOption, newId } from "./convert.js";
 import { ALL_WEEKDAYS, overtimeAllowed, overtimeDefault, overtimeWeekdays } from "./overtime.js";
 import { capacityIntervals as occupiedCapacityIntervals } from "./capacity.js";
+import { FACTORIES, factoryOf, factoryName, inFactory, orderRoute, orderInFactory, compatible } from "./factory.js";
 /* ===== 1. 常數與工具 ===== */
 const COLORS=["#FFE14D","#4CDB6E","#F58CF0","#4FE3EE","#FFA64D","#AFC0FF","#FF9A9A","#BFEA6C"];
 const PROCS=["裁切","沖壓","焊接","組裝","包裝"];
@@ -36,7 +37,12 @@ function mergeIv(iv){iv.sort((a,b)=>a[0]-b[0]);const o=[];for(const x of iv){if(
 /* ===== 2. 狀態 ===== */
 let S=null;            // 目前排程（全部資料）
 let readOnly=false, undoStack=[];
-const UI={date:null,view:"day",modal:null,zoom:0.85,theme:"auto"};
+const UI={date:null,view:"day",factory:1,modal:null,zoom:0.85,theme:"auto"};
+function loadFactory(){try{const n=Number(localStorage.getItem("fsched-factory"));if(FACTORIES.includes(n))UI.factory=n;}catch(e){}}
+function setFactory(n){UI.factory=FACTORIES.includes(n)?n:"all";try{localStorage.setItem("fsched-factory",String(UI.factory));}catch(e){}}
+const shownEmployees=()=>S.employees.filter(e=>inFactory(e,UI.factory));
+const shownMachines=()=>S.machines.filter(m=>inFactory(m,UI.factory));
+const shownOrders=()=>S.orders.filter(o=>orderInFactory(o,S.products,UI.factory));
 // 畫面縮放：每台電腦各自記住
 const ZOOMS=[0.6,0.7,0.75,0.8,0.85,0.9,1,1.1,1.25,1.4];
 function setZoom(z){UI.zoom=z;document.documentElement.style.setProperty("--z",z);try{localStorage.setItem("fsched-zoom",String(z));}catch(e){}}
@@ -168,8 +174,8 @@ function simulate(mid,E,fromAbs,dur,ex){
 }
 function pairsFor(pid,k){
   const st=prod(pid).steps[k],out=[];
-  for(const M of S.machines){if(M.proc!==st.proc||!M.products.includes(pid))continue;
-    for(const E of S.employees)if(E.skills.includes(M.id))out.push([M,E]);}
+  for(const M of S.machines){if(M.proc!==st.proc||!M.products.includes(pid)||factoryOf(M)!==factoryOf(st))continue;
+    for(const E of S.employees)if(compatible(E,M,prod(pid),st))out.push([M,E]);}
   return out;
 }
 function durOf(qty,rate){return Math.max(10,Math.ceil(qty/rate/10)*10);}
@@ -263,7 +269,7 @@ function slotFree(ds,mid,E,s,e,exId){
   if(S.blocks.some(b=>b.id!==exId&&b.date===ds&&b.m===mid&&b.s<e&&b.e>s))return false;
   return !capacityIntervals(ds,E,exId?new Set([exId]):new Set()).some(([bs,be])=>bs<e&&be>s);
 }
-function canDo(E,M,pid,k){const st=prod(pid).steps[k];return E.skills.includes(M.id)&&M.proc===st.proc&&M.products.includes(pid);}
+function canDo(E,M,pid,k){const p=prod(pid);return compatible(E,M,p,p.steps[k]);}
 function trySwap(b,mode){
   const o=order(b.oid);
   const tries=[];
@@ -555,9 +561,10 @@ function issuesOf(b,opt={}){
   if(!E)out.push("沒有指定人員");
   else{
     if(!E.skills.includes(M.id))out.push(E.name+" 不會操作 "+M.id+" 機台");
+    if(factoryOf(E)!==factoryOf(M))out.push(E.name+" 與 "+M.id+" 不在同一廠");
     if(E.leaves.includes(b.date))out.push(E.name+" 這天請假");
   }
-  if(M.proc!==st.proc||!M.products.includes(o.pid))out.push(M.id+" 機台不能做「"+p.name+" "+st.proc+"」");
+  if(M.proc!==st.proc||!M.products.includes(o.pid)||factoryOf(M)!==factoryOf(st))out.push(M.id+" 機台不能做「"+factoryName(st.factory)+" "+p.name+" "+st.proc+"」");
   if(M.faults.some(f=>f.date===b.date&&f.s<b.e&&f.e>b.s))out.push(M.id+" 機台這段時間故障");
   const di=dayInfo(b.date);
   const inWin=di.win.some(w=>b.s>=w.s&&b.e<=w.e);
@@ -607,6 +614,8 @@ function topHTML(){
   const sub=wk?"第 "+isoWeek(ws)+" 週":dayLabel(d);
   return '<header class="top"><div class="top-in">'+
   '<div class="brand"><span class="brand-mark"><span></span></span>產線排程</div>'+
+  '<div class="seg factory-switch" role="group" aria-label="排程廠別">'+
+  [[1,'1 廠'],[2,'2 廠'],['all','跨廠']].map(([v,t])=>'<button data-act="factory" data-v="'+v+'" aria-pressed="'+(UI.factory===v)+'">'+t+'</button>').join('')+'</div>'+
   '<div class="datenav"><button class="iconbtn" data-act="prev" aria-label="往前">‹</button>'+
   '<button class="datebox'+(!wk&&di.type!=="work"?" hol":"")+'" data-act="pick"><b class="num">'+esc(title)+'</b><small>'+esc(sub)+'</small></button>'+
   '<input type="date" id="datepick" value="'+d+'" style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none" tabindex="-1" aria-hidden="true">'+
@@ -616,7 +625,7 @@ function topHTML(){
   (S.demo?'<span class="demo-chip">示範資料</span>':'')+(readOnly&&!PV?'<span class="ro-chip">檢視模式</span>':'')+
   '<div class="spacer"></div>'+
   '<button class="btn danger admin" data-act="incident" '+(readOnly?"disabled":"")+'>突發狀況</button>'+
-  '<button class="btn admin" data-act="auto" '+(readOnly?"disabled":"")+'>'+IC.bolt+'<span class="lbl">自動排程</span></button>'+
+  '<button class="btn admin" data-act="auto" title="自動排程會連同另一廠的工序一起計算" '+(readOnly?"disabled":"")+'>'+IC.bolt+'<span class="lbl">自動排程</span></button>'+
   '<button class="btn admin" data-act="undo" '+(readOnly||!undoStack.length?"disabled":"")+'>'+IC.undo+'<span class="lbl">復原</span></button>'+
   '<button class="btn" data-act="export">'+IC.down+'<span class="lbl">Excel</span></button>'+
   (canArchive()?'<button class="btn" data-act="history"><span class="lbl">歷史排程</span></button>':'')+
@@ -636,27 +645,28 @@ function bannerHTML(){
   const openBtn=readOnly?"":'<button class="btn admin '+(di.open?"ghost":"primary")+'" data-act="open">'+(di.open?"改為停工":"改為上班")+'</button>';
   if(!di.open)out.push('<div class="banner wk"><span class="grow">'+(name?esc(name)+"　":"")+'本日停工，不排工作</span>'+openBtn+'</div>');
   else if(di.special)out.push('<div class="banner hol"><span class="grow">'+esc(name)+'　有上班 · '+payNote(di)+'</span>'+openBtn+'</div>');
-  if(di.ot)out.push('<div class="banner ot"><span class="grow">今天加班到 20:00 · '+S.employees.filter(e=>overtimeAllowed(e,d)&&!e.leaves.includes(d)).length+' 人可加班</span>'+(readOnly?"":'<button class="btn ghost admin" data-act="ot">調整加班人員</button>')+'</div>');
+  if(di.ot)out.push('<div class="banner ot"><span class="grow">今天加班到 20:00 · '+shownEmployees().filter(e=>overtimeAllowed(e,d)&&!e.leaves.includes(d)).length+' 人可加班</span>'+(readOnly?"":'<button class="btn ghost admin" data-act="ot">調整加班人員</button>')+'</div>');
   return out.join("");
 }
 function cardsHTML(){
   const d=UI.date;
-  const onLeave=S.employees.filter(e=>e.leaves.includes(d));
-  const emps=S.employees.map(e=>{
+  const employees=shownEmployees(),machines=shownMachines(),orders=shownOrders();
+  const onLeave=employees.filter(e=>e.leaves.includes(d));
+  const emps=employees.map(e=>{
     const lv=e.leaves.includes(d);
     return '<button class="emp'+(lv?" off":"")+'" data-act="emp" data-id="'+e.id+'"><span class="sw" style="background:'+COLORS[e.color%COLORS.length]+'">'+esc(e.name.slice(0,1))+'</span>'+esc(e.name)+
       (lv?'<span class="tag bad">請假</span>':'')+(!overtimeAllowed(e,d)?'<span class="tag mute">今天不加班</span>':'')+'</button>';}).join("");
-  const machs=S.machines.map(m=>{const down=m.faults.some(f=>f.date===d&&!f.fixed);
+  const machs=machines.map(m=>{const down=m.faults.some(f=>f.date===d&&!f.fixed);
     return '<button class="mach'+(down?" down":"")+'" data-act="mach" data-id="'+m.id+'" aria-label="'+esc(m.id+" "+m.label)+'"><b>'+esc(m.id)+'</b><small>'+(down?"故障":"正常")+'</small></button>';}).join("");
-  const ords=[...S.orders].sort((a,b)=>a.due.localeCompare(b.due)||a.pri-b.pri);
+  const ords=[...orders].sort((a,b)=>a.due.localeCompare(b.due)||a.pri-b.pri);
   const orows=ords.slice(0,4).map(orderRow).join("");
   const lrows=S.log.slice(0,3).map(logRow).join("")||'<div class="empty">還沒有紀錄</div>';
   return '<section class="cards" aria-label="總覽">'+
-  '<div class="card"><div class="card-h"><h2>員工</h2><span class="count">'+S.employees.length+' 人'+(onLeave.length?" · 今天 "+onLeave.length+" 人請假":"")+'</span>'+(canMaster()?'<button class="add" data-act="emp-new">＋新增</button>':"")+'</div><div class="chips">'+emps+'</div></div>'+
-  '<div class="card"><div class="card-h"><h2>機台</h2><span class="count">'+S.machines.length+' 台</span>'+(canMaster()?'<button class="add" data-act="mach-new">＋新增</button>':"")+'</div><div class="chips">'+machs+'</div></div>'+
-  '<div class="card"><div class="card-h"><h2>工單</h2><span class="count">'+S.orders.length+' 張</span>'+(readOnly?"":'<button class="add" data-act="ord-new">＋新增</button>')+'</div><div class="olist">'+orows+'</div>'+
+  '<div class="card"><div class="card-h"><h2>員工</h2><span class="count">'+employees.length+' 人'+(onLeave.length?" · 今天 "+onLeave.length+" 人請假":"")+'</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="emp-new">＋新增</button>':"")+'</div><div class="chips">'+emps+'</div></div>'+
+  '<div class="card"><div class="card-h"><h2>機台</h2><span class="count">'+machines.length+' 台</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="mach-new">＋新增</button>':"")+'</div><div class="chips">'+machs+'</div></div>'+
+  '<div class="card"><div class="card-h"><h2>工單</h2><span class="count">'+orders.length+' 張</span>'+(readOnly?"":'<button class="add" data-act="ord-new">＋新增</button>')+'</div><div class="olist">'+orows+'</div>'+
     '<div style="display:flex;gap:16px"><button class="more" data-act="orders">全部工單</button><button class="more" data-act="products">產品工序</button></div></div>'+
-  '<div class="card"><div class="card-h"><h2>紀錄</h2><span class="count">系統怎麼調整</span></div><div class="llist">'+lrows+'</div><button class="more" data-act="log">全部紀錄</button></div>'+
+  '<div class="card"><div class="card-h"><h2>全廠紀錄</h2><span class="count">系統怎麼調整</span></div><div class="llist">'+lrows+'</div><button class="more" data-act="log">全部紀錄</button></div>'+
   '</section>';
 }
 function statusTag(o){
@@ -664,8 +674,8 @@ function statusTag(o){
   return st.k==="late"?'<span class="tag bad">會延誤</span>':st.k==="ok"?'<span class="tag ok">準時</span>':st.k==="done"?'<span class="tag mute">完成</span>':'<span class="tag warn">未排</span>';
 }
 const priTag=o=>o.pri===0?'<span class="tag bad">特急</span> ':o.pri===1?'<span class="tag warn">急</span> ':"";
-function orderRow(o){const p=prod(o.pid);
-  return '<button class="orow" data-act="ord" data-id="'+o.id+'"><span class="code">'+esc(o.code)+'</span><span class="meta">'+priTag(o)+esc(p?p.name:"?")+' '+o.qty+'件 · 期限 '+md(o.due)+'</span>'+statusTag(o)+'</button>';}
+function orderRow(o){const p=prod(o.pid),route=orderRoute(o,S.products).map(factoryName).join(' → ');
+  return '<button class="orow" data-act="ord" data-id="'+o.id+'"><span class="code">'+esc(o.code)+'</span><span class="meta">'+priTag(o)+esc(p?p.name:"?")+' '+o.qty+'件 · '+esc(route)+' · 期限 '+md(o.due)+'</span>'+statusTag(o)+'</button>';}
 function logRow(l){const dt=new Date(l.t);
   return '<button class="lrow" data-act="logone" data-id="'+l.id+'"><span class="ic '+l.kind+'">'+(LOGIC[l.kind]||"・")+'</span><span class="tx">'+esc(l.title)+'<small>'+(dt.getMonth()+1)+"/"+dt.getDate()+" "+pad(dt.getHours())+":"+pad(dt.getMinutes())+(l.lines&&l.lines.length?" · "+l.lines.length+" 項調整":"")+'</small></span></button>';}
 
@@ -673,8 +683,8 @@ function logRow(l){const dt=new Date(l.t);
 function dayHTML(ctx={}){
   const d=UI.date,di=dayInfo(d),H=hourPx(),px=m=>(m-DAY0)/60*H;
   const mk=b=>ctx.mark&&ctx.mark.has(keyB(b))?ctx.markCls:"";
-  const ms=S.machines;
-  const blocks=S.blocks.filter(b=>b.date===d);
+  const ms=shownMachines();
+  const blocks=S.blocks.filter(b=>b.date===d&&ms.some(m=>m.id===b.m));
   let nBad=0;
   const cols=ms.map(M=>{
     let z="";
@@ -694,15 +704,16 @@ function dayHTML(ctx={}){
   const heads=ms.map(M=>{const down=M.faults.some(f=>f.date===d&&!f.fixed);
     return '<button class="colhead'+(down?" down":"")+'" data-act="mach" data-id="'+M.id+'"><span class="L">'+esc(M.id)+'</span><span class="N">'+esc(M.label)+'<small>'+esc(M.proc)+'</small></span><span class="st tag '+(down?"bad":"ok")+'">'+(down?"故障":"正常")+'</span></button>';}).join("");
   let times="";for(let m=DAY0;m<DAY1;m+=30)times+='<div class="'+(m%60?"half":"")+'">'+hm(m)+'</div>';
-  const leave=S.employees.filter(e=>e.leaves.includes(d));
+  const leave=shownEmployees().filter(e=>e.leaves.includes(d));
   const otBtn=readOnly?"":(di.open?'<button class="btn admin" data-act="ot">'+(di.ot?'調整加班人員':'開加班到 20:00')+'</button>':"")+'<button class="btn admin" data-act="cal">上班日設定</button>';
-  return '<section class="board" aria-label="排程表"><div class="board-h"><h2>'+mdw(d)+(ctx.pv?(PV.mode==="orig"?" 原本的排程":PV.mode==="new"?" 調整後":" 對照"):" 排程")+'</h2>'+
+  return '<section class="board" aria-label="排程表"><div class="board-h"><h2>'+esc(UI.factory==="all"?"跨廠":factoryName(UI.factory))+' · '+mdw(d)+(ctx.pv?(PV.mode==="orig"?" 原本的排程":PV.mode==="new"?" 調整後":" 對照"):" 排程")+'</h2>'+
     (leave.length?'<span class="tag bad" style="font-size:15px;padding:4px 10px">請假：'+esc(leave.map(e=>e.name).join("、"))+'</span>':"")+
     (nBad?'<button class="btn danger" data-act="issues">'+nBad+' 個問題</button>':(blocks.length?'<span class="tag ok" style="font-size:15px;padding:4px 10px">沒有衝突</span>':""))+
-    '<div class="spacer"></div><div class="legend"><span><i style="background:var(--lunch)"></i>午休</span><span><i style="background:var(--ot)"></i>加班</span><span><i style="background:var(--bad-bg);border-color:var(--bad)"></i>故障</span><span>顏色 = 員工</span>'+(readOnly?"":"<span>拖曳方塊可改時間／機台</span>")+'</div>'+otBtn+'</div>'+
-    '<div class="scroller"><div class="grid" style="grid-template-columns:64px repeat('+ms.length+',minmax(170px,1fr))">'+
-    '<div class="corner"></div>'+heads+'<div class="times">'+times+'</div>'+cols+'</div></div>'+
-    (blocks.length||!di.win.length?"":'<div class="empty">這天還沒有排程。按上方「自動排程」或新增工單。</div>')+
+    '<div class="spacer"></div><div class="legend"><span><i style="background:var(--lunch)"></i>午休</span><span><i style="background:var(--ot)"></i>加班</span><span><i style="background:var(--bad-bg);border-color:var(--bad)"></i>故障</span><span>顏色 = 員工</span><span>上班日／加班開關目前兩廠共用</span>'+(readOnly?"":"<span>拖曳方塊可改時間／機台</span>")+'</div>'+otBtn+'</div>'+
+    (ms.length?'<div class="scroller"><div class="grid" style="grid-template-columns:64px repeat('+ms.length+',minmax(170px,1fr))">'+
+    '<div class="corner"></div>'+heads+'<div class="times">'+times+'</div>'+cols+'</div></div>':
+    '<div class="empty factory-empty">此廠尚未設定機台與員工；「歷史排程」是獨立的唯讀原表，不會自動變成正式排程。</div>')+
+    (ms.length&&!blocks.length&&di.win.length?'<div class="empty">這天還沒有排程。按上方「自動排程」或新增工單。</div>':"")+
     '</section>';
 }
 function blkHTML(b,px,bad,cls=""){
@@ -721,7 +732,7 @@ function weekHTML(ctx={}){
     return '<button class="wh'+(di.type==="hol"?" hol":"")+(!di.open?" wk":"")+(d===T?" today":"")+'" data-act="goto" data-d="'+d+'"><b class="num">'+mdw(d)+'</b><small>'+esc(dayLabel(d))+(di.ot?" · 加班":"")+'</small>'+(dchg[d]?'<span class="tag warn">變動 '+dchg[d]+'</span>':"")+'</button>';}).join("");
   const barsOf=(list,top,h,markSet,faded)=>list.map(b=>{const E=emp(b.emp);const bad=!ctx.pv&&issuesOf(b).length>0;const mk=markSet&&markSet.has(keyB(b));
     return '<span class="wbar'+(bad?" bad":"")+(mk?" wmk":"")+(faded?" wfade":"")+'" style="top:'+top+'px;height:'+h+'px;left:'+((b.s-DAY0)/720*100)+'%;width:'+((b.e-b.s)/720*100)+'%;background:'+empColor(b.emp)+'">'+esc(E?E.name.slice(0,1):"?")+'</span>';}).join("");
-  const rows=S.machines.map(M=>{
+  const rows=shownMachines().map(M=>{
     const cells=days.map(d=>{
       const di=dayInfo(d),bl=S.blocks.filter(b=>b.m===M.id&&b.date===d);
       let bars;
@@ -734,7 +745,7 @@ function weekHTML(ctx={}){
       const changed=ctx.pv&&(bl.some(b=>ctx.mark&&ctx.mark.has(keyB(b)))||(ctx.lanes&&PV.B.blocks.some(b=>b.m===M.id&&b.date===d&&diffOf(pvOpt()).goneKeys.has(keyB(b)))));
       return '<button class="wcell'+(di.win.length?"":" off")+(changed?" wchg":"")+'" data-act="goto" data-d="'+d+'" aria-label="'+esc(M.id+" "+mdw(d))+'">'+bars+f+(mins&&!ctx.lanes?'<span class="wload">'+(mins/60).toFixed(1)+'h</span>':"")+'</button>';}).join("");
     return '<div class="wrow"><span class="L">'+esc(M.id)+'</span><small>'+esc(M.label)+'</small></div>'+cells;}).join("");
-  const foot=days.map(d=>{const lv=S.employees.filter(e=>e.leaves.includes(d));
+  const foot=days.map(d=>{const lv=shownEmployees().filter(e=>e.leaves.includes(d));
     return '<div class="wfoot">'+lv.map(e=>'<span class="tag bad">'+esc(e.name)+' 假</span>').join("")+'</div>';}).join("");
   return '<section class="board" aria-label="週排程"><div class="board-h"><h2>'+(ctx.lanes?"本週對照（上排原本、下排調整後）":"本週總覽")+'</h2><div class="spacer"></div><div class="legend"><span>點日期或格子看當天細節</span><span><i style="background:var(--bad)"></i>故障</span></div></div>'+
     '<div class="scroller"><div class="wgrid" style="grid-template-columns:150px repeat(7,minmax(130px,1fr))"><div class="corner" style="height:auto"></div>'+heads+rows+
@@ -861,6 +872,7 @@ document.addEventListener("click",e=>{
     case "today":UI.date=todayStr();render();break;
     case "pick":{const p=$("#datepick");try{p.showPicker();}catch(_){p.style.pointerEvents="auto";p.focus();p.click();}break;}
     case "view":UI.view=a.dataset.v;render();break;
+    case "factory":setFactory(a.dataset.v==="all"?"all":Number(a.dataset.v));render();break;
     case "goto":UI.date=a.dataset.d;UI.view="day";render();window.scrollTo(0,0);break;
     case "tv":UI.tv=!UI.tv;render();break;
     case "theme":{setTheme(THEMES[(THEMES.indexOf(UI.theme)+1)%THEMES.length]);render();
@@ -1036,8 +1048,8 @@ ot(m){
     m.open=!!S.dayOT[d];
     m.overrides=Object.fromEntries(S.employees.map(e=>[e.id,Object.prototype.hasOwnProperty.call(e.otOverrides||{},d)?!!e.otOverrides[d]:null]));
   }
-  const available=S.employees.filter(e=>!e.leaves.includes(d)&&(m.overrides[e.id]===null?overtimeDefault(e,d):m.overrides[e.id])).length;
-  const people=S.employees.map(e=>{
+  const available=shownEmployees().filter(e=>!e.leaves.includes(d)&&(m.overrides[e.id]===null?overtimeDefault(e,d):m.overrides[e.id])).length;
+  const people=shownEmployees().map(e=>{
     const base=overtimeDefault(e,d),value=m.overrides[e.id],yes=value===null?base:value;
     return '<div class="ot-person"><div class="ot-person-title"><b>'+esc(e.name)+'</b><small>固定星期：'+(base?'可加班':'不加班')+(value===null?'':' · 今天臨時調整')+(e.leaves.includes(d)?' · 請假':'')+'</small></div>'+
       '<div class="toggles"><button class="tg" data-act="ot-person" data-id="'+esc(e.id)+'" data-v="1" aria-label="'+esc(e.name)+' 今天可加班" aria-pressed="'+!!yes+'">今天可加班</button>'+
@@ -1052,7 +1064,7 @@ ot(m){
 },
 emp(m){
   if(!m.draft){const E=m.id?emp(m.id):null;
-    m.draft=E?JSON.parse(JSON.stringify(E)):{id:uid(),name:"",color:S.employees.length%COLORS.length,skills:[],maxMachines:1,leaves:[],noOT:false,otWeekdays:[...ALL_WEEKDAYS],otOverrides:{}};
+    m.draft=E?JSON.parse(JSON.stringify(E)):{id:uid(),name:"",factory:UI.factory==="all"?1:UI.factory,color:S.employees.length%COLORS.length,skills:[],maxMachines:1,leaves:[],noOT:false,otWeekdays:[...ALL_WEEKDAYS],otOverrides:{}};
     m.draft.otWeekdays=overtimeWeekdays(m.draft);m.draft.otOverrides ||= {};}
   const D=m.draft,ro=readOnly||!canMaster();
   const start=weekStart(UI.date<todayStr()?todayStr():UI.date);
@@ -1060,8 +1072,9 @@ emp(m){
     days+=tg("m-leave",d,D.leaves.includes(d),'<span class="num">'+md(d)+'</span><small>'+WD[di.w]+(di.type==="hol"?" "+esc(di.hol.slice(0,3)):"")+'</small>',"leave"+(di.type!=="work"?" hol":""));}
   const body=
    '<div class="field"><label for="f-name">姓名</label><input class="inp" id="f-name" data-bind="name" value="'+esc(D.name)+'" '+(ro?"disabled":"")+' autocomplete="off"></div>'+
+   '<div class="field"><span class="lab">所屬廠別</span><div class="toggles">'+FACTORIES.map(f=>tg("m-emp-factory",f,factoryOf(D)===f,factoryName(f))).join("")+'</div></div>'+
    '<div class="field"><span class="lab">代表顏色</span><div class="swatches">'+COLORS.map((c,i)=>'<button class="swatch" style="background:'+c+'" data-act="m-color" data-v="'+i+'" aria-pressed="'+(D.color===i)+'" aria-label="顏色 '+(i+1)+'"></button>').join("")+'</div></div>'+
-   '<div class="field"><span class="lab">會操作的機台</span><div class="toggles">'+S.machines.map(M=>tg("m-skill",M.id,D.skills.includes(M.id),'<span class="num">'+esc(M.id)+'</span><small>'+esc(M.label)+'</small>')).join("")+'</div></div>'+
+   '<div class="field"><span class="lab">會操作的機台</span><div class="toggles">'+S.machines.filter(M=>factoryOf(M)===factoryOf(D)).map(M=>tg("m-skill",M.id,D.skills.includes(M.id),'<span class="num">'+esc(M.id)+'</span><small>'+esc(M.label)+'</small>')).join("")+'</div></div>'+
    '<div class="field"><label for="f-max-machines">同時最多顧幾台機台</label><input class="inp num" type="number" min="1" max="100" step="1" id="f-max-machines" data-bind="maxMachines" value="'+(D.maxMachines||1)+'" '+(ro?"disabled":"")+'><div class="hint">預設 1 台；只計算同時運轉的不同機台，不影響會操作的機台清單。</div></div>'+
    '<div class="field"><span class="lab">固定每週可加班日</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("m-ot-week",w,D.otWeekdays.includes(w),"週"+WD[w])).join("")+'</div><div class="hint">當天是否加班另由排程表開放；臨時意願可在當天的「加班設定」調整。</div></div>'+
    '<div class="field"><span class="lab">請假（點日期切換，紅色 = 請假）</span><div class="toggles">'+days+'</div></div>';
@@ -1072,7 +1085,7 @@ emp(m){
 /* ---------- 機台 ---------- */
 mach(m){
   if(!m.draft){const M=m.id?mach(m.id):null;
-    m.draft=M?JSON.parse(JSON.stringify(M)):{id:"",label:"",proc:PROCS[0],products:[],faults:[]};
+    m.draft=M?JSON.parse(JSON.stringify(M)):{id:"",label:"",factory:UI.factory==="all"?1:UI.factory,proc:PROCS[0],products:[],faults:[]};
     const n=UI.date===todayStr()?Math.max(DAY0,Math.floor(nowMin()/10)*10):DAY0;m.fs=Math.min(n,DAY1-30);m.fd=60;m.note="";}
   const D=m.draft,ro=readOnly,rm=readOnly||!canMaster(),d=UI.date;
   const faults=m.id?mach(m.id).faults.map((f,i)=>({f,i})).filter(x=>x.f.date===d):[];
@@ -1087,6 +1100,7 @@ mach(m){
   const body=(m.fromInc?faultBox:"")+
    (m.id?'':'<div class="field"><label for="f-id">代號（例：f）</label><input class="inp num" id="f-id" data-bind="id" value="'+esc(D.id)+'" maxlength="4" autocomplete="off"></div>')+
    '<div class="field"><label for="f-label">名稱</label><input class="inp" id="f-label" data-bind="label" value="'+esc(D.label)+'" '+(rm?"disabled":"")+' autocomplete="off"></div>'+
+   '<div class="field"><span class="lab">所屬廠別</span><div class="toggles">'+FACTORIES.map(f=>tg("m-mach-factory",f,factoryOf(D)===f,factoryName(f))).join("")+'</div></div>'+
    '<div class="field"><span class="lab">做哪一道工序</span><div class="toggles">'+PROCS.map(p=>tg("m-proc",p,D.proc===p,esc(p))).join("")+'</div></div>'+
    '<div class="field"><span class="lab">可以生產的產品／模具</span><div class="toggles">'+S.products.map(p=>tg("m-prod",p.id,D.products.includes(p.id),esc(p.name)+'<small>'+esc(p.steps.map(s=>s.proc).join("→"))+'</small>')).join("")+'</div></div>'+
    '<div class="field"><span class="lab">誰會操作</span><div class="chips">'+(S.employees.filter(E=>E.skills.includes(D.id)).map(E=>'<span class="emp"><span class="sw" style="background:'+COLORS[E.color%COLORS.length]+'">'+esc(E.name[0])+'</span>'+esc(E.name)+'</span>').join("")||'<span class="hint">還沒有人會操作（到員工設定勾選）</span>')+'</div></div>'+
@@ -1098,9 +1112,10 @@ mach(m){
 /* ---------- 工單 ---------- */
 ord(m){
   if(!m.draft){const O=m.id?order(m.id):null;
-    m.draft=O?{...O}:{id:uid(),code:nextCode(),pid:S.products[0]?S.products[0].id:"",qty:100,due:workdaysFrom(addDays(todayStr(),1),3)[2],pri:m.pri??2};}
+    const first=S.products.find(p=>UI.factory==="all"||p.steps.some(s=>factoryOf(s)===UI.factory))||S.products[0];
+    m.draft=O?{...O}:{id:uid(),code:nextCode(),pid:first?first.id:"",qty:100,due:workdaysFrom(addDays(todayStr(),1),3)[2],pri:m.pri??2};}
   const D=m.draft,ro=readOnly,p=prod(D.pid);
-  const flow=p?p.steps.map((s,i)=>'<span class="pill">'+(i+1)+". "+esc(s.proc)+" "+durOf(D.qty||0,s.rate)+"分"+(s.batch>0?"（前站 "+s.batch+" 件就開始）":"")+'</span>').join('<span class="arr">→</span>'):"";
+  const flow=p?p.steps.map((s,i)=>'<span class="pill">'+(i+1)+". "+factoryName(s.factory)+" "+esc(s.proc)+" "+durOf(D.qty||0,s.rate)+"分"+(s.batch>0?"（前站 "+s.batch+" 件就開始）":"")+'</span>').join('<span class="arr">→</span>'):"";
   let plan="";
   if(m.id){const O=order(m.id),st=orderStatus(O);
     const bl=S.blocks.filter(b=>b.oid===m.id).sort((a,b)=>a.step-b.step||byAbs(a,b));
@@ -1109,7 +1124,7 @@ ord(m){
   const body=
    '<div class="row2"><div class="field"><label for="f-code">工單號</label><input class="inp num" id="f-code" data-bind="code" value="'+esc(D.code)+'" '+(ro?"disabled":"")+'></div>'+
    '<div class="field"><label for="f-qty">數量（件）</label><input class="inp num" type="number" min="1" id="f-qty" data-bind="qty" value="'+D.qty+'" '+(ro?"disabled":"")+'></div></div>'+
-   '<div class="field"><span class="lab">產品</span><div class="toggles">'+S.products.map(x=>tg("o-prod",x.id,D.pid===x.id,esc(x.name))).join("")+'</div></div>'+
+   '<div class="field"><span class="lab">產品</span><div class="toggles">'+S.products.filter(x=>x.id===D.pid||UI.factory==="all"||x.steps.some(s=>factoryOf(s)===UI.factory)).map(x=>tg("o-prod",x.id,D.pid===x.id,esc(x.name))).join("")+'</div></div>'+
    '<div class="row2"><div class="field"><label for="f-due">最晚完成日（硬性期限）</label><input class="inp num" type="date" id="f-due" data-bind="due" value="'+D.due+'" '+(ro?"disabled":"")+'></div>'+
    '<div class="field"><span class="lab">優先順序</span><div class="toggles">'+[[0,"特急"],[1,"急"],[2,"一般"],[3,"不急"]].map(([v,t])=>tg("o-pri",v,D.pri===v,t)).join("")+'</div></div></div>'+
    '<div class="field"><span class="lab">標準工序（依產品設定自動算時間）</span><div class="flow">'+flow+'</div></div>'+plan;
@@ -1118,7 +1133,7 @@ ord(m){
   return {title:m.id?"工單 "+esc(D.code):"新增工單",body,foot};
 },
 orders(){
-  const rows=[...S.orders].sort((a,b)=>a.due.localeCompare(b.due)||a.pri-b.pri).map(orderRow).join("")||'<div class="empty">沒有工單</div>';
+  const rows=[...shownOrders()].sort((a,b)=>a.due.localeCompare(b.due)||a.pri-b.pri).map(orderRow).join("")||'<div class="empty">此廠沒有工單</div>';
   return {title:"全部工單",body:'<div class="olist">'+rows+'</div>',
     foot:(S.demo&&!readOnly?'<button class="btn danger" data-act="clear-demo">清除示範工單</button><div class="spacer"></div>':'')+(readOnly?"":'<button class="btn primary" data-act="ord-new">＋新增工單</button>')};
 },
@@ -1126,11 +1141,12 @@ orders(){
 products(m){
   if(!m.draft)m.draft=JSON.parse(JSON.stringify(S.products));
   const ro=readOnly||!canMaster();
-  const body='<div class="hint">每一站：用哪種機台、一個人每分鐘做幾件、前站做完幾件就能開始（0 = 前站全部做完）。順序不能跳。</div>'+
+  const body='<div class="hint">每一站指定廠別與工序；同一工單可依序從 1 廠轉到 2 廠。前站做完幾件就能開始下一站（0 = 全部做完）。跨廠運送／交接時間尚未設定，暫以可立即交接計算。</div>'+
    m.draft.map((p,pi)=>'<div class="field" style="border:1px solid var(--line2);border-radius:12px;padding:12px">'+
     '<input class="inp" data-bind="'+pi+'.name" value="'+esc(p.name)+'" aria-label="產品名稱" '+(ro?"disabled":"")+'>'+
     '<div class="steps">'+p.steps.map((s,si)=>'<div class="step"><span class="no">'+(si+1)+'</span>'+
       '<select class="inp" data-bind="'+pi+'.steps.'+si+'.proc" aria-label="工序" '+(ro?"disabled":"")+'>'+PROCS.map(x=>'<option'+(x===s.proc?" selected":"")+'>'+x+'</option>').join("")+'</select>'+
+      '<select class="inp" data-bind="'+pi+'.steps.'+si+'.factory" aria-label="第 '+(si+1)+' 站廠別" '+(ro?"disabled":"")+'>'+FACTORIES.map(f=>'<option value="'+f+'"'+(factoryOf(s)===f?' selected':'')+'>'+factoryName(f)+'</option>').join('')+'</select>'+
       '<label class="field" style="gap:2px"><span class="hint">件/分</span><input class="inp num" type="number" step="0.1" min="0.1" data-bind="'+pi+'.steps.'+si+'.rate" value="'+s.rate+'" '+(ro?"disabled":"")+'></label>'+
       '<label class="field" style="gap:2px"><span class="hint">幾件可傳下站</span><input class="inp num" type="number" min="0" data-bind="'+pi+'.steps.'+si+'.batch" value="'+s.batch+'" '+(ro?"disabled":"")+'></label>'+
       (ro?"":'<button class="iconbtn x" data-act="p-delstep" data-v="'+pi+'.'+si+'" aria-label="刪除這站">×</button>')+'</div>').join("")+'</div>'+
@@ -1144,9 +1160,9 @@ blk(m){
   const o=order(b.oid),p=prod(o.pid),E=emp(b.emp),M=mach(b.m),iss=issuesOf(b),ro=readOnly;
   const others=S.blocks.filter(x=>x.oid===b.oid&&x!==b).sort((a,c)=>a.step-c.step||byAbs(a,c));
   let opts="";for(let t=DAY0;t<=DAY1-(b.e-b.s);t+=10)opts+='<option value="'+t+'"'+(t===b.s?" selected":"")+'>'+hm(t)+'</option>';
-  const empT=S.employees.map(X=>{const can=X.skills.includes(b.m);const free=slotFree(b.date,b.m,X,b.s,b.e,b.id);
+  const empT=S.employees.filter(X=>factoryOf(X)===factoryOf(M)).map(X=>{const can=X.skills.includes(b.m);const free=slotFree(b.date,b.m,X,b.s,b.e,b.id);
     return tg("b-emp",X.id,X.id===b.emp,esc(X.name)+'<small>'+(X.id===b.emp?"目前":!can?"不會此機":free?"有空":"沒空")+'</small>',"");}).join("");
-  const machT=S.machines.filter(X=>X.proc===p.steps[b.step].proc&&X.products.includes(o.pid)).map(X=>tg("b-mach",X.id,X.id===b.m,'<span class="num">'+esc(X.id)+'</span><small>'+esc(X.label)+'</small>')).join("");
+  const machT=S.machines.filter(X=>X.proc===p.steps[b.step].proc&&X.products.includes(o.pid)&&factoryOf(X)===factoryOf(p.steps[b.step])).map(X=>tg("b-mach",X.id,X.id===b.m,'<span class="num">'+esc(X.id)+'</span><small>'+esc(X.label)+'</small>')).join("");
   const body='<dl class="kv"><dt>產品</dt><dd>'+esc(p.name)+"　第 "+(b.step+1)+" 站／共 "+p.steps.length+" 站："+esc(p.steps[b.step].proc)+'</dd><dt>數量</dt><dd class="num">'+b.qty+' 件</dd><dt>時間</dt><dd class="num">'+mdw(b.date)+" "+hm(b.s)+"–"+hm(b.e)+"（"+(b.e-b.s)+' 分）</dd><dt>機台</dt><dd>'+esc(M.id+" "+M.label)+'</dd><dt>人員</dt><dd>'+esc(E?E.name:"未指定")+'</dd><dt>期限</dt><dd>'+mdw(o.due)+"　"+statusTag(o)+'</dd></dl>'+
    (iss.length?'<div class="issues">'+iss.map(t=>'<div class="issue">'+esc(t)+'</div>').join("")+'</div>':'<div class="okbox">沒有問題</div>')+
    (ro?"":'<div class="field"><span class="lab">換人</span><div class="toggles">'+empT+'</div></div>'+
@@ -1187,7 +1203,7 @@ auto(){
   const pins=S.blocks.filter(b=>b.pin&&futureOf(b)).length;
   return {title:"自動排程",body:
     '<div class="flow"><span class="pill">1. 急件優先</span><span class="arr">→</span><span class="pill">2. 期限早的先做</span><span class="arr">→</span><span class="pill">3. 前站做完才排下站</span><span class="arr">→</span><span class="pill">4. 找最早能完成的機台＋人</span><span class="arr">→</span><span class="pill">5. 模擬退火試上百種順序，挑最好的</span></div>'+
-    '<div class="hint">會避開請假、故障、午休與未開放的加班時段。'+(pins?"已固定（釘）的 "+pins+" 段不會動。":"")+'已經過去的時段不會動。</div>',
+    '<div class="hint">會一起計算 1 廠與 2 廠的全部工序，切換廠別只影響畫面顯示。會避開請假、故障、午休與未開放的加班時段。'+(pins?"已固定（釘）的 "+pins+" 段不會動。":"")+'已經過去的時段不會動。</div>',
     foot:'<button class="btn" data-act="close">取消</button><button class="btn primary" data-act="auto-run">'+IC.bolt+'計算並預覽</button>'};
 },
 /* ---------- 匯出 ---------- */
@@ -1203,13 +1219,15 @@ export(){
    '<div class="hint">複製後，直接貼到 Google 試算表或 Excel 的 A1 格。</div>'};
 },
 "import-preview"(m){
+  const hasSecondFactory=S.employees.some(e=>factoryOf(e)===2)||S.machines.some(x=>factoryOf(x)===2)||S.products.some(p=>p.steps.some(s=>factoryOf(s)===2));
   const counts=m.data&&[m.data.employees.length,m.data.machines.length,m.data.products.length,m.data.orders.length];
   const summary=counts?'<div class="pv-sum">員工 '+counts[0]+' 人、機台 '+counts[1]+' 台、產品 '+counts[2]+' 種、工單 '+counts[3]+' 張</div>':'';
   const problems=m.errors.length?'<div class="issues">'+m.errors.map(t=>'<div class="issue">'+esc(t)+'</div>').join('')+'</div>':'';
-  const warning=!m.errors.length?'<div class="issues"><div class="issue">確認後將以 Excel 內容取代現有員工、機台、產品工序與工單，並清空現有 '+S.blocks.length+' 段排程；上班日設定保留。匯入後再按「自動排程」建立新班表。</div></div>':'';
+  const warning=hasSecondFactory?'<div class="issues"><div class="issue">目前匯入範本沒有廠別欄，系統已有 2 廠資料。為避免整批覆蓋，這次不能確認匯入。</div></div>':
+    !m.errors.length?'<div class="issues"><div class="issue">確認後將以 Excel 內容取代現有員工、機台、產品工序與工單，並清空現有 '+S.blocks.length+' 段排程；上班日設定保留。匯入後再按「自動排程」建立新班表。</div></div>':'';
   return {title:m.errors.length?'Excel 匯入 · 請修正檔案':'Excel 匯入 · 確認取代資料',
     body:'<div class="hint">檔案：'+esc(m.filename)+'</div>'+summary+problems+warning,
-    foot:'<button class="btn" data-act="close">取消</button>'+(m.errors.length?'':'<button class="btn primary" data-act="x-import-confirm">確認匯入並清空舊排程</button>')};
+    foot:'<button class="btn" data-act="close">取消</button>'+(m.errors.length||hasSecondFactory?'':'<button class="btn primary" data-act="x-import-confirm">確認匯入並清空舊排程</button>')};
 },
 "legacy-preview"(m){
   const legacy=m.legacy,day=legacy.days[m.date]||{"1廠":[],"2廠":[],overtime:{}};
@@ -1495,8 +1513,8 @@ MODAL_ACT.seen=a=>{try{localStorage.setItem("fsched-seen",a.dataset.id);}catch(e
 /* ---------- 突發狀況（一個入口） ---------- */
 MODALS.incident=m=>{
   let body;
-  if(m.step==="mach")body='<div class="hint">哪一台壞了？</div><div class="chips">'+S.machines.map(M=>'<button class="mach big" data-act="inc-mach" data-v="'+M.id+'"><b>'+esc(M.id)+'</b><small>'+esc(M.label)+'</small></button>').join("")+'</div>';
-  else if(m.step==="emp")body='<div class="hint">誰要請假？</div><div class="chips">'+S.employees.map(E=>'<button class="emp" data-act="inc-emp" data-v="'+E.id+'"><span class="sw" style="background:'+COLORS[E.color%COLORS.length]+'">'+esc(E.name[0])+'</span>'+esc(E.name)+'</button>').join("")+'</div>';
+  if(m.step==="mach")body='<div class="hint">哪一台壞了？</div><div class="chips">'+shownMachines().map(M=>'<button class="mach big" data-act="inc-mach" data-v="'+M.id+'"><b>'+esc(M.id)+'</b><small>'+esc(M.label)+'</small></button>').join("")+'</div>';
+  else if(m.step==="emp")body='<div class="hint">誰要請假？</div><div class="chips">'+shownEmployees().map(E=>'<button class="emp" data-act="inc-emp" data-v="'+E.id+'"><span class="sw" style="background:'+COLORS[E.color%COLORS.length]+'">'+esc(E.name[0])+'</span>'+esc(E.name)+'</button>').join("")+'</div>';
   else body='<div class="incs">'+
     '<button class="inc" data-act="inc-step" data-v="mach"><b>機台故障</b><small>系統算幾種排法讓你挑，AI 可以幫忙建議</small></button>'+
     '<button class="inc" data-act="inc-step" data-v="emp"><b>有人請假</b><small>先找人代班，不行再往後排</small></button>'+
@@ -1619,11 +1637,13 @@ Object.assign(MODAL_ACT,{
   "ot-reset":a=>{UI.modal.overrides[a.dataset.id]=null;rerender();},
   "ot-save":()=>saveDailyOT(UI.modal),
   "m-color":a=>{UI.modal.draft.color=+a.dataset.v;rerender();},
+  "m-emp-factory":a=>{const d=UI.modal.draft;d.factory=+a.dataset.v;d.skills=d.skills.filter(id=>factoryOf(mach(id))===d.factory);rerender();},
   "m-skill":a=>{toggleIn(UI.modal.draft.skills,a.dataset.v);rerender();},
   "m-ot-week":a=>{toggleIn(UI.modal.draft.otWeekdays,+a.dataset.v);UI.modal.draft.otWeekdays.sort();rerender();},
   "m-leave":a=>{toggleIn(UI.modal.draft.leaves,a.dataset.v);rerender();},
   "m-emp-save":()=>{
     syncInputs();const m=UI.modal,D=m.draft;D.name=D.name.trim();
+    D.factory=factoryOf(D);D.skills=D.skills.filter(id=>factoryOf(mach(id))===D.factory);
     if(!D.name){toast("請輸入姓名");return;}
     if(!Number.isInteger(D.maxMachines)||D.maxMachines<1||D.maxMachines>100){toast("同時顧機台上限請填 1–100 台");return;}
     const old=emp(D.id);
@@ -1639,7 +1659,7 @@ Object.assign(MODAL_ACT,{
     const delLv=old?old.leaves.filter(d=>!D.leaves.includes(d)):[];
     if(old)Object.assign(old,JSON.parse(JSON.stringify(D)));else S.employees.push(JSON.parse(JSON.stringify(D)));
     const E=emp(D.id);
-    const aff=S.blocks.filter(b=>b.emp===E.id&&futureOf(b)&&(E.leaves.includes(b.date)||!E.skills.includes(b.m)||(!overtimeAllowed(E,b.date)&&dayInfo(b.date).win.some(w=>w.ot&&b.s<w.e&&b.e>w.s))));
+    const aff=S.blocks.filter(b=>b.emp===E.id&&futureOf(b)&&(E.leaves.includes(b.date)||!E.skills.includes(b.m)||factoryOf(E)!==factoryOf(mach(b.m))||(!overtimeAllowed(E,b.date)&&dayInfo(b.date).win.some(w=>w.ot&&b.s<w.e&&b.e>w.s))));
     const lines=aff.length?repair(aff,"leave"):[];
     let title=(old?"":"新增員工 ")+E.name;
     if(addLv.length)title+=" "+addLv.map(md).join("、")+" 請假";
@@ -1662,6 +1682,7 @@ Object.assign(MODAL_ACT,{
     lines.length?showResult():closeModal();
   },
   "m-proc":a=>{UI.modal.draft.proc=a.dataset.v;rerender();},
+  "m-mach-factory":a=>{UI.modal.draft.factory=+a.dataset.v;rerender();},
   "m-prod":a=>{toggleIn(UI.modal.draft.products,a.dataset.v);rerender();},
   "m-fd":a=>{captureFault(UI.modal);UI.modal.fd=+a.dataset.v;rerender();},
   "m-fault":()=>{
@@ -1700,13 +1721,15 @@ Object.assign(MODAL_ACT,{
   },
   "m-mach-save":()=>{
     syncInputs();const m=UI.modal,D=m.draft;
+    D.factory=factoryOf(D);
     D.id=String(D.id).trim().toLowerCase();D.label=D.label.trim()||D.id;
     if(!m.id){if(!/^[a-z0-9]{1,4}$/.test(D.id)){toast("代號請用英文或數字");return;}if(mach(D.id)){toast("代號 "+D.id+" 已經有了");return;}}
     pushUndo();
     const old=mach(D.id);
     if(old){D.faults=old.faults;Object.assign(old,JSON.parse(JSON.stringify(D)));}else S.machines.push(JSON.parse(JSON.stringify(D)));
     const M=mach(D.id);
-    const aff=S.blocks.filter(b=>b.m===M.id&&futureOf(b)&&(()=>{const o=order(b.oid),st=prod(o.pid).steps[b.step];return M.proc!==st.proc||!M.products.includes(o.pid);})());
+    S.employees.filter(E=>factoryOf(E)!==factoryOf(M)).forEach(E=>{E.skills=E.skills.filter(id=>id!==M.id);});
+    const aff=S.blocks.filter(b=>b.m===M.id&&futureOf(b)&&(()=>{const o=order(b.oid),st=prod(o.pid).steps[b.step];return M.proc!==st.proc||!M.products.includes(o.pid)||factoryOf(M)!==factoryOf(st)||factoryOf(emp(b.emp))!==factoryOf(M);})());
     const lines=aff.length?repair(aff,"fault"):[];
     commit({kind:"edit",title:(old?"更新":"新增")+"機台 "+M.id+" "+M.label+(aff.length?"，移走 "+aff.length+" 段工作":""),lines});
     if(lines.length)showResult();else{closeModal();toast(old?"已儲存":"已新增機台，記得到員工設定勾選誰會操作");}
@@ -1752,12 +1775,12 @@ Object.assign(MODAL_ACT,{
     S.employees.forEach(E=>E.leaves=[]);S.machines.forEach(M=>M.faults=[]);
     commit({kind:"edit",title:"清除示範工單，開始使用",lines:[]});closeModal();
   },
-  "p-addstep":a=>{syncInputs();UI.modal.draft[+a.dataset.v].steps.push({proc:PROCS[0],rate:1,batch:0});rerender();},
+  "p-addstep":a=>{syncInputs();UI.modal.draft[+a.dataset.v].steps.push({proc:PROCS[0],factory:UI.factory==="all"?1:UI.factory,rate:1,batch:0});rerender();},
   "p-delstep":a=>{syncInputs();const [pi,si]=a.dataset.v.split(".").map(Number);const st=UI.modal.draft[pi].steps;if(st.length>1)st.splice(si,1);rerender();},
-  "p-add":()=>{syncInputs();UI.modal.draft.push({id:uid(),name:"新產品",steps:[{proc:PROCS[0],rate:1,batch:0}]});rerender();},
+  "p-add":()=>{syncInputs();UI.modal.draft.push({id:uid(),name:"新產品",steps:[{proc:PROCS[0],factory:UI.factory==="all"?1:UI.factory,rate:1,batch:0}]});rerender();},
   "p-save":()=>{
     syncInputs();const D=UI.modal.draft;
-    for(const p of D){p.name=String(p.name).trim()||"未命名";for(const s of p.steps){s.rate=+s.rate;s.batch=Math.max(0,Math.round(+s.batch||0));if(!(s.rate>0)){toast(p.name+"：每分鐘件數要大於 0");return;}}}
+    for(const p of D){p.name=String(p.name).trim()||"未命名";for(const s of p.steps){s.factory=factoryOf(s);s.rate=+s.rate;s.batch=Math.max(0,Math.round(+s.batch||0));if(!(s.rate>0)){toast(p.name+"：每分鐘件數要大於 0");return;}}}
     pushUndo();S.products=D;
     S.blocks=S.blocks.filter(b=>{const o=order(b.oid);return o&&prod(o.pid)&&b.step<prod(o.pid).steps.length;});
     commit({kind:"edit",title:"修改產品工序",lines:[]});closeModal();
@@ -1784,8 +1807,9 @@ Object.assign(MODAL_ACT,{
   "x-copy-all":()=>copyText(allRows().map(r=>r.join("\t")).join("\n")),
   "x-dl":()=>downloadCSV(),
   "x-xlsx":async()=>{
-    try{const {scheduleXlsx}=await import("./excel.js");const bytes=await scheduleXlsx(S,UI.date);
-      saveFile("產線排程_"+UI.date+".xlsx",new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));}
+    try{const {scheduleXlsx}=await import("./excel.js");const machines=shownMachines(),ids=new Set(machines.map(m=>m.id));
+      const bytes=await scheduleXlsx({...S,machines,blocks:S.blocks.filter(b=>ids.has(b.m))},UI.date);
+      saveFile("產線排程_"+(UI.factory==="all"?"跨廠":factoryName(UI.factory))+"_"+UI.date+".xlsx",new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));}
     catch(e){toast("Excel 匯出失敗："+e.message);}
   },
   "x-template":()=>{
@@ -1794,6 +1818,8 @@ Object.assign(MODAL_ACT,{
   },
   "x-import-confirm":()=>{
     const m=UI.modal;if(!m||m.t!=="import-preview"||m.errors.length||!canMaster())return;
+    if(S.employees.some(e=>factoryOf(e)===2)||S.machines.some(x=>factoryOf(x)===2)||S.products.some(p=>p.steps.some(s=>factoryOf(s)===2))){
+      toast("目前範本沒有廠別欄，不能覆蓋已設定的 2 廠資料");return;}
     if(JSON.stringify(S)!==m.base){closeModal();toast("排程已更新，請重新選擇 Excel 檔案預覽");return;}
     pushUndo();S={...S,...m.data,blocks:[],demo:false};
     commit({kind:"edit",title:"Excel 批次匯入："+S.employees.length+" 位員工、"+S.machines.length+" 台機台、"+S.products.length+" 種產品、"+S.orders.length+" 張工單",lines:[{k:"info",t:"已清空原排程，請重新執行自動排程"}]});
@@ -1856,9 +1882,9 @@ function runAuto(){
 
 /* ===== 11. Excel／試算表 ===== */
 function dayTSV(){
-  const d=UI.date,rows=[["時間",...S.machines.map(M=>M.id+" "+M.label)]];
+  const d=UI.date,machines=shownMachines(),rows=[["時間",...machines.map(M=>M.id+" "+M.label)]];
   for(let t=DAY0;t<DAY1;t+=30){
-    rows.push([hm(t),...S.machines.map(M=>{
+    rows.push([hm(t),...machines.map(M=>{
       if(t>=LUNCH_S&&t<LUNCH_E)return "午休";
       const b=S.blocks.find(b=>b.date===d&&b.m===M.id&&b.s<t+30&&b.e>t);
       return b?(emp(b.emp)?emp(b.emp).name:"")+" "+order(b.oid).code+" "+stepName(b):"";})]);
@@ -1867,7 +1893,8 @@ function dayTSV(){
 }
 function allRows(){
   const head=["日期","星期","開始","結束","機台","員工","工單","產品","工序","數量","固定","問題"];
-  return [head,...[...S.blocks].sort(byAbs).map(b=>{const o=order(b.oid);
+  const machineIds=new Set(shownMachines().map(m=>m.id));
+  return [head,...S.blocks.filter(b=>machineIds.has(b.m)).sort(byAbs).map(b=>{const o=order(b.oid);
     return [b.date,WD[parseD(b.date).getUTCDay()],hm(b.s),hm(b.e),b.m,emp(b.emp)?emp(b.emp).name:"",o.code,prod(o.pid).name,stepName(b),b.qty,b.pin?"是":"",issuesOf(b).join("；")];})];
 }
 async function copyText(t){
@@ -1934,8 +1961,9 @@ function normalizeState(){
   if(!S.cal)S.cal={week:[...DEF_WEEK],over:{}};
   if(!S.dayOT)S.dayOT={};
   if(!S.log)S.log=[];
-  for(const e of S.employees){e.otWeekdays=overtimeWeekdays(e);e.otOverrides ||= {};e.noOT=e.otWeekdays.length===0;e.maxMachines ||= 1;}
-  for(const M of S.machines)for(const f of M.faults)if(!f.id)f.id=uid();
+  for(const e of S.employees){e.factory=factoryOf(e);e.otWeekdays=overtimeWeekdays(e);e.otOverrides ||= {};e.noOT=e.otWeekdays.length===0;e.maxMachines ||= 1;}
+  for(const M of S.machines){M.factory=factoryOf(M);for(const f of M.faults)if(!f.id)f.id=uid();}
+  for(const p of S.products)for(const st of p.steps)st.factory=factoryOf(st);
   if(S.holidays)Object.assign(HOLI,S.holidays);
 }
 async function reloadFromStore(){
@@ -2017,7 +2045,7 @@ async function start(){
   if(s&&(STORE.kind==="supabase"||s.employees.length))S=s;
   else{makeDemo();if(STORE.kind==="local")queueSync(null);}
   normalizeState();
-  loadZoom();loadTheme();
+  loadZoom();loadTheme();loadFactory();
   if(!UI.date)UI.date=todayStr();
   render();
   STORE.subscribe(onRemoteChange);

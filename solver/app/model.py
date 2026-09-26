@@ -139,8 +139,9 @@ def solve(
             rem = o.qty - done.get((o.id, k), 0)
             if rem <= 0:
                 continue
-            pairs = [(m.id, e.id) for m in snap.machines if m.process == st.process and o.product in m.products
-                     for e in snap.employees if m.id in e.skills]
+            pairs = [(m.id, e.id) for m in snap.machines
+                     if m.factory == st.factory and m.process == st.process and o.product in m.products
+                     for e in snap.employees if e.factory == m.factory and m.id in e.skills]
             if not pairs:
                 unplaced.append(f"{o.code} {st.process}：沒有能做的機台或人員")
                 continue

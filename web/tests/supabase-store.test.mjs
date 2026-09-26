@@ -74,6 +74,20 @@ test("組長匯入舊版歷史排程，不改示範資料與排程版本", async
   assert.equal((await lead.load()).employees.length, before.employees.length);
 });
 
+test("老闆設定 2 廠人員、機台與工序後可存回快照", async () => {
+  const { store } = await setup();
+  const boss = await store("boss@x");
+  const state = await boss.load();
+  state.employees[0].factory = 2;
+  state.machines[0].factory = 2;
+  state.products[0].steps[0].factory = 2;
+  await boss.sync(state, { kind: "edit", title: "設定廠別" });
+  const loaded = await boss.load();
+  assert.equal(loaded.employees[0].factory, 2);
+  assert.equal(loaded.machines[0].factory, 2);
+  assert.equal(loaded.products[0].steps[0].factory, 2);
+});
+
 test("讀取、只寫有變的列、紀錄", async () => {
   const { store, count } = await setup();
   const boss = await store("boss@x");
@@ -194,10 +208,10 @@ test("套用排程服務的方案（apply_plan）", async () => {
 
 test("格式轉換：畫面 → 快照 → 畫面", () => {
   const S = { cal: { week: [false, true, true, true, true, true, true], over: { "2026-10-01": "off" } }, dayOT: { "2026-10-02": true },
-    employees: [{ id: "e", name: "甲", color: 1, skills: ["a"], maxMachines: 2, leaves: ["2026-10-03"], noOT: true,
+    employees: [{ id: "e", name: "甲", factory: 2, color: 1, skills: ["a"], maxMachines: 2, leaves: ["2026-10-03"], noOT: true,
       otWeekdays: [], otOverrides: {} }],
-    machines: [{ id: "a", label: "A", proc: "裁切", products: ["p"], faults: [{ id: "f", date: "2026-10-04", s: 480, e: 600, note: "", fixed: false, orig: [] }] }],
-    products: [{ id: "p", name: "P", steps: [{ proc: "裁切", rate: 2, batch: 0 }] }],
+    machines: [{ id: "a", label: "A", factory: 2, proc: "裁切", products: ["p"], faults: [{ id: "f", date: "2026-10-04", s: 480, e: 600, note: "", fixed: false, orig: [] }] }],
+    products: [{ id: "p", name: "P", steps: [{ proc: "裁切", factory: 2, rate: 2, batch: 0 }] }],
     orders: [{ id: "o", code: "O1", pid: "p", qty: 10, due: "2026-10-09", pri: 0 }],
     blocks: [{ id: "b", oid: "o", step: 0, m: "a", emp: "e", date: "2026-10-05", s: 480, e: 490, qty: 10, pin: true }] };
   const back = fromSnapshot({ ...toSnapshot(S), calendar: toSnapshot(S).calendar });
@@ -205,4 +219,5 @@ test("格式轉換：畫面 → 快照 → 畫面", () => {
   assert.deepEqual(back.cal, S.cal);
   assert.deepEqual(back.dayOT, S.dayOT);
   assert.equal(back.machines[0].faults[0].s, 480);
+  assert.equal(back.machines[0].factory, 2);
 });

@@ -115,6 +115,7 @@ button{cursor:pointer}
 .board{background:var(--surface);border:1px solid var(--line2);border-radius:14px;overflow:hidden}
 .board-h{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:12px 14px;border-bottom:1px solid var(--line2)}
 .board-h h2{margin:0;font-size:20px;font-weight:900}
+.factory-empty{padding:56px 24px;text-align:center;font-size:18px;line-height:1.7}
 .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:14px;color:var(--muted)}
 .legend i{display:inline-block;width:16px;height:16px;border-radius:4px;vertical-align:-3px;margin-right:5px;border:1px solid var(--line)}
 .scroller{overflow-x:auto;-webkit-overflow-scrolling:touch}
