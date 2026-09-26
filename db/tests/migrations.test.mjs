@@ -170,6 +170,21 @@ await as(LEAD, () => expectErr("select save_blocks(1, $1, '拖曳')", [JSON.stri
 await as(LEAD, async () => { await db.query("select save_blocks(2, $1, '拖曳')", [JSON.stringify(all)]); ok(true, "組長可以儲存手動調整"); });
 ok((await db.query("select count(*)::int n from schedule_blocks where pinned")).rows[0].n === 1, "手動調整寫入（固定 1 段）");
 
+const tooEarly = all.map(b => ({ ...b }));
+tooEarly[1].start_min = 500;
+tooEarly[1].end_min = 540;
+await as(LEAD, () => expectErr("select save_blocks(3, $1, '提早後站')", [JSON.stringify(tooEarly)], /交接批量/, "RPC 不接受首批產量未做出時的後站工作"));
+const materialGap = [
+  { ...all[0], qty: 60 },
+  { ...all[0], id: null, machine_id: "b", start_min: 960, end_min: 1020, qty: 60, pinned: false },
+  { ...all[1], start_min: 660, end_min: 900, qty: 120 },
+];
+await as(LEAD, () => expectErr("select save_blocks(3, $1, '物料未到')", [JSON.stringify(materialGap)], /累積產量/, "RPC 不接受後站中途用完尚未做出的件數"));
+ok((await db.query("select version::int v from schedule_state")).rows[0].v === 3, "被拒絕的手動安排不增加版本");
+const partialBatch = [{ ...all[0], qty: 60 }, { ...all[1], start_min: 540, end_min: 550, qty: 30 }];
+await as(LEAD, () => db.query("select save_blocks(3, $1, '先交接一批')", [JSON.stringify(partialBatch)]));
+ok((await db.query("select version::int v from schedule_state")).rows[0].v === 4, "前站只做滿首批、後站先做一部分可儲存");
+
 await as(LEAD, () => expectErr("select _apply_blocks('[]'::jsonb)", [], /permission denied/, "前端不能直接呼叫內部函式"));
 
 console.log(`\n通過 ${pass}，失敗 ${fail}`);
