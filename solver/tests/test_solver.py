@@ -199,6 +199,30 @@ def test_large_unassigned_fault_plan_reuses_equivalent_second_strategy(monkeypat
     assert plan["options"][0]["diagnostics"] == plan["options"][1]["diagnostics"]
 
 
+def test_large_plan_marks_unstarted_options_after_total_wait_budget(monkeypatch):
+    snap = snapshot_for(5, 10, 40)
+    elapsed = [0]
+    calls = []
+
+    def fake_solve(snapshot, now, weights, **kwargs):
+        calls.append(weights)
+        elapsed[0] += 24
+        return Result([], "UNKNOWN", None, 24.0, 160, ["not found"])
+
+    monkeypatch.setattr(plan_api, "monotonic", lambda: elapsed[0])
+    monkeypatch.setattr(plan_api, "solve", fake_solve)
+    plan = make_plans(PlanRequest(
+        snapshot=snap,
+        event=Event(type="fault", machine="m0", date="2026-09-28", start=480, end=720),
+        now=Now(date="2026-09-28", min=480), time_limit=10,
+    ))
+    assert len(calls) == 2  # A 和 C 算完，B 共用 A，D 不再開始
+    assert [option["id"] for option in plan["options"]] == ["A", "B", "C", "D"]
+    skipped = plan["options"][-1]
+    assert skipped["status"] == "SKIPPED" and skipped["applicable"] is False
+    assert skipped["diagnostics"] == ["大型排程已達整體等待上限，此方案尚未計算；可先查看已完成的方案，或縮小範圍後重試"]
+
+
 def test_solver_worker_limit_can_be_configured_without_changing_default(demo, monkeypatch):
     snap, now = demo
     monkeypatch.delenv("SOLVER_MAX_WORKERS", raising=False)

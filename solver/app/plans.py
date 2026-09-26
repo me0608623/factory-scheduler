@@ -12,6 +12,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
+from time import monotonic
 from typing import Callable
 
 from .model import PRESETS, Result, Weights, configured_workers, solve
@@ -345,6 +346,9 @@ def make_plans(req: PlanRequest) -> dict:
     large = operation_count >= 150
     worker_cap = configured_workers()
     workers = worker_cap if large else max(1, worker_cap // max(1, len(strategies)))
+    # 瀏覽器 60 秒會放棄請求；大型方案逐一計算，保留餘裕給資料庫存預覽、
+    # JSON 回應及網路傳輸。已開始的單案不能在此處安全中斷。
+    deadline = monotonic() + 50 if large else None
     same_unassigned_objective = (
         PRESETS["min_change"].tard == PRESETS["keep_assign"].tard
         and PRESETS["min_change"].comp == PRESETS["keep_assign"].comp
@@ -363,6 +367,11 @@ def make_plans(req: PlanRequest) -> dict:
                 and req.event.type in ("fault", "leave") and not ot
                 and st.id == "B" and shared_unassigned is not None):
             return st, shared_unassigned, shared_unassigned.blocks
+        if deadline is not None and deadline - monotonic() < req.time_limit + 4:
+            skipped = Result(list(a.snap.blocks), "SKIPPED", None, 0.0, operation_count,
+                             ["大型排程已達整體等待上限，此方案尚未計算；可先查看已完成的方案，或縮小範圍後重試"],
+                             search_mode="skipped")
+            return st, skipped, skipped.blocks
         res = solve(a.snap, now, PRESETS[st.preset], reference=st.reference(a), movable=st.movable(a),
                     extra_overtime=frozenset(ot), time_limit=req.time_limit, workers=workers)
         if (large and same_unassigned_objective and not a.snap.blocks
@@ -382,7 +391,7 @@ def make_plans(req: PlanRequest) -> dict:
         missing_products = [o for o in a.snap.orders if o.product not in {p.id for p in a.snap.products}]
         if missing_products:
             diagnostics.extend(f"{o.code}：找不到產品資料；請先建立產品與工序" for o in missing_products)
-        else:
+        elif not (res and res.status == "SKIPPED"):
             diagnostics.extend(check(a.snap, blocks, now, overtime_days)[:5])
         applicable = (res is None or res.status in ("OPTIMAL", "FEASIBLE")) and not diagnostics
         eff = copy.deepcopy(a.effects)
