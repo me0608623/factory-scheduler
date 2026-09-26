@@ -1156,7 +1156,7 @@ export(){
    '<button class="btn primary" data-act="x-xlsx" style="height:60px;justify-content:flex-start">'+IC.down+'下載 '+mdw(UI.date)+' 彩色排程 Excel（.xlsx）</button>'+
    '<button class="btn" data-act="x-template" style="height:60px;justify-content:flex-start">'+IC.down+'下載批次匯入範本（.xlsx）</button>'+
    (canMaster()?'<label class="btn" style="height:60px;justify-content:flex-start;cursor:pointer">選擇填好的 Excel 檔案，檢查並預覽<input id="xlsx-import" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none"></label>':'')+
-   '<div class="hint">匯入可一次更新員工、機台、產品工序及工單。先檢查檔案並預覽；確認前不會變更資料。</div>'+
+   '<div class="hint">匯入範本可一次更新員工、機台、產品工序及工單。舊版排程 Excel 會先以唯讀方式預覽，不會取代現有資料。</div>'+
    '<button class="btn" data-act="x-copy-day" style="height:60px;justify-content:flex-start">複製 '+mdw(UI.date)+' 排程表（和原本 Excel 一樣的格式）</button>'+
    '<button class="btn" data-act="x-copy-all" style="height:60px;justify-content:flex-start">複製全部明細（每段一列）</button>'+
    ('<button class="btn primary" data-act="x-dl" style="height:60px;justify-content:flex-start">'+IC.down+'下載全部明細 CSV 檔</button>')+
@@ -1170,6 +1170,20 @@ export(){
   return {title:m.errors.length?'Excel 匯入 · 請修正檔案':'Excel 匯入 · 確認取代資料',
     body:'<div class="hint">檔案：'+esc(m.filename)+'</div>'+summary+problems+warning,
     foot:'<button class="btn" data-act="close">取消</button>'+(m.errors.length?'':'<button class="btn primary" data-act="x-import-confirm">確認匯入並清空舊排程</button>')};
+},
+"legacy-preview"(m){
+  const legacy=m.legacy,day=legacy.days[m.date]||{"1廠":[],"2廠":[],overtime:{}};
+  const datePicker='<div class="field"><span class="lab">原表日期</span><select id="legacy-date" aria-label="原表日期">'+legacy.dates.map(d=>'<option value="'+esc(d)+'"'+(d===m.date?' selected':'')+'>'+esc(d)+'</option>').join('')+'</select></div>';
+  const factorySection=factory=>{
+    const entries=day[factory];
+    return '<div class="field"><span class="lab">'+factory+' · '+entries.length+' 格'+(day.overtime[factory]?' · 原表標示加班':'')+'</span>'+
+      (entries.length?'<div class="result">'+entries.map(item=>'<div class="rline"><span class="k info">'+esc(item.cell)+'</span><span style="white-space:pre-wrap">'+esc(item.machine)+'：'+esc(item.value)+'</span></div>').join('')+'</div>':'<div class="hint">這天沒有辨識到排程內容</div>')+'</div>';
+  };
+  return {title:'舊版排程 · 唯讀預覽',body:
+    '<div class="hint">檔案：'+esc(m.filename)+'。原始格位與文字照原表顯示；這不是系統目前的時段排程。</div>'+datePicker+
+    factorySection('1廠')+factorySection('2廠')+
+    '<div class="issues"><div class="issue">尚未匯入：原表未明確標出每段工作的開始／結束時間，也無法可靠對應目前的產品工序與員工。此預覽不會更動示範資料或雲端排程。</div></div>',
+    foot:'<button class="btn" data-act="close">關閉預覽</button>'};
 }
 };
 /* ---------- 上班日設定 ---------- */
@@ -1730,6 +1744,9 @@ Object.assign(MODAL_ACT,{
   }
 });
 document.addEventListener("change",async e=>{
+  if(e.target.id==="legacy-date"&&UI.modal?.t==="legacy-preview"){
+    UI.modal.date=e.target.value;renderModal();return;
+  }
   if(e.target.id!=="xlsx-import"||!e.target.files?.[0]||!canMaster())return;
   const file=e.target.files[0],base=JSON.stringify(S);
   if(!/\.xlsx$/i.test(file.name)||file.size>5*1024*1024){
@@ -1737,8 +1754,9 @@ document.addEventListener("change",async e=>{
   }
   try{
     const {readImportXlsx}=await import("./excel.js");
-    const result=await readImportXlsx(await file.arrayBuffer());
-    openModal({t:"import-preview",filename:file.name,base,...result});
+    const result=await readImportXlsx(await file.arrayBuffer(),file.name);
+    if(result.legacy) openModal({t:"legacy-preview",filename:file.name,legacy:result.legacy,date:result.legacy.selectedDate});
+    else openModal({t:"import-preview",filename:file.name,base,...result});
   }catch(err){openModal({t:"import-preview",filename:file.name,base,errors:["無法讀取 Excel："+err.message],data:null});}
 });
 document.addEventListener("change",e=>{

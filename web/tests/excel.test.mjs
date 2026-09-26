@@ -57,3 +57,31 @@ test("Excel 匯出：時間×機台、員工顏色及明細可保留", async () 
   assert.match(grid.getCell("B8").value, /張三.*A01 裁切/);
   assert.equal(opened.getWorksheet("排程明細").getCell("I2").value, 120);
 });
+
+test("舊版實際排程只讀預覽，不誤當成會清空排程的匯入範本", async () => {
+  const wb = new ExcelJS.Workbook();
+  const first = wb.addWorksheet("1廠");
+  first.getCell("B2").value = "焊接";
+  first.getCell("A3").value = new Date("2024-10-23T00:00:00Z");
+  first.getCell("B3").value = "品號*800\n14H";
+  first.getCell("A4").value = "加班";
+  const second = wb.addWorksheet("2廠");
+  second.getCell("B3").value = "自動4";
+  second.getCell("N3").value = "手動機7";
+  second.getCell("O4").value = "右";
+  second.getCell("AC2").value = "包裝";
+  second.getCell("A5").value = new Date("2024-10-23T00:00:00Z");
+  second.getCell("B5").value = "產品甲";
+  second.getCell("O5").value = "產品乙";
+  second.getCell("AC5").value = "產品丙";
+  const parsed = await readImportXlsx(await wb.xlsx.writeBuffer(), "排程1023.xlsx");
+  assert.equal(parsed.data, null);
+  assert.equal(parsed.legacy.selectedDate, "2024-10-23");
+  assert.deepEqual(parsed.legacy.dates, ["2024-10-23"]);
+  assert.deepEqual(parsed.legacy.days["2024-10-23"]["1廠"], [
+    { cell: "B3", machine: "焊接", value: "品號*800\n14H" },
+  ]);
+  assert.equal(parsed.legacy.days["2024-10-23"].overtime["1廠"], true);
+  assert.equal(parsed.legacy.days["2024-10-23"]["2廠"].find(x => x.cell === "O5").machine, "手動機7（右）");
+  assert.equal(parsed.legacy.days["2024-10-23"]["2廠"].find(x => x.cell === "AC5").machine, "包裝");
+});

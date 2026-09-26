@@ -225,7 +225,10 @@ export function parseImportWorkbook(workbook) {
   return { data: { employees, machines, products, orders }, errors: [...new Set(errors)] };
 }
 
-export async function readImportXlsx(arrayBuffer) {
+export async function readImportXlsx(arrayBuffer, filename = "") {
+  const { readLegacyXlsx } = await import("./legacy-excel.js");
+  const legacy = await readLegacyXlsx(arrayBuffer, filename);
+  if (legacy) return { legacy, data: null, errors: [] };
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(arrayBuffer);
   return parseImportWorkbook(workbook);
