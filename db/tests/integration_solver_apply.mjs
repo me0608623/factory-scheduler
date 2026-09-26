@@ -19,9 +19,14 @@ for (const name of fs.readdirSync(path.join(root, "migrations")).sort()) {
   catch (error) { if (!name.includes("realtime")) throw error; }
 }
 await db.exec(fs.readFileSync(path.join(root, "seed.sql"), "utf8"));
+// seed.sql uses current_date for demo due dates; pin them so this regression stays repeatable.
+await db.query(`update orders set due_date=date '2026-09-27' + case code
+  when 'A01' then 4 when 'B02' then 5 when 'C03' then 6
+  when 'A04' then 9 when 'B05' then 10 when 'C06' then 11 end`);
 
 // 三個產品都在二廠包裝；裁切、沖壓與焊接留在一廠，形成實際跨廠路線。
 await db.query("update product_steps set factory=2 where process='包裝'");
+await db.query("update product_steps set transfer_batch=60 where process='包裝' and product_id='00000000-0000-4000-8000-0000000000a1'");
 await db.query("update machines set factory=2 where id='e'");
 await db.query("update employees set factory=2 where code in ('E03','E04')");
 const uid = "11111111-1111-4111-8111-111111111111";
@@ -60,6 +65,12 @@ try {
   }
 
   await planAndApply({ type: "auto" });
+  const earlyTransfers = (await db.query(`select count(*)::int as value from schedule_blocks pack
+    join orders o on o.id=pack.order_id
+    where o.product_id='00000000-0000-4000-8000-0000000000a1' and pack.step_seq=2
+      and (pack.date + pack.start_min * interval '1 minute') < (
+        select max(upstream.date + upstream.end_min * interval '1 minute')
+          from schedule_blocks upstream where upstream.order_id=pack.order_id and upstream.step_seq=1)`)).rows[0].value;
   const fault = await planAndApply({ type: "fault", machine: "c", date: "2026-09-29", start: 480, end: 720, note: "integration" });
   await planAndApply({ type: "leave", employee: "00000000-0000-4000-8000-0000000000e3", date: "2026-09-30", note: "integration" });
   await planAndApply({ type: "order", order: { id: "00000000-0000-4000-8000-0000000000b7", code: "Z07",
@@ -75,11 +86,11 @@ try {
     (select count(*)::int from orders where code='Z07' and qty=80) as rush_orders,
     (select count(*)::int from change_sets) as changes`,
   [fault.effects.faults_insert[0].id, "00000000-0000-4000-8000-0000000000e3"])).rows[0];
-  if (version !== outcomes.length || counts.blocks < 21 || counts.second_factory < 7 ||
+  if (version !== outcomes.length || counts.blocks < 21 || counts.second_factory < 7 || earlyTransfers < 1 ||
       effects.remaining_faults !== 0 || effects.leaves !== 1 || effects.rush_orders !== 1 || effects.changes !== 5) {
     throw new Error(JSON.stringify({ version, counts, effects, outcomes }));
   }
-  console.log(JSON.stringify({ version, second_factory_blocks: counts.second_factory, effects, outcomes }));
+  console.log(JSON.stringify({ version, second_factory_blocks: counts.second_factory, earlyTransfers, effects, outcomes }));
 } finally {
   await db.close();
 }
