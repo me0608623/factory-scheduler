@@ -1,6 +1,7 @@
 """排程服務測試：時間軸、OR-Tools 模型、各種突發狀況的方案、API。"""
 from fastapi.testclient import TestClient
 
+from app import main as api
 from app.main import app
 from app.model import PRESETS, solve
 from app.plans import make_plans
@@ -184,3 +185,33 @@ def test_public_deployment_disables_snapshot_endpoints(demo, monkeypatch):
     assert c.post("/plans", json={**payload, "event": {"type": "auto"}}).status_code == 403
     assert c.post("/solve", json=payload).status_code == 403
     assert c.get("/health").status_code == 200
+
+
+def test_only_one_plan_computation_per_service_process(demo, monkeypatch):
+    snap, now = demo
+    c = TestClient(app)
+
+    class FakeSupabase:
+        configured = True
+
+        async def user_id(self, jwt):
+            return "tester"
+
+        async def role(self, jwt):
+            return "boss"
+
+        async def snapshot(self, jwt):
+            return snap.model_dump()
+
+    monkeypatch.setattr(api, "supa", FakeSupabase())
+    payload = {"snapshot": snap.model_dump(), "now": now.model_dump(), "time_limit": 2}
+    with api.computation_slot():
+        for path, body, headers in [
+            ("/solve", payload, {}),
+            ("/plans", {**payload, "event": {"type": "auto"}}, {}),
+            ("/plans/db", {"event": {"type": "auto"}, "now": now.model_dump()}, {"Authorization": "Bearer token"}),
+        ]:
+            response = c.post(path, json=body, headers=headers)
+            assert response.status_code == 429, path
+            assert response.headers["retry-after"] == "5"
+    assert c.post("/plans", json={**payload, "event": {"type": "auto"}}).status_code == 200

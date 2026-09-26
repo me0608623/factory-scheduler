@@ -8,6 +8,8 @@ GET  /health     健康檢查
 from __future__ import annotations
 
 import os
+from contextlib import contextmanager
+from threading import BoundedSemaphore
 
 import ortools
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -29,6 +31,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 supa = Supabase()
+_solve_slot = BoundedSemaphore(1)
+
+
+@contextmanager
+def computation_slot():
+    """同一服務程序一次只執行一組 OR-Tools 求解，避免多請求疊加記憶體峰值。"""
+    if not _solve_slot.acquire(blocking=False):
+        raise HTTPException(429, "排程正在計算，請稍後重試", headers={"Retry-After": "5"})
+    try:
+        yield
+    finally:
+        _solve_slot.release()
 
 
 def require_api_key(x_api_key: str | None = Header(default=None)):
@@ -48,7 +62,8 @@ def health():
 @app.post("/solve", dependencies=[Depends(require_api_key)])
 def solve_once(req: SolveRequest):
     now = req.now or now_tw()
-    res = solve(req.snapshot, now, PRESETS[req.preset], time_limit=req.time_limit)
+    with computation_slot():
+        res = solve(req.snapshot, now, PRESETS[req.preset], time_limit=req.time_limit)
     return {"status": res.status, "seconds": round(res.wall, 2), "unplaced": res.unplaced,
             "issues": check(req.snapshot, res.blocks, now), "blocks": [b.model_dump() for b in res.blocks]}
 
@@ -56,7 +71,8 @@ def solve_once(req: SolveRequest):
 @app.post("/plans", dependencies=[Depends(require_api_key)])
 def plans(req: PlanRequest):
     try:
-        return make_plans(req)
+        with computation_slot():
+            return make_plans(req)
     except (ValueError, StopIteration) as e:
         raise HTTPException(400, str(e) or "資料不完整")
 
@@ -77,7 +93,8 @@ async def plans_db(req: DbPlanRequest, authorization: str = Header(...)):
         if await supa.role(jwt) not in ("boss", "lead"):
             raise HTTPException(403, "只有老闆或組長可以計算方案")
         snap = Snapshot(**await supa.snapshot(jwt))
-        plan = await run_in_threadpool(make_plans, PlanRequest(snapshot=snap, event=req.event, now=req.now, time_limit=req.time_limit))
+        with computation_slot():
+            plan = await run_in_threadpool(make_plans, PlanRequest(snapshot=snap, event=req.event, now=req.now, time_limit=req.time_limit))
         plan["preview_id"] = await supa.save_preview(plan, uid)
         return plan
     except SupabaseError as e:
