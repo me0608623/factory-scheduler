@@ -114,6 +114,8 @@ const otSnap = await as(TV, async () => (await db.query("select schedule_snapsho
 const otEmp = otSnap.employees.find(e => e.id === EMP1);
 ok(JSON.stringify(otEmp.overtime_weekdays) === JSON.stringify([1,3,5]) && otEmp.overtime_overrides["2026-10-01"] === true,
   "快照含固定星期與單日臨時意願");
+ok(otSnap.employees.find(e => e.id === "00000000-0000-4000-8000-0000000000e5")?.overtime_weekdays?.length === 0,
+  "不能加班的示範員工匯入後沒有可加班星期");
 
 console.log("員工同時顧機台上限");
 ok(otEmp.max_concurrent_machines === 1, "既有員工預設最多顧一台");
@@ -258,6 +260,35 @@ await as(LEAD, () => db.query("select save_blocks(5, $1, '工作在請假故障�
 ok((await db.query("select version::int v from schedule_state")).rows[0].v === 6, "工作剛好在請假與故障開始時結束，仍可儲存");
 await db.query("delete from leaves where employee_id=$1 and date='2026-10-05'", [EMP1]);
 await db.query("delete from machine_faults where note='測試相鄰故障'");
+const afterAvailability = (await db.query("select id, order_id, step_seq, machine_id, employee_id, date::text, start_min, end_min, qty, pinned from schedule_blocks")).rows;
+await as(LEAD, () => expectErr("select save_blocks(6, $1, '停工日排班')",
+  [JSON.stringify([...afterAvailability, { ...newManual, date: "2026-10-04" }])], /停工日/, "RPC 不接受週日停工時排工作"));
+await as(LEAD, () => expectErr("select save_blocks(6, $1, '午休排班')",
+  [JSON.stringify([...afterAvailability, { ...newManual, start_min: 720, end_min: 780 }])], /上班時段/, "RPC 不接受工作方塊跨入午休"));
+await as(LEAD, () => expectErr("select save_blocks(6, $1, '未開加班')",
+  [JSON.stringify([...afterAvailability, { ...newManual, date: "2026-10-06", start_min: 1020, end_min: 1080 }])], /上班時段/, "RPC 不接受未開加班日的晚間工作"));
+await as(LEAD, () => expectErr("select save_blocks(6, $1, '員工不加班')",
+  [JSON.stringify([...afterAvailability, { ...newManual, employee_id: "00000000-0000-4000-8000-0000000000e5", start_min: 1020, end_min: 1080 }])], /不可加班/, "RPC 不接受員工不願加班的晚間工作"));
+await as(LEAD, () => expectErr("select save_blocks(6, $1, '假日員工不出勤')",
+  [JSON.stringify([...afterAvailability, { ...newManual, employee_id: "00000000-0000-4000-8000-0000000000e5", date: "2026-10-26" }])], /不可加班/, "RPC 不接受員工不願假日出勤的工作"));
+ok((await db.query("select version::int v from schedule_state")).rows[0].v === 6, "停工、午休與不許加班被拒後版本保持不變");
+await as(LEAD, () => db.query("select save_blocks(6, $1, '合法加班')",
+  [JSON.stringify([...afterAvailability, { ...newManual, start_min: 1020, end_min: 1080 }])]));
+ok((await db.query("select version::int v from schedule_state")).rows[0].v === 7, "已開加班且員工當日可加班時，仍可儲存晚間工作");
+const afterOvertime = (await db.query("select id, order_id, step_seq, machine_id, employee_id, date::text, start_min, end_min, qty, pinned from schedule_blocks")).rows;
+const extraOvertime = { ...newManual, start_min: 1080, end_min: 1140 };
+await db.query("update calendar_days set is_open=false where date='2026-10-05'");
+await as(LEAD, () => expectErr("select save_blocks(7, $1, '單日改停工')",
+  [JSON.stringify([...afterOvertime, extraOvertime])], /停工日/, "RPC 尊重單日停工覆蓋每週開工設定"));
+await db.query("update calendar_days set is_open=null where date='2026-10-05'");
+await db.query("insert into employee_overtime_days (employee_id,date,available) values ($1,'2026-10-05',false)", [EMP1]);
+await as(LEAD, () => expectErr("select save_blocks(7, $1, '當天臨時不加班')",
+  [JSON.stringify([...afterOvertime, extraOvertime])], /不可加班/, "RPC 尊重員工單日臨時改成不加班"));
+await db.query("delete from employee_overtime_days where employee_id=$1 and date='2026-10-05'", [EMP1]);
+await db.query("insert into employee_overtime_days (employee_id,date,available) values ($1,'2026-10-05',true)", ["00000000-0000-4000-8000-0000000000e5"]);
+await as(LEAD, () => db.query("select save_blocks(7, $1, '臨時同意加班')",
+  [JSON.stringify([...afterOvertime, { ...extraOvertime, employee_id: "00000000-0000-4000-8000-0000000000e5" }])]));
+ok((await db.query("select version::int v from schedule_state")).rows[0].v === 8, "原本不加班的員工當日臨時同意後可儲存工作");
 
 await as(LEAD, () => expectErr("select _apply_blocks('[]'::jsonb)", [], /permission denied/, "前端不能直接呼叫內部函式"));
 

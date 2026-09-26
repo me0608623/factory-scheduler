@@ -147,6 +147,64 @@ begin
   end if;
 end $$;
 
+-- 手動儲存須依正式行事曆、午休與個人加班意願判斷，避免只靠畫面提示。
+create function _assert_manual_calendar(p_blocks jsonb, p_order_ids uuid[]) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  bad_date date;
+  bad_employee uuid;
+begin
+  with b as (
+    select x.order_id, x.date as work_date
+      from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(order_id uuid, date date)
+     where x.order_id = any(p_order_ids)
+  )
+  select b.work_date into bad_date
+    from b join calendar_weekly cw on cw.weekday = extract(dow from b.work_date)::smallint
+    left join calendar_days cd on cd.date = b.work_date
+   where coalesce(cd.is_open, cw.is_open) is not true
+   limit 1;
+  if found then
+    raise exception '% 是停工日，不能排工作', bad_date;
+  end if;
+
+  with b as (
+    select x.order_id, x.date as work_date, x.start_min, x.end_min
+      from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(
+        order_id uuid, date date, start_min smallint, end_min smallint)
+     where x.order_id = any(p_order_ids)
+  )
+  select b.work_date into bad_date
+    from b left join calendar_days cd on cd.date = b.work_date
+   where not exists (
+     select 1 from work_windows w
+      where b.start_min >= w.start_min and b.end_min <= w.end_min
+        and (not w.is_overtime or coalesce(cd.overtime, false)))
+   limit 1;
+  if found then
+    raise exception '% 的方塊不在可用上班時段內（午休或未開加班）', bad_date;
+  end if;
+
+  with b as (
+    select x.order_id, x.employee_id, x.date as work_date, x.start_min, x.end_min,
+           extract(dow from x.date)::smallint as weekday
+      from jsonb_to_recordset(coalesce(p_blocks, '[]'::jsonb)) as x(
+        order_id uuid, employee_id uuid, date date, start_min smallint, end_min smallint)
+     where x.order_id = any(p_order_ids) and x.employee_id is not null
+  )
+  select b.employee_id, b.work_date into bad_employee, bad_date
+    from b join employees e on e.id = b.employee_id
+    left join employee_overtime_days od on od.employee_id = b.employee_id and od.date = b.work_date
+   where (b.weekday in (0, 6) or exists (select 1 from holidays h where h.date = b.work_date)
+      or exists (select 1 from work_windows w where w.is_overtime
+                 and b.start_min >= w.start_min and b.end_min <= w.end_min))
+     and coalesce(od.available, b.weekday = any(e.overtime_weekdays)) is not true
+   limit 1;
+  if found then
+    raise exception '員工 % 在 % 不可加班或假日出勤', bad_employee, bad_date;
+  end if;
+end $$;
+
 -- 新增／移動的工單不可占用請假或故障分鐘；已有的部分時段也需逐段檢查。
 create function _assert_manual_absences(p_blocks jsonb, p_order_ids uuid[]) returns void
 language plpgsql security definer set search_path = public as $$
@@ -273,6 +331,7 @@ begin
     perform _assert_manual_quantity(p_blocks, changed_orders);
     perform _assert_manual_material_flow(p_blocks, changed_orders);
     perform _assert_manual_assignments(p_blocks, changed_orders);
+    perform _assert_manual_calendar(p_blocks, changed_orders);
     perform _assert_manual_absences(p_blocks, changed_orders);
     perform _assert_manual_resources(p_blocks, changed_orders);
   end if;
@@ -287,5 +346,6 @@ end $$;
 revoke all on function _assert_manual_material_flow(jsonb, uuid[]) from public, anon, authenticated;
 revoke all on function _assert_manual_quantity(jsonb, uuid[]) from public, anon, authenticated;
 revoke all on function _assert_manual_assignments(jsonb, uuid[]) from public, anon, authenticated;
+revoke all on function _assert_manual_calendar(jsonb, uuid[]) from public, anon, authenticated;
 revoke all on function _assert_manual_absences(jsonb, uuid[]) from public, anon, authenticated;
 revoke all on function _assert_manual_resources(jsonb, uuid[]) from public, anon, authenticated;
