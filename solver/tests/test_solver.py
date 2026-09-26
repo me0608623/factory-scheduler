@@ -790,6 +790,19 @@ def test_mixed_cross_factory_scenarios_remain_valid(seed):
     assert check(snap, result.blocks, now) == []
 
 
+@pytest.mark.parametrize("seed,with_fixed,shared_operators", [
+    (3, True, False), (4, False, True), (5, True, True),
+])
+def test_mixed_fixed_and_shared_operator_scenarios(seed, with_fixed, shared_operators):
+    snap, now, pair_cap = mixed_case(seed, with_fixed=with_fixed,
+                                     shared_operators=shared_operators)
+    result = solve(snap, now, PRESETS["on_time"], days=10,
+                   time_limit=1, workers=2, pair_cap=pair_cap)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert result.unplaced == []
+    assert check(snap, result.blocks, now) == []
+
+
 def test_fixed_downstream_cannot_precede_rescheduled_cross_factory_upstream():
     snap = Snapshot(
         calendar=Calendar(week=[False, True, True, True, True, True, False]),
