@@ -236,10 +236,19 @@ def solve(
         # 大模型先給受限人機候選完整的求解預算；若可準時且驗證通過，省去
         # 大量可選區間的完整模型。若初稿仍逾期，保留它並繼續嘗試完整模型。
         delayed_pairs = sum(ready > t_now for ready in first_available.values())
-        draft_pair_cap = 2 if delayed_pairs * 4 >= len(first_available) else 1
+        # 大型加班案用兩組候選：額外視窗讓單候選模型在部分工單組合上
+        # 長時間搜尋且高耗記憶體，兩組候選反而較快找到合法解。
+        draft_pair_cap = 2 if (delayed_pairs * 4 >= len(first_available)
+                               or (extra_overtime and len(ops) >= 2000)) else 1
         candidate = solve(snap, now, weights, reference=reference, movable=movable,
                           extra_overtime=extra_overtime, time_limit=time_limit,
                           days=days, workers=workers, pair_cap=draft_pair_cap)
+        # 單一人機候選無解只代表「受限子問題」無解；先擴成兩組候選，
+        # 不要直接掉進巨大完整模型並把仍可排的工作誤報成逾時。
+        if draft_pair_cap == 1 and candidate.status in ("INFEASIBLE", "NO_AVAILABLE_PAIR"):
+            candidate = solve(snap, now, weights, reference=reference, movable=movable,
+                              extra_overtime=extra_overtime, time_limit=time_limit,
+                              days=days, workers=workers, pair_cap=2)
         if (candidate.status in ("OPTIMAL", "FEASIBLE") and not candidate.unplaced
                 and not check(snap, candidate.blocks, now, extra_overtime)):
             candidate.status = "FEASIBLE"
@@ -249,7 +258,9 @@ def solve(
                 order = orders.get(block.order)
                 if order and block.step == len(prods[order.product].steps) - 1:
                     finish_dates[order.id] = max(finish_dates.get(order.id, ""), block.date)
-            if all(finish_dates.get(order.id, "9999-12-31") <= order.due for order in snap.orders):
+            # 2,000 道以上即使只給完整模型 1 秒，建模本身也可能吃掉大量記憶體；
+            # 有合法初稿時先交付 FEASIBLE，避免為改善逾期而讓整個預覽失敗。
+            if len(ops) >= 2000 or all(finish_dates.get(order.id, "9999-12-31") <= order.due for order in snap.orders):
                 candidate.wall = time.time() - t_start
                 return candidate
 

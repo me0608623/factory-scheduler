@@ -11,6 +11,7 @@ const TV = "33333333-3333-4333-8333-333333333333";
 const USERS = { "boss@x": { id: BOSS, password: "pw" }, "lead@x": { id: LEAD, password: "pw" }, "tv@x": { id: TV, password: "pw" } };
 const A01 = "00000000-0000-4000-8000-0000000000b1";
 const E1 = "00000000-0000-4000-8000-0000000000e1";
+const E2 = "00000000-0000-4000-8000-0000000000e2";
 
 async function setup() {
   const db = await makeDb();
@@ -98,7 +99,7 @@ test("讀取、只寫有變的列、紀錄", async () => {
   assert.equal(S.blocks.length, 0);
 
   // 排兩段工作 → save_blocks，版本 +1，留一筆紀錄
-  S.blocks.push(blk(), blk({ step: 1, m: "c", s: 540, e: 580 }));
+  S.blocks.push(blk(), blk({ step: 1, m: "c", emp: E2, s: 540, e: 580 }));
   await boss.sync(S, { kind: "auto", title: "排程", lines: [{ k: "info", t: "測試" }], sum: "排了兩段" });
   assert.equal(await count("select count(*)::int n from schedule_blocks"), 2);
   assert.equal(await count("select version::int n from schedule_state"), 1);

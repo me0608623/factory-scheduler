@@ -1,5 +1,6 @@
 // 產線排程看板（正式版）：畫面沿用原型，資料層與排程服務可替換
 import { SOLVER } from "./solver.js";
+import { planTimeLimit } from "./plan-budget.js";
 import { toSnapshot, applyOption, newId } from "./convert.js";
 import { ALL_WEEKDAYS, overtimeAllowed, overtimeDefault, overtimeWeekdays } from "./overtime.js";
 import { capacityIntervals as occupiedCapacityIntervals } from "./capacity.js";
@@ -1494,11 +1495,12 @@ function openPlans(title,logTitle,kind,applyEvent,strategies,extra={}){
   return openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra);
 }
 async function openPlansSolver(title,logTitle,kind,applyEvent,strategies,extra){
-  toast("OR-Tools 計算中，約 3–5 秒…");
+  const timeLimit=planTimeLimit(S);
+  toast(timeLimit>3?"資料量較大，OR-Tools 計算可能需要數十秒…":"OR-Tools 計算中，請稍候…");
   const now={date:todayStr(),min:nowMin()};
   let plan;
   try{
-    plan=STORE.kind==="supabase"?await SOLVER.plansDb(extra.event,now,STORE.jwt()):await SOLVER.plans(toSnapshot(S,HOLI),extra.event,now);
+    plan=STORE.kind==="supabase"?await SOLVER.plansDb(extra.event,now,STORE.jwt(),timeLimit):await SOLVER.plans(toSnapshot(S,HOLI),extra.event,now,timeLimit);
   }catch(e){
     if(e.status&&e.status<500){toast(e.message);return;}
     toast("排程服務沒有回應，改用瀏覽器內的演算法");

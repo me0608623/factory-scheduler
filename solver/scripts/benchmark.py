@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
@@ -93,9 +94,10 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
              time_limit: float = 5.0, plans: bool = False, pair_cap: int | None = None,
              due_base_days: int = 10, leave_days: int = 0, fault_days: int = 0,
              heterogeneous: bool = False, workers: int = 8, transfer_batch: int = 0,
-             details: bool = False):
+             details: bool = False, event: str = "auto", option: str | None = None,
+             extra_overtime: bool = False):
     from app.model import PRESETS, solve
-    from app.plans import make_plans
+    from app.plans import STRATEGIES, apply_event, make_plans
     from app.schemas import Event, Now, PlanRequest
     from app.timeline import Timeline, abs_min
     from app.validate import check
@@ -103,20 +105,35 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
     snap = snapshot_for(machines, employees, orders, cross_factory,
                         due_base_days, leave_days, fault_days, heterogeneous, transfer_batch)
     now = Now(date="2026-09-28", min=480)
+    selected_event = (Event(type="fault", machine=snap.machines[0].id, date=now.date,
+                            start=480, end=720) if event == "fault" else
+                      Event(type="leave", employee=snap.employees[0].id, date=now.date)
+                      if event == "leave" else Event(type="auto"))
     if plans:
+        os.environ["SOLVER_MAX_WORKERS"] = str(workers)
         started = time.monotonic()
-        result = make_plans(PlanRequest(snapshot=snap, event=Event(type="auto"),
-                                        now=now, time_limit=time_limit))
-        print(json.dumps({"options": [{"id": option["id"], "status": option["status"],
+        original = STRATEGIES[event]
+        if option is not None:
+            STRATEGIES[event] = [strategy for strategy in original if strategy.id == option]
+        try:
+            result = make_plans(PlanRequest(snapshot=snap, event=selected_event,
+                                            now=now, time_limit=time_limit))
+        finally:
+            STRATEGIES[event] = original
+        print(json.dumps({"event": event, "option": option, "workers": workers,
+                          "options": [{"id": option["id"], "status": option["status"],
                                         "applicable": option["applicable"],
-                                        "late_orders": len(option["metrics"]["late"]),
+                                        "late_orders": len(option["metrics"]["late"]) if option["applicable"] else None,
                                         "score": option["score"],
                                         "solver_method": option["solver_method"],
                                         "solver_candidate_pairs": option["solver_candidate_pairs"]}
                                        for option in result["options"]],
                           "seconds": round(time.monotonic() - started, 2)}), flush=True)
         return
+    if event != "auto":
+        snap = apply_event(snap, selected_event, now).snap
     result = solve(snap, now, PRESETS["on_time"],
+                   extra_overtime=frozenset({now.date}) if extra_overtime else frozenset(),
                    time_limit=time_limit, days=45, workers=workers, pair_cap=pair_cap)
     last_step = len(snap.products[0].steps) - 1
     finish = {order.id: max((abs_min(block.date, block.end) for block in result.blocks
@@ -131,7 +148,9 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
               "blocks": len(result.blocks), "solve_seconds": round(result.wall, 2),
               "late_orders": late if result.status in ("OPTIMAL", "FEASIBLE") else None,
               "unplaced": len(result.unplaced),
-              "valid": not check(snap, result.blocks, now) if result.status in ("OPTIMAL", "FEASIBLE") else None}
+              "valid": not check(snap, result.blocks, now,
+                                 frozenset({now.date}) if extra_overtime else frozenset())
+              if result.status in ("OPTIMAL", "FEASIBLE") else None}
     if details and output["valid"] and not result.unplaced:
         finish_blocks = {order.id: max((block for block in result.blocks
                                         if block.order == order.id and block.step == last_step),
@@ -150,7 +169,8 @@ def run_case(machines: int, employees: int, orders: int, cross_factory: bool = F
                 late_days_total += delay
         window_start = date.fromisoformat(now.date)
         window_end = (window_start + timedelta(days=4)).isoformat()
-        timeline = Timeline(snap.calendar, now.date, 5)
+        timeline = Timeline(snap.calendar, now.date, 5,
+                            frozenset({now.date}) if extra_overtime else frozenset())
         load = defaultdict(int)
         capacity = defaultdict(int)
         products_by_id = {product.id: product for product in snap.products}
@@ -182,6 +202,11 @@ def main():
                         help="run one synthetic size through the memory-capped parent")
     parser.add_argument("--cross-factory", action="store_true")
     parser.add_argument("--plans", action="store_true")
+    parser.add_argument("--event", choices=("auto", "fault", "leave"), default="auto",
+                        help="event to exercise with --plans")
+    parser.add_argument("--option", choices=("A", "B", "C", "D"),
+                        help="limit --plans benchmark to one strategy")
+    parser.add_argument("--extra-overtime", action="store_true", help="open the event day for direct solve")
     parser.add_argument("--pair-cap", type=int)
     parser.add_argument("--due-base-days", type=int, default=10)
     parser.add_argument("--leave-days", type=int, default=0)
@@ -201,13 +226,16 @@ def main():
             or not 1 <= args.workers <= 16 or args.transfer_batch < 0
             or args.sized_case is not None and min(args.sized_case) < 1):
         parser.error("time limit must be 0-60 seconds and memory limit 100-4096 MB")
+    if args.option and not args.plans:
+        parser.error("--option requires --plans")
     if args.case:
         run_case(*args.case, cross_factory=args.cross_factory,
                  time_limit=args.time_limit, plans=args.plans, pair_cap=args.pair_cap,
                  due_base_days=args.due_base_days, leave_days=args.leave_days,
                  fault_days=args.fault_days, heterogeneous=args.heterogeneous,
                  workers=args.workers, transfer_batch=args.transfer_batch,
-                 details=args.details)
+                 details=args.details, event=args.event, option=args.option,
+                 extra_overtime=args.extra_overtime)
         return
     cases = ([(*args.sized_case, args.cross_factory)] if args.sized_case else
              [(5, 10, 10, False), (10, 20, 30, False), (10, 20, 30, True),
@@ -221,6 +249,11 @@ def main():
             command.append("--cross-factory")
         if args.plans:
             command.append("--plans")
+        command.extend(("--event", args.event))
+        if args.option:
+            command.extend(("--option", args.option))
+        if args.extra_overtime:
+            command.append("--extra-overtime")
         if args.pair_cap is not None:
             command.extend(("--pair-cap", str(args.pair_cap)))
         command.extend(("--due-base-days", str(args.due_base_days)))
@@ -238,7 +271,7 @@ def main():
         memory_limited = False
         # 多方案在大模型上逐案求解；外層保護時限需涵蓋所有策略，不能在
         # 每案合法的 10 秒預算下提早殺掉整個預覽程序。
-        parent_limit = max(30, args.time_limit * (4 if args.plans else 1) + 15)
+        parent_limit = max(30, args.time_limit * (4 if args.plans else 1) + 30)
         while proc.poll() is None and time.monotonic() - started < parent_limit:
             peak = max(peak, rss_bytes(proc.pid) or 0)
             if peak >= args.memory_limit_mb * 1048576:
@@ -254,6 +287,9 @@ def main():
         print(json.dumps({"machines": machines, "employees": employees, "orders": orders,
                           "cross_factory": cross_factory,
                           "plans": args.plans,
+                          "event": args.event,
+                          "option": args.option,
+                          "extra_overtime": args.extra_overtime,
                           "pair_cap": args.pair_cap,
                           "due_base_days": args.due_base_days,
                           "leave_days": args.leave_days,

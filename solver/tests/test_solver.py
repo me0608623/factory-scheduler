@@ -581,6 +581,61 @@ def test_very_large_absences_keep_two_pair_candidates():
     assert result.candidate_pairs == 2
 
 
+def test_very_large_overtime_starts_with_two_pair_candidates():
+    snap = snapshot_for(20, 40, 550, cross_factory=True)
+    now = Now(date="2026-09-28", min=480)
+    draft = Result(
+        blocks=[Block(order=order.id, step=3, machine="m3", employee="e3",
+                      date=order.due, start=480, end=490, qty=order.qty)
+                for order in snap.orders],
+        status="FEASIBLE", objective=1, wall=0.1, n_ops=2200,
+        search_mode="restricted_pairs", candidate_pairs=2,
+    )
+    with patch("app.model.solve", return_value=draft) as recursive, patch("app.model.check", return_value=[]):
+        result = solve(snap, now, PRESETS["on_time"], extra_overtime={now.date}, time_limit=5)
+    assert recursive.call_count == 1
+    assert recursive.call_args.kwargs["pair_cap"] == 2
+    assert result.status == "FEASIBLE"
+
+
+def test_very_large_infeasible_one_pair_retries_two_pair_draft():
+    snap = snapshot_for(20, 40, 250, cross_factory=True)
+    now = Now(date="2026-09-28", min=480)
+    one_pair = Result(blocks=[], status="INFEASIBLE", objective=None, wall=0.1, n_ops=1000,
+                      search_mode="restricted_pairs", candidate_pairs=1)
+    two_pairs = Result(
+        blocks=[Block(order=order.id, step=3, machine="m3", employee="e3",
+                      date=order.due, start=480, end=490, qty=order.qty)
+                for order in snap.orders],
+        status="FEASIBLE", objective=1, wall=0.2, n_ops=1000,
+        search_mode="restricted_pairs", candidate_pairs=2,
+    )
+    with patch("app.model.solve", side_effect=[one_pair, two_pairs]) as recursive, patch("app.model.check", return_value=[]):
+        result = solve(snap, now, PRESETS["on_time"], time_limit=5)
+    assert [call.kwargs["pair_cap"] for call in recursive.call_args_list] == [1, 2]
+    assert result.status == "FEASIBLE" and result.candidate_pairs == 2
+
+
+def test_large_valid_late_draft_returns_without_building_full_model():
+    snap = snapshot_for(20, 40, 550, cross_factory=True)
+    now = Now(date="2026-09-28", min=480)
+    one_pair = Result(blocks=[], status="INFEASIBLE", objective=None, wall=0.1, n_ops=2200,
+                      search_mode="restricted_pairs", candidate_pairs=1)
+    two_pairs = Result(
+        blocks=[Block(order=order.id, step=3, machine="m3", employee="e3",
+                      date=(date.fromisoformat(order.due) + timedelta(days=1)).isoformat(),
+                      start=480, end=490, qty=order.qty) for order in snap.orders],
+        status="FEASIBLE", objective=1, wall=0.2, n_ops=2200,
+        search_mode="restricted_pairs", candidate_pairs=2,
+    )
+    with (patch("app.model.solve", side_effect=[one_pair, two_pairs]) as recursive,
+          patch("app.model.check", return_value=[]),
+          patch.object(cp_model.CpSolver, "solve", side_effect=AssertionError("full model must not start"))):
+        result = solve(snap, now, PRESETS["on_time"], time_limit=5)
+    assert [call.kwargs["pair_cap"] for call in recursive.call_args_list] == [1, 2]
+    assert result.status == "FEASIBLE" and result.candidate_pairs == 2
+
+
 def test_restricted_draft_balances_early_orders_across_machines():
     snap = snapshot_for(20, 40, 100, cross_factory=True, due_base_days=0)
     now = Now(date="2026-09-28", min=480)
