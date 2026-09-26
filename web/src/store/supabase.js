@@ -83,6 +83,37 @@ export class SupabaseStore {
 
   jwt() { return this.session?.access_token || null; }
 
+  // 舊版 Excel 作為獨立歷史資料儲存，絕不更動目前排程快照。
+  async listLegacyArchives() {
+    const { data, error } = await this.sb.from("legacy_schedule_archives")
+      .select("id,source_name,source_sha256,date_from,date_to,imported_at")
+      .order("imported_at", { ascending: false });
+    if (error) throw new Error("讀取歷史排程失敗：" + error.message);
+    return data || [];
+  }
+
+  async getLegacyArchive(id) {
+    const { data, error } = await this.sb.from("legacy_schedule_archives")
+      .select("payload").eq("id", id).single();
+    if (error) throw new Error("讀取歷史排程內容失敗：" + error.message);
+    return data.payload;
+  }
+
+  async saveLegacyArchive({ sourceName, sourceSha256, legacy }) {
+    const table = this.sb.from("legacy_schedule_archives");
+    const { data: found, error: lookupError } = await table
+      .select("id,source_name,source_sha256,date_from,date_to,imported_at")
+      .eq("source_sha256", sourceSha256).maybeSingle();
+    if (lookupError) throw new Error("檢查歷史排程失敗：" + lookupError.message);
+    if (found) return found;
+    const { data, error } = await this.sb.from("legacy_schedule_archives")
+      .insert({ source_name: sourceName, source_sha256: sourceSha256,
+        date_from: legacy.dates[0], date_to: legacy.dates.at(-1), payload: legacy })
+      .select("id,source_name,source_sha256,date_from,date_to,imported_at").single();
+    if (error) throw new Error("儲存歷史排程失敗：" + error.message);
+    return data;
+  }
+
   // ---------- 讀 ----------
   async load() {
     const { data, error } = await this.sb.rpc("schedule_snapshot");

@@ -81,13 +81,15 @@ export class FakeSupabase {
 
   from(table) {
     const self = this;
-    const q = { op: "select", cols: "*", where: [], order: null, limit: null, single: false };
+    const q = { op: "select", cols: "*", where: [], order: null, limit: null, single: false, insertRows: null };
     const b = {
       select(cols = "*") { q.cols = cols; return b; },
       eq(col, v) { q.where.push([col, v]); return b; },
       order(col, { ascending = true } = {}) { q.order = `${col} ${ascending ? "asc" : "desc"}`; return b; },
       limit(n) { q.limit = n; return b; },
       maybeSingle() { q.single = true; return b; },
+      single() { q.single = true; return b; },
+      insert(row) { q.op = "insert"; q.insertRows = Array.isArray(row) ? row : [row]; return b; },
       delete() { q.op = "delete"; return b; },
       async upsert(rows, { onConflict }) {
         for (const row of rows) {
@@ -102,9 +104,10 @@ export class FakeSupabase {
       },
       then(resolve, reject) {
         const w = q.where.map(([c], i) => `${c} = $${i + 1}`).join(" and ");
-        const params = q.where.map(([, v]) => v);
-        const sql = q.op === "delete"
-          ? `delete from ${table}${w ? " where " + w : ""}`
+        const row = q.insertRows?.[0], cols = row ? Object.keys(row) : [];
+        const params = q.op === "insert" ? cols.map(c => val(row[c])) : q.where.map(([, v]) => v);
+        const sql = q.op === "delete" ? `delete from ${table}${w ? " where " + w : ""}`
+          : q.op === "insert" ? `insert into ${table} (${cols.join(",")}) values (${cols.map((_, i) => "$" + (i + 1)).join(",")}) returning ${q.cols}`
           : `select ${q.cols} from ${table}${w ? " where " + w : ""}${q.order ? " order by " + q.order : ""}${q.limit ? " limit " + q.limit : ""}`;
         return self._run(sql, params).then((r) => (q.single && !r.error ? { data: r.data[0] || null, error: null } : r)).then(resolve, reject);
       },

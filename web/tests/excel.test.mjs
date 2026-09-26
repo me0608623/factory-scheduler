@@ -65,11 +65,16 @@ test("舊版實際排程只讀預覽，不誤當成會清空排程的匯入範�
   first.getCell("A3").value = new Date("2024-10-23T00:00:00Z");
   first.getCell("B3").value = "品號*800\n14H";
   first.getCell("A4").value = "加班";
+  first.getCell("AJ2").value = "休假";
+  first.getCell("AJ4").value = "阿明";
+  first.getCell("AT3").value = 0;
   const second = wb.addWorksheet("2廠");
   second.getCell("B3").value = "自動4";
   second.getCell("N3").value = "手動機7";
   second.getCell("O4").value = "右";
   second.getCell("AC2").value = "包裝";
+  second.getCell("AN2").value = "請假人員";
+  second.getCell("AN5").value = "阿華";
   second.getCell("A5").value = new Date("2024-10-23T00:00:00Z");
   second.getCell("B5").value = "產品甲";
   second.getCell("O5").value = "產品乙";
@@ -78,10 +83,13 @@ test("舊版實際排程只讀預覽，不誤當成會清空排程的匯入範�
   assert.equal(parsed.data, null);
   assert.equal(parsed.legacy.selectedDate, "2024-10-23");
   assert.deepEqual(parsed.legacy.dates, ["2024-10-23"]);
-  assert.deepEqual(parsed.legacy.days["2024-10-23"]["1廠"], [
-    { cell: "B3", machine: "焊接", value: "品號*800\n14H" },
-  ]);
+  assert.deepEqual(parsed.legacy.days["2024-10-23"]["1廠"].find(x => x.cell === "B3"),
+    { cell: "B3", machine: "焊接", value: "品號*800\n14H" });
   assert.equal(parsed.legacy.days["2024-10-23"].overtime["1廠"], true);
+  assert.equal(parsed.legacy.days["2024-10-23"].notes["1廠"][0].value, "加班");
+  assert.equal(parsed.legacy.days["2024-10-23"]["1廠"].find(x => x.cell === "AJ4").machine, "休假");
+  assert.equal(parsed.legacy.days["2024-10-23"]["1廠"].find(x => x.cell === "AT3").value, "0");
   assert.equal(parsed.legacy.days["2024-10-23"]["2廠"].find(x => x.cell === "O5").machine, "手動機7（右）");
   assert.equal(parsed.legacy.days["2024-10-23"]["2廠"].find(x => x.cell === "AC5").machine, "包裝");
+  assert.equal(parsed.legacy.days["2024-10-23"]["2廠"].find(x => x.cell === "AN5").machine, "請假人員");
 });

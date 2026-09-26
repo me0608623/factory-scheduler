@@ -60,6 +60,20 @@ await as(LEAD, async () => {
   ok(r.affectedRows === 0, "組長不能把自己升成老闆");
 });
 
+console.log("舊版排程歷史資料");
+const archiveHash = "a".repeat(64);
+await as(LEAD, async () => {
+  const r = await db.query("insert into legacy_schedule_archives (source_name,source_sha256,date_from,date_to,payload) values ('排程1023.xlsx',$1,'2024-06-19','2024-11-02',$2::jsonb) returning id,imported_by", [archiveHash, JSON.stringify({ dates: ["2024-10-23"], days: { "2024-10-23": { "1廠": [{ cell: "B788", value: "A040*2400" }], "2廠": [] } } })]);
+  ok(r.rows.length === 1 && r.rows[0].imported_by === LEAD, "組長可存入獨立的歷史排程");
+  await expectErr("insert into legacy_schedule_archives (source_name,source_sha256,date_from,date_to,payload) values ('重複',$1,'2024-06-19','2024-11-02','{}')", [archiveHash], /duplicate key|unique constraint/, "相同來源不能重複匯入");
+});
+await as(TV, async () => {
+  const n = (await db.query("select count(*)::int n from legacy_schedule_archives")).rows[0].n;
+  ok(n === 0, "唯讀電視帳號看不到歷史原表");
+  await expectErr("insert into legacy_schedule_archives (source_name,source_sha256,date_from,date_to,payload) values ('測試',$1,'2024-06-19','2024-11-02','{}')", ["b".repeat(64)], /row-level security|not-null constraint/, "唯讀帳號不能上傳歷史原表");
+});
+ok((await db.query("select count(*)::int n from schedule_blocks")).rows[0].n === 0, "歷史匯入不改目前排程方塊");
+
 console.log("權限（RLS）");
 await as(TV, async () => {
   const n = (await db.query("select count(*)::int n from machines")).rows[0].n;

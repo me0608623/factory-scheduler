@@ -54,6 +54,26 @@ test("受邀帳號可設定密碼，忘記密碼信導向指定網址", async ()
   assert.equal(s.role, "lead");
 });
 
+test("組長匯入舊版歷史排程，不改示範資料與排程版本", async () => {
+  const { store, count } = await setup();
+  const lead = await store("lead@x"), viewer = await store("tv@x");
+  const before = await lead.load();
+  const legacy = { dates: ["2024-10-23"], selectedDate: "2024-10-23",
+    days: { "2024-10-23": { "1廠": [{ cell: "B788", machine: "焊接", value: "A040*2400" }], "2廠": [], overtime: {} } } };
+  const input = { sourceName: "排程1023.xlsx", sourceSha256: "a".repeat(64), legacy };
+  const saved = await lead.saveLegacyArchive(input);
+  assert.equal(saved.source_name, "排程1023.xlsx");
+  assert.equal((await lead.listLegacyArchives()).length, 1);
+  assert.deepEqual(await lead.getLegacyArchive(saved.id), legacy);
+  assert.equal((await lead.saveLegacyArchive(input)).id, saved.id, "再次上傳同檔不會重複");
+  assert.deepEqual(await viewer.listLegacyArchives(), [], "唯讀帳號不能查看歷史原表");
+  await assert.rejects(viewer.saveLegacyArchive({ ...input, sourceSha256: "b".repeat(64) }), /儲存歷史排程失敗/);
+  assert.equal(await count("select count(*)::int n from legacy_schedule_archives"), 1);
+  assert.equal(await count("select version::int n from schedule_state"), before.version);
+  assert.equal(await count("select count(*)::int n from schedule_blocks"), before.blocks.length);
+  assert.equal((await lead.load()).employees.length, before.employees.length);
+});
+
 test("讀取、只寫有變的列、紀錄", async () => {
   const { store, count } = await setup();
   const boss = await store("boss@x");

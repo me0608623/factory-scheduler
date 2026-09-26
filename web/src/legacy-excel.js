@@ -36,9 +36,9 @@ function sheetCells(xml, strings) {
     if (name === "v" || (name === "t" && type === "inlineStr")) capture = !!ref;
   }, text => { if (capture) value += text; }, name => {
     if (name === "v" || name === "t") capture = false;
-    if (name === "c" && ref && value) {
+    if (name === "c" && ref && value !== "") {
       const col = /^([A-Z]+)/.exec(ref)?.[1];
-      if (col && col.length <= 2 && (col.length === 1 || col <= "AI")) {
+      if (col && col.length <= 2 && (col.length === 1 || col <= "BH")) {
         if (!rows.has(rowNo)) rows.set(rowNo, new Map());
         rows.get(rowNo).set(col, type === "s" ? strings[Number(value)] ?? "" : value);
       }
@@ -63,11 +63,26 @@ function factoryDays(rows, factory, days) {
   const upper = rows.get(2) || new Map();
   const sides = rows.get(4) || new Map();
   const columns = [];
-  let heading = "";
-  for (let n = 2; n <= (factory === "1廠" ? 27 : 35); n++) {
+  let heading = "", operator = "", group = "";
+  for (let n = 2; n <= (factory === "1廠" ? 60 : 42); n++) {
     const col = colName(n);
-    heading = headers.get(col) || (factory === "2廠" && n >= 29 ? upper.get(col) : "") || heading;
-    if (heading) columns.push({ col, machine: heading + (factory === "2廠" && sides.get(col) ? `（${sides.get(col)}）` : "") });
+    const raw = String(headers.get(col) || "").trim();
+    let label;
+    if (factory === "1廠") {
+      if (n <= 27) { heading = raw || heading; label = heading || `原表 ${col} 欄`; }
+      else if (n <= 31) label = raw || `包裝 ${col} 欄`;
+      else if (n <= 35) label = raw || "支援二場";
+      else if (n === 36) label = raw || "休假";
+      else label = raw || `其他 ${col} 欄`;
+    } else if (n <= 28) {
+      heading = raw || heading;
+      operator = String(upper.get(col) || "").trim() || operator;
+      label = (heading || `原表 ${col} 欄`) + (sides.get(col) ? `（${sides.get(col)}）` : "");
+    } else {
+      group = String(upper.get(col) || "").trim() || group;
+      label = group || `其他 ${col} 欄`;
+    }
+    columns.push({ col, machine: label, operator: factory === "2廠" && n <= 28 ? operator : "" });
   }
   let date = "";
   for (const [rowNo, cells] of [...rows].sort((a, b) => a[0] - b[0])) {
@@ -75,13 +90,15 @@ function factoryDays(rows, factory, days) {
     const nextDate = dateOf(cells.get("A"));
     if (nextDate) {
       date = nextDate;
-      if (!days[date]) days[date] = { "1廠": [], "2廠": [], overtime: {} };
+      if (!days[date]) days[date] = { "1廠": [], "2廠": [], overtime: {}, notes: { "1廠": [], "2廠": [] } };
     }
     if (!date) continue;
     if (String(cells.get("A") || "").includes("加班")) days[date].overtime[factory] = true;
-    for (const { col, machine } of columns) {
+    if (!nextDate && String(cells.get("A") || "").trim())
+      days[date].notes[factory].push({ cell: `A${rowNo}`, value: String(cells.get("A")) });
+    for (const { col, machine, operator } of columns) {
       const value = String(cells.get(col) || "").trim();
-      if (value) days[date][factory].push({ cell: `${col}${rowNo}`, machine, value });
+      if (value) days[date][factory].push({ cell: `${col}${rowNo}`, machine, value, ...(operator ? { operator } : {}) });
     }
   }
 }

@@ -619,6 +619,7 @@ function topHTML(){
   '<button class="btn admin" data-act="auto" '+(readOnly?"disabled":"")+'>'+IC.bolt+'<span class="lbl">自動排程</span></button>'+
   '<button class="btn admin" data-act="undo" '+(readOnly||!undoStack.length?"disabled":"")+'>'+IC.undo+'<span class="lbl">復原</span></button>'+
   '<button class="btn" data-act="export">'+IC.down+'<span class="lbl">Excel</span></button>'+
+  (canArchive()?'<button class="btn" data-act="history"><span class="lbl">歷史排程</span></button>':'')+
   '<div class="zoombox" role="group" aria-label="畫面大小"><button data-act="zoom-" aria-label="縮小">−</button><button class="zv" data-act="zoom0" title="回到 100%">'+Math.round(UI.zoom*100)+'%</button><button data-act="zoom+" aria-label="放大">＋</button></div>'+
   '<button class="btn" data-act="help" aria-label="操作說明"><b style="font-size:19px">?</b><span class="lbl">說明</span></button>'+
   '<button class="btn" data-act="theme" title="切換淺色／深色">'+THEME_UI[UI.theme]+'</button>'+
@@ -875,6 +876,7 @@ document.addEventListener("click",e=>{
     case "sync":if(SYNC.state==="error")queueSync(null);else toast(STORE.kind==="local"?"資料存在這台電腦的瀏覽器":"已和雲端資料庫同步");break;
     case "account":openModal({t:"account"});break;
     case "export":openModal({t:"export"});break;
+    case "history":openLegacyHistory();break;
     case "ot":openModal({t:"ot",date:UI.date});break;
     case "open":toggleOpen(UI.date);break;
     case "cal":openModal({t:"cal"});break;
@@ -950,6 +952,28 @@ function saveDailyOT(m){
 const MODAL_ACT={};
 function openModal(m){UI.modal=m;renderModal();}
 function closeModal(){UI.modal=null;const r=$("#modal-root");if(r)r.innerHTML="";maybeReload();}
+async function openLegacyHistory(preferredId){
+  openModal({t:"legacy-history",loading:true});
+  try{
+    const archives=await STORE.listLegacyArchives();
+    const archive=archives.find(a=>a.id===preferredId)||archives[0]||null;
+    const legacy=archive?await STORE.getLegacyArchive(archive.id):null;
+    if(UI.modal?.t!=="legacy-history")return;
+    UI.modal={t:"legacy-history",archives,archive,legacy,date:legacy?.selectedDate||legacy?.dates.at(-1)||"",factory:"全部"};
+    renderModal();
+  }catch(e){if(UI.modal?.t==="legacy-history"){UI.modal={t:"legacy-history",error:e.message};renderModal();}}
+}
+async function changeLegacyHistorySource(id){
+  const m=UI.modal;if(m?.t!=="legacy-history")return;
+  m.loading=true;renderModal();
+  try{
+    const archive=m.archives.find(a=>a.id===id);
+    const legacy=archive?await STORE.getLegacyArchive(archive.id):null;
+    if(UI.modal!==m)return;
+    Object.assign(m,{loading:false,archive,legacy,date:legacy?.selectedDate||legacy?.dates.at(-1)||"",factory:"全部"});
+  }catch(e){m.loading=false;m.error=e.message;}
+  if(UI.modal===m)renderModal();
+}
 function setPath(o,path,v){const k=path.split(".");let t=o;for(let i=0;i<k.length-1;i++)t=t[isNaN(k[i])?k[i]:+k[i]];t[k[k.length-1]]=v;}
 function syncInputs(){
   const m=UI.modal;if(!m||!m.draft)return;
@@ -976,6 +1000,12 @@ function resultHTML(lines){
   return '<div class="result">'+lines.map(l=>'<div class="rline"><span class="k '+l.k+'">'+(RK[l.k]||"")+'</span><span>'+esc(l.t)+'</span></div>').join("")+'</div>';
 }
 function futureOf(b){return bEnd(b)>nowAbs();}
+function legacyFactoryHTML(day,factory){
+  const entries=day?.[factory]||[],notes=day?.notes?.[factory]||[];
+  return '<div class="field"><span class="lab">'+factory+' · '+entries.length+' 格'+(day?.overtime?.[factory]?' · 原表標示加班':'')+'</span>'+
+    (notes.length?'<div class="hint">日期欄：'+notes.map(x=>esc(x.value)).join('、')+'</div>':'')+
+    (entries.length?'<div class="result">'+entries.map(item=>'<div class="rline"><span class="k info">'+esc(item.cell)+'</span><span style="white-space:pre-wrap">'+esc(item.machine)+(item.operator?' · '+esc(item.operator):'')+'：'+esc(item.value)+'</span></div>').join('')+'</div>':'<div class="hint">這天原表沒有內容</div>')+'</div>';
+}
 
 const MODALS={
 "drag-preview"(m){
@@ -1165,8 +1195,8 @@ export(){
   return {title:"Excel 匯出／匯入",body:
    '<button class="btn primary" data-act="x-xlsx" style="height:60px;justify-content:flex-start">'+IC.down+'下載 '+mdw(UI.date)+' 彩色排程 Excel（.xlsx）</button>'+
    '<button class="btn" data-act="x-template" style="height:60px;justify-content:flex-start">'+IC.down+'下載批次匯入範本（.xlsx）</button>'+
-   (canMaster()?'<label class="btn" style="height:60px;justify-content:flex-start;cursor:pointer">選擇填好的 Excel 檔案，檢查並預覽<input id="xlsx-import" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none"></label>':'')+
-   '<div class="hint">匯入範本可一次更新員工、機台、產品工序及工單。舊版排程 Excel 會先以唯讀方式預覽，不會取代現有資料。</div>'+
+   (canArchive()?'<label class="btn" style="height:60px;justify-content:flex-start;cursor:pointer">選擇 Excel 檔案，檢查並預覽<input id="xlsx-import" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none"></label>':'')+
+   '<div class="hint">舊版排程可獨立存為歷史資料，按日期查看 1 廠、2 廠，不改目前排程。批次匯入範本會取代基本資料，只有老闆能確認。</div>'+
    '<button class="btn" data-act="x-copy-day" style="height:60px;justify-content:flex-start">複製 '+mdw(UI.date)+' 排程表（和原本 Excel 一樣的格式）</button>'+
    '<button class="btn" data-act="x-copy-all" style="height:60px;justify-content:flex-start">複製全部明細（每段一列）</button>'+
    ('<button class="btn primary" data-act="x-dl" style="height:60px;justify-content:flex-start">'+IC.down+'下載全部明細 CSV 檔</button>')+
@@ -1184,16 +1214,26 @@ export(){
 "legacy-preview"(m){
   const legacy=m.legacy,day=legacy.days[m.date]||{"1廠":[],"2廠":[],overtime:{}};
   const datePicker='<div class="field"><span class="lab">原表日期</span><select id="legacy-date" aria-label="原表日期">'+legacy.dates.map(d=>'<option value="'+esc(d)+'"'+(d===m.date?' selected':'')+'>'+esc(d)+'</option>').join('')+'</select></div>';
-  const factorySection=factory=>{
-    const entries=day[factory];
-    return '<div class="field"><span class="lab">'+factory+' · '+entries.length+' 格'+(day.overtime[factory]?' · 原表標示加班':'')+'</span>'+
-      (entries.length?'<div class="result">'+entries.map(item=>'<div class="rline"><span class="k info">'+esc(item.cell)+'</span><span style="white-space:pre-wrap">'+esc(item.machine)+'：'+esc(item.value)+'</span></div>').join('')+'</div>':'<div class="hint">這天沒有辨識到排程內容</div>')+'</div>';
-  };
   return {title:'舊版排程 · 唯讀預覽',body:
-    '<div class="hint">檔案：'+esc(m.filename)+'。原始格位與文字照原表顯示；這不是系統目前的時段排程。</div>'+datePicker+
-    factorySection('1廠')+factorySection('2廠')+
-    '<div class="issues"><div class="issue">尚未匯入：原表未明確標出每段工作的開始／結束時間，也無法可靠對應目前的產品工序與員工。此預覽不會更動示範資料或雲端排程。</div></div>',
-    foot:'<button class="btn" data-act="close">關閉預覽</button>'};
+    '<div class="hint">檔案：'+esc(m.filename)+'。這是舊表的原始格位與文字，不會變成目前的時間方塊。</div>'+datePicker+
+    legacyFactoryHTML(day,'1廠')+legacyFactoryHTML(day,'2廠')+
+    '<div class="hint">存為歷史資料後，可從上方「歷史排程」按日期查看；現有示範排程不變。</div>'+
+    (m.error?'<div class="issues"><div class="issue">'+esc(m.error)+'</div></div>':''),
+    foot:'<button class="btn" data-act="close">取消</button>'+(canArchive()&&legacy.dates.length?'<button class="btn primary" data-act="legacy-save"'+(m.saving?' disabled':'')+'>'+(m.saving?'儲存中…':'存為歷史排程')+'</button>':'')};
+},
+"legacy-history"(m){
+  if(m.loading)return {title:"歷史排程",body:'<div class="hint">正在讀取…</div>'};
+  if(m.error)return {title:"歷史排程",body:'<div class="issues"><div class="issue">'+esc(m.error)+'</div></div>'};
+  if(!m.archive)return {title:"歷史排程",body:'<div class="hint">尚未存入舊版排程。請到 Excel 選擇含「1廠」「2廠」的檔案。</div>',foot:'<button class="btn" data-act="export">選擇 Excel</button>'};
+  const legacy=m.legacy,day=legacy?.days[m.date],names=m.archives;
+  const source=names.length>1?'<div class="field"><span class="lab">來源檔案</span><select id="history-source" aria-label="來源檔案">'+names.map(x=>'<option value="'+esc(x.id)+'"'+(x.id===m.archive.id?' selected':'')+'>'+esc(x.source_name)+'</option>').join('')+'</select></div>':'';
+  const dates='<div class="field"><span class="lab">日期</span><select id="history-date" aria-label="歷史日期">'+(legacy?.dates||[]).map(d=>'<option value="'+esc(d)+'"'+(d===m.date?' selected':'')+'>'+esc(d)+'</option>').join('')+'</select></div>';
+  const factories='<div class="seg" role="group" aria-label="廠別">'+['全部','1廠','2廠'].map(x=>'<button data-act="history-factory" data-v="'+x+'" aria-pressed="'+(m.factory===x)+'">'+x+'</button>').join('')+'</div>';
+  return {title:'歷史排程 · '+esc(m.archive.source_name),body:
+    '<div class="hint">原檔日期 '+esc(m.archive.date_from)+'～'+esc(m.archive.date_to)+'。僅供查閱，不影響目前排程。</div>'+source+dates+factories+
+    (m.factory==='全部'||m.factory==='1廠'?legacyFactoryHTML(day,'1廠'):'')+
+    (m.factory==='全部'||m.factory==='2廠'?legacyFactoryHTML(day,'2廠'):''),
+    foot:'<button class="btn" data-act="close">關閉</button>'};
 }
 };
 /* ---------- 上班日設定 ---------- */
@@ -1758,22 +1798,42 @@ Object.assign(MODAL_ACT,{
     pushUndo();S={...S,...m.data,blocks:[],demo:false};
     commit({kind:"edit",title:"Excel 批次匯入："+S.employees.length+" 位員工、"+S.machines.length+" 台機台、"+S.products.length+" 種產品、"+S.orders.length+" 張工單",lines:[{k:"info",t:"已清空原排程，請重新執行自動排程"}]});
     closeModal();toast("Excel 匯入完成。請建立新排程","自動排程",runAuto);
-  }
+  },
+  "legacy-save":async()=>{
+    const m=UI.modal;if(m?.t!=="legacy-preview"||m.saving||!canArchive())return;
+    m.saving=true;m.error="";renderModal();
+    try{
+      const saved=await STORE.saveLegacyArchive({sourceName:m.filename,sourceSha256:m.sourceSha256,legacy:m.legacy});
+      toast("歷史排程已存入；目前排程沒有變動");
+      await openLegacyHistory(saved.id);
+    }catch(e){if(UI.modal===m){m.saving=false;m.error=e.message;renderModal();}}
+  },
+  "history-factory":a=>{if(UI.modal?.t==="legacy-history"){UI.modal.factory=a.dataset.v;renderModal();}}
 });
 document.addEventListener("change",async e=>{
   if(e.target.id==="legacy-date"&&UI.modal?.t==="legacy-preview"){
     UI.modal.date=e.target.value;renderModal();return;
   }
-  if(e.target.id!=="xlsx-import"||!e.target.files?.[0]||!canMaster())return;
+  if(e.target.id==="history-date"&&UI.modal?.t==="legacy-history"){
+    UI.modal.date=e.target.value;renderModal();return;
+  }
+  if(e.target.id==="history-source"&&UI.modal?.t==="legacy-history"){
+    await changeLegacyHistorySource(e.target.value);return;
+  }
+  if(e.target.id!=="xlsx-import"||!e.target.files?.[0]||!canArchive())return;
   const file=e.target.files[0],base=JSON.stringify(S);
   if(!/\.xlsx$/i.test(file.name)||file.size>5*1024*1024){
     openModal({t:"import-preview",filename:file.name,base,errors:["請選擇小於 5 MB 的 .xlsx 檔案"],data:null});return;
   }
   try{
     const {readImportXlsx}=await import("./excel.js");
-    const result=await readImportXlsx(await file.arrayBuffer(),file.name);
-    if(result.legacy) openModal({t:"legacy-preview",filename:file.name,legacy:result.legacy,date:result.legacy.selectedDate});
-    else openModal({t:"import-preview",filename:file.name,base,...result});
+    const bytes=await file.arrayBuffer(),result=await readImportXlsx(bytes,file.name);
+    if(result.legacy){
+      const digest=await crypto.subtle.digest("SHA-256",bytes);
+      const sourceSha256=[...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,"0")).join("");
+      openModal({t:"legacy-preview",filename:file.name,sourceSha256,legacy:result.legacy,date:result.legacy.selectedDate});
+    }else if(canMaster())openModal({t:"import-preview",filename:file.name,base,...result});
+    else openModal({t:"import-preview",filename:file.name,base,errors:["只有老闆可以匯入員工、機台、產品工序和工單。舊版排程可由組長存成歷史資料。"],data:null});
   }catch(err){openModal({t:"import-preview",filename:file.name,base,errors:["無法讀取 Excel："+err.message],data:null});}
 });
 document.addEventListener("change",e=>{
@@ -1827,6 +1887,7 @@ const SYNC={state:"ok",msg:""};
 let lastLocalWrite=0,pendingReload=false,reloadTimer=null;
 // 基本資料（員工、機台、產品工序、上班日）只有老闆能改；組長可以報故障、請假、工單、調排程
 function canMaster(){return !readOnly&&(!STORE||STORE.kind==="local"||STORE.role==="boss");}
+function canArchive(){return !readOnly&&(!STORE||STORE.kind==="local"||["boss","lead"].includes(STORE.role));}
 const ROLE_NAME={boss:"老闆",lead:"組長",worker:"員工",viewer:"電視（只能看）"};
 
 function toast(msg,actLabel,fn){
