@@ -184,6 +184,16 @@ const materialGap = [
   { ...all[1], start_min: 660, end_min: 900, qty: 120 },
 ];
 await as(LEAD, () => expectErr("select save_blocks(3, $1, '物料未到')", [JSON.stringify(materialGap)], /累積產量/, "RPC 不接受後站中途用完尚未做出的件數"));
+const parallelFirst = [
+  { order_id: blocks[0].order_id, step_seq: 0, date: "2026-10-05", start_min: 480, end_min: 540, qty: 50 },
+  { order_id: blocks[0].order_id, step_seq: 0, date: "2026-10-05", start_min: 480, end_min: 540, qty: 50 },
+];
+await expectErr("select _assert_manual_material_flow($1::jsonb)",
+  [JSON.stringify([...parallelFirst, { order_id: blocks[0].order_id, step_seq: 1, date: "2026-10-05", start_min: 510, end_min: 520, qty: 10 }])],
+  /交接批量/, "並行兩台各做 50 件，08:30 合計尚未達到 60 件交接門檻");
+await db.query("select _assert_manual_material_flow($1::jsonb)",
+  [JSON.stringify([...parallelFirst, { order_id: blocks[0].order_id, step_seq: 1, date: "2026-10-05", start_min: 520, end_min: 530, qty: 10 }])]);
+ok(true, "並行兩台合計在 08:40 達門檻後可開始少量加工");
 ok((await db.query("select version::int v from schedule_state")).rows[0].v === 3, "被拒絕的手動安排不增加版本");
 const partialBatch = [{ ...all[0], qty: 60 }, { ...all[1], start_min: 540, end_min: 550, qty: 30 }];
 await as(LEAD, () => db.query("select save_blocks(3, $1, '先交接一批')", [JSON.stringify(partialBatch)]));
@@ -291,6 +301,43 @@ await as(LEAD, () => db.query("select save_blocks(7, $1, '臨時同意加班')",
 ok((await db.query("select version::int v from schedule_state")).rows[0].v === 8, "原本不加班的員工當日臨時同意後可儲存工作");
 
 await as(LEAD, () => expectErr("select _apply_blocks('[]'::jsonb)", [], /permission denied/, "前端不能直接呼叫內部函式"));
+
+console.log("預覽生成後，基本資料變更仍須重新驗證");
+// 先建立一張「已完整排好」的單站測試工單；其他示範工單保持歷史資料，
+// 讓方案完整性測試不把前面刻意保留的部分完成量當成失敗原因。
+const planProduct = (await db.query("insert into products (code,name) values ('PLAN-ONE','單站方案測試') returning id")).rows[0].id;
+await db.query("insert into product_steps (product_id,seq,process,rate) values ($1,0,'裁切',2)", [planProduct]);
+await db.query("insert into machine_products (machine_id,product_id) values ('a',$1)", [planProduct]);
+await db.query("update orders set status='done' where id<>$1", [anotherOrder]);
+await db.query("update orders set product_id=$1,qty=90 where id=$2", [planProduct, anotherOrder]);
+const previewBlocks = (await db.query("select id, order_id, step_seq, machine_id, employee_id, date::text, start_min, end_min, qty, pinned from schedule_blocks")).rows;
+const pvSkill = (await db.query("insert into plan_previews (kind,title,event,base_version,options) values ('auto','技能變更前方案','{}',8,$1) returning id",
+  [JSON.stringify([{ ...opt("A", previewBlocks), applicable: true }])])).rows[0].id;
+await db.query("delete from employee_skills where employee_id=$1 and machine_id='a'", ["00000000-0000-4000-8000-0000000000e5"]);
+await as(LEAD, () => expectErr("select apply_plan($1,'A')", [pvSkill], /不會操作機台/, "方案預覽後技能被移除，套用時仍須拒絕"));
+await db.query("insert into employee_skills (employee_id,machine_id) values ($1,'a')", ["00000000-0000-4000-8000-0000000000e5"]);
+ok((await db.query("select version::int v from schedule_state")).rows[0].v === 8, "過期技能方案被拒後版本保持不變");
+const pvCalendar = (await db.query("insert into plan_previews (kind,title,event,base_version,options) values ('auto','停工前方案','{}',8,$1) returning id",
+  [JSON.stringify([{ ...opt("A", previewBlocks), applicable: true }])])).rows[0].id;
+await db.query("update calendar_days set is_open=false where date='2026-10-05'");
+await as(LEAD, () => expectErr("select apply_plan($1,'A')", [pvCalendar], /停工日/, "方案預覽後改為停工，套用時仍須拒絕"));
+await db.query("update calendar_days set is_open=null where date='2026-10-05'");
+ok((await db.query("select version::int v from schedule_state")).rows[0].v === 8, "過期行事曆方案被拒後版本保持不變");
+await as(LEAD, () => db.query("select apply_plan($1,'A')", [pvSkill]));
+ok((await db.query("select version::int v from schedule_state")).rows[0].v === 9, "資料恢復後，原方案仍可經驗證套用");
+const pvQty = (await db.query("insert into plan_previews (kind,title,event,base_version,options) values ('auto','件數變更前方案','{}',9,$1) returning id",
+  [JSON.stringify([{ ...opt("A", previewBlocks), applicable: true }])])).rows[0].id;
+await db.query("update orders set qty=150 where id=$1", [anotherOrder]);
+await as(LEAD, () => expectErr("select apply_plan($1,'A')", [pvQty], /數量.*不等於/, "預覽後工單件數增加，舊方案未排滿時拒絕套用"));
+await db.query("update orders set qty=90 where id=$1", [anotherOrder]);
+ok((await db.query("select version::int v from schedule_state")).rows[0].v === 9, "舊件數方案被拒後版本保持不變");
+const pvNewOrder = (await db.query("insert into plan_previews (kind,title,event,base_version,options) values ('auto','新單前方案','{}',9,$1) returning id",
+  [JSON.stringify([{ ...opt("A", previewBlocks), applicable: true }])])).rows[0].id;
+const addedOrder = (await db.query("insert into orders (code,product_id,qty,due_date) values ('AFTER-PREVIEW',$1,10,'2026-10-06') returning id",
+  ["00000000-0000-4000-8000-0000000000a1"])).rows[0].id;
+await as(LEAD, () => expectErr("select apply_plan($1,'A')", [pvNewOrder], /數量.*不等於/, "預覽後新增工單，舊方案漏排該單時拒絕套用"));
+await db.query("delete from orders where id=$1", [addedOrder]);
+ok((await db.query("select version::int v from schedule_state")).rows[0].v === 9, "漏新單方案被拒後版本保持不變");
 
 console.log(`\n通過 ${pass}，失敗 ${fail}`);
 process.exit(fail ? 1 : 0);

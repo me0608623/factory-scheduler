@@ -1,5 +1,5 @@
 // Synthetic-only benchmark for the save_blocks material-flow guard.
-// Run here: node benchmark_manual_flow.mjs 100 500 1000 [--rpc]
+// Run here: node benchmark_manual_flow.mjs 100 500 1000 [--rpc|--plan]
 import { PGlite } from "@electric-sql/pglite";
 import fs from "node:fs";
 import path from "node:path";
@@ -7,7 +7,9 @@ import { fileURLToPath } from "node:url";
 import { performance } from "node:perf_hooks";
 
 const measureRpc = process.argv.includes("--rpc");
-const sizes = process.argv.slice(2).filter(arg => arg !== "--rpc").map(Number);
+const measurePlan = process.argv.includes("--plan");
+if (measureRpc && measurePlan) throw new Error("Use --rpc or --plan, not both");
+const sizes = process.argv.slice(2).filter(arg => arg !== "--rpc" && arg !== "--plan").map(Number);
 if (!sizes.length || sizes.some(n => !Number.isInteger(n) || n < 1 || n > 2000)) {
   throw new Error("Provide order counts between 1 and 2000");
 }
@@ -23,11 +25,16 @@ for (const name of fs.readdirSync(path.join(root, "migrations")).sort()) {
   catch (error) { if (!name.includes("realtime")) throw error; }
 }
 await db.exec(fs.readFileSync(path.join(root, "seed.sql"), "utf8"));
-if (measureRpc) {
+if (measureRpc || measurePlan) {
   const userId = "11111111-1111-4111-8111-111111111111";
   await db.query("insert into auth.users (id,email) values ($1,'benchmark@example.test')", [userId]);
   await db.query("update profiles set role='boss' where user_id=$1", [userId]);
   await db.query("select set_config('request.jwt.claim.sub',$1,false)", [userId]);
+}
+if (measurePlan) {
+  await db.query("update calendar_weekly set is_open=true");
+  // 此基準只衡量合成 BENCH 工單；示範種子工單沒有附排程，先標為已結案。
+  await db.query("update orders set status='done' where code not like 'BENCH-%'");
 }
 const product = "00000000-0000-4000-8000-0000000000a1";
 const employee = [1, 2, 3].map(n => `00000000-0000-4000-8000-0000000000e${n}`);
@@ -65,6 +72,17 @@ for (const count of sizes) {
     const rpcStart = performance.now();
     await db.query("select save_blocks($1, $2::jsonb, 'Benchmark')", [version, JSON.stringify(saved)]);
     line.saveBlocksMs = Math.round(performance.now() - rpcStart);
+  }
+  if (measurePlan) {
+    const version = (await db.query("select version::int as version from schedule_state")).rows[0].version;
+    const options = [{ id: "A", name: "合成方案", applicable: true, blocks, effects: {} }];
+    const previewStart = performance.now();
+    const preview = (await db.query(`insert into plan_previews (kind,title,event,base_version,options)
+      values ('auto','合成壓力方案','{}',$1,$2::jsonb) returning id`, [version, JSON.stringify(options)])).rows[0].id;
+    line.previewWriteMs = Math.round(performance.now() - previewStart);
+    const planStart = performance.now();
+    await db.query("select apply_plan($1,'A')", [preview]);
+    line.applyPlanMs = Math.round(performance.now() - planStart);
   }
   console.log(JSON.stringify(line));
 }

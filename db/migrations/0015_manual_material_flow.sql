@@ -17,13 +17,15 @@ begin
     select c.order_id, c.step_seq,
            case when ps.transfer_batch > 0 and ps.transfer_batch < o.qty
                 then ps.transfer_batch else o.qty end as required,
-           coalesce((select sum(p.qty * greatest(0, least(1,
-             (c.start_at - p.start_at) / nullif(p.end_at - p.start_at, 0))))
-             from b p where p.order_id = c.order_id and p.step_seq = c.step_seq - 1), 0) as available
+           coalesce(sum(p.qty * greatest(0, least(1,
+             (c.start_at - p.start_at) / nullif(p.end_at - p.start_at, 0)))), 0) as available
       from b c
       join orders o on o.id = c.order_id
       join product_steps ps on ps.product_id = o.product_id and ps.seq = c.step_seq
+      left join b p on p.order_id = c.order_id and p.step_seq = c.step_seq - 1
      where c.step_seq > 0
+     group by c.order_id, c.step_seq, c.start_at, c.end_at, c.qty,
+              ps.transfer_batch, o.qty
   )
   select order_id, step_seq into bad_order, bad_step
     from starts where available + 0.00000001 < required limit 1;
@@ -48,13 +50,15 @@ begin
       from steps s join b on b.order_id = s.order_id and b.step_seq in (s.step_seq, s.step_seq - 1)
   ), totals as (
     select p.order_id, p.step_seq,
-           coalesce((select sum(c.qty * greatest(0, least(1,
-             (p.at_min - c.start_at) / nullif(c.end_at - c.start_at, 0))))
-             from b c where c.order_id = p.order_id and c.step_seq = p.step_seq), 0) as used,
-           coalesce((select sum(c.qty * greatest(0, least(1,
-             (p.at_min - c.start_at) / nullif(c.end_at - c.start_at, 0))))
-             from b c where c.order_id = p.order_id and c.step_seq = p.step_seq - 1), 0) as made
+           coalesce(sum(case when c.step_seq = p.step_seq then
+             c.qty * greatest(0, least(1, (p.at_min - c.start_at) / nullif(c.end_at - c.start_at, 0)))
+             else 0 end), 0) as used,
+           coalesce(sum(case when c.step_seq = p.step_seq - 1 then
+             c.qty * greatest(0, least(1, (p.at_min - c.start_at) / nullif(c.end_at - c.start_at, 0)))
+             else 0 end), 0) as made
       from points p
+      left join b c on c.order_id = p.order_id and c.step_seq in (p.step_seq, p.step_seq - 1)
+     group by p.order_id, p.step_seq, p.at_min
   )
   select order_id, step_seq into bad_order, bad_step
     from totals where used > made + 0.5 limit 1;

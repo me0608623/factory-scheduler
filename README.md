@@ -20,7 +20,7 @@
 ## 1. 建立資料庫（Supabase）
 
 1. 到 [supabase.com](https://supabase.com) 建立專案（目前使用東京 `ap-northeast-1`）。
-2. 打開 **SQL Editor**，依序貼上執行 `db/migrations/0001` 到 `0015`；要示範資料再執行 `db/seed.sql`。已建好的專案只需接續執行尚未套用的 migration，先在測試環境驗證。
+2. 打開 **SQL Editor**，依序貼上執行 `db/migrations/0001` 到 `0016`；要示範資料再執行 `db/seed.sql`。已建好的專案只需接續執行尚未套用的 migration，先在測試環境驗證。
 3. 到 **Authentication → Sign In / Providers** 關閉「Allow new users to sign up」，避免任何人自行註冊後讀取排程資料。若刻意開放示範帳號測試，請只放非敏感示範資料。
 4. 等老闆信箱確認後，由管理員在 **Authentication → Users** 邀請老闆。**所有新帳號預設只能看**；管理員核對身分後，在 SQL Editor 把該帳號的 `profiles.role` 設為 `boss`，再驗證角色。註冊順序不決定權限。
 5. 其他人的角色（組長 lead、員工 worker、電視 viewer）由老闆在 `profiles` 資料表修改（之後會做成畫面）。
