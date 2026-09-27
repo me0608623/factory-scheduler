@@ -12,11 +12,13 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
+from time import monotonic
 from typing import Callable
 
-from .model import PRESETS, Result, Weights, solve
+from .model import PRESETS, Result, Weights, configured_workers, solve
 from .schemas import Block, Event, Fault, Now, Order, PlanRequest, Snapshot
 from .timeline import abs_min, add_days, s2d, Timeline
+from .validate import check
 
 TW = timezone(timedelta(hours=8))   # 台灣沒有日光節約時間
 WD = "日一二三四五六"
@@ -203,15 +205,23 @@ STRATEGIES["leave"] = [s for s in STRATEGIES["fault"]]
 
 # ---------- 前後差異：給人看的 ----------
 def _key(b: Block):
-    return (b.order, b.step, b.date, b.start, b.end, b.machine, b.employee)
+    return (b.order, b.step, b.date, b.start, b.end, b.machine, b.employee, b.qty, b.pinned)
 
 
 def _finish(snap: Snapshot, blocks: list[Block]) -> dict[str, dict]:
     prods = {p.id: p for p in snap.products}
+    last_steps = {o.id: len(prods[o.product].steps) - 1 for o in snap.orders
+                  if o.product in prods and prods[o.product].steps}
+    last_blocks: dict[str, list[Block]] = {}
+    for b in blocks:
+        if b.step == last_steps.get(b.order):
+            last_blocks.setdefault(b.order, []).append(b)
     out = {}
     for o in snap.orders:
-        last = len(prods[o.product].steps) - 1
-        lb = [b for b in blocks if b.order == o.id and b.step == last]
+        if o.id not in last_steps:
+            out[o.id] = {"k": "part", "fin": None, "date": None}
+            continue
+        lb = last_blocks.get(o.id, [])
         if not lb or sum(b.qty for b in lb) < o.qty:
             out[o.id] = {"k": "part", "fin": None, "date": None}
             continue
@@ -234,10 +244,13 @@ def describe(base: Snapshot, a: Applied, blocks: list[Block], res: Result | None
     orders = {o.id: o for o in a.snap.orders}
     prods = {p.id: p for p in a.snap.products}
     names = {e.id: e.name for e in a.snap.employees}
-    step_name = lambda b: prods[orders[b.order].product].steps[b.step].process if b.order in orders else "?"
+    step_name = lambda b: (prods[orders[b.order].product].steps[b.step].process
+                           if b.order in orders and orders[b.order].product in prods
+                           and b.step < len(prods[orders[b.order].product].steps) else "?")
     bk, ak = {_key(b) for b in base.blocks}, {_key(b) for b in blocks}
     gone = [b for b in base.blocks if _key(b) not in ak]
     added = [b for b in blocks if _key(b) not in bk]
+    displaced_pins = [b for b in gone if b.pinned] if kind in ("fault", "leave") else []
     changed = [b for b in added if b.order != a.new_order]
     fb, fa = _finish(base, base.blocks), _finish(a.snap, blocks)
 
@@ -248,13 +261,19 @@ def describe(base: Snapshot, a: Applied, blocks: list[Block], res: Result | None
     gain_h = round(sum(max(0, s["b"] - s["a"]) for s in shifts) / 60, 1)
     ot_h = round((_ot_minutes(blocks) - _ot_minutes(base.blocks)) / 60, 1)
     dates: dict[str, int] = {}
+    machine_factories = {m.id: m.factory for m in a.snap.machines}
+    affected_factories = sorted({machine_factories[b.machine] for b in gone + added
+                                 if b.machine in machine_factories})
     for b in gone + added:
         dates[b.date] = dates.get(b.date, 0) + 1
     metrics = {"late": [o.code for o in late], "late_days": late_days, "moved": len(changed),
-               "other_days": len([b for b in changed if b.date != a.date]), "gain_h": gain_h, "ot_h": ot_h, "dates": dates}
+               "other_days": len([b for b in changed if b.date != a.date]), "gain_h": gain_h,
+               "ot_h": ot_h, "dates": dates, "factories": affected_factories}
 
     # 一句話總結
     parts = []
+    if displaced_pins:
+        parts.append(f"{len(displaced_pins)} 段固定工作受突發狀況影響，未完成部分會解除固定並重排")
     later = [s for s in shifts if s["a"] > s["b"]]
     earlier = [s for s in shifts if s["a"] < s["b"]]
     if later:
@@ -263,6 +282,8 @@ def describe(base: Snapshot, a: Applied, blocks: list[Block], res: Result | None
     if earlier:
         parts.append(f"{len(earlier)} 張工單提早完成")
     parts.append("、".join(o.code for o in late) + " 會超過期限" if late else "所有工單都趕得上期限")
+    if affected_factories:
+        parts.append("影響 " + "、".join(f"{factory} 廠" for factory in affected_factories))
     if dates:
         parts.append(f"影響 {len(dates)} 天（{'、'.join(md(d) for d in sorted(dates))}）")
     who = sorted({b.employee for b in gone + added if b.employee}, key=lambda x: names.get(x, x))
@@ -274,6 +295,9 @@ def describe(base: Snapshot, a: Applied, blocks: list[Block], res: Result | None
 
     # 每站的變動說明
     lines = []
+    for b in displaced_pins:
+        code = orders[b.order].code if b.order in orders else b.order
+        lines.append({"k": "info", "t": f"固定工作 {code} {step_name(b)} {mdw(b.date)} {hm(b.start)}–{hm(b.end)} 與故障或請假衝突；確認方案後，未完成部分會解除固定並重新排入"})
     groups: dict[tuple, dict] = {}
     for b in gone:
         groups.setdefault((b.order, b.step), {"old": [], "new": []})["old"].append(b)
@@ -283,8 +307,8 @@ def describe(base: Snapshot, a: Applied, blocks: list[Block], res: Result | None
         if oid not in orders:
             continue
         o = orders[oid]
-        proc = prods[o.product].steps[k].process
-        where = lambda bs: "、".join(f"{mdw(b.date)} {hm(b.start)} {b.machine} {names.get(b.employee, '')}" for b in sorted(bs, key=lambda x: abs_min(x.date, x.start))[:2]) + ("…" if len(bs) > 2 else "")
+        proc = prods[o.product].steps[k].process if o.product in prods and k < len(prods[o.product].steps) else "未知工序"
+        where = lambda bs: "、".join(f"{mdw(b.date)} {hm(b.start)} {b.machine} {names.get(b.employee, '')} {b.qty}件{'（固定）' if b.pinned else ''}" for b in sorted(bs, key=lambda x: abs_min(x.date, x.start))[:2]) + ("…" if len(bs) > 2 else "")
         if not g["old"]:
             lines.append({"k": "info", "t": f"{o.code} {proc}：新排入 {where(g['new'])}"})
         elif not g["new"]:
@@ -326,36 +350,75 @@ def make_plans(req: PlanRequest) -> dict:
     base = req.snapshot
     a = apply_event(base, req.event, now)
     strategies = [s for s in STRATEGIES[req.event.type] if s.when(a, now)]
-    workers = max(1, 8 // max(1, len(strategies)))
+    products = {product.id: product for product in a.snap.products}
+    operation_count = sum(len(products[order.product].steps) for order in a.snap.orders
+                          if order.product in products)
+    large = operation_count >= 150
+    worker_cap = configured_workers()
+    workers = worker_cap if large else max(1, worker_cap // max(1, len(strategies)))
+    # 瀏覽器 60 秒會放棄請求；大型方案逐一計算，保留餘裕給資料庫存預覽、
+    # JSON 回應及網路傳輸。已開始的單案不能在此處安全中斷。
+    deadline = monotonic() + 50 if large else None
+    same_unassigned_objective = (
+        PRESETS["min_change"].tard == PRESETS["keep_assign"].tard
+        and PRESETS["min_change"].comp == PRESETS["keep_assign"].comp
+    )
+    shared_unassigned: Result | None = None
 
     def run(st: Strategy):
+        nonlocal shared_unassigned
         if st.preset is None:
             return st, None, list(a.snap.blocks)
         ot = st.overtime(a, now)
+        # 尚未有任何排程方塊時，故障／請假的 A、B 策略沒有可維持的
+        # 原時間或人機；兩者目標中的有效權重完全相同，無需重算一次。
+        # 大案採單執行緒依序求解，才可安全重用前一個結果。
+        if (large and same_unassigned_objective and not a.snap.blocks
+                and req.event.type in ("fault", "leave") and not ot
+                and st.id == "B" and shared_unassigned is not None):
+            return st, shared_unassigned, shared_unassigned.blocks
+        if deadline is not None and deadline - monotonic() < req.time_limit + 4:
+            skipped = Result(list(a.snap.blocks), "SKIPPED", None, 0.0, operation_count,
+                             ["大型排程已達整體等待上限，此方案尚未計算；可先查看已完成的方案，或縮小範圍後重試"],
+                             search_mode="skipped")
+            return st, skipped, skipped.blocks
         res = solve(a.snap, now, PRESETS[st.preset], reference=st.reference(a), movable=st.movable(a),
                     extra_overtime=frozenset(ot), time_limit=req.time_limit, workers=workers)
+        if (large and same_unassigned_objective and not a.snap.blocks
+                and req.event.type in ("fault", "leave") and not ot and st.id == "A"):
+            shared_unassigned = res
         return st, res, res.blocks
 
-    with ThreadPoolExecutor(max_workers=len(strategies)) as pool:
+    with ThreadPoolExecutor(max_workers=1 if large else len(strategies)) as pool:
         results = list(pool.map(run, strategies))
 
     now_abs = abs_min(now.date, now.min)
     options = []
     for st, res, blocks in results:
         d = describe(base, a, blocks, res, now, req.event.type)
+        diagnostics = list(res.unplaced) if res else []
+        overtime_days = st.overtime(a, now) if st.preset else set()
+        missing_products = [o for o in a.snap.orders if o.product not in {p.id for p in a.snap.products}]
+        if missing_products:
+            diagnostics.extend(f"{o.code}：找不到產品資料；請先建立產品與工序" for o in missing_products)
+        elif not (res and res.status == "SKIPPED"):
+            diagnostics.extend(check(a.snap, blocks, now, overtime_days)[:5])
+        applicable = (res is None or res.status in ("OPTIMAL", "FEASIBLE")) and not diagnostics
         eff = copy.deepcopy(a.effects)
-        if st.preset:
-            ot = sorted(st.overtime(a, now))
-            if ot:
-                eff["overtime_on"] = ot
+        if overtime_days:
+            eff["overtime_on"] = sorted(overtime_days)
         if "faults_insert" in eff:          # 記住故障前的位置，恢復時「搬回原位」用
             eff["faults_insert"][0]["original_blocks"] = [g for g in d.pop("gone") if abs_min(g["date"], g["end_min"]) > now_abs]
         else:
             d.pop("gone")
         options.append({"id": st.id, "name": st.name, "desc": st.desc, **d,
                         "status": res.status if res else "KEEP", "solve_seconds": round(res.wall, 2) if res else 0,
+                        "solver_method": res.search_mode if res else "keep",
+                        "solver_candidate_pairs": res.candidate_pairs if res else None,
+                        "applicable": applicable, "diagnostics": diagnostics,
                         "blocks": [to_db(b) for b in blocks], "effects": eff})
-    if options:
-        min(options, key=lambda o: o["score"])["recommended"] = True
+    applicable_options = [o for o in options if o["applicable"]]
+    if applicable_options:
+        min(applicable_options, key=lambda o: o["score"])["recommended"] = True
     return {"kind": req.event.type, "title": a.title, "date": a.date, "base_version": base.version,
             "event": req.event.model_dump(), "options": options}

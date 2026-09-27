@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node migrations.test.mjs"
+    "test": "node migrations.test.mjs",
+    "test:integration": "node integration_solver_apply.mjs",
+    "test:integration:all": "node integration_solver_apply.mjs A && node integration_solver_apply.mjs B && node integration_solver_apply.mjs C && node integration_solver_apply.mjs D"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.0"

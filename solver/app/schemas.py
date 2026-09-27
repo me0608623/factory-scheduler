@@ -7,14 +7,25 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+
+def iso_day(value: str) -> str:
+    """保留 API 的日期字串格式，同時在進入時間軸前驗證它。"""
+    try:
+        parsed = date.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError("日期必須是 YYYY-MM-DD") from exc
+    if parsed.isoformat() != value:
+        raise ValueError("日期必須是 YYYY-MM-DD")
+    return value
 
 
 class Step(BaseModel):
     process: str
     factory: int = Field(default=1, ge=1, le=2)
-    rate: float                      # 一個人每分鐘做幾件
-    batch: int = 0                   # 前站完成幾件就能傳到這站；0 = 前站全部完成
+    rate: float = Field(gt=0, allow_inf_nan=False)  # 一個人每分鐘做幾件；須為有限正數
+    batch: int = Field(default=0, ge=0)  # 前站完成幾件就能傳到這站；0 = 前站全部完成
 
 
 class Product(BaseModel):
@@ -26,11 +37,22 @@ class Product(BaseModel):
 class Fault(BaseModel):
     id: str | None = None
     date: str
-    start: int
-    end: int
+    start: int = Field(ge=0, lt=1440)
+    end: int = Field(gt=0, le=1440)
     note: str | None = None
     fixed: bool = False
     original_blocks: list[dict] = Field(default_factory=list)
+
+    @field_validator("date")
+    @classmethod
+    def valid_date(cls, value: str) -> str:
+        return iso_day(value)
+
+    @model_validator(mode="after")
+    def end_after_start(self):
+        if self.end <= self.start:
+            raise ValueError("故障結束時間必須晚於開始時間")
+        return self
 
 
 class Machine(BaseModel):
@@ -66,44 +88,78 @@ class Order(BaseModel):
     id: str
     code: str
     product: str
-    qty: int
+    qty: int = Field(gt=0)
     due: str                         # 最晚完成日
-    priority: int = 2                # 0 特急、1 急、2 一般、3 不急
+    priority: int = Field(default=2, ge=0, le=3)  # 0 特急、1 急、2 一般、3 不急
+
+    @field_validator("due")
+    @classmethod
+    def valid_due(cls, value: str) -> str:
+        return iso_day(value)
 
 
 class Block(BaseModel):
     id: str | None = None
     order: str
-    step: int
+    step: int = Field(ge=0)
     machine: str
     employee: str | None
     date: str
-    start: int
-    end: int
-    qty: int
+    start: int = Field(ge=0, lt=1440)
+    end: int = Field(gt=0, le=1440)
+    qty: int = Field(gt=0)
     pinned: bool = False
+
+    @field_validator("date")
+    @classmethod
+    def valid_date(cls, value: str) -> str:
+        return iso_day(value)
+
+    @model_validator(mode="after")
+    def end_after_start(self):
+        if self.end <= self.start:
+            raise ValueError("工作結束時間必須晚於開始時間")
+        return self
 
 
 class WindowDef(BaseModel):
-    start: int
-    end: int
+    start: int = Field(ge=0, lt=1440)
+    end: int = Field(gt=0, le=1440)
     overtime: bool = False
+
+    @model_validator(mode="after")
+    def end_after_start(self):
+        if self.end <= self.start:
+            raise ValueError("上班時段結束時間必須晚於開始時間")
+        return self
 
 
 DEFAULT_WINDOWS = [WindowDef(start=480, end=720), WindowDef(start=780, end=1020), WindowDef(start=1020, end=1200, overtime=True)]
 
 
 class Calendar(BaseModel):
-    week: list[bool]                                     # 0 = 週日
+    week: list[bool] = Field(min_length=7, max_length=7)  # 0 = 週日
     overrides: dict[str, bool] = Field(default_factory=dict)   # 單日改為上班／停工
     overtime: dict[str, bool] = Field(default_factory=dict)    # 開加班的日子
     holidays: dict[str, str] = Field(default_factory=dict)
     windows: list[WindowDef] = Field(default_factory=lambda: list(DEFAULT_WINDOWS))
 
+    @model_validator(mode="after")
+    def no_overlapping_windows(self):
+        ordered = sorted(self.windows, key=lambda window: window.start)
+        if any(right.start < left.end for left, right in zip(ordered, ordered[1:])):
+            raise ValueError("上班時段不可重疊")
+        return self
+
 
 class Now(BaseModel):
     date: str
-    min: int
+    min: int = Field(ge=0, le=1440)
+
+    @field_validator("date")
+    @classmethod
+    def valid_date(cls, value: str) -> str:
+        return iso_day(value)
 
 
 class Snapshot(BaseModel):
@@ -120,23 +176,41 @@ class Event(BaseModel):
     type: Literal["fault", "leave", "order", "recover", "auto"]
     machine: str | None = None       # fault
     date: str | None = None          # fault、leave
-    start: int | None = None         # fault
-    end: int | None = None           # fault
+    start: int | None = Field(default=None, ge=0, lt=1440)  # fault
+    end: int | None = Field(default=None, gt=0, le=1440)    # fault
     note: str | None = None
     employee: str | None = None      # leave
     order: Order | None = None       # order（新增或修改的工單）
     fault_id: str | None = None      # recover
+
+    @field_validator("date")
+    @classmethod
+    def valid_date(cls, value: str | None) -> str | None:
+        return iso_day(value) if value is not None else None
+
+    @model_validator(mode="after")
+    def required_fields(self):
+        if self.type == "fault" and (not self.machine or not self.date or self.start is None
+                                      or self.end is None or self.end <= self.start):
+            raise ValueError("故障需指定機台、日期與有效起訖時間")
+        if self.type == "leave" and (not self.employee or not self.date):
+            raise ValueError("請假需指定員工與日期")
+        if self.type == "order" and self.order is None:
+            raise ValueError("新增或修改工單需提供工單資料")
+        if self.type == "recover" and not self.fault_id:
+            raise ValueError("機台恢復需指定故障紀錄")
+        return self
 
 
 class PlanRequest(BaseModel):
     snapshot: Snapshot
     event: Event
     now: Now | None = None
-    time_limit: float = 5.0          # 每個方案最多算幾秒
+    time_limit: float = Field(default=5.0, gt=0, le=10)  # 每個方案最多算幾秒
 
 
 class SolveRequest(BaseModel):
     snapshot: Snapshot
     now: Now | None = None
     preset: Literal["min_change", "on_time"] = "on_time"
-    time_limit: float = 5.0
+    time_limit: float = Field(default=5.0, gt=0, le=10)

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import math
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Callable
@@ -15,7 +16,9 @@ from typing import Callable
 from ortools.sat.python import cp_model
 
 from .schemas import Block, Now, Snapshot
+from .material import batch_ready
 from .timeline import Timeline, abs_min
+from .validate import check
 
 PRI_W = [8, 4, 2, 1]
 
@@ -35,9 +38,57 @@ PRESETS: dict[str, Weights] = {
 }
 
 
+def configured_workers() -> int:
+    """每次求解最多使用的工作者數；未設定或填錯時維持既有預設。"""
+    try:
+        value = int(os.environ.get("SOLVER_MAX_WORKERS", "8"))
+    except ValueError:
+        return 8
+    return value if 1 <= value <= 16 else 8
+
+
 def dur_of(qty: int, rate: float) -> int:
-    """標準工序公式：數量 ÷ 每分鐘件數，以 10 分鐘為單位進位。"""
+    """10 分鐘格點進位，保留每段整數件數無法四捨五入的餘量。"""
+    capacity_per_slot = math.floor(rate * 10 + 1e-8)
+    if capacity_per_slot:
+        return max(10, math.ceil(qty / capacity_per_slot) * 10)
+    # 極慢工序不足以在 10 分鐘產出一件，仍按名目速率估時；分段後
+    # 是否足夠由獨立驗證器判斷，不能把不合法的方案標為可套用。
     return max(10, math.ceil(qty / rate / 10) * 10)
+
+
+def first_free_start(now: int, duration: int, horizon: int,
+                     busy: list[tuple[int, int]]) -> int | None:
+    """在壓縮後的工作時間軸找一段完整空檔；候選搜尋用，不取代 CP-SAT 限制。"""
+    start = math.ceil(now / 10) * 10
+    for occupied_start, occupied_end in busy:
+        if occupied_end <= start:
+            continue
+        if start + duration <= occupied_start:
+            break
+        start = math.ceil(occupied_end / 10) * 10
+    return start if start + duration <= horizon else None
+
+
+def full_capacity_spans(intervals: list[tuple[int, int]], capacity: int) -> list[tuple[int, int]]:
+    """員工已顧滿設定台數的時段；只供快速候選排序，不取代正式累積限制。"""
+    changes: dict[int, int] = {}
+    for start, end in intervals:
+        if end > start:
+            changes[start] = changes.get(start, 0) + 1
+            changes[end] = changes.get(end, 0) - 1
+    spans = []
+    load = 0
+    full_from = None
+    for minute, delta in sorted(changes.items()):
+        previous = load
+        load += delta
+        if previous < capacity <= load:
+            full_from = minute
+        elif previous >= capacity > load and full_from is not None:
+            spans.append((full_from, minute))
+            full_from = None
+    return spans
 
 
 @dataclass
@@ -48,6 +99,7 @@ class Op:
     pairs: list[tuple[str, str]]      # (機台, 員工)
     ref_start: int | None = None      # 原本的開始時間（時間軸）
     ref_pair: tuple[str, str] | None = None
+    forced_change: bool = False       # 受限候選排除原人機組合時仍須計入換組合成本
 
 
 @dataclass
@@ -59,6 +111,8 @@ class Result:
     n_ops: int
     unplaced: list[str] = field(default_factory=list)
     released: list[Block] = field(default_factory=list)   # 因為故障、請假被迫移動的原排程
+    search_mode: str = "full"         # full 或 restricted_pairs（完整搜尋超時後的初稿）
+    candidate_pairs: int | None = None
 
 
 def _cut_for_conflicts(b: Block, snap: Snapshot) -> int | None:
@@ -87,13 +141,16 @@ def solve(
     extra_overtime: frozenset[str] | set[str] = frozenset(),
     time_limit: float = 5.0,
     days: int = 45,
-    workers: int = 8,
+    workers: int | None = None,
+    pair_cap: int | None = None,
 ) -> Result:
     t_start = time.time()
+    workers = configured_workers() if workers is None else workers
     now_min = math.ceil(now.min / 10) * 10
     tl = Timeline(snap.calendar, now.date, days, extra_overtime)
     t_now = tl.to_t(now.date, now_min)
     now_abs = abs_min(now.date, now_min)
+    actual_now_abs = abs_min(now.date, now.min)
 
     orders = {o.id: o for o in snap.orders}
     prods = {p.id: p for p in snap.products}
@@ -109,13 +166,19 @@ def solve(
         keep = b.pinned or abs_min(b.date, b.start) < now_abs or (movable is not None and not movable(b))
         if not keep:
             continue
+        if abs_min(b.date, b.end) <= actual_now_abs:
+            # 已完成的歷史不因事後補登故障／請假而被抹掉或重做。
+            fixed.append(b)
+            continue
         cut = _cut_for_conflicts(b, snap)
         if cut is None:
             fixed.append(b)
             continue
         released.append(b)
         if cut > b.start:                               # 衝突前做完的部分留著
-            q = round(b.qty * (cut - b.start) / (b.end - b.start))
+            # 已完成部分只能向下取整；四捨五入可能把 7.5 件記成 8 件，
+            # 超過這 10 分鐘按工序速率實際做得出的整數產能。
+            q = math.floor(b.qty * (cut - b.start) / (b.end - b.start) + 1e-8)
             if q > 0:
                 fixed.append(b.model_copy(update={"end": cut, "qty": q}))
 
@@ -133,17 +196,27 @@ def solve(
     for o in snap.orders:
         p = prods.get(o.product)
         if not p:
-            unplaced.append(f"{o.code}：找不到產品")
+            unplaced.append(f"{o.code}：找不到產品資料；請先建立產品與工序，再重新排程")
+            continue
+        if not p.steps:
+            unplaced.append(f"{o.code}：產品沒有工序；請先建立產品工序，再重新排程")
             continue
         for k, st in enumerate(p.steps):
             rem = o.qty - done.get((o.id, k), 0)
             if rem <= 0:
                 continue
-            pairs = [(m.id, e.id) for m in snap.machines
-                     if m.factory == st.factory and m.process == st.process and o.product in m.products
+            eligible_machines = [m for m in snap.machines
+                                 if m.factory == st.factory and m.process == st.process and o.product in m.products]
+            pairs = [(m.id, e.id) for m in eligible_machines
                      for e in snap.employees if e.factory == m.factory and m.id in e.skills]
             if not pairs:
-                unplaced.append(f"{o.code} {st.process}：沒有能做的機台或人員")
+                if not eligible_machines:
+                    elsewhere = [m.id for m in snap.machines if m.factory != st.factory and m.process == st.process and o.product in m.products]
+                    alternative = (f"；其他廠有 {', '.join(elsewhere[:3])}，若製程允許可改該站廠別" if elsewhere else "")
+                    unplaced.append(f"{o.code} {st.process}（{st.factory} 廠）：沒有可加工此產品的機台；請設定該廠機台的工序與可加工產品{alternative}")
+                else:
+                    mids = ', '.join(m.id for m in eligible_machines[:3])
+                    unplaced.append(f"{o.code} {st.process}（{st.factory} 廠）：機台 {mids} 可加工，但沒有具操作資格的同廠人員；請確認員工技能並指派可操作 {mids} 的員工")
                 continue
             op = Op((o.id, k), rem, dur_of(rem, st.rate), pairs)
             rb = refs.get((o.id, k))
@@ -157,6 +230,156 @@ def solve(
 
     # ---------- 3. 建模 ----------
     H = tl.horizon
+    if ops and not any(w.t1 > t_now for w in tl.wins):
+        if days < 120:
+            return solve(snap, now, weights, reference=reference, movable=movable,
+                         extra_overtime=extra_overtime, time_limit=time_limit, days=days * 2,
+                         workers=workers, pair_cap=pair_cap)
+        return Result(list(snap.blocks), "NO_WORKING_TIME", None, time.time() - t_start, len(ops),
+                      unplaced + [f"從 {now.date} 起的 {days} 天內沒有可排的上班時段；請在上班日設定開放工作日或調整排程起日"], released)
+
+    pairs_used = {pair for op in ops.values() for pair in op.pairs}
+    first_available: dict[tuple[str, str], int] = {}
+    for mid, eid in pairs_used:
+        employee, machine = emps[eid], machs[mid]
+        for w in tl.wins:
+            if (w.t1 > t_now and w.date not in employee.leaves
+                    and (not (w.overtime or w.special) or employee.allows_overtime(w.date))
+                    and not any(f.date == w.date and f.start <= w.start and f.end >= w.end for f in machine.faults)):
+                first_available[mid, eid] = max(w.t0, t_now)
+                break
+    available_pairs = set(first_available)
+    availability = []
+    for op in ops.values():
+        if any(pair in available_pairs for pair in op.pairs):
+            continue
+        order = orders[op.key[0]]
+        process = prods[order.product].steps[op.key[1]].process
+        availability.append(f"{order.code} {process}：未來 {days} 天合格人員的請假／加班限制或機台故障覆蓋所有可上班時段；請檢查請假、加班意願與故障結束時間")
+    if availability:
+        if days < 120:
+            return solve(snap, now, weights, reference=reference, movable=movable,
+                         extra_overtime=extra_overtime, time_limit=time_limit, days=days * 2,
+                         workers=workers, pair_cap=pair_cap)
+        return Result(list(snap.blocks), "NO_AVAILABLE_PAIR", None, time.time() - t_start, len(ops),
+                      unplaced + availability, released)
+
+    early_draft: Result | None = None
+    if pair_cap is None and len(ops) >= 1000 and not unplaced:
+        # 大模型先給受限人機候選完整的求解預算；若可準時且驗證通過，省去
+        # 大量可選區間的完整模型。若初稿仍逾期，保留它並繼續嘗試完整模型。
+        delayed_pairs = sum(ready > t_now for ready in first_available.values())
+        # 大型加班案用兩組候選：額外視窗讓單候選模型在部分工單組合上
+        # 長時間搜尋且高耗記憶體，兩組候選反而較快找到合法解。
+        draft_pair_cap = 2 if (delayed_pairs * 4 >= len(first_available)
+                               or (extra_overtime and len(ops) >= 2000)) else 1
+        candidate = solve(snap, now, weights, reference=reference, movable=movable,
+                          extra_overtime=extra_overtime, time_limit=time_limit,
+                          days=days, workers=workers, pair_cap=draft_pair_cap)
+        # 單一人機候選無解只代表「受限子問題」無解；先擴成兩組候選，
+        # 不要直接掉進巨大完整模型並把仍可排的工作誤報成逾時。
+        if draft_pair_cap == 1 and candidate.status in ("INFEASIBLE", "NO_AVAILABLE_PAIR"):
+            candidate = solve(snap, now, weights, reference=reference, movable=movable,
+                              extra_overtime=extra_overtime, time_limit=time_limit,
+                              days=days, workers=workers, pair_cap=2)
+        if (candidate.status in ("OPTIMAL", "FEASIBLE") and not candidate.unplaced
+                and not check(snap, candidate.blocks, now, extra_overtime)):
+            candidate.status = "FEASIBLE"
+            early_draft = candidate
+            finish_dates: dict[str, str] = {}
+            for block in candidate.blocks:
+                order = orders.get(block.order)
+                if order and block.step == len(prods[order.product].steps) - 1:
+                    finish_dates[order.id] = max(finish_dates.get(order.id, ""), block.date)
+            # 2,000 道以上即使只給完整模型 1 秒，建模本身也可能吃掉大量記憶體；
+            # 有合法初稿時先交付 FEASIBLE，避免為改善逾期而讓整個預覽失敗。
+            if len(ops) >= 2000 or all(finish_dates.get(order.id, "9999-12-31") <= order.due for order in snap.orders):
+                candidate.wall = time.time() - t_start
+                return candidate
+
+    if pair_cap is not None:
+        machine_busy: dict[str, list[tuple[int, int]]] = {mid: [] for mid in machs}
+        employee_busy: dict[str, list[tuple[int, int]]] = {eid: [] for eid in emps}
+        employee_load: dict[str, list[tuple[int, int]]] = {eid: [] for eid in emps}
+
+        def occupy(target: list[tuple[int, int]], start: int, end: int):
+            if end > start:
+                target.append((start, end))
+
+        for machine in snap.machines:
+            for fault in machine.faults:
+                occupy(machine_busy[machine.id], tl.to_t(fault.date, fault.start),
+                       tl.to_t(fault.date, fault.end))
+        for block in fixed:
+            start, end = tl.to_t(block.date, block.start), tl.to_t(block.date, block.end)
+            if block.machine in machine_busy:
+                occupy(machine_busy[block.machine], start, end)
+            if block.employee in employee_load:
+                occupy(employee_load[block.employee], start, end)
+        for employee in snap.employees:
+            employee_busy[employee.id].extend(
+                full_capacity_spans(employee_load[employee.id], employee.max_concurrent_machines)
+            )
+        for employee in snap.employees:
+            for day in employee.leaves:
+                span = tl.day_span(day)
+                if span:
+                    employee_busy[employee.id].append(span)
+            for window in tl.wins:
+                if (window.overtime or window.special) and not employee.allows_overtime(window.date):
+                    occupy(employee_busy[employee.id], window.t0, window.t1)
+        pair_busy = {pair: sorted(machine_busy[pair[0]] + employee_busy[pair[1]])
+                     for pair in pairs_used}
+        earliest_cache: dict[tuple[tuple[str, str], int], int | None] = {}
+        order_positions = {order.id: index for index, order in enumerate(snap.orders)}
+        for op in ops.values():
+            earliest = {}
+            for pair in op.pairs:
+                if pair not in available_pairs:
+                    continue
+                cache_key = (pair, op.dur)
+                if cache_key not in earliest_cache:
+                    earliest_cache[cache_key] = first_free_start(t_now, op.dur, H, pair_busy[pair])
+                if earliest_cache[cache_key] is not None:
+                    earliest[pair] = earliest_cache[cache_key]
+            if not earliest:
+                order = orders[op.key[0]]
+                return Result(list(snap.blocks), "NO_AVAILABLE_PAIR", None,
+                              time.time() - t_start, len(ops),
+                              unplaced + [f"{order.code}：受限候選在搜尋期內找不到足夠長的機台與員工空檔"],
+                              released)
+            candidates = list(earliest)
+            due_t = tl.end_of_date(orders[op.key[0]].due)
+            on_time = [pair for pair in candidates if earliest[pair] + op.dur <= due_t]
+            if on_time:
+                candidates = on_time
+            else:
+                first = min(earliest.values())
+                candidates = [pair for pair in candidates if earliest[pair] == first]
+            if len(candidates) <= pair_cap:
+                op.pairs = candidates
+            else:
+                machine_pairs: dict[str, list[tuple[str, str]]] = {}
+                for pair in candidates:
+                    machine_pairs.setdefault(pair[0], []).append(pair)
+                machine_ids = list(machine_pairs)
+                position = order_positions[op.key[0]]
+                chosen = []
+                offset = 0
+                while len(chosen) < pair_cap:
+                    mid = machine_ids[(position + offset) % len(machine_ids)]
+                    on_machine = machine_pairs[mid]
+                    pair = on_machine[(position // len(machine_ids) + offset // len(machine_ids)) % len(on_machine)]
+                    if pair not in chosen:
+                        chosen.append(pair)
+                    offset += 1
+                if op.ref_pair in candidates and op.ref_pair not in chosen:
+                    chosen[-1] = op.ref_pair
+                op.pairs = chosen
+            if op.ref_pair not in op.pairs:
+                op.forced_change = op.ref_pair is not None
+                op.ref_pair = None
+
     m = cp_model.CpModel()
     S, E, X = {}, {}, {}
     mach_iv: dict[str, list] = {mid: [] for mid in machs}
@@ -198,10 +421,20 @@ def solve(
         if b.employee in emp_iv:
             emp_iv[b.employee].append(iv)
     for mc in snap.machines:                                 # 機台故障
-        for f in mc.faults:
-            iv = fixed_iv(tl.to_t(f.date, f.start), tl.to_t(f.date, f.end), f"fault_{mc.id}_{f.date}_{f.start}")
-            if iv is not None:
-                mach_iv[mc.id].append(iv)
+        # 故障紀錄可以重疊（例如全天故障後再補登上午）。若直接把每筆
+        # 固定區間都交給 NoOverlap，紀錄本身就互相衝突，會誤判排程無解。
+        fault_spans = sorted((tl.to_t(f.date, f.start), tl.to_t(f.date, f.end))
+                             for f in mc.faults)
+        merged_faults: list[list[int]] = []
+        for start, end in fault_spans:
+            if end <= start:
+                continue
+            if merged_faults and start <= merged_faults[-1][1]:
+                merged_faults[-1][1] = max(merged_faults[-1][1], end)
+            else:
+                merged_faults.append([start, end])
+        for index, (start, end) in enumerate(merged_faults):
+            mach_iv[mc.id].append(fixed_iv(start, end, f"fault_{mc.id}_{index}"))
     for em in snap.employees:                                # 請假、不能加班
         for d in em.leaves:
             span = tl.day_span(d)
@@ -223,26 +456,85 @@ def solve(
                              em.max_concurrent_machines)
 
     # 工序順序（前站 → 下站）
+    fixed_by_key: dict[tuple[str, int], list[Block]] = {}
+    for block in fixed:
+        fixed_by_key.setdefault((block.order, block.step), []).append(block)
+
+    def fixed_batch_ready(key: tuple[str, int], batch_qty: int) -> int | None:
+        ready = batch_ready(fixed_by_key.get(key, []), batch_qty, tl.to_t)
+        return math.ceil((ready - 1e-8) / 10) * 10 if ready is not None else None
+
     for o in snap.orders:
         p = prods.get(o.product)
         if not p:
             continue
         for k in range(1, len(p.steps)):
             cur = ops.get((o.id, k))
-            if not cur:
-                continue
             prev = ops.get((o.id, k - 1))
             batch = p.steps[k].batch
+            fixed_prev = fixed_by_key.get((o.id, k - 1), [])
+            fixed_end = max((tl.to_t(b.date, b.end) for b in fixed_prev), default=None)
+            fixed_cur = fixed_by_key.get((o.id, k), [])
+            if fixed_cur and prev:
+                # 後站已固定時，不能只限制新排的後站：前站重排也必須趕上
+                # 最早一段已固定的交接時間，否則會回傳「成功但不可套用」的方案。
+                fixed_start = min(tl.to_t(b.date, b.start) for b in fixed_cur)
+                fixed_cur_end = max(tl.to_t(b.date, b.end) for b in fixed_cur)
+                if 0 < batch < o.qty:
+                    completed = done.get((o.id, k - 1), 0)
+                    if completed >= batch:
+                        ready = fixed_batch_ready((o.id, k - 1), batch)
+                        if ready is not None:
+                            m.add(ready <= fixed_start)
+                    else:
+                        remaining_batch = batch - completed
+                        ready_delta = math.ceil(remaining_batch * prev.dur / (prev.qty * 10)) * 10
+                        m.add(S[prev.key] + ready_delta <= fixed_start)
+                        if fixed_end is not None:
+                            m.add(fixed_end <= fixed_start)
+                else:
+                    m.add(E[prev.key] <= fixed_start)
+                    if fixed_end is not None:
+                        m.add(fixed_end <= fixed_start)
+                if not cur:
+                    m.add(E[prev.key] <= fixed_cur_end)
+            if not cur:
+                continue
             if prev:
                 if 0 < batch < o.qty:
-                    m.add(S[cur.key] >= S[prev.key] + dur_of(batch, p.steps[k - 1].rate))
-                    m.add(E[cur.key] >= E[prev.key] + dur_of(batch, p.steps[k].rate))
+                    completed = done.get((o.id, k - 1), 0)
+                    if completed >= batch:
+                        ready = fixed_batch_ready((o.id, k - 1), batch)
+                        if ready is not None:
+                            m.add(S[cur.key] >= ready)
+                    else:
+                        remaining_batch = batch - completed
+                        # 輸出方塊把 prev.qty 均攤到進位後的 prev.dur；不能再用名目速率
+                        # 算交接點，否則會比獨立驗證看到的實際產量更早放行。
+                        ready_delta = math.ceil(remaining_batch * prev.dur / (prev.qty * 10)) * 10
+                        m.add(S[cur.key] >= S[prev.key] + ready_delta)
+                        if fixed_end is not None:
+                            m.add(S[cur.key] >= fixed_end)
+                    # 前站全數連續新排時，交接批量後可同步加工，兩站可以同時完工。
+                    # 若前站另有固定片段，中間可能有長空檔；仍保留一批加工時間的
+                    # 緩衝，避免後站在下一批實際做出前消耗超過已交接的數量。
+                    buffer = dur_of(batch, p.steps[k].rate) if fixed_prev else 0
+                    m.add(E[cur.key] >= E[prev.key] + buffer)
                 else:
                     m.add(S[cur.key] >= E[prev.key])
+                    if fixed_end is not None:
+                        m.add(S[cur.key] >= fixed_end)
+                if fixed_end is not None:
+                    m.add(E[cur.key] >= fixed_end)
             else:
-                fe = [tl.to_t(b.date, b.end) for b in fixed if b.order == o.id and b.step == k - 1]
-                if fe:
-                    m.add(S[cur.key] >= max(fe))
+                if 0 < batch < o.qty:
+                    ready = fixed_batch_ready((o.id, k - 1), batch)
+                    if ready is not None:
+                        m.add(S[cur.key] >= ready)
+                elif fixed_end is not None:
+                    m.add(S[cur.key] >= fixed_end)
+                if fixed_end is not None:
+                    m.add(E[cur.key] >= fixed_end)
 
     # ---------- 4. 目標 ----------
     terms = []
@@ -266,19 +558,63 @@ def solve(
             terms.append(weights.dev * d)
         if weights.change and op.ref_pair:
             terms.append(weights.change * (1 - X[key, op.ref_pair]))
+        elif weights.change and op.forced_change:
+            terms.append(weights.change)
     m.minimize(sum(terms) if terms else 0)
 
     solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = time_limit
+    # 2,000 道以上若已有合法初稿，完整模型僅作短時間改善，避免多方案預覽
+    # 連續兩次「初稿 5 秒＋完整模型 5 秒」逼近 HTTP 請求逾時。
+    solver.parameters.max_time_in_seconds = (
+        min(time_limit, 1.0) if early_draft is not None and len(ops) >= 2000 else time_limit
+    )
     solver.parameters.num_workers = workers
     status = solver.solve(m)
     name = solver.status_name(status)
+
+    def restricted_draft() -> Result | None:
+        if early_draft is not None:
+            early_draft.wall = time.time() - t_start
+            return early_draft
+        if pair_cap is not None or len(ops) < 150 or unplaced:
+            return None
+        draft = solve(snap, now, weights, reference=reference, movable=movable,
+                      extra_overtime=extra_overtime, time_limit=min(1.0, time_limit),
+                      days=days, workers=workers, pair_cap=1)
+        if (draft.status not in ("OPTIMAL", "FEASIBLE") or draft.unplaced
+                or check(snap, draft.blocks, now, extra_overtime)):
+            return None
+        draft.status = "FEASIBLE"  # 受限候選的最優，不代表完整問題的最優
+        draft.wall = time.time() - t_start
+        return draft
+
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        if days < 120:                                       # 排不下：把時間範圍拉長再試一次
+        if early_draft is not None:
+            early_draft.wall = time.time() - t_start
+            return early_draft
+        if status == cp_model.UNKNOWN:
+            draft = restricted_draft()
+            if draft is not None:
+                return draft
+        if status == cp_model.INFEASIBLE and days < 120 and pair_cap is None:
+            # 受限候選的無解不代表完整問題無解；不替備援搜尋擴大範圍。
             return solve(snap, now, weights, reference=reference, movable=movable,
-                         extra_overtime=extra_overtime, time_limit=time_limit, days=days * 2, workers=workers)
+                         extra_overtime=extra_overtime, time_limit=time_limit, days=days * 2,
+                         workers=workers, pair_cap=pair_cap)
+        if status == cp_model.UNKNOWN:
+            reason = "計算時間內尚未找到可行方案（不代表無解）；可先用手動排班安排急件，或請管理員提高求解時限後重試"
+        elif status == cp_model.INFEASIBLE:
+            reason = "目前限制下排不出可行方案；請檢查固定工作、機台故障、請假與可上班日期"
+        else:
+            reason = "排程模型無法完成計算；請檢查產品速率、工單與固定方塊資料，必要時交由開發者診斷"
         return Result(list(snap.blocks), name, None, time.time() - t_start, len(ops),
-                      unplaced + ["排不出可行的排程，請檢查人員技能、機台與故障設定"], released)
+                      unplaced + [reason], released)
+
+    if status == cp_model.FEASIBLE:
+        draft = restricted_draft()
+        if (draft is not None and draft.objective is not None
+                and draft.objective + 1e-6 < solver.objective_value):
+            return draft
 
     # ---------- 5. 換回真實時間的方塊 ----------
     out: list[Block] = list(fixed)
@@ -289,7 +625,7 @@ def solve(
         rate = prods[orders[key[0]].product].steps[key[1]].rate
         left = op.qty
         for i, (ds, a, b2) in enumerate(segs):
-            q = left if i == len(segs) - 1 else min(left, round((b2 - a) * rate))
+            q = left if i == len(segs) - 1 else min(left, math.floor((b2 - a) * rate + 1e-8))
             left -= q
             if q > 0:
                 out.append(Block(order=key[0], step=key[1], machine=pr[0], employee=pr[1], date=ds, start=a, end=b2, qty=q))
@@ -304,4 +640,16 @@ def solve(
                 b.id = oid
                 used.add(oid)
     out.sort(key=lambda b: (b.date, b.machine, b.start))
-    return Result(out, name, solver.objective_value, time.time() - t_start, len(ops), unplaced, released)
+    search_mode = "restricted_pairs" if pair_cap is not None else "full"
+    if unplaced:
+        # CP-SAT 只看到可建模的工序；其最優不等於整張排程已完成。
+        return Result(out, "INCOMPLETE", None, time.time() - t_start, len(ops),
+                      unplaced, released, search_mode, pair_cap)
+    issues = check(snap, out, now, extra_overtime)
+    if issues:
+        # 固定方塊可能本來就互相矛盾（例如跨廠前後站顛倒）。
+        # 即使 CP-SAT 的子模型可行，也不能對外宣稱整份排程有效。
+        return Result(out, "INVALID_SCHEDULE", None, time.time() - t_start, len(ops),
+                      issues[:5], released, search_mode, pair_cap)
+    return Result(out, name, solver.objective_value, time.time() - t_start, len(ops),
+                  unplaced, released, search_mode, pair_cap)

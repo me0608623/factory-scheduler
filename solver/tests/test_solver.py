@@ -1,15 +1,27 @@
 """排程服務測試：時間軸、OR-Tools 模型、各種突發狀況的方案、API。"""
 from fastapi.testclient import TestClient
+from datetime import date, timedelta
+from unittest.mock import patch
+import sys
+
+from ortools.sat.python import cp_model
+from pydantic import ValidationError
+import pytest
 
 from app import main as api
+from app import plans as plan_api
 from app.main import app
-from app.model import PRESETS, solve
+from app.model import PRESETS, Result, Weights, configured_workers, full_capacity_spans, solve
 from app.plans import make_plans
-from app.schemas import Calendar, Employee, Event, Machine, Now, Order, PlanRequest, Product, Snapshot, Step
+from app.schemas import Block, Calendar, Employee, Event, Fault, Machine, Now, Order, PlanRequest, Product, Snapshot, Step, WindowDef
 from app.timeline import Timeline, abs_min
 from app.validate import check
 
 from .conftest import snapshot_after
+from scripts.benchmark import snapshot_for
+from scripts import benchmark as benchmark_script
+from scripts.stress_batch import case as batch_case
+from scripts.stress_mixed import case as mixed_case
 
 
 def finish_total(snap, blocks):
@@ -37,6 +49,20 @@ def test_timeline_overtime_window_only_when_enabled(demo):
     snap, _ = demo
     assert Timeline(snap.calendar, "2026-09-29", 1).horizon == 480
     assert Timeline(snap.calendar, "2026-09-29", 1, {"2026-09-29"}).horizon == 660
+
+
+def test_validator_accepts_workday_beyond_ninety_days():
+    future_day = "2027-01-04"  # 2026-09-28 起第 99 天，週一上班
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="m", process="cut", products=["p"])],
+        employees=[Employee(id="e", name="Worker", skills=["m"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=1)])],
+        orders=[Order(id="o", code="O", product="p", qty=60, due=future_day)],
+        blocks=[Block(order="o", step=0, machine="m", employee="e",
+                      date=future_day, start=480, end=540, qty=60)],
+    )
+    assert check(snap, snap.blocks, Now(date="2026-09-28", min=480)) == []
 
 
 def test_employee_weekly_overtime_and_one_day_override(demo):
@@ -97,7 +123,179 @@ def test_employee_machine_limit_allows_two_machines_but_not_three():
     assert check(snap, single.blocks, now) == []
 
 
+def test_restricted_pair_prefers_free_worker_when_two_machine_worker_is_full():
+    day = "2026-09-28"
+    fixed = [Block(order=oid, step=0, machine=mid, employee="busy", date=day,
+                   start=start, end=end, qty=60, pinned=True)
+             for oid, mid in (("oa", "a"), ("ob", "b"))
+             for start, end in ((480, 720), (780, 1020))]
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        employees=[Employee(id="busy", name="已顧兩台", skills=["a", "b", "c"], max_concurrent_machines=2),
+                   Employee(id="free", name="可用員工", skills=["c"])],
+        machines=[Machine(id="a", process="cut", products=["fixed"]),
+                  Machine(id="b", process="cut", products=["fixed"]),
+                  Machine(id="c", process="pack", products=["new"])],
+        products=[Product(id="fixed", name="原工作", steps=[Step(process="cut", rate=1)]),
+                  Product(id="new", name="急件", steps=[Step(process="pack", rate=1)])],
+        orders=[Order(id="new", code="NEW", product="new", qty=60, due=day),
+                Order(id="oa", code="OA", product="fixed", qty=120, due=day),
+                Order(id="ob", code="OB", product="fixed", qty=120, due=day)],
+        blocks=fixed,
+    )
+    now = Now(date=day, min=480)
+    result = solve(snap, now, PRESETS["on_time"],
+                   pair_cap=1, days=2, time_limit=2, workers=2)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert check(snap, result.blocks, now) == []
+    new_block = next(b for b in result.blocks if b.order == "new")
+    assert (new_block.employee, new_block.date) == ("free", day)
+
+
+def test_full_capacity_spans_handles_partial_overlap_and_handoffs():
+    intervals = [(0, 60), (30, 90), (60, 120)]
+    assert full_capacity_spans(intervals, 1) == [(0, 120)]
+    assert full_capacity_spans(intervals, 2) == [(30, 90)]
+    assert full_capacity_spans(intervals, 3) == []
+
+
 # ---------- 模型 ----------
+def test_overlapping_fault_records_do_not_make_future_work_infeasible():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="m", process="cut", products=["p"], faults=[
+            Fault(date=day, start=480, end=1020),
+            Fault(date=day, start=480, end=720),
+        ])],
+        employees=[Employee(id="e", name="Worker", skills=["m"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=1)])],
+        orders=[Order(id="o", code="O", product="p", qty=60, due="2026-09-30")],
+    )
+    now = Now(date=day, min=480)
+    result = solve(snap, now, PRESETS["on_time"], time_limit=2)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert result.blocks and all(block.date > day for block in result.blocks)
+    assert check(snap, result.blocks, now) == []
+
+
+def test_split_operation_respects_each_block_integer_rate_capacity():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, False, False, False, False, False],
+                          windows=[WindowDef(start=600, end=610), WindowDef(start=710, end=720),
+                                   WindowDef(start=780, end=790)]),
+        machines=[Machine(id="m", process="cut", products=["p"])],
+        employees=[Employee(id="e", name="Worker", skills=["m"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=1.25)])],
+        orders=[Order(id="o", code="O", product="p", qty=25, due=day)],
+    )
+    now = Now(date=day, min=600)
+    impossible = [Block(order="o", step=0, machine="m", employee="e", date=day,
+                        start=minute, end=minute + 10, qty=qty)
+                  for minute, qty in ((600, 12), (710, 13))]
+    assert any("速率" in issue for issue in check(snap, impossible, now))
+    result = solve(snap, now, PRESETS["on_time"], days=1, time_limit=2)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert len(result.blocks) == 3
+    assert check(snap, result.blocks, now) == []
+
+
+def test_very_slow_rate_can_use_one_contiguous_block():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, False, False, False, False, False],
+                          windows=[WindowDef(start=600, end=620)]),
+        machines=[Machine(id="m", process="cut", products=["p"])],
+        employees=[Employee(id="e", name="Worker", skills=["m"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=0.05)])],
+        orders=[Order(id="o", code="O", product="p", qty=1, due=day)],
+    )
+    now = Now(date=day, min=600)
+    result = solve(snap, now, PRESETS["on_time"], days=1, time_limit=2)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert [(b.start, b.end, b.qty) for b in result.blocks] == [(600, 620, 1)]
+    assert check(snap, result.blocks, now) == []
+
+
+def test_large_unassigned_fault_plan_reuses_equivalent_second_strategy(monkeypatch):
+    snap = snapshot_for(5, 10, 40)
+    calls = []
+
+    def fake_solve(snapshot, now, weights, **kwargs):
+        calls.append((weights, kwargs["extra_overtime"]))
+        return Result([], "UNKNOWN", None, 0.0, 160, ["not found"])
+
+    monkeypatch.setattr(plan_api, "solve", fake_solve)
+    plan = make_plans(PlanRequest(
+        snapshot=snap,
+        event=Event(type="fault", machine="m0", date="2026-09-28", start=480, end=720),
+        now=Now(date="2026-09-28", min=480), time_limit=1,
+    ))
+    assert [option["id"] for option in plan["options"]] == ["A", "B", "C", "D"]
+    assert len(calls) == 3
+    assert plan["options"][0]["diagnostics"] == plan["options"][1]["diagnostics"]
+
+
+def test_large_plan_marks_unstarted_options_after_total_wait_budget(monkeypatch):
+    snap = snapshot_for(5, 10, 40)
+    elapsed = [0]
+    calls = []
+
+    def fake_solve(snapshot, now, weights, **kwargs):
+        calls.append(weights)
+        elapsed[0] += 24
+        return Result([], "UNKNOWN", None, 24.0, 160, ["not found"])
+
+    monkeypatch.setattr(plan_api, "monotonic", lambda: elapsed[0])
+    monkeypatch.setattr(plan_api, "solve", fake_solve)
+    plan = make_plans(PlanRequest(
+        snapshot=snap,
+        event=Event(type="fault", machine="m0", date="2026-09-28", start=480, end=720),
+        now=Now(date="2026-09-28", min=480), time_limit=10,
+    ))
+    assert len(calls) == 2  # A 和 C 算完，B 共用 A，D 不再開始
+    assert [option["id"] for option in plan["options"]] == ["A", "B", "C", "D"]
+    skipped = plan["options"][-1]
+    assert skipped["status"] == "SKIPPED" and skipped["applicable"] is False
+    assert skipped["diagnostics"] == ["大型排程已達整體等待上限，此方案尚未計算；可先查看已完成的方案，或縮小範圍後重試"]
+
+
+def test_solver_worker_limit_can_be_configured_without_changing_default(demo, monkeypatch):
+    snap, now = demo
+    monkeypatch.delenv("SOLVER_MAX_WORKERS", raising=False)
+    assert configured_workers() == 8
+    monkeypatch.setenv("SOLVER_MAX_WORKERS", "4")
+    assert configured_workers() == 4
+    used = []
+
+    def report_workers(solver, model):
+        used.append(solver.parameters.num_workers)
+        return cp_model.UNKNOWN
+
+    with patch.object(cp_model.CpSolver, "solve", report_workers):
+        solve(snap, now, PRESETS["on_time"], time_limit=0.01)
+    assert used == [4]
+    monkeypatch.setenv("SOLVER_MAX_WORKERS", "invalid")
+    assert configured_workers() == 8
+
+
+def test_plan_worker_limit_is_shared_across_parallel_options(monkeypatch):
+    monkeypatch.setenv("SOLVER_MAX_WORKERS", "4")
+    snap = Snapshot(calendar=Calendar(week=[False, True, True, True, True, True, False]),
+                    machines=[], employees=[], products=[], orders=[])
+    used = []
+
+    def fake_solve(snapshot, now, weights, **kwargs):
+        used.append(kwargs["workers"])
+        return Result([], "UNKNOWN", None, 0, 0, ["測試用未完成方案"])
+
+    monkeypatch.setattr(plan_api, "solve", fake_solve)
+    make_plans(PlanRequest(snapshot=snap, event=Event(type="auto"),
+                           now=Now(date="2026-09-28", min=480), time_limit=0.1))
+    assert used == [1, 1], "兩個實際求解選項同時執行時，總工作者不超過設定上限"
+
+
 def test_cross_factory_steps_keep_one_order_and_precedence():
     day = "2026-09-28"
     snap = Snapshot(
@@ -120,6 +318,277 @@ def test_cross_factory_steps_keep_one_order_and_precedence():
     assert abs_min(second.date, second.start) >= abs_min(first.date, first.end)
     wrong = second.model_copy(update={"employee": "e1"})
     assert any("不在同一廠" in issue for issue in check(snap, [first, wrong]))
+    preview = make_plans(PlanRequest(snapshot=snap, event=Event(type="auto"),
+                                     now=Now(date=day, min=480), time_limit=2))
+    option = preview["options"][0]
+    assert option["applicable"]
+    assert option["metrics"]["factories"] == [1, 2]
+    assert "影響 1 廠、2 廠" in option["summary"]
+
+
+def test_preview_reports_quantity_and_pin_changes_without_time_move():
+    day = "2026-09-28"
+    original = Block(order="o", step=0, machine="a", employee="e",
+                     date=day, start=480, end=540, qty=60, pinned=True)
+    base = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        employees=[Employee(id="e", name="甲", factory=1, skills=["a"])],
+        machines=[Machine(id="a", factory=1, process="裁切", products=["p"])],
+        products=[Product(id="p", name="產品", steps=[Step(process="裁切", factory=1, rate=1)])],
+        orders=[Order(id="o", code="O1", product="p", qty=60, due=day)],
+        blocks=[original],
+    )
+    changed = original.model_copy(update={"qty": 50, "pinned": False})
+    applied = plan_api.Applied(snap=base, effects={}, title="", date=day)
+    details = plan_api.describe(base, applied, [changed], None, Now(date=day, min=480), "auto")
+    assert details["metrics"]["factories"] == [1]
+    assert details["metrics"]["moved"] == 1
+    assert any("60件" in line["t"] and "50件" in line["t"] for line in details["lines"])
+    assert any(item["t"] == "out" for item in details["people"][0]["items"])
+    assert any(item["t"] == "in" for item in details["people"][0]["items"])
+    pin_only = original.model_copy(update={"pinned": False})
+    pin_details = plan_api.describe(base, applied, [pin_only], None, Now(date=day, min=480), "auto")
+    assert pin_details["metrics"]["moved"] == 1
+    assert any("（固定）" in line["t"] for line in pin_details["lines"])
+
+
+def test_preview_finish_summary_handles_split_late_and_incomplete_orders():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        employees=[], machines=[],
+        products=[Product(id="p", name="產品", steps=[Step(process="裁切", rate=1),
+                                                  Step(process="包裝", rate=1)])],
+        orders=[Order(id="complete", code="A", product="p", qty=60, due="2026-09-28"),
+                Order(id="partial", code="B", product="p", qty=60, due="2026-09-29"),
+                Order(id="missing", code="C", product="unknown", qty=60, due="2026-09-29")],
+    )
+    blocks = [
+        Block(order="complete", step=1, machine="m", employee=None, date="2026-09-28", start=480, end=510, qty=30),
+        Block(order="complete", step=1, machine="m", employee=None, date="2026-09-30", start=480, end=510, qty=30),
+        Block(order="partial", step=1, machine="m", employee=None, date="2026-09-28", start=480, end=510, qty=30),
+    ]
+    finish = plan_api._finish(snap, blocks)
+    assert finish["complete"] == {"k": "late", "fin": abs_min("2026-09-30", 510),
+                                  "date": "2026-09-30", "min": 510}
+    assert finish["partial"] == {"k": "part", "fin": None, "date": None}
+    assert finish["missing"] == {"k": "part", "fin": None, "date": None}
+
+
+def test_unknown_does_not_retry_with_larger_horizon(demo):
+    snap, now = demo
+    with patch.object(cp_model.CpSolver, "solve", return_value=cp_model.UNKNOWN) as mocked:
+        result = solve(snap, now, PRESETS["on_time"], time_limit=0.01)
+    assert mocked.call_count == 1, "求解超時不是無解，不應擴大日期再跑兩次"
+    assert result.status == "UNKNOWN"
+    assert any("計算時間內" in reason for reason in result.unplaced)
+
+
+def test_invalid_model_is_not_reported_as_resource_shortage(demo):
+    snap, now = demo
+    with patch.object(cp_model.CpSolver, "solve", return_value=cp_model.MODEL_INVALID) as mocked:
+        result = solve(snap, now, PRESETS["on_time"], time_limit=0.01)
+    assert mocked.call_count == 1
+    assert result.status == "MODEL_INVALID"
+    assert any("模型無法完成" in reason for reason in result.unplaced)
+
+
+def test_missing_cross_factory_machine_explains_and_blocks_apply():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        employees=[Employee(id="e", name="一廠員工", factory=1, skills=["a"])],
+        machines=[Machine(id="a", factory=1, process="裁切", products=["p"])],
+        products=[Product(id="p", name="產品", steps=[Step(process="裁切", factory=2, rate=1)])],
+        orders=[Order(id="o", code="O1", product="p", qty=60, due=day)],
+    )
+    plan = make_plans(PlanRequest(snapshot=snap, event=Event(type="auto"), now=Now(date=day, min=480), time_limit=0.2))
+    assert not any(o.get("recommended") for o in plan["options"])
+    assert all(not o["applicable"] for o in plan["options"])
+    assert any("2 廠" in reason and "機台" in reason for reason in plan["options"][0]["diagnostics"])
+    assert any("其他廠有 a" in reason for reason in plan["options"][0]["diagnostics"])
+
+
+def test_no_working_day_gives_specific_action():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False] * 7),
+        employees=[Employee(id="e", name="甲", skills=["a"])],
+        machines=[Machine(id="a", process="裁切", products=["p"])],
+        products=[Product(id="p", name="產品", steps=[Step(process="裁切", rate=1)])],
+        orders=[Order(id="o", code="O1", product="p", qty=60, due=day)],
+    )
+    result = solve(snap, Now(date=day, min=480), PRESETS["on_time"], days=7)
+    assert result.status == "NO_WORKING_TIME"
+    assert any("上班日設定" in reason for reason in result.unplaced)
+
+
+def test_all_skilled_staff_on_leave_gives_specific_action():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        employees=[Employee(id="e", name="甲", skills=["a"],
+                            leaves=[(date.fromisoformat(day) + timedelta(days=i)).isoformat() for i in range(240)])],
+        machines=[Machine(id="a", process="裁切", products=["p"])],
+        products=[Product(id="p", name="產品", steps=[Step(process="裁切", rate=1)])],
+        orders=[Order(id="o", code="O1", product="p", qty=60, due=day)],
+    )
+    result = solve(snap, Now(date=day, min=480), PRESETS["on_time"], days=1)
+    assert result.status == "NO_AVAILABLE_PAIR"
+    assert any("請假" in reason and "故障" in reason for reason in result.unplaced)
+
+
+def test_short_horizon_leave_expands_to_next_available_day():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        employees=[Employee(id="e", name="甲", skills=["a"], leaves=[day])],
+        machines=[Machine(id="a", process="裁切", products=["p"])],
+        products=[Product(id="p", name="產品", steps=[Step(process="裁切", rate=1)])],
+        orders=[Order(id="o", code="O1", product="p", qty=60, due="2026-09-30")],
+    )
+    result = solve(snap, Now(date=day, min=480), PRESETS["on_time"], days=1, time_limit=1)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert result.blocks[0].date == "2026-09-29"
+
+
+def test_machine_without_same_factory_operator_names_action():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        employees=[Employee(id="e", name="一廠員工", factory=1, skills=["b"])],
+        machines=[Machine(id="b", factory=2, process="焊接", products=["p"])],
+        products=[Product(id="p", name="產品", steps=[Step(process="焊接", factory=2, rate=1)])],
+        orders=[Order(id="o", code="O1", product="p", qty=60, due=day)],
+    )
+    plan = make_plans(PlanRequest(snapshot=snap, event=Event(type="auto"), now=Now(date=day, min=480), time_limit=0.2))
+    assert all(not o["applicable"] for o in plan["options"])
+    assert any("機台 b" in reason and "同廠人員" in reason for reason in plan["options"][0]["diagnostics"])
+
+
+def test_step_rate_must_be_positive():
+    with pytest.raises(ValidationError):
+        Step(process="裁切", rate=0)
+
+
+def test_solver_snapshot_rejects_invalid_quantities_and_priority():
+    with pytest.raises(ValidationError):
+        Step(process="裁切", rate=1, batch=-1)
+    with pytest.raises(ValidationError):
+        Order(id="o", code="O", product="p", qty=0, due="2026-09-28")
+    with pytest.raises(ValidationError):
+        Order(id="o", code="O", product="p", qty=1, due="2026-09-28", priority=4)
+    with pytest.raises(ValidationError):
+        Block(order="o", step=0, machine="m", employee="e", date="2026-09-28",
+              start=480, end=540, qty=0)
+    with pytest.raises(ValidationError):
+        Block(order="o", step=-1, machine="m", employee="e", date="2026-09-28",
+              start=480, end=540, qty=1)
+    with pytest.raises(ValidationError):
+        Block(order="o", step=0, machine="m", employee="e", date="2026-09-28",
+              start=540, end=540, qty=1)
+    with pytest.raises(ValidationError):
+        Calendar(week=[True, False])
+    with pytest.raises(ValidationError):
+        Step(process="裁切", rate=float("inf"))
+    with pytest.raises(ValidationError):
+        Fault(date="2026-09-28", start=540, end=540)
+    with pytest.raises(ValidationError):
+        WindowDef(start=720, end=720)
+    with pytest.raises(ValidationError):
+        Calendar(week=[True] * 7, windows=[WindowDef(start=480, end=720),
+                                            WindowDef(start=700, end=1020)])
+
+
+def test_solve_api_returns_validation_error_for_zero_order_quantity(demo):
+    snap, now = demo
+    payload = {"snapshot": snap.model_dump(), "now": now.model_dump()}
+    payload["snapshot"]["orders"][0]["qty"] = 0
+    response = TestClient(app).post("/solve", json=payload)
+    assert response.status_code == 422
+
+
+def test_api_rejects_invalid_date_and_incomplete_fault_event(demo):
+    snap, now = demo
+    payload = {"snapshot": snap.model_dump(), "now": now.model_dump()}
+    payload["now"]["date"] = "not-a-date"
+    assert TestClient(app).post("/solve", json=payload).status_code == 422
+
+    preview = {"snapshot": snap.model_dump(), "now": now.model_dump(),
+               "event": {"type": "fault", "machine": "c", "date": now.date, "start": 480}}
+    assert TestClient(app).post("/plans", json=preview).status_code == 422
+    invalid_windows = {"snapshot": snap.model_dump(), "now": now.model_dump()}
+    invalid_windows["snapshot"]["calendar"]["windows"] = [
+        {"start": 480, "end": 720}, {"start": 700, "end": 1020}]
+    assert TestClient(app).post("/solve", json=invalid_windows).status_code == 422
+
+
+def test_large_plan_response_is_compressed_without_changing_json(demo, monkeypatch):
+    snap, now = demo
+    payload = {"snapshot": snap.model_dump(), "now": now.model_dump(), "event": {"type": "auto"}}
+    expected = {"options": [{"id": "A", "blocks": [{"order": "o", "note": "排程方塊"} for _ in range(300)]}]}
+    monkeypatch.setattr(api, "make_plans", lambda request: expected)
+    client = TestClient(app)
+    compressed = client.post("/plans", json=payload, headers={"Accept-Encoding": "gzip"})
+    plain = client.post("/plans", json=payload, headers={"Accept-Encoding": "identity"})
+    assert compressed.status_code == plain.status_code == 200
+    assert compressed.json() == plain.json() == expected
+    assert compressed.headers["content-encoding"] == "gzip"
+    assert "content-encoding" not in plain.headers
+    assert int(compressed.headers["content-length"]) < int(plain.headers["content-length"])
+
+
+def test_missing_product_explains_instead_of_crashing():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        employees=[], machines=[], products=[],
+        orders=[Order(id="o", code="O1", product="missing", qty=60, due=day)],
+    )
+    plan = make_plans(PlanRequest(snapshot=snap, event=Event(type="auto"), now=Now(date=day, min=480), time_limit=0.2))
+    assert all(not o["applicable"] for o in plan["options"])
+    assert any("找不到產品" in reason for reason in plan["options"][0]["diagnostics"])
+    result = solve(snap, Now(date=day, min=480), PRESETS["on_time"], time_limit=0.2)
+    assert result.status == "INCOMPLETE"
+    response = TestClient(app).post("/solve", json={"snapshot": snap.model_dump(),
+                                               "now": {"date": day, "min": 480}})
+    assert response.status_code == 200
+    assert response.json()["status"] == "INCOMPLETE"
+
+
+def test_product_without_steps_cannot_be_called_a_complete_plan():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        employees=[], machines=[],
+        products=[Product(id="p", name="尚未建工序", steps=[])],
+        orders=[Order(id="o", code="O1", product="p", qty=60, due=day)],
+    )
+    now = Now(date=day, min=480)
+    assert any("沒有工序" in issue for issue in check(snap, [], now))
+    plan = make_plans(PlanRequest(snapshot=snap, event=Event(type="auto"), now=now, time_limit=0.2))
+    assert all(not option["applicable"] for option in plan["options"])
+    assert any("沒有工序" in reason for reason in plan["options"][0]["diagnostics"])
+    result = solve(snap, now, PRESETS["on_time"], time_limit=0.2)
+    assert result.status == "INCOMPLETE"
+    assert any("沒有工序" in reason for reason in result.unplaced)
+
+
+def test_validator_reports_missing_transfer_batch_without_crashing():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        employees=[Employee(id="e", name="甲", skills=["a", "b"])],
+        machines=[Machine(id="a", process="裁切", products=["p"]),
+                  Machine(id="b", process="包裝", products=["p"])],
+        products=[Product(id="p", name="產品", steps=[Step(process="裁切", rate=1),
+                                               Step(process="包裝", rate=1, batch=60)])],
+        orders=[Order(id="o", code="O1", product="p", qty=120, due=day)],
+        blocks=[Block(order="o", step=0, machine="a", employee="e", date=day,
+                      start=480, end=540, qty=30),
+                Block(order="o", step=1, machine="b", employee="e", date=day,
+                      start=540, end=550, qty=10)],
+    )
+    assert any("交接批量" in issue for issue in check(snap, snap.blocks, Now(date=day, min=480)))
 
 
 def test_prototype_schedule_is_valid(demo):
@@ -152,6 +621,56 @@ def test_pinned_block_stays(demo):
     assert check(snap, r.blocks, now) == []
 
 
+def test_fault_cuts_pinned_block_at_integer_capacity_and_warns():
+    day = "2026-09-28"
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="m", process="cut", products=["p"])],
+        employees=[Employee(id="e", name="Worker", skills=["m"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=0.75)])],
+        orders=[Order(id="o", code="O", product="p", qty=15, due=day)],
+        blocks=[Block(id="pinned", order="o", step=0, machine="m", employee="e",
+                      date=day, start=480, end=500, qty=15, pinned=True)],
+    )
+    now = Now(date=day, min=480)
+    plan = make_plans(PlanRequest(snapshot=snap,
+                                  event=Event(type="fault", machine="m", date=day, start=490, end=520),
+                                  now=now, time_limit=2))
+    option = plan["options"][0]
+    assert option["applicable"]
+    after = snapshot_after(plan, option, snap)
+    assert any(b.pinned and b.start == 480 and b.end == 490 and b.qty == 7 for b in after.blocks)
+    assert sum(b.qty for b in after.blocks) == 15
+    assert check(after, after.blocks, now) == []
+    assert any("固定" in line["t"] and "解除" in line["t"] for line in option["lines"])
+
+
+@pytest.mark.parametrize("late_record", ["fault", "leave"])
+def test_late_incident_record_does_not_erase_completed_history(late_record):
+    past = "2026-09-28"
+    now = Now(date="2026-09-29", min=480)
+    machine = Machine(id="m", process="cut", products=["p"])
+    employee = Employee(id="e", name="Worker", skills=["m"])
+    if late_record == "fault":
+        machine.faults.append(Fault(date=past, start=480, end=540))
+    else:
+        employee.leaves.append(past)
+    original = Block(id="finished", order="o", step=0, machine="m", employee="e",
+                     date=past, start=480, end=540, qty=60, pinned=True)
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[machine], employees=[employee],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=1)])],
+        orders=[Order(id="o", code="O", product="p", qty=60, due="2026-09-30")],
+        blocks=[original],
+    )
+    result = solve(snap, now, PRESETS["on_time"], time_limit=2)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert [(b.id, b.date, b.start, b.end, b.qty) for b in result.blocks] == [
+        ("finished", past, 480, 540, 60)]
+    assert check(snap, result.blocks, now) == []
+
+
 # ---------- 突發狀況 → 方案 ----------
 def test_fault_plans(demo):
     snap, now = demo
@@ -169,6 +688,12 @@ def test_fault_plans(demo):
     a, d = plan["options"][0], plan["options"][3]
     assert a["metrics"]["moved"] <= d["metrics"]["moved"], "少動為主應該比準時優先動得少"
     assert plan["options"][2]["effects"]["overtime_on"] == ["2026-09-28"]
+    assert plan["options"][2]["applicable"], "加班方案應按方案中的加班日驗證，不應誤判為下班工作"
+    assert any(b["date"] == "2026-09-28" and b["start_min"] >= 1020 for b in plan["options"][2]["blocks"]), "此案例須真的使用加班時段"
+    fault_snap = plan_api.apply_event(snap, ev, now).snap
+    overtime_blocks = [plan_api.from_db(b) for b in plan["options"][2]["blocks"]]
+    assert any("不在上班時段內" in issue for issue in check(fault_snap, overtime_blocks, now))
+    assert check(fault_snap, overtime_blocks, now, {"2026-09-28"}) == []
 
 
 def test_leave_plans_move_work_off_the_person(demo):
@@ -236,6 +761,559 @@ def test_public_deployment_disables_snapshot_endpoints(demo, monkeypatch):
     assert c.post("/plans", json={**payload, "event": {"type": "auto"}}).status_code == 403
     assert c.post("/solve", json=payload).status_code == 403
     assert c.get("/health").status_code == 200
+
+
+def test_api_rejects_unbounded_solver_time(demo):
+    snap, now = demo
+    c = TestClient(app)
+    payload = {"snapshot": snap.model_dump(), "now": now.model_dump(), "time_limit": 20}
+    assert c.post("/solve", json=payload).status_code == 422
+    assert c.post("/plans", json={**payload, "event": {"type": "auto"}}).status_code == 422
+    assert c.post("/plans/db", json={"event": {"type": "auto"}, "time_limit": 20},
+                  headers={"Authorization": "Bearer token"}).status_code == 422
+
+
+def test_synthetic_benchmark_can_model_two_machines_per_worker():
+    snap = snapshot_for(20, 40, 100, cross_factory=True, max_machines=2)
+    assert len(snap.employees) == 40
+    assert all(employee.max_concurrent_machines == 2 for employee in snap.employees)
+    assert {employee.factory for employee in snap.employees} == {1, 2}
+
+
+def test_benchmark_reports_only_work_directly_hit_by_incident():
+    snap = snapshot_for(5, 10, 1)
+    snap.blocks = [
+        Block(order="o0", step=0, machine="m0", employee="e0",
+              date="2026-09-28", start=480, end=540, qty=60),
+        Block(order="o0", step=0, machine="m0", employee="e1",
+              date="2026-09-28", start=600, end=660, qty=60),
+        Block(order="o0", step=0, machine="m1", employee="e0",
+              date="2026-09-28", start=480, end=540, qty=60),
+    ]
+    assert benchmark_script.affected_block_count(
+        snap, Event(type="fault", machine="m0", date="2026-09-28", start=510, end=600)
+    ) == 1
+    assert benchmark_script.affected_block_count(
+        snap, Event(type="leave", employee="e0", date="2026-09-28")
+    ) == 2
+    assert benchmark_script.affected_block_count(snap, Event(type="auto")) == 0
+
+
+def test_memory_capped_benchmark_requires_memory_monitor(capsys):
+    with patch.dict(sys.modules, {"psutil": None}), patch.object(
+        sys, "argv", ["benchmark.py", "--sized-case", "5", "10", "10"]
+    ), pytest.raises(SystemExit) as stopped:
+        benchmark_script.main()
+    assert stopped.value.code == 2
+    assert "requires psutil" in capsys.readouterr().err
+
+
+def test_large_unknown_uses_valid_restricted_draft():
+    snap = snapshot_for(20, 40, 50, cross_factory=True)
+    now = Now(date="2026-09-28", min=480)
+    original_solve = cp_model.CpSolver.solve
+    calls = 0
+
+    def first_search_times_out(self, model, *args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return cp_model.UNKNOWN
+        return original_solve(self, model, *args, **kwargs)
+
+    with patch.object(cp_model.CpSolver, "solve", first_search_times_out):
+        result = solve(snap, now, PRESETS["on_time"], time_limit=5)
+    assert calls == 2
+    assert result.status == "FEASIBLE", "受限問題的 OPTIMAL 不能宣稱是全局最優"
+    assert result.search_mode == "restricted_pairs"
+    assert len(result.blocks) >= 200
+    assert check(snap, result.blocks, now) == []
+
+
+def test_large_plan_generation_limits_concurrent_models():
+    snap = snapshot_for(20, 40, 100, cross_factory=True)
+    req = PlanRequest(snapshot=snap, event=Event(type="auto"),
+                      now=Now(date="2026-09-28", min=480))
+    with patch("app.plans.ThreadPoolExecutor") as executor:
+        executor.return_value.__enter__.return_value.map.return_value = []
+        make_plans(req)
+    assert executor.call_args.kwargs["max_workers"] == 1
+
+
+def test_very_large_on_time_draft_skips_full_model():
+    snap = snapshot_for(20, 40, 250, cross_factory=True)
+    now = Now(date="2026-09-28", min=480)
+    draft = Result(
+        blocks=[Block(order=order.id, step=3, machine="m3", employee="e3",
+                      date=order.due, start=480, end=490, qty=order.qty)
+                for order in snap.orders],
+        status="OPTIMAL", objective=1, wall=0.1, n_ops=1000,
+        search_mode="restricted_pairs",
+    )
+    with patch("app.model.solve", return_value=draft) as recursive, patch("app.model.check", return_value=[]):
+        result = solve(snap, now, PRESETS["on_time"], time_limit=5)
+    assert recursive.call_count == 1
+    assert recursive.call_args.kwargs["pair_cap"] == 1
+    assert result.status == "FEASIBLE", "受限初稿不能宣稱是完整問題的最優解"
+    assert result.search_mode == "restricted_pairs"
+
+
+def test_very_large_absences_keep_two_pair_candidates():
+    snap = snapshot_for(20, 40, 250, cross_factory=True, leave_days=5, fault_days=5)
+    now = Now(date="2026-09-28", min=480)
+    draft = Result(
+        blocks=[Block(order=order.id, step=3, machine="m3", employee="e3",
+                      date=order.due, start=480, end=490, qty=order.qty)
+                for order in snap.orders],
+        status="FEASIBLE", objective=1, wall=0.1, n_ops=1000,
+        search_mode="restricted_pairs", candidate_pairs=2,
+    )
+    with patch("app.model.solve", return_value=draft) as recursive, patch("app.model.check", return_value=[]):
+        result = solve(snap, now, PRESETS["on_time"], time_limit=5)
+    assert recursive.call_args.kwargs["pair_cap"] == 2
+    assert result.candidate_pairs == 2
+
+
+def test_very_large_overtime_starts_with_two_pair_candidates():
+    snap = snapshot_for(20, 40, 550, cross_factory=True)
+    now = Now(date="2026-09-28", min=480)
+    draft = Result(
+        blocks=[Block(order=order.id, step=3, machine="m3", employee="e3",
+                      date=order.due, start=480, end=490, qty=order.qty)
+                for order in snap.orders],
+        status="FEASIBLE", objective=1, wall=0.1, n_ops=2200,
+        search_mode="restricted_pairs", candidate_pairs=2,
+    )
+    with patch("app.model.solve", return_value=draft) as recursive, patch("app.model.check", return_value=[]):
+        result = solve(snap, now, PRESETS["on_time"], extra_overtime={now.date}, time_limit=5)
+    assert recursive.call_count == 1
+    assert recursive.call_args.kwargs["pair_cap"] == 2
+    assert result.status == "FEASIBLE"
+
+
+def test_very_large_infeasible_one_pair_retries_two_pair_draft():
+    snap = snapshot_for(20, 40, 250, cross_factory=True)
+    now = Now(date="2026-09-28", min=480)
+    one_pair = Result(blocks=[], status="INFEASIBLE", objective=None, wall=0.1, n_ops=1000,
+                      search_mode="restricted_pairs", candidate_pairs=1)
+    two_pairs = Result(
+        blocks=[Block(order=order.id, step=3, machine="m3", employee="e3",
+                      date=order.due, start=480, end=490, qty=order.qty)
+                for order in snap.orders],
+        status="FEASIBLE", objective=1, wall=0.2, n_ops=1000,
+        search_mode="restricted_pairs", candidate_pairs=2,
+    )
+    with patch("app.model.solve", side_effect=[one_pair, two_pairs]) as recursive, patch("app.model.check", return_value=[]):
+        result = solve(snap, now, PRESETS["on_time"], time_limit=5)
+    assert [call.kwargs["pair_cap"] for call in recursive.call_args_list] == [1, 2]
+    assert result.status == "FEASIBLE" and result.candidate_pairs == 2
+
+
+def test_large_valid_late_draft_returns_without_building_full_model():
+    snap = snapshot_for(20, 40, 550, cross_factory=True)
+    now = Now(date="2026-09-28", min=480)
+    one_pair = Result(blocks=[], status="INFEASIBLE", objective=None, wall=0.1, n_ops=2200,
+                      search_mode="restricted_pairs", candidate_pairs=1)
+    two_pairs = Result(
+        blocks=[Block(order=order.id, step=3, machine="m3", employee="e3",
+                      date=(date.fromisoformat(order.due) + timedelta(days=1)).isoformat(),
+                      start=480, end=490, qty=order.qty) for order in snap.orders],
+        status="FEASIBLE", objective=1, wall=0.2, n_ops=2200,
+        search_mode="restricted_pairs", candidate_pairs=2,
+    )
+    with (patch("app.model.solve", side_effect=[one_pair, two_pairs]) as recursive,
+          patch("app.model.check", return_value=[]),
+          patch.object(cp_model.CpSolver, "solve", side_effect=AssertionError("full model must not start"))):
+        result = solve(snap, now, PRESETS["on_time"], time_limit=5)
+    assert [call.kwargs["pair_cap"] for call in recursive.call_args_list] == [1, 2]
+    assert result.status == "FEASIBLE" and result.candidate_pairs == 2
+
+
+def test_restricted_draft_balances_early_orders_across_machines():
+    snap = snapshot_for(20, 40, 100, cross_factory=True, due_base_days=0)
+    now = Now(date="2026-09-28", min=480)
+    draft = solve(snap, now, PRESETS["on_time"], pair_cap=1, time_limit=5)
+    assert draft.status in ("OPTIMAL", "FEASIBLE")
+    assert check(snap, draft.blocks, now) == []
+    first_step_machines = {block.machine for block in draft.blocks
+                           if block.order in {f"o{i}" for i in range(12)} and block.step == 0}
+    assert len(first_step_machines) == 5, "前 12 張急單應分散到 5 台同工序機台"
+    late = [order for order in snap.orders if any(
+        block.order == order.id and block.step == 3 and block.date > order.due
+        for block in draft.blocks)]
+    assert late == []
+
+
+def test_restricted_draft_avoids_staff_absent_until_after_due():
+    snap = snapshot_for(20, 40, 100, cross_factory=True,
+                        due_base_days=0, leave_days=5)
+    now = Now(date="2026-09-28", min=480)
+    draft = solve(snap, now, PRESETS["on_time"], pair_cap=1, time_limit=5)
+    assert draft.status in ("OPTIMAL", "FEASIBLE")
+    assert check(snap, draft.blocks, now) == []
+    assert not any(block.step == 3 and block.date > order.due
+                   for order in snap.orders for block in draft.blocks if block.order == order.id)
+
+
+def test_restricted_draft_with_machine_faults_is_valid():
+    snap = snapshot_for(20, 40, 100, cross_factory=True,
+                        due_base_days=0, leave_days=5, fault_days=5)
+    now = Now(date="2026-09-28", min=480)
+    draft = solve(snap, now, PRESETS["on_time"], pair_cap=1, time_limit=10)
+    assert draft.status in ("OPTIMAL", "FEASIBLE")
+    assert check(snap, draft.blocks, now) == []
+
+
+def test_restricted_pairs_skip_long_leave_and_keep_reference():
+    start = date(2026, 9, 28)
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="m0", process="cut", products=["p"]),
+                  Machine(id="m1", process="cut", products=["p"])],
+        employees=[Employee(id="e0", name="Leave", skills=["m0"],
+                            leaves=[(start + timedelta(days=i)).isoformat() for i in range(45)]),
+                   Employee(id="e1", name="Ready", skills=["m1"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=2)])],
+        orders=[Order(id="o", code="O", product="p", qty=120, due="2026-10-01")],
+    )
+    now = Now(date="2026-09-28", min=480)
+    result = solve(snap, now, PRESETS["on_time"], pair_cap=1, time_limit=1)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert {block.machine for block in result.blocks} == {"m1"}
+    assert check(snap, result.blocks, now) == []
+
+    snap.employees[0].leaves = []
+    snap.blocks = [Block(order="o", step=0, machine="m1", employee="e1",
+                         date="2026-09-29", start=480, end=540, qty=120)]
+    with_reference = solve(snap, now, PRESETS["min_change"], pair_cap=1, time_limit=1)
+    assert with_reference.status in ("OPTIMAL", "FEASIBLE")
+    assert {block.machine for block in with_reference.blocks} == {"m1"}
+    assert check(snap, with_reference.blocks, now) == []
+
+
+def test_restricted_pair_needs_complete_gap_before_due():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="m0", process="cut", products=["p"],
+                          faults=[Fault(date="2026-09-28", start=480, end=660)]),
+                  Machine(id="m1", process="cut", products=["p"])],
+        employees=[Employee(id="e0", name="A", skills=["m0"]),
+                   Employee(id="e1", name="B", skills=["m1"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=2)])],
+        orders=[Order(id="o", code="O", product="p", qty=840, due="2026-09-28")],
+    )
+    now = Now(date="2026-09-28", min=480)
+    result = solve(snap, now, PRESETS["on_time"], pair_cap=1, time_limit=1)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert {block.machine for block in result.blocks} == {"m1"}
+    assert all(block.date == "2026-09-28" for block in result.blocks)
+    assert check(snap, result.blocks, now) == []
+
+
+def test_restricted_pair_respects_fixed_machine_work():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="m0", process="cut", products=["p"]),
+                  Machine(id="m1", process="cut", products=["p"])],
+        employees=[Employee(id="e0", name="A", skills=["m0"]),
+                   Employee(id="e1", name="B", skills=["m1"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=2)])],
+        orders=[Order(id="fixed", code="F", product="p", qty=480, due="2026-09-28"),
+                Order(id="new", code="N", product="p", qty=840, due="2026-09-28")],
+        blocks=[Block(order="fixed", step=0, machine="m0", employee="e0",
+                      date="2026-09-28", start=480, end=720, qty=480, pinned=True)],
+    )
+    now = Now(date="2026-09-28", min=480)
+    result = solve(snap, now, PRESETS["on_time"], pair_cap=1, time_limit=1)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert {block.machine for block in result.blocks if block.order == "new"} == {"m1"}
+    assert check(snap, result.blocks, now) == []
+
+
+def test_restricted_objective_counts_forced_assignment_change():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="m0", process="cut", products=["p"],
+                          faults=[Fault(date="2026-09-28", start=480, end=1020)]),
+                  Machine(id="m1", process="cut", products=["p"])],
+        employees=[Employee(id="e0", name="A", skills=["m0"]),
+                   Employee(id="e1", name="B", skills=["m1"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=2)])],
+        orders=[Order(id="o", code="O", product="p", qty=120, due="2026-09-28")],
+        blocks=[Block(order="o", step=0, machine="m0", employee="e0",
+                      date="2026-09-29", start=480, end=540, qty=120)],
+    )
+    now = Now(date="2026-09-28", min=480)
+    result = solve(snap, now, Weights(tard=0, comp=0, dev=0, change=123),
+                   pair_cap=1, time_limit=1)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert {block.machine for block in result.blocks} == {"m1"}
+    assert result.objective == 123
+    assert check(snap, result.blocks, now) == []
+
+
+def test_cross_factory_batch_can_overlap_previous_step():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="cut", factory=1, process="cut", products=["p"]),
+                  Machine(id="weld", factory=2, process="weld", products=["p"])],
+        employees=[Employee(id="e1", name="Cut", factory=1, skills=["cut"]),
+                   Employee(id="e2", name="Weld", factory=2, skills=["weld"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", factory=1, rate=1),
+                                                       Step(process="weld", factory=2, rate=1, batch=60)])],
+        orders=[Order(id="o", code="O", product="p", qty=120, due="2026-09-28")],
+    )
+    now = Now(date="2026-09-28", min=480)
+    result = solve(snap, now, PRESETS["on_time"], time_limit=1)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    cut = next(block for block in result.blocks if block.step == 0)
+    weld = next(block for block in result.blocks if block.step == 1)
+    assert cut.start + 60 <= weld.start < cut.end
+    assert check(snap, result.blocks, now) == []
+
+
+def test_faster_cross_factory_step_can_finish_with_upstream():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="cut", factory=1, process="cut", products=["p"]),
+                  Machine(id="weld", factory=2, process="weld", products=["p"])],
+        employees=[Employee(id="e1", name="Cut", factory=1, skills=["cut"]),
+                   Employee(id="e2", name="Weld", factory=2, skills=["weld"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", factory=1, rate=1),
+                                                       Step(process="weld", factory=2, rate=2, batch=60)])],
+        orders=[Order(id="o", code="O", product="p", qty=120, due="2026-09-28")],
+    )
+    now = Now(date="2026-09-28", min=480)
+    result = solve(snap, now, PRESETS["on_time"], time_limit=1)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    cut_end = max(block.end for block in result.blocks if block.step == 0)
+    weld = next(block for block in result.blocks if block.step == 1)
+    assert weld.start == 540
+    assert weld.end == cut_end == 600
+    assert check(snap, result.blocks, now) == []
+
+
+def test_validator_rejects_downstream_consuming_unfinished_batch():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="cut", factory=1, process="cut", products=["p"]),
+                  Machine(id="weld", factory=2, process="weld", products=["p"])],
+        employees=[Employee(id="e1", name="Cut", factory=1, skills=["cut"]),
+                   Employee(id="e2", name="Weld", factory=2, skills=["weld"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", factory=1, rate=1),
+                                                       Step(process="weld", factory=2, rate=0.4, batch=60)])],
+        orders=[Order(id="o", code="O", product="p", qty=120, due="2026-09-28")],
+        blocks=[Block(order="o", step=0, machine="cut", employee="e1",
+                      date="2026-09-28", start=480, end=540, qty=60),
+                Block(order="o", step=0, machine="cut", employee="e1",
+                      date="2026-09-28", start=960, end=1020, qty=60),
+                Block(order="o", step=1, machine="weld", employee="e2",
+                      date="2026-09-28", start=660, end=720, qty=24),
+                Block(order="o", step=1, machine="weld", employee="e2",
+                      date="2026-09-28", start=780, end=1020, qty=96)],
+    )
+    issues = check(snap, snap.blocks, Now(date="2026-09-28", min=480))
+    assert any("前站累積產量不足" in issue for issue in issues)
+
+
+def test_completed_batch_allows_cross_factory_step_to_start_now():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="cut", factory=1, process="cut", products=["p"]),
+                  Machine(id="weld", factory=2, process="weld", products=["p"])],
+        employees=[Employee(id="e1", name="Cut", factory=1, skills=["cut"]),
+                   Employee(id="e2", name="Weld", factory=2, skills=["weld"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", factory=1, rate=1),
+                                                       Step(process="weld", factory=2, rate=1, batch=60)])],
+        orders=[Order(id="o", code="O", product="p", qty=120, due="2026-09-28")],
+        blocks=[Block(order="o", step=0, machine="cut", employee="e1",
+                      date="2026-09-28", start=480, end=540, qty=60)],
+    )
+    now = Now(date="2026-09-28", min=540)
+    result = solve(snap, now, PRESETS["on_time"], time_limit=1)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    weld_start = min(block.start for block in result.blocks if block.step == 1)
+    assert weld_start == 540, "前站已完成交接批量，後站不應等待尚未完成的剩餘件數"
+    assert check(snap, result.blocks, now) == []
+
+
+def test_fixed_previous_step_releases_batch_before_its_final_block():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="cut", factory=1, process="cut", products=["p"]),
+                  Machine(id="weld", factory=2, process="weld", products=["p"])],
+        employees=[Employee(id="e1", name="Cut", factory=1, skills=["cut"]),
+                   Employee(id="e2", name="Weld", factory=2, skills=["weld"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", factory=1, rate=1),
+                                                       Step(process="weld", factory=2, rate=1, batch=60)])],
+        orders=[Order(id="o", code="O", product="p", qty=120, due="2026-09-28")],
+        blocks=[Block(order="o", step=0, machine="cut", employee="e1",
+                      date="2026-09-28", start=480, end=540, qty=60),
+                Block(order="o", step=0, machine="cut", employee="e1",
+                      date="2026-09-28", start=540, end=600, qty=60, pinned=True)],
+    )
+    now = Now(date="2026-09-28", min=540)
+    result = solve(snap, now, PRESETS["on_time"], time_limit=1)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    weld_start = min(block.start for block in result.blocks if block.step == 1)
+    assert weld_start == 540
+    assert check(snap, result.blocks, now) == []
+
+
+def test_parallel_fixed_upstream_blocks_release_batch_by_combined_output():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="cut1", factory=1, process="cut", products=["p"]),
+                  Machine(id="cut2", factory=1, process="cut", products=["p"]),
+                  Machine(id="weld", factory=2, process="weld", products=["p"])],
+        employees=[Employee(id="e1", name="Cut1", factory=1, skills=["cut1"]),
+                   Employee(id="e2", name="Cut2", factory=1, skills=["cut2"]),
+                   Employee(id="e3", name="Weld", factory=2, skills=["weld"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", factory=1, rate=1),
+                                                       Step(process="weld", factory=2, rate=1, batch=60)])],
+        orders=[Order(id="o", code="O", product="p", qty=100, due="2026-09-28")],
+        blocks=[Block(order="o", step=0, machine="cut1", employee="e1",
+                      date="2026-09-28", start=480, end=540, qty=50, pinned=True),
+                Block(order="o", step=0, machine="cut2", employee="e2",
+                      date="2026-09-28", start=480, end=540, qty=50, pinned=True)],
+    )
+    early = snap.blocks + [Block(order="o", step=1, machine="weld", employee="e3",
+                                 date="2026-09-28", start=500, end=600, qty=100)]
+    assert any("前站還沒做到可以開始" in issue for issue in check(snap, early))
+    now = Now(date="2026-09-28", min=470)
+    result = solve(snap, now, PRESETS["on_time"], time_limit=1)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert min(block.start for block in result.blocks if block.step == 1) >= 520
+    assert check(snap, result.blocks, now) == []
+    earlier_batch = snap.model_copy(deep=True)
+    earlier_batch.products[0].steps[1].batch = 30
+    assert check(earlier_batch, early) == [], "兩台合計產量可比任一單台更早達成首批"
+
+
+def test_rounded_remaining_work_cannot_release_batch_early():
+    snap, now, description = batch_case(21)
+    assert description == {"seed": 21, "qty": 90, "first_rate": 1.5,
+                           "second_rate": 2, "batch": 80, "fixed_qty": 40}
+    result = solve(snap, now, PRESETS["on_time"], time_limit=1, days=5, workers=2)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert min(block.start for block in result.blocks if block.step == 1) >= 550
+    assert check(snap, result.blocks, now) == []
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_mixed_cross_factory_scenarios_remain_valid(seed):
+    snap, now, pair_cap = mixed_case(seed)
+    result = solve(snap, now, PRESETS["on_time"], days=10,
+                   time_limit=1, workers=2, pair_cap=pair_cap)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert result.unplaced == []
+    assert check(snap, result.blocks, now) == []
+
+
+@pytest.mark.parametrize("seed,with_fixed,shared_operators", [
+    (3, True, False), (4, False, True), (5, True, True),
+])
+def test_mixed_fixed_and_shared_operator_scenarios(seed, with_fixed, shared_operators):
+    snap, now, pair_cap = mixed_case(seed, with_fixed=with_fixed,
+                                     shared_operators=shared_operators)
+    result = solve(snap, now, PRESETS["on_time"], days=10,
+                   time_limit=1, workers=2, pair_cap=pair_cap)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert result.unplaced == []
+    assert check(snap, result.blocks, now) == []
+
+
+@pytest.mark.parametrize("seed,shared_operators", [(6, False), (7, True)])
+def test_mixed_parallel_fixed_upstream_scenarios(seed, shared_operators):
+    snap, now, pair_cap = mixed_case(seed, parallel_fixed=True,
+                                     shared_operators=shared_operators)
+    result = solve(snap, now, PRESETS["on_time"], days=10,
+                   time_limit=1, workers=2, pair_cap=pair_cap)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert result.unplaced == []
+    assert check(snap, result.blocks, now) == []
+
+
+def test_fixed_downstream_cannot_precede_rescheduled_cross_factory_upstream():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="cut", factory=1, process="cut", products=["p"],
+                          faults=[Fault(date="2026-09-28", start=480, end=540)]),
+                  Machine(id="weld", factory=2, process="weld", products=["p"])],
+        employees=[Employee(id="e1", name="Cut", factory=1, skills=["cut"]),
+                   Employee(id="e2", name="Weld", factory=2, skills=["weld"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", factory=1, rate=1),
+                                                       Step(process="weld", factory=2, rate=1)])],
+        orders=[Order(id="o", code="O", product="p", qty=120, due="2026-09-28")],
+        blocks=[Block(order="o", step=1, machine="weld", employee="e2",
+                      date="2026-09-28", start=540, end=660, qty=120, pinned=True)],
+    )
+    now = Now(date="2026-09-28", min=480)
+    result = solve(snap, now, PRESETS["on_time"], time_limit=1, days=5)
+    assert result.status == "INFEASIBLE"
+
+
+def test_fixed_cross_factory_downstream_accepts_completed_transfer_batch():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="cut", factory=1, process="cut", products=["p"],
+                          faults=[Fault(date="2026-09-28", start=540, end=600)]),
+                  Machine(id="weld", factory=2, process="weld", products=["p"])],
+        employees=[Employee(id="e1", name="Cut", factory=1, skills=["cut"]),
+                   Employee(id="e2", name="Weld", factory=2, skills=["weld"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", factory=1, rate=1),
+                                                       Step(process="weld", factory=2, rate=1, batch=60)])],
+        orders=[Order(id="o", code="O", product="p", qty=120, due="2026-09-28")],
+        blocks=[Block(order="o", step=0, machine="cut", employee="e1",
+                      date="2026-09-28", start=480, end=540, qty=60, pinned=True),
+                Block(order="o", step=1, machine="weld", employee="e2",
+                      date="2026-09-28", start=540, end=660, qty=120, pinned=True)],
+    )
+    now = Now(date="2026-09-28", min=480)
+    result = solve(snap, now, PRESETS["on_time"], time_limit=1, days=5)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert check(snap, result.blocks, now) == []
+
+
+def test_invalid_fixed_cross_factory_precedence_is_not_reported_optimal():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="cut", factory=1, process="cut", products=["p"]),
+                  Machine(id="weld", factory=2, process="weld", products=["p"])],
+        employees=[Employee(id="e1", name="Cut", factory=1, skills=["cut"]),
+                   Employee(id="e2", name="Weld", factory=2, skills=["weld"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", factory=1, rate=1),
+                                                       Step(process="weld", factory=2, rate=1)])],
+        orders=[Order(id="o", code="O", product="p", qty=120, due="2026-09-28")],
+        blocks=[Block(order="o", step=0, machine="cut", employee="e1",
+                      date="2026-09-28", start=540, end=660, qty=120, pinned=True),
+                Block(order="o", step=1, machine="weld", employee="e2",
+                      date="2026-09-28", start=480, end=600, qty=120, pinned=True)],
+    )
+    now = Now(date="2026-09-28", min=480)
+    result = solve(snap, now, PRESETS["on_time"], time_limit=1, days=5)
+    assert result.status == "INVALID_SCHEDULE"
+    assert any("前站還沒做到可以開始" in reason for reason in result.unplaced)
+    preview = make_plans(PlanRequest(snapshot=snap, event=Event(type="auto"),
+                                     now=now, time_limit=1))
+    assert all(not option["applicable"] for option in preview["options"])
+    assert not any(option.get("recommended") for option in preview["options"])
+
+
+def test_unknown_step_is_reported_without_validator_crash():
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="cut", process="cut", products=["p"])],
+        employees=[Employee(id="e", name="Cut", skills=["cut"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=1)])],
+        orders=[Order(id="o", code="O", product="p", qty=60, due="2026-09-28")],
+        blocks=[Block(order="o", step=2, machine="cut", employee="e",
+                      date="2026-09-28", start=480, end=540, qty=60, pinned=True)],
+    )
+    now = Now(date="2026-09-28", min=480)
+    assert any("產品沒有這道工序" in issue for issue in check(snap, snap.blocks, now))
+    result = solve(snap, now, PRESETS["on_time"], time_limit=1, days=5)
+    assert result.status == "INVALID_SCHEDULE"
 
 
 def test_only_one_plan_computation_per_service_process(demo, monkeypatch):

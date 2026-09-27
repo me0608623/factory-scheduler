@@ -1,5 +1,7 @@
 // A work order can visit both factories; its product steps decide where each stage runs.
 export const FACTORIES = [1, 2];
+export const factoryPreference = value => value === "all" ? "all" :
+  FACTORIES.includes(Number(value)) ? Number(value) : 1;
 export const factoryOf = item => FACTORIES.includes(Number(item?.factory)) ? Number(item.factory) : 1;
 export const factoryName = value => `${factoryOf({ factory: value })} 廠`;
 export const inFactory = (item, selected) => selected === "all" || factoryOf(item) === selected;

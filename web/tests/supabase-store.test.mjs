@@ -11,6 +11,7 @@ const TV = "33333333-3333-4333-8333-333333333333";
 const USERS = { "boss@x": { id: BOSS, password: "pw" }, "lead@x": { id: LEAD, password: "pw" }, "tv@x": { id: TV, password: "pw" } };
 const A01 = "00000000-0000-4000-8000-0000000000b1";
 const E1 = "00000000-0000-4000-8000-0000000000e1";
+const E2 = "00000000-0000-4000-8000-0000000000e2";
 
 async function setup() {
   const db = await makeDb();
@@ -98,7 +99,7 @@ test("讀取、只寫有變的列、紀錄", async () => {
   assert.equal(S.blocks.length, 0);
 
   // 排兩段工作 → save_blocks，版本 +1，留一筆紀錄
-  S.blocks.push(blk(), blk({ step: 1, m: "c", s: 540, e: 580 }));
+  S.blocks.push(blk(), blk({ step: 1, m: "c", emp: E2, s: 540, e: 580 }));
   await boss.sync(S, { kind: "auto", title: "排程", lines: [{ k: "info", t: "測試" }], sum: "排了兩段" });
   assert.equal(await count("select count(*)::int n from schedule_blocks"), 2);
   assert.equal(await count("select version::int n from schedule_state"), 1);
@@ -146,6 +147,20 @@ test("兩個人同時改：後存的人收到衝突", async () => {
   await assert.rejects(lead.sync(Sl, { kind: "move", title: "組長排的" }), (e) => e.conflict === true);
   const fresh = await lead.load();
   assert.equal(fresh.blocks[0].m, "a", "重新讀取後看到老闆的版本");
+});
+
+test("排程版本已變時，不得先把同次修改的工單寫入資料庫", async () => {
+  const { store, count } = await setup();
+  const boss = await store("boss@x"), lead = await store("lead@x");
+  const Sb = await boss.load(), Sl = await lead.load();
+  Sb.blocks.push(blk());
+  await boss.sync(Sb, { kind: "move", title: "老闆排的" });
+  Sl.orders[0].qty = 121;
+  Sl.blocks.push(blk({ m: "b" }));
+  await assert.rejects(lead.sync(Sl, { kind: "move", title: "組長過期的排程" }),
+    (e) => e.conflict === true);
+  assert.equal(await count("select qty n from orders where code='A01'"), 120,
+    "整次過期操作不應留下先寫入的工單數量");
 });
 
 test("權限：電視帳號寫不進去、組長不能改基本資料", async () => {

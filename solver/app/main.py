@@ -14,7 +14,8 @@ from threading import BoundedSemaphore
 import ortools
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.middleware.gzip import GZipMiddleware
+from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from .db import Supabase, SupabaseError
@@ -24,6 +25,7 @@ from .schemas import Event, Now, PlanRequest, Snapshot, SolveRequest
 from .validate import check
 
 app = FastAPI(title="產線排程服務", version="0.1.0")
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "*").split(",")],
@@ -65,6 +67,7 @@ def solve_once(req: SolveRequest):
     with computation_slot():
         res = solve(req.snapshot, now, PRESETS[req.preset], time_limit=req.time_limit)
     return {"status": res.status, "seconds": round(res.wall, 2), "unplaced": res.unplaced,
+            "solver_method": res.search_mode, "solver_candidate_pairs": res.candidate_pairs,
             "issues": check(req.snapshot, res.blocks, now), "blocks": [b.model_dump() for b in res.blocks]}
 
 
@@ -80,7 +83,7 @@ def plans(req: PlanRequest):
 class DbPlanRequest(BaseModel):
     event: Event
     now: Now | None = None
-    time_limit: float = 5.0
+    time_limit: float = Field(default=5.0, gt=0, le=10)
 
 
 @app.post("/plans/db")
