@@ -224,7 +224,7 @@ test("套用排程服務的方案（apply_plan）", async () => {
 test("格式轉換：畫面 → 快照 → 畫面", () => {
   const S = { cal: { week: [false, true, true, true, true, true, true], over: { "2026-10-01": "off" } }, dayOT: { "2026-10-02": true },
     employees: [{ id: "e", name: "甲", factory: 2, color: 1, skills: ["a"], maxMachines: 2, leaves: ["2026-10-03"], noOT: true, reviewStatus: 'confirmed', sourceRef: null,
-      otWeekdays: [], otOverrides: {} }],
+      sourceCode: null, sourceNotes: null, catalogSources: [], identityCandidates: [], otWeekdays: [], otOverrides: {} }],
     machines: [{ id: "a", label: "A", factory: 2, proc: "裁切", products: ["p"], faults: [{ id: "f", date: "2026-10-04", s: 480, e: 600, note: "", fixed: false, orig: [] }] }],
     products: [{ id: "p", name: "P", steps: [{ proc: "裁切", factory: 2, rate: 2, batch: 0 }] }],
     orders: [{ id: "o", code: "O1", pid: "p", qty: 10, due: "2026-10-09", pri: 0 }],
