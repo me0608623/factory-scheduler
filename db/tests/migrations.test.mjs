@@ -458,5 +458,47 @@ ok((await db.query("select count(*)::int n from employees where not active")).ro
   && (await db.query("select count(*)::int n from orders where status='cancelled'")).rows[0].n>0,"舊名冊與工單仍保留，未刪除");
 await expectErr("select pg_temp.import_legacy_roster($1,14)",[sourceId],/不可重複匯入/,"重複匯入拒絕，不再建立重複人員");
 
+console.log('完整名冊補齊與身份來源');
+await db.exec(fs.readFileSync(path.join(ROOT,'maintenance','complete_legacy_catalog.sql'),'utf8'));
+const originalPeople=(await db.query('select id,name,factory,source_ref from employees where active order by factory,name')).rows;
+let codeIndex=0, secondIndex=0;
+const completionPeople=originalPeople.map(e=>{
+  const idx=e.factory===2?secondIndex++:-1;
+  const action=e.factory===1||idx===15?'retain':idx<4?'hold_alias_mapping':idx===4?'propose_name_note_split':'retain_and_propose_source_code';
+  return {factory:e.factory,current_name:e.name,name:action==='hold_alias_mapping'?'候選'+idx:action==='propose_name_note_split'?e.name+'（整理）':e.name,
+    source_code:action==='retain'?null:'TEST'+(++codeIndex),source:'工作表3!A'+(codeIndex+1),action,preserved_note:'保留原文備註'};
+});
+for(let i=0;i<10;i++) completionPeople.push({factory:i<9?1:2,name:'新增測試'+i,current_name:null,
+  source_code:i===8?null:'NEW'+i,source:'來源表!B'+(i+1),action:'propose_add_pending'});
+const originalMachines=(await db.query('select id,factory from machines where active order by factory,id')).rows;
+let groups=originalMachines.map((m,i)=>({factory:m.factory,proposed_parent_key:'test-group-'+i,positions:[{current_id:m.id,side:null}]}));
+const secondGroups=groups.filter(g=>g.factory===2);
+for(let i=0;i<7;i++) {
+  const left=secondGroups[i*2],right=secondGroups[i*2+1];
+  left.positions[0].side='左';right.positions[0].side='右';
+  left.positions.push(...right.positions);groups=groups.filter(g=>g!==right);
+}
+const args=[sourceId,archiveHash,14,JSON.stringify(completionPeople),JSON.stringify(groups)];
+await expectErr('select pg_temp.complete_legacy_catalog($1,$2,$3,$4,$5)',[...args.slice(0,2),13,...args.slice(3)],/版本已變/,'補齊拒絕過期版本');
+const duplicatePositions=structuredClone(groups);duplicatePositions[0].positions[0].current_id=duplicatePositions[1].positions[0].current_id;
+await expectErr('select pg_temp.complete_legacy_catalog($1,$2,$3,$4,$5)',[...args.slice(0,4),JSON.stringify(duplicatePositions)],/duplicate key|unique constraint/,'位置ID重複時整次補齊撤回');
+ok((await db.query('select count(*)::int n from employees where active')).rows[0].n===20,'失敗交易未留下新增人員');
+const collisionPeople=structuredClone(completionPeople);collisionPeople.at(-1).source_code=collisionPeople.find(p=>p.action==='retain_and_propose_source_code').source_code;
+await expectErr('select pg_temp.complete_legacy_catalog($1,$2,$3,$4,$5)',[...args.slice(0,3),JSON.stringify(collisionPeople),args[4]],/duplicate key|unique constraint/,'原始代號衝突時整筆撤回');
+await db.exec('begin');
+const completed=(await db.query('select pg_temp.complete_legacy_catalog($1,$2,$3,$4,$5) r',args)).rows[0].r;
+await db.exec('commit');
+ok(completed.added===10&&completed.held_aliases===4&&completed.setup_pending,'只補齊10個候選，4組別名不合併');
+const completeSnap=(await as(LEAD,()=>db.query('select schedule_snapshot() s'))).rows[0].s;
+ok(completeSnap.employees.length===30&&completeSnap.employees.filter(e=>e.factory===1).length===13,'補齊後快照一廠13人、二廠17人');
+ok(originalPeople.every(e=>completeSnap.employees.some(x=>x.id===e.id)),'既有20個人員UUID保留');
+ok(completeSnap.employees.filter(e=>e.identity_candidates.length===1).length===4,'4組候選保持待確認且不套用姓名');
+ok(completeSnap.employees.find(e=>e.source_notes)?.source_notes==='保留原文備註','拆分姓名不刪原文備註');
+ok(completeSnap.employees.every(e=>e.skills.length===0&&e.review_status==='pending')&&completeSnap.blocks.length===0,'不推測技能或新增排班');
+ok(new Set(completeSnap.machines.map(m=>m.catalog_group)).size===38&&completeSnap.machines.length===45,'38來源群組保留45原位置ID');
+ok(originalMachines.every(m=>completeSnap.machines.some(x=>x.id===m.id)),'機台原ID全部保留');
+await expectErr('select pg_temp.complete_legacy_catalog($1,$2,$3,$4,$5)',[...args.slice(0,2),15,...args.slice(3)],/不可重複/,'已補齊拒絕再次執行');
+await expectErr("insert into plan_previews(kind,title,event,base_version,options) values('auto','pending','{}',15,'[]')",[],/尚待確認/,'補齊後仍拒絕未確認資料啟用求解');
+
 console.log(`\n通過 ${pass}，失敗 ${fail}`);
 process.exit(fail ? 1 : 0);
