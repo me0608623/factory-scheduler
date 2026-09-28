@@ -63,6 +63,7 @@ def health():
 
 @app.post("/solve", dependencies=[Depends(require_api_key)])
 def solve_once(req: SolveRequest):
+    require_catalog_ready(req.snapshot)
     now = req.now or now_tw()
     with computation_slot():
         res = solve(req.snapshot, now, PRESETS[req.preset], time_limit=req.time_limit)
@@ -73,6 +74,7 @@ def solve_once(req: SolveRequest):
 
 @app.post("/plans", dependencies=[Depends(require_api_key)])
 def plans(req: PlanRequest):
+    require_catalog_ready(req.snapshot)
     try:
         with computation_slot():
             return make_plans(req)
@@ -86,6 +88,11 @@ class DbPlanRequest(BaseModel):
     time_limit: float = Field(default=5.0, gt=0, le=10)
 
 
+def require_catalog_ready(snapshot: Snapshot):
+    if snapshot.setup_pending:
+        raise HTTPException(409, "原檔名冊與工作資料尚待確認，暫不開放排程計算")
+
+
 @app.post("/plans/db")
 async def plans_db(req: DbPlanRequest, authorization: str = Header(...)):
     if not supa.configured:
@@ -96,6 +103,7 @@ async def plans_db(req: DbPlanRequest, authorization: str = Header(...)):
         if await supa.role(jwt) not in ("boss", "lead"):
             raise HTTPException(403, "只有老闆或組長可以計算方案")
         snap = Snapshot(**await supa.snapshot(jwt))
+        require_catalog_ready(snap)
         with computation_slot():
             plan = await run_in_threadpool(make_plans, PlanRequest(snapshot=snap, event=req.event, now=req.now, time_limit=req.time_limit))
         plan["preview_id"] = await supa.save_preview(plan, uid)

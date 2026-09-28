@@ -33,6 +33,40 @@ def finish_total(snap, blocks):
     return tot
 
 
+def test_pending_catalog_blocks_all_api_computation(demo, monkeypatch):
+    snap, now = demo
+    snap.setup_pending = True
+    monkeypatch.delenv("SOLVER_DISABLE_SNAPSHOT_API", raising=False)
+    monkeypatch.delenv("SOLVER_API_KEY", raising=False)
+
+    class FakeSupabase:
+        configured = True
+
+        async def user_id(self, jwt):
+            return "tester"
+
+        async def role(self, jwt):
+            return "lead"
+
+        async def snapshot(self, jwt):
+            return snap.model_dump()
+
+        async def save_preview(self, *_):
+            pytest.fail("pending catalog must not create a preview")
+
+    monkeypatch.setattr(api, "supa", FakeSupabase())
+    client = TestClient(app)
+    payload = {"snapshot": snap.model_dump(), "now": now.model_dump()}
+    for path, body, headers in [
+        ("/solve", payload, {}),
+        ("/plans", {**payload, "event": {"type": "auto"}}, {}),
+        ("/plans/db", {"event": {"type": "auto"}}, {"Authorization": "Bearer test"}),
+    ]:
+        response = client.post(path, json=body, headers=headers)
+        assert response.status_code == 409, path
+        assert "尚待確認" in response.json()["detail"]
+
+
 # ---------- 時間軸 ----------
 def test_timeline_splits_at_lunch_weekend_and_holiday(demo):
     snap, now = demo
