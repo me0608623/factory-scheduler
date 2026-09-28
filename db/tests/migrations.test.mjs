@@ -427,5 +427,36 @@ await as(LEAD, () => expectErr("select save_blocks(13,$1,'重複方塊 ID')",
 ok((await db.query("select version::int n from schedule_state")).rows[0].n === 13,
   "重複方塊 ID 被拒後版本不變");
 
+console.log("正式名冊待確認保護");
+await db.query("update employees set review_status='pending',source_ref='test.xlsx · 1廠!B2' where id=$1", [EMP1]);
+await db.query("update machines set review_status='pending',source_ref='test.xlsx · 1廠!C2' where id='a'");
+await db.query("update schedule_state set setup_pending=true");
+const pendingSnap = (await as(LEAD, () => db.query("select schedule_snapshot() s"))).rows[0].s;
+ok(pendingSnap.setup_pending && pendingSnap.employees.find(e=>e.id===EMP1).review_status==='pending'
+  && pendingSnap.machines.find(m=>m.id==='a').source_ref==='test.xlsx · 1廠!C2', "組長快照可看到待確認名冊與原檔來源");
+await expectErr("insert into plan_previews(kind,title,event,base_version,options) values('auto','pending','{}',13,'[]')", [], /尚待確認/, "待確認名冊不接受新求解預覽");
+await expectErr("update schedule_blocks set pinned=not pinned where id=$1", [closedRow.id], /尚待確認/, "待確認名冊不接受排班變動");
+
+console.log("原檔名冊正式匯入（可恢復替換）");
+await db.exec(fs.readFileSync(path.join(ROOT,'maintenance','import_legacy_roster.sql'),'utf8'));
+const sourceId=(await db.query("select id from legacy_schedule_archives where source_sha256=$1",[archiveHash])).rows[0].id;
+await expectErr("select pg_temp.import_legacy_roster($1,13)",[sourceId],/已有實際排班/,"有實際排班時拒絕覆蓋名冊");
+await db.query("update schedule_state set setup_pending=false");
+await db.query("delete from schedule_blocks");
+await db.query("update employees set source_ref=null");
+await db.query("update machines set source_ref=null");
+await db.exec('begin');
+const imported=(await db.query("select pg_temp.import_legacy_roster($1,13) r",[sourceId])).rows[0].r;
+await db.exec('commit');
+ok(imported.employees===20 && imported.stations===45 && imported.setup_pending,"匯入20個人員候選與45個機台／工作站欄位");
+const importedSnap=(await as(LEAD,()=>db.query("select schedule_snapshot() s"))).rows[0].s;
+ok(importedSnap.employees.filter(e=>e.factory===1).length===4 && importedSnap.employees.filter(e=>e.factory===2).length===16
+  && importedSnap.machines.filter(m=>m.factory===1).length===24 && importedSnap.machines.filter(m=>m.factory===2).length===21,"正式快照正確分1廠、2廠");
+ok(importedSnap.employees.every(e=>e.skills.length===0 && e.review_status==='pending')
+  && importedSnap.orders.length===0 && importedSnap.blocks.length===0,"不推測技能、工單件數或工作時間");
+ok((await db.query("select count(*)::int n from employees where not active")).rows[0].n>=5
+  && (await db.query("select count(*)::int n from orders where status='cancelled'")).rows[0].n>0,"舊名冊與工單仍保留，未刪除");
+await expectErr("select pg_temp.import_legacy_roster($1,14)",[sourceId],/不可重複匯入/,"重複匯入拒絕，不再建立重複人員");
+
 console.log(`\n通過 ${pass}，失敗 ${fail}`);
 process.exit(fail ? 1 : 0);

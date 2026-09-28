@@ -23,6 +23,7 @@ export const blockFromDb = (d) => ({ id: d.id || newId(), oid: d.order_id, step:
 export function toSnapshot(S, holidays = {}) {
   return {
     version: S.version || 0,
+    setup_pending: !!S.setupPending,
     calendar: {
       week: [...S.cal.week],
       overrides: Object.fromEntries(Object.entries(S.cal.over || {}).map(([d, v]) => [d, v === "work"])),
@@ -30,10 +31,10 @@ export function toSnapshot(S, holidays = {}) {
       holidays: { ...holidays },
     },
     employees: S.employees.map((e) => ({ id: e.id, name: e.name, factory: e.factory || 1, color: e.color || 0, skills: [...e.skills],
-      max_concurrent_machines: e.maxMachines || 1,
+      max_concurrent_machines: e.maxMachines || 1, review_status: e.reviewStatus || 'confirmed', source_ref: e.sourceRef || null,
       leaves: [...e.leaves], no_overtime: !!e.noOT, overtime_weekdays: overtimeWeekdays(e),
       overtime_overrides: { ...(e.otOverrides || {}) } })),
-    machines: S.machines.map((m) => ({ id: m.id, label: m.label, factory: m.factory || 1, process: m.proc, products: [...m.products],
+    machines: S.machines.map((m) => ({ id: m.id, label: m.label, factory: m.factory || 1, process: m.proc, products: [...m.products], review_status: m.reviewStatus || 'confirmed', source_ref: m.sourceRef || null,
       faults: m.faults.map((f) => ({ id: f.id || null, date: f.date, start: f.s, end: f.e, note: f.note || null,
         fixed: !!f.fixed, original_blocks: (f.orig || []).map(blockToDb) })) })),
     products: S.products.map((p) => ({ id: p.id, name: p.name,
@@ -50,16 +51,16 @@ export function fromSnapshot(snap) {
   const over = {};
   for (const [d, open] of Object.entries(c.overrides || {})) over[d] = open ? "work" : "off";
   return {
-    v: 1, demo: false, version: snap.version || 0,
+    v: 1, demo: false, version: snap.version || 0, setupPending: !!snap.setup_pending,
     cal: { week: c.week || [false, true, true, true, true, true, true], over },
     dayOT: { ...(c.overtime || {}) },
     holidays: { ...(c.holidays || {}) },
     employees: (snap.employees || []).map((e) => ({ id: e.id, name: e.name, factory: e.factory || 1, color: e.color || 0, skills: [...e.skills],
-      maxMachines: e.max_concurrent_machines || 1,
+      maxMachines: e.max_concurrent_machines || 1, reviewStatus: e.review_status || 'confirmed', sourceRef: e.source_ref || null,
       leaves: [...(e.leaves || [])], noOT: !!e.no_overtime,
       otWeekdays: Array.isArray(e.overtime_weekdays) ? e.overtime_weekdays : e.no_overtime ? [] : [0,1,2,3,4,5,6],
       otOverrides: { ...(e.overtime_overrides || {}) } })),
-    machines: (snap.machines || []).map((m) => ({ id: m.id, label: m.label, factory: m.factory || 1, proc: m.process, products: [...m.products],
+    machines: (snap.machines || []).map((m) => ({ id: m.id, label: m.label, factory: m.factory || 1, proc: m.process, products: [...m.products], reviewStatus: m.review_status || 'confirmed', sourceRef: m.source_ref || null,
       faults: (m.faults || []).map((f) => ({ id: f.id, date: f.date, s: f.start, e: f.end, note: f.note || "",
         fixed: !!f.fixed, fixedAt: f.fixed_at || null, orig: (f.original_blocks || []).map(blockFromDb) })) })),
     products: (snap.products || []).map((p) => ({ id: p.id, name: p.name,

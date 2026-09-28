@@ -26,14 +26,16 @@ export function rowsOf(S) {
   for (const e of S.employees) {
     const weekdays=overtimeWeekdays(e);
     put("employees", e.id, { id: e.id, name: e.name, factory: e.factory || 1, color: e.color || 0, no_overtime: weekdays.length===0,
-      overtime_weekdays: weekdays, max_concurrent_machines: e.maxMachines || 1 });
+      overtime_weekdays: weekdays, max_concurrent_machines: e.maxMachines || 1,
+      review_status: e.reviewStatus || 'confirmed', source_ref: e.sourceRef || null });
     for (const m of e.skills) put("employee_skills", e.id + "|" + m, { employee_id: e.id, machine_id: m });
     for (const d of e.leaves) put("leaves", e.id + "|" + d, { employee_id: e.id, date: d });
     for (const [d, available] of Object.entries(e.otOverrides || {}))
       put("employee_overtime_days", e.id + "|" + d, { employee_id: e.id, date: d, available: !!available });
   }
   for (const m of S.machines) {
-    put("machines", m.id, { id: m.id, label: m.label, factory: m.factory || 1, process: m.proc });
+    put("machines", m.id, { id: m.id, label: m.label, factory: m.factory || 1, process: m.proc,
+      review_status: m.reviewStatus || 'confirmed', source_ref: m.sourceRef || null });
     for (const p of m.products) put("machine_products", m.id + "|" + p, { machine_id: m.id, product_id: p });
     for (const f of m.faults) {
       put("machine_faults", f.id, { id: f.id, machine_id: m.id, date: f.date, start_min: f.s, end_min: f.e, note: f.note || null,

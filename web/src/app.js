@@ -623,8 +623,8 @@ function topHTML(){
   '<div class="seg" role="group" aria-label="檢視"><button data-act="view" data-v="day" aria-pressed="'+!wk+'">日</button><button data-act="view" data-v="week" aria-pressed="'+wk+'">週</button></div>'+
   (S.demo?'<span class="demo-chip">示範資料</span>':'')+(readOnly&&!PV?'<span class="ro-chip">檢視模式</span>':'')+
   '<div class="spacer"></div>'+
-  '<button class="btn danger admin" data-act="incident" '+(readOnly?"disabled":"")+'>突發狀況</button>'+
-  '<button class="btn admin" data-act="auto" title="自動排程會連同另一廠的工序一起計算" '+(readOnly?"disabled":"")+'>'+IC.bolt+'<span class="lbl">自動排程</span></button>'+
+  '<button class="btn danger admin" data-act="incident" '+(readOnly||S.setupPending?"disabled":"")+'>突發狀況</button>'+
+  '<button class="btn admin" data-act="auto" title="自動排程會連同另一廠的工序一起計算" '+(readOnly||S.setupPending?"disabled":"")+'>'+IC.bolt+'<span class="lbl">自動排程</span></button>'+
   '<button class="btn admin" data-act="undo" '+(readOnly||!undoStack.length?"disabled":"")+'>'+IC.undo+'<span class="lbl">復原</span></button>'+
   '<button class="btn" data-act="export">'+IC.down+'<span class="lbl">Excel</span></button>'+
   (canArchive()?'<button class="btn" data-act="history"><span class="lbl">歷史排程</span></button>':'')+
@@ -638,8 +638,9 @@ function topHTML(){
 }
 function isoWeek(ds){const d=parseD(ds);d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));const y=new Date(Date.UTC(d.getUTCFullYear(),0,1));return Math.ceil(((d-y)/864e5+1)/7);}
 function bannerHTML(){
-  if(UI.view!=="day")return "";
-  const d=UI.date,di=dayInfo(d),out=[];
+  const pending=S.setupPending?'<div class="banner"><span class="grow">已匯入排程1023的員工與機台／工作站名冊（待確認）。技能、工序與工時尚未確認，暫不開放排班或自動排程。原始工作請看「歷史排程」。</span></div>':"";
+  if(UI.view!=="day")return pending;
+  const d=UI.date,di=dayInfo(d),out=[pending];
   const name=di.type==="hol"?"國定假日："+di.hol:di.type==="sat"?"週六休息日":di.type==="sun"?"週日例假日":"";
   const openBtn=readOnly?"":'<button class="btn admin '+(di.open?"ghost":"primary")+'" data-act="open">'+(di.open?"改為停工":"改為上班")+'</button>';
   if(!di.open)out.push('<div class="banner wk"><span class="grow">'+(name?esc(name)+"　":"")+'本日停工，不排工作</span>'+openBtn+'</div>');
@@ -654,15 +655,15 @@ function cardsHTML(){
   const emps=employees.map(e=>{
     const lv=e.leaves.includes(d);
     return '<button class="emp'+(lv?" off":"")+'" data-act="emp" data-id="'+e.id+'"><span class="sw" style="background:'+COLORS[e.color%COLORS.length]+'">'+esc(e.name.slice(0,1))+'</span>'+esc(e.name)+
-      (lv?'<span class="tag bad">請假</span>':'')+(!overtimeAllowed(e,d)?'<span class="tag mute">今天不加班</span>':'')+'</button>';}).join("");
+      (lv?'<span class="tag bad">請假</span>':'')+(e.reviewStatus==='pending'?'<span class="tag warn">待確認</span>':!overtimeAllowed(e,d)?'<span class="tag mute">今天不加班</span>':'')+'</button>';}).join("");
   const machs=machines.map(m=>{const down=m.faults.some(f=>f.date===d&&!f.fixed);
-    return '<button class="mach'+(down?" down":"")+'" data-act="mach" data-id="'+m.id+'" aria-label="'+esc(m.id+" "+m.label)+'"><b>'+esc(m.id)+'</b><small>'+(down?"故障":"正常")+'</small></button>';}).join("");
+    return '<button class="mach catalog-mach'+(down?" down":"")+'" data-act="mach" data-id="'+m.id+'" aria-label="'+esc(m.id+" "+m.label)+'"><b>'+esc(m.label)+'</b><small>'+esc(m.id)+' · '+(m.reviewStatus==='pending'?"待確認":down?"故障":"正常")+'</small></button>';}).join("");
   const ords=[...orders].sort((a,b)=>a.due.localeCompare(b.due)||a.pri-b.pri);
   const orows=ords.slice(0,4).map(orderRow).join("");
   const lrows=S.log.slice(0,3).map(logRow).join("")||'<div class="empty">還沒有紀錄</div>';
   return '<section class="cards" aria-label="總覽">'+
   '<div class="card"><div class="card-h"><h2>員工</h2><span class="count">'+employees.length+' 人'+(onLeave.length?" · 今天 "+onLeave.length+" 人請假":"")+'</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="emp-new">＋新增</button>':"")+'</div><div class="chips">'+emps+'</div></div>'+
-  '<div class="card"><div class="card-h"><h2>機台</h2><span class="count">'+machines.length+' 台</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="mach-new">＋新增</button>':"")+'</div><div class="chips">'+machs+'</div></div>'+
+  '<div class="card"><div class="card-h"><h2>'+(S.setupPending?'機台／工作站':'機台')+'</h2><span class="count">'+machines.length+(S.setupPending?' 個欄位':' 台')+'</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="mach-new">＋新增</button>':"")+'</div><div class="chips">'+machs+'</div></div>'+
   '<div class="card"><div class="card-h"><h2>工單</h2><span class="count">'+orders.length+' 張</span>'+(readOnly?"":'<button class="add" data-act="ord-new">＋新增</button>')+'</div><div class="olist">'+orows+'</div>'+
     '<div style="display:flex;gap:16px"><button class="more" data-act="orders">全部工單</button><button class="more" data-act="products">產品工序</button></div></div>'+
   '<div class="card"><div class="card-h"><h2>全廠紀錄</h2><span class="count">系統怎麼調整</span></div><div class="llist">'+lrows+'</div><button class="more" data-act="log">全部紀錄</button></div>'+
@@ -701,18 +702,18 @@ function dayHTML(ctx={}){
     return '<div class="col" data-m="'+M.id+'" style="height:'+px(DAY1)+'px">'+z+gh+bl+'</div>';
   }).join("");
   const heads=ms.map(M=>{const down=M.faults.some(f=>f.date===d&&!f.fixed);
-    return '<button class="colhead'+(down?" down":"")+'" data-act="mach" data-id="'+M.id+'"><span class="L">'+esc(M.id)+'</span><span class="N">'+esc(M.label)+'<small>'+esc(M.proc)+'</small></span><span class="st tag '+(down?"bad":"ok")+'">'+(down?"故障":"正常")+'</span></button>';}).join("");
+    return '<button class="colhead'+(down?" down":"")+'" data-act="mach" data-id="'+M.id+'"><span class="L">'+esc(M.id)+'</span><span class="N">'+esc(M.label)+'<small>'+esc(M.proc)+'</small></span><span class="st tag '+(M.reviewStatus==='pending'?"warn":down?"bad":"ok")+'">'+(M.reviewStatus==='pending'?"待確認":down?"故障":"正常")+'</span></button>';}).join("");
   let times="";for(let m=DAY0;m<DAY1;m+=30)times+='<div class="'+(m%60?"half":"")+'">'+hm(m)+'</div>';
   const leave=shownEmployees().filter(e=>e.leaves.includes(d));
   const otBtn=readOnly?"":(di.open?'<button class="btn admin" data-act="ot">'+(di.ot?'調整加班人員':'開加班到 20:00')+'</button>':"")+'<button class="btn admin" data-act="cal">上班日設定</button>';
   return '<section class="board" aria-label="排程表"><div class="board-h"><h2>'+esc(UI.factory==="all"?"跨廠":factoryName(UI.factory))+' · '+mdw(d)+(ctx.pv?(PV.mode==="orig"?" 原本的排程":PV.mode==="new"?" 調整後":" 對照"):" 排程")+'</h2>'+
     (leave.length?'<span class="tag bad" style="font-size:15px;padding:4px 10px">請假：'+esc(leave.map(e=>e.name).join("、"))+'</span>':"")+
     (nBad?'<button class="btn danger" data-act="issues">'+nBad+' 個問題</button>':(blocks.length?'<span class="tag ok" style="font-size:15px;padding:4px 10px">沒有衝突</span>':""))+
-    '<div class="spacer"></div><div class="legend"><span><i style="background:var(--lunch)"></i>午休</span><span><i style="background:var(--ot)"></i>加班</span><span><i style="background:var(--bad-bg);border-color:var(--bad)"></i>故障</span><span>顏色 = 員工</span><span>上班日／加班開關目前兩廠共用</span>'+(readOnly?"":"<span>拖動方塊可改時段，拉底邊可改工作長度</span>")+'</div>'+(readOnly||ctx.pv?"":'<button class="btn primary" data-act="manual-add">＋手動排班</button>')+otBtn+'</div>'+
+    '<div class="spacer"></div><div class="legend"><span><i style="background:var(--lunch)"></i>午休</span><span><i style="background:var(--ot)"></i>加班</span><span><i style="background:var(--bad-bg);border-color:var(--bad)"></i>故障</span><span>顏色 = 員工</span><span>上班日／加班開關目前兩廠共用</span>'+(readOnly||S.setupPending?"":"<span>拖動方塊可改時段，拉底邊可改工作長度</span>")+'</div>'+(readOnly||ctx.pv||S.setupPending?"":'<button class="btn primary" data-act="manual-add">＋手動排班</button>')+otBtn+'</div>'+
     (ms.length?'<div class="scroller"><div class="grid" style="grid-template-columns:64px repeat('+ms.length+',minmax(170px,1fr))">'+
     '<div class="corner"></div>'+heads+'<div class="times">'+times+'</div>'+cols+'</div></div>':
     '<div class="empty factory-empty">此廠尚未設定機台與員工；「歷史排程」是獨立的唯讀原表，不會自動變成正式排程。</div>')+
-    (ms.length&&!blocks.length&&di.win.length?'<div class="empty">這天還沒有排程。可按「＋手動排班」安排未排入的工作，或使用「自動排程」。</div>':"")+
+    (ms.length&&!blocks.length&&di.win.length?'<div class="empty">'+(S.setupPending?'名冊已匯入，工作仍待確認；原始安排可在「歷史排程」按日期查看。':'這天還沒有排程。可按「＋手動排班」安排未排入的工作，或使用「自動排程」。')+'</div>':"")+
     '</section>';
 }
 function blkHTML(b,px,bad,cls=""){
@@ -910,7 +911,7 @@ document.addEventListener("click",e=>{
       i=act==="zoom0"?ZOOMS.indexOf(1):Math.max(0,Math.min(ZOOMS.length-1,i+(act==="zoom+"?1:-1)));
       setZoom(ZOOMS[i]);render();break;}
     case "auto":openModal({t:"auto"});break;
-    case "manual-add":if(!readOnly)openModal({t:"manual-add"});break;
+    case "manual-add":if(!readOnly&&!S.setupPending)openModal({t:"manual-add"});break;
     case "incident":openModal({t:"incident"});break;
     case "help":openModal({t:"help",sec:0});break;
     case "undo":undo();break;
@@ -1145,7 +1146,7 @@ emp(m){
   const start=weekStart(UI.date<todayStr()?todayStr():UI.date);
   let days="";for(let i=0;i<21;i++){const d=addDays(start,i),di=dayInfo(d);
     days+=tg("m-leave",d,D.leaves.includes(d),'<span class="num">'+md(d)+'</span><small>'+WD[di.w]+(di.type==="hol"?" "+esc(di.hol.slice(0,3)):"")+'</small>',"leave"+(di.type!=="work"?" hol":""));}
-  const body=
+  const body=(D.sourceRef?'<div class="hint">原檔來源：'+esc(D.sourceRef)+'。'+(D.reviewStatus==='pending'?'姓名與技能待確認；未推測會操作哪些機台。':'')+'</div>':'')+
    '<div class="field"><label for="f-name">姓名</label><input class="inp" id="f-name" data-bind="name" value="'+esc(D.name)+'" '+(ro?"disabled":"")+' autocomplete="off"></div>'+
    '<div class="field"><span class="lab">所屬廠別</span><div class="toggles">'+FACTORIES.map(f=>tg("m-emp-factory",f,factoryOf(D)===f,factoryName(f))).join("")+'</div></div>'+
    '<div class="field"><span class="lab">代表顏色</span><div class="swatches">'+COLORS.map((c,i)=>'<button class="swatch" style="background:'+c+'" data-act="m-color" data-v="'+i+'" aria-pressed="'+(D.color===i)+'" aria-label="顏色 '+(i+1)+'"></button>').join("")+'</div></div>'+
@@ -1166,17 +1167,17 @@ mach(m){
   const faults=m.id?mach(m.id).faults.map((f,i)=>({f,i})).filter(x=>x.f.date===d):[];
   let opts="";for(let t=DAY0;t<DAY1;t+=10)opts+='<option value="'+t+'"'+(t===m.fs?" selected":"")+'>'+hm(t)+'</option>';
   const durs=[[30,"30 分"],[60,"1 小時"],[120,"2 小時"],[240,"半天"],[-1,"到 17:00"],[-2,"整天"]];
-  const faultBox=m.id&&!ro?
+  const faultBox=m.id&&!ro&&!S.setupPending?
    '<div class="field"><span class="lab">'+mdw(d)+' 機台狀況</span>'+
    (faults.length?faults.map(x=>'<div class="rline"><span class="k fail">故障</span><span style="flex:1">'+hm(x.f.s)+'–'+hm(x.f.e)+(x.f.note?"　"+esc(x.f.note):"")+'</span>'+(x.f.fixed?'<span class="tag ok">已修復</span>':absOf(x.f.date,x.f.e)<=nowAbs()?'<span class="tag mute">已結束</span>':'<button class="btn good" data-act="m-fix" data-v="'+x.i+'">修好了</button>')+'</div>').join(""):'<div class="okbox">正常運作</div>')+'</div>'+
    '<div class="field"><span class="lab">報故障：從幾點開始、壞多久</span><div class="row2"><select class="inp num" id="f-fs">'+opts+'</select><input class="inp" id="f-note" placeholder="原因（可不填）" value="'+esc(m.note)+'"></div>'+
    '<div class="toggles">'+durs.map(([v,t])=>tg("m-fd",v,m.fd===v,t)).join("")+'</div>'+
    '<button class="btn danger" data-act="m-fault" style="height:56px;font-size:19px;justify-content:center">確認故障，讓系統自動調整</button></div>':"";
-  const body=(m.fromInc?faultBox:"")+
+  const body=(D.sourceRef?'<div class="hint">原檔來源：'+esc(D.sourceRef)+'。'+(D.reviewStatus==='pending'?'此欄可能代表機台或工作站，用途與工序待確認。':'')+'</div>':'')+(m.fromInc?faultBox:"")+
    (m.id?'':'<div class="field"><label for="f-id">代號（例：f）</label><input class="inp num" id="f-id" data-bind="id" value="'+esc(D.id)+'" maxlength="4" autocomplete="off"></div>')+
    '<div class="field"><label for="f-label">名稱</label><input class="inp" id="f-label" data-bind="label" value="'+esc(D.label)+'" '+(rm?"disabled":"")+' autocomplete="off"></div>'+
    '<div class="field"><span class="lab">所屬廠別</span><div class="toggles">'+FACTORIES.map(f=>tg("m-mach-factory",f,factoryOf(D)===f,factoryName(f))).join("")+'</div></div>'+
-   '<div class="field"><span class="lab">做哪一道工序</span><div class="toggles">'+PROCS.map(p=>tg("m-proc",p,D.proc===p,esc(p))).join("")+'</div></div>'+
+   '<div class="field"><span class="lab">做哪一道工序</span><div class="toggles">'+[...new Set([D.proc,...PROCS])].map(p=>tg("m-proc",p,D.proc===p,esc(p))).join("")+'</div></div>'+
    '<div class="field"><span class="lab">可以生產的產品／模具</span><div class="toggles">'+S.products.map(p=>tg("m-prod",p.id,D.products.includes(p.id),esc(p.name)+'<small>'+esc(p.steps.map(s=>s.proc).join("→"))+'</small>')).join("")+'</div></div>'+
    '<div class="field"><span class="lab">誰會操作</span><div class="chips">'+(S.employees.filter(E=>E.skills.includes(D.id)).map(E=>'<span class="emp"><span class="sw" style="background:'+COLORS[E.color%COLORS.length]+'">'+esc(E.name[0])+'</span>'+esc(E.name)+'</span>').join("")||'<span class="hint">還沒有人會操作（到員工設定勾選）</span>')+'</div></div>'+
    (m.fromInc?"":faultBox);
@@ -1491,6 +1492,7 @@ function pvPanelHTML(o){
    '</section>';
 }
 function openPlans(title,logTitle,kind,applyEvent,strategies,extra={}){
+  if(S.setupPending){toast("原檔名冊與工作資料尚待確認，暫不開放排程");return;}
   if(extra.event&&SOLVER.up!==false)return openPlansSolver(title,logTitle,kind,applyEvent,strategies,extra);
   return openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra);
 }

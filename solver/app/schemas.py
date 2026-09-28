@@ -164,6 +164,7 @@ class Now(BaseModel):
 
 class Snapshot(BaseModel):
     version: int = 0
+    setup_pending: bool = False
     calendar: Calendar
     employees: list[Employee]
     machines: list[Machine]
