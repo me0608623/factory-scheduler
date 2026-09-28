@@ -663,7 +663,7 @@ function cardsHTML(){
   const lrows=S.log.slice(0,3).map(logRow).join("")||'<div class="empty">還沒有紀錄</div>';
   return '<section class="cards" aria-label="總覽">'+
   '<div class="card"><div class="card-h"><h2>員工</h2><span class="count">'+employees.length+' 人'+(onLeave.length?" · 今天 "+onLeave.length+" 人請假":"")+'</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="emp-new">＋新增</button>':"")+'</div><div class="chips">'+emps+'</div></div>'+
-  '<div class="card"><div class="card-h"><h2>機台</h2><span class="count">'+machines.length+' 台</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="mach-new">＋新增</button>':"")+'</div><div class="chips">'+machs+'</div></div>'+
+  '<div class="card"><div class="card-h"><h2>'+(S.setupPending?'機台／工作站':'機台')+'</h2><span class="count">'+machines.length+(S.setupPending?' 個欄位':' 台')+'</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="mach-new">＋新增</button>':"")+'</div><div class="chips">'+machs+'</div></div>'+
   '<div class="card"><div class="card-h"><h2>工單</h2><span class="count">'+orders.length+' 張</span>'+(readOnly?"":'<button class="add" data-act="ord-new">＋新增</button>')+'</div><div class="olist">'+orows+'</div>'+
     '<div style="display:flex;gap:16px"><button class="more" data-act="orders">全部工單</button><button class="more" data-act="products">產品工序</button></div></div>'+
   '<div class="card"><div class="card-h"><h2>全廠紀錄</h2><span class="count">系統怎麼調整</span></div><div class="llist">'+lrows+'</div><button class="more" data-act="log">全部紀錄</button></div>'+
