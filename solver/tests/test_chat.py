@@ -60,7 +60,7 @@ def test_latest_execution_scoped_and_not_full_order_completion(demo):
     raw['work_execution']=[]
     assert any(f['kind']=='execution' and '不能判定未開始或已完成' in f['text'] for f in build_context(raw,query(question='目前完成進度'))['facts'])
     raw['work_execution']=[{'blockId':b['id'],'status':'done','qtyDone':11}]
-    assert any(f['kind']=='alert' and '回報格式異常' in f['text'] for f in build_context(raw,query())['facts'])
+    assert any(f['kind']=='execution_alert' and '回報格式異常' in f['text'] for f in build_context(raw,query())['facts'])
 
 
 def test_manual_capacity_only_conflicts_when_intervals_overlap(demo):
@@ -73,6 +73,18 @@ def test_manual_capacity_only_conflicts_when_intervals_overlap(demo):
     assert not conflicts()
     raw['work_assignments'][0]['s']=530;assert conflicts()
     raw['work_assignments'][0]['s']=570;assert not conflicts()
+
+
+def test_progress_query_does_not_filter_known_invalid_reports(demo):
+    raw=demo[0].model_dump(mode='json');b=raw['blocks'][0]
+    b.update(date='2026-09-26',qty=10);raw['blocks']=[b]
+    raw['work_execution']=[{'blockId':b['id'],'status':'done','qtyDone':11}]
+    for question in ('目前完成進度','目前排程有哪些問題？'):
+        q=query(question=question)
+        result=asyncio.run(respond(q,build_context(raw,q)))
+        assert '現場回報格式異常，不能確認實際進度' in result['answer']
+        assert result['citations']
+        assert '沒有找到此類紀錄' not in result['answer']
 
 
 def test_range_bounds_and_filtered_dated_reports(demo):

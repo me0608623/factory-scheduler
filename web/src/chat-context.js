@@ -23,7 +23,7 @@ function dailyContext(raw,{date,factory='all'}){
   for(const b of raw.blocks||[])if(activityIds.has(b.id)){
     const label=(orders.get(b.order)?.code||'工單')+' · '+(employees.get(b.employee)?.name||'未指定人員'),r=reports.get(b.id);
     if(!r){push('execution',label+'：這段沒有現場回報；不能判定未開始或已完成',b.id);continue;}
-    if(!['running','done'].includes(r.status)||!Number.isInteger(r.qtyDone)||r.qtyDone<0||r.qtyDone>b.qty){push('alert',label+'：現場回報格式異常，不能確認實際進度',b.id);continue;}
+    if(!['running','done'].includes(r.status)||!Number.isInteger(r.qtyDone)||r.qtyDone<0||r.qtyDone>b.qty){push('execution_alert',label+'：現場回報格式異常，不能確認實際進度',b.id);continue;}
     push('execution',label+'：最新回報 '+(r.status==='done'?'此段已完成':'進行中')+'；累計 '+r.qtyDone+'／預排 '+b.qty+' 件'+(r.status==='done'&&r.qtyDone<b.qty?'（完成回報少於預排量）':'')+'；不代表整張工單完工，也不是選定日期當時的歷史狀態',b.id);
   }
   const transferState={workAssignments:raw.work_assignments||[],transferOrders:raw.transfer_orders||[]};
@@ -49,7 +49,7 @@ function dailyContext(raw,{date,factory='all'}){
   return facts;
 }
 export function queryKinds(q){
-  if(/故障|修復|修好/.test(q))return ['fault'];if(/請假/.test(q))return ['leave','alert'];if(/輪班|班別|崗位|人力/.test(q))return ['roster','alert'];if(/跨廠|流轉|送回|交料/.test(q))return ['transfer','material','deadline'];if(/缺料|待料|物料|點收/.test(q))return ['material','transfer'];if(/衝突|重疊|問題/.test(q))return ['alert','fault','deadline','material'];if(/交期|逾期/.test(q))return ['deadline','material'];if(/進度|完成|開始|累計|回報/.test(q))return ['execution'];return null;
+  if(/故障|修復|修好/.test(q))return ['fault'];if(/請假/.test(q))return ['leave','alert'];if(/輪班|班別|崗位|人力/.test(q))return ['roster','alert'];if(/跨廠|流轉|送回|交料/.test(q))return ['transfer','material','deadline'];if(/缺料|待料|物料|點收/.test(q))return ['material','transfer'];if(/衝突|重疊|問題/.test(q))return ['alert','execution_alert','fault','deadline','material'];if(/交期|逾期/.test(q))return ['deadline','material'];if(/進度|完成|開始|累計|回報/.test(q))return ['execution','execution_alert'];return null;
 }
 export function chatContext(raw,{date,end_date=date,factory='all',question=''}){
   if(!validDate(date)||!validDate(end_date)||end_date<date||(Date.parse(end_date)-Date.parse(date))/864e5>30)throw new Error('查詢日期範圍必須為 1–31 日');

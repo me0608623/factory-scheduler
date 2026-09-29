@@ -134,7 +134,7 @@ def daily_context(raw,query,snap):
             add('execution',label+'：這段沒有現場回報；不能判定未開始或已完成',b.id);continue
         qty=r.get('qtyDone')
         if r.get('status') not in ('running','done') or type(qty) is not int or not 0<=qty<=b.qty:
-            add('alert',label+'：現場回報格式異常，不能確認實際進度',b.id);continue
+            add('execution_alert',label+'：現場回報格式異常，不能確認實際進度',b.id);continue
         short='（完成回報少於預排量）' if r['status']=='done' and qty<b.qty else ''
         state='此段已完成' if r['status']=='done' else '進行中'
         add('execution',f'{label}：最新回報 {state}；累計 {qty}／預排 {b.qty} 件{short}；不代表整張工單完工，也不是選定日期當時的歷史狀態',b.id)
@@ -148,9 +148,9 @@ def query_kinds(question):
                         (['輪班','班別','崗位','人力'],['roster','alert']),
                         (['跨廠','流轉','送回','交料'],['transfer','material','deadline']),
                         (['缺料','待料','物料','點收'],['material','transfer']),
-                        (['衝突','重疊','問題'],['alert','fault','deadline','material']),
+                        (['衝突','重疊','問題'],['alert','execution_alert','fault','deadline','material']),
                         (['交期','逾期'],['deadline','material']),
-                        (['進度','完成','開始','累計','回報'],['execution'])]:
+                        (['進度','完成','開始','累計','回報'],['execution','execution_alert'])]:
         if any(w in question for w in words):return kinds
     return None
 

@@ -42,7 +42,7 @@ test('最新現場回報依工作與廠別篩選，不把完成短量當工單�
   assert.ok(!JSON.stringify(ctx).includes('PRIVATE-NOTE'));assert.deepEqual(r,before);
   r.work_execution=[];assert.match(answerFromFacts('完成進度',chatContext(r,{date:'2026-09-30',factory:1})).answer,/不能判定未開始或已完成/);
   r.work_execution=[{blockId:'one',status:'done',qtyDone:11}];
-  assert.ok(chatContext(r,{date:'2026-09-30',factory:1}).facts.some(f=>f.kind==='alert'&&f.text.includes('回報格式異常')));
+  assert.ok(chatContext(r,{date:'2026-09-30',factory:1}).facts.some(f=>f.kind==='execution_alert'&&f.text.includes('回報格式異常')));
 });
 
 test('純人工工作只在真正重疊時占滿容量，不誤報其他時間同時顧機',()=>{
@@ -54,6 +54,18 @@ test('純人工工作只在真正重疊時占滿容量，不誤報其他時間�
   assert.ok(chatContext(r,view).facts.some(f=>f.kind==='alert'&&f.text.includes('同時工作占用')));
   r.work_assignments[0].s=570;
   assert.ok(!chatContext(r,view).facts.some(f=>f.kind==='alert'&&f.text.includes('同時工作占用')));
+});
+
+test('進度查詢不可把已知的異常回報篩掉並回答沒有紀錄',()=>{
+  const r=raw();r.blocks=[r.blocks[0]];
+  r.work_execution=[{blockId:'one',status:'done',qtyDone:11}];
+  for(const question of ['測試員工目前完成進度','目前排程有哪些問題？']){
+    const ctx=chatContext(r,{date:'2026-09-30',factory:1,question});
+    const result=answerFromFacts(question,ctx);
+    assert.match(result.answer,/現場回報格式異常，不能確認實際進度/);
+    assert.ok(result.citations.length>0);
+    assert.doesNotMatch(result.answer,/沒有找到此類紀錄/);
+  }
 });
 
 test('31 日有界跨日依據與員工篩選，回答截短不冒充完整',()=>{
