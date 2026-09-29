@@ -500,5 +500,29 @@ ok(originalMachines.every(m=>completeSnap.machines.some(x=>x.id===m.id)),'機台
 await expectErr('select pg_temp.complete_legacy_catalog($1,$2,$3,$4,$5)',[...args.slice(0,2),15,...args.slice(3)],/不可重複/,'已補齊拒絕再次執行');
 await expectErr("insert into plan_previews(kind,title,event,base_version,options) values('auto','pending','{}',15,'[]')",[],/尚待確認/,'補齊後仍拒絕未確認資料啟用求解');
 
+console.log('來源員工分組匯入');
+await db.exec(fs.readFileSync(path.join(ROOT,'maintenance','import_legacy_groups.sql'),'utf8'));
+const staffGroupDefs=Array.from({length:7},(_,i)=>({id:`dddddddd-dddd-4ddd-8ddd-${String(i+1).padStart(12,'0')}`,name:'來源組'+i,home_factory:i<4?1:2,source_ref:'fixture!A'+i}));
+const firstStaff=completeSnap.employees.filter(e=>e.factory===1),secondStaff=completeSnap.employees.filter(e=>e.factory===2);
+const staffImportMembers=[...firstStaff,...secondStaff.slice(0,16)].map((e,i)=>({
+  group_id:staffGroupDefs[e.factory===1?Math.min(3,Math.floor(i/4)):4+(i-13)%3].id,
+  factory:e.factory,current_name:e.name,source_code:e.identity_candidates[0]?.source_employee_code||e.source_employee_code,
+  review_status:e.identity_candidates.length?'pending':'source',source_ref:e.source_ref.split(' · ').at(-1)}));
+const groupArgs=[archiveHash,15,JSON.stringify(staffGroupDefs),JSON.stringify(staffImportMembers)];
+await expectErr('select pg_temp.import_legacy_groups($1,$2,$3,$4)',[archiveHash,14,...groupArgs.slice(2)],/版本已變/,'来源分組拒絕過期版本');
+const badStaff=structuredClone(staffImportMembers);badStaff[0].source_code='NOT-IN-SOURCE';
+await expectErr('select pg_temp.import_legacy_groups($1,$2,$3,$4)',[...groupArgs.slice(0,3),JSON.stringify(badStaff)],/員工對照/,'身份對照不符整次匯入撤回');
+ok((await db.query('select count(*)::int n from staff_groups')).rows[0].n===0,'失敗匯入沒有留下分組');
+await db.exec('begin');
+const grouped=(await db.query('select pg_temp.import_legacy_groups($1,$2,$3,$4) r',groupArgs)).rows[0].r;
+await db.exec('commit');
+ok(grouped.groups===7&&grouped.members===29&&grouped.pending===4,'建立7個來源組、29筆對照、4筆待核對');
+const groupedSnap=(await as(LEAD,()=>db.query('select schedule_snapshot() s'))).rows[0].s;
+ok(groupedSnap.staff_groups.length===7&&groupedSnap.staff_group_members.length===29,'登入快照包含分組與成員');
+ok(groupedSnap.employees.length===30&&groupedSnap.employees.every(e=>e.skills.length===0)&&groupedSnap.setup_pending,'分組不新增身份、技能或啟用排程');
+await expectErr('select pg_temp.import_legacy_groups($1,$2,$3,$4)',[archiveHash,16,...groupArgs.slice(2)],/不可覆寫|重複/,'來源分組不可重複覆寫');
+await as(LEAD,()=>expectErr('select save_staff_groups($1,$2,$3)',[16,'[]','[]'],/只有老闆/,'組長不得變更固定分組'));
+await as(BOSS,()=>expectErr('select save_staff_groups($1,$2,$3)',[15,'[]','[]'],/版本已變/,'分組修改版本衝突整次拒絕'));
+
 console.log(`\n通過 ${pass}，失敗 ${fail}`);
 process.exit(fail ? 1 : 0);
