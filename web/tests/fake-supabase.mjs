@@ -38,7 +38,12 @@ export class FakeSupabase {
     this.users = users;        // email → {id, password}
     this.uid = null;
     this.resetRequests = [];
+    this.authListeners = new Set();
     this.auth = {
+      onAuthStateChange: callback => {
+        this.authListeners.add(callback);
+        return { data: { subscription: { unsubscribe: () => this.authListeners.delete(callback) } } };
+      },
       getSession: async () => ({ data: { session: this.uid ? this._session() : null } }),
       signInWithPassword: async ({ email, password }) => {
         const u = this.users[email];
@@ -56,7 +61,7 @@ export class FakeSupabase {
         user.password = password;
         return { error: null };
       },
-      signOut: async () => { this.uid = null; return { error: null }; },
+      signOut: async () => { this.uid = null;for(const callback of this.authListeners)callback('SIGNED_OUT',null);return { error: null }; },
     };
   }
   _session() { return { access_token: "jwt-" + this.uid, user: { id: this.uid, email: "x" } }; }

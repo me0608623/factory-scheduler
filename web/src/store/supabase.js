@@ -49,6 +49,7 @@ export class SupabaseStore {
 
   // ---------- 帳號 ----------
   async init() {
+    this._watchAuthSession();
     const { data } = await this.sb.auth.getSession();
     this.session = data.session;
     if (!this.session) return { needLogin: true };
@@ -57,6 +58,7 @@ export class SupabaseStore {
   }
 
   async login(email, password) {
+    this._watchAuthSession();
     const { data, error } = await this.sb.auth.signInWithPassword({ email, password });
     if (error) throw new Error(/invalid/i.test(error.message) ? "帳號或密碼不對" : error.message);
     this.session = data.session;
@@ -77,7 +79,23 @@ export class SupabaseStore {
 
   async logout() {
     await this.sb.auth.signOut();
-    this.session = null;
+    this._clearSession();
+  }
+
+  _clearSession() {
+    this.session=null;this.role=null;this.userName='';this.employeeId=null;
+  }
+
+  _watchAuthSession() {
+    if(this.authSubscription)return;
+    // Keep the callback synchronous: do not make auth/DB calls under the SDK lock.
+    const {data}=this.sb.auth.onAuthStateChange((event,session)=>{
+      if(event==='SIGNED_OUT'){this._clearSession();return;}
+      if(event!=='TOKEN_REFRESHED'||!this.session)return;
+      if(session?.user?.id!==this.session.user.id){this._clearSession();return;}
+      this.session=session;
+    });
+    this.authSubscription=data.subscription;
   }
 
   async _profile() {
