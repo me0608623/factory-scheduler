@@ -10,6 +10,10 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
   const range=document.createElement('div');range.className='chat-range';range.innerHTML='<label>查詢起日<input type="date" aria-label="聊天室查詢起日"></label><label>查詢迄日<input type="date" aria-label="聊天室查詢迄日"></label><small>最多 31 日；未啟用自然語言日期推算，請直接選日期。</small>';
   root.querySelector('.chat-quick').before(range);const [from,to]=range.querySelectorAll('input');let lastViewDate='';
   for(const text of ['輪班人力缺口','跨廠流轉進度','目前完成進度']){const b=document.createElement('button');b.className='btn';b.textContent=text;root.querySelector('.chat-quick').append(b);}
+  // Scroll query controls separately so short screens retain the composer/log.
+  const controls=document.createElement('div');controls.className='chat-controls';
+  panel.querySelector('header').after(controls);
+  for(const el of panel.querySelectorAll('.chat-scope,.chat-disclosure,.chat-mode,.chat-range,.chat-quick'))controls.append(el);
   let busy=false,generation=0,lastStamp='',messages=[];
   const add=(who,text)=>{const el=document.createElement('div');el.className='chat-message '+who;el.textContent=text;log.append(el);while(log.children.length>30)log.firstElementChild.remove();log.scrollTop=log.scrollHeight;return el;};
   const hide=()=>{panel.hidden=true;launch.setAttribute('aria-expanded','false');launch.focus();};
