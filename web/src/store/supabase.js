@@ -2,6 +2,7 @@
 
 import { fromSnapshot, blockToDb } from "../convert.js";
 import { rowsOf, diffRows, UPSERT_ORDER, DELETE_ORDER, TABLE_KEYS, blocksKey } from "./diff.js";
+import { groupCatalog } from "../groups.js";
 
 // 畫面的紀錄種類 ↔ 資料庫 change_sets.kind
 const KIND_TO_DB = { ot: "edit", save: "edit", move: "move", edit: "edit", auto: "auto", fault: "fault", leave: "leave", order: "order", recover: "recover" };
@@ -129,11 +130,20 @@ export class SupabaseStore {
   _remember(S) {
     this.base = rowsOf(S);
     this.baseBlocks = blocksKey(S);
+    this.baseGroups = JSON.stringify(groupCatalog(S));
   }
 
   // ---------- 寫：只寫有變的列；排程方塊整批用 save_blocks（有版本號檢查） ----------
   async sync(S, entry) {
     const d = diffRows(this.base, rowsOf(S));
+    const catalog=groupCatalog(S),groupsChanged=JSON.stringify(catalog)!==this.baseGroups;
+    if(groupsChanged){
+      if(Object.values(d).some(c=>c.upsert.length||c.del.length)||blocksKey(S)!==this.baseBlocks)
+        throw new Error('請將員工分組與排班／基本資料分開儲存');
+      const {data,error}=await this.sb.rpc('save_staff_groups',{p_base_version:this.version,p_groups:catalog.groups,p_members:catalog.members,p_title:entry?.title||'更新員工分組'});
+      if(error){if(error.code==='40001')throw new ConflictError();throw writeError('員工分組',error,'修改');}
+      S.version=this.version=Number(data);this._remember(S);return;
+    }
     // 基本資料逐表寫入，若排程版本已過期，應在第一筆寫入前先拒絕；
     // 否則後續 save_blocks 才報衝突時，工單等列可能已部分留下。
     if (Object.values(d).some(change => change.upsert.length || change.del.length)) {
