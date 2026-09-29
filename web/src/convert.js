@@ -29,6 +29,7 @@ export function toSnapshot(S, holidays = {}) {
     work_assignments: structuredClone(S.workAssignments||[]),
     work_reference_orders: structuredClone(S.workReferenceOrders||[]),
     transfer_orders: structuredClone(S.transferOrders||[]),
+    staff_rosters: structuredClone(S.staffRosters||[]),
     staff_groups: groupCatalog(S).groups,
     staff_group_members: groupCatalog(S).members,
     calendar: {
@@ -65,6 +66,7 @@ export function fromSnapshot(snap) {
     execution: snap.work_execution || [],
     workContents: snap.work_contents||[],workAssignments:snap.work_assignments||[],workReferenceOrders:snap.work_reference_orders||[],
     transferOrders:snap.transfer_orders||[],
+    staffRosters:snap.staff_rosters||[],
     groups: (snap.staff_groups || []).map(g=>({id:g.id,name:g.name,department:g.department||null,homeFactory:g.home_factory??null,sourceRef:g.source_ref||null})),
     groupMembers: (snap.staff_group_members || []).map(m=>({groupId:m.group_id,employeeId:m.employee_id,reviewStatus:m.review_status,sourceRef:m.source_ref||null})),
     cal: { week: c.week || [false, true, true, true, true, true, true], over },

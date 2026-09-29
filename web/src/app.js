@@ -15,6 +15,7 @@ import { workCatalog,assignments,occupiedWork,assignmentIssues,validateGeneralWo
 import { legacyFieldMap } from './legacy-field-map.js';
 import {transferOrders,materialWarning,transferPlanWarnings,batchOf,validateTransfers} from './transfers.js';
 import {transferUI} from './transfer-ui.js';
+import {rosterUI} from './roster-ui.js';
 /* ===== 1. 常數與工具 ===== */
 const COLORS=["#FFE14D","#4CDB6E","#F58CF0","#4FE3EE","#FFA64D","#AFC0FF","#FF9A9A","#BFEA6C"];
 const PROCS=["裁切","沖壓","焊接","組裝","包裝"];
@@ -644,6 +645,7 @@ function topHTML(){
   '<button class="btn" data-act="groups">分組／部門</button>'+
   '<button class="btn" data-act="work-contents" '+(PV?'disabled':'')+'>工作內容</button>'+
   '<button class="btn" data-act="transfers" '+(PV?'disabled':'')+'>跨廠加工</button>'+
+  '<button class="btn" data-act="rosters" '+(PV?'disabled':'')+'>輪班班表</button>'+
   '<div class="seg" role="group" aria-label="排程排列方式"><button data-act="layout" data-v="resource" aria-pressed="'+(UI.layout==='resource')+'" '+(PV?'disabled':'')+'>設備／工位</button><button data-act="layout" data-v="work" aria-pressed="'+(UI.layout==='work')+'" '+(PV?'disabled':'')+'>工作內容</button></div>'+
   '<button class="btn" data-act="resource-load" '+(PV?'disabled title="請先結束方案預覽，再分析已儲存排程"':'')+'>當日負荷</button>'+
   '<button class="btn" data-act="work-queue" '+(PV?'disabled':'')+'>未排工作</button>'+
@@ -2517,6 +2519,8 @@ async function start(){
 }
 const crossFactoryUI=transferUI({state:()=>S,ui:UI,esc,uid,canEdit:()=>!PV&&!readOnly,open:openModal,close:closeModal,syncInputs,commit,toast,today:todayStr,clearUndo:()=>{undoStack=[];}});
 Object.assign(MODALS,crossFactoryUI.modals);Object.assign(MODAL_ACT,crossFactoryUI.actions);
+const staffRosterUI=rosterUI({state:()=>S,ui:UI,esc,uid,canEdit:()=>!PV&&!readOnly,canMaster,open:openModal,close:closeModal,syncInputs,commit,toast,today:todayStr,clearUndo:()=>{undoStack=[];},jwt:()=>STORE.jwt()});
+Object.assign(MODALS,staffRosterUI.modals);Object.assign(MODAL_ACT,staffRosterUI.actions);
 MODAL_ACT['mach-products']=()=>{if(!canMaster())return;syncInputs();const m=UI.modal;if(!m.id||JSON.stringify(m.draft)!==JSON.stringify(mach(m.id))){toast('請先儲存或取消設備設定，再開啟產品設定');return;}openModal({t:'products'});};
 export async function boot(store,authLinkType=""){
   STORE=store;

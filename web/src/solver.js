@@ -9,6 +9,10 @@ export const SOLVER = {
   version: "",
   capabilities: [],
 
+  async roster(request,jwt) {
+    return post(jwt?'/roster/plans/db':'/roster/plans',request,jwt?{Authorization:'Bearer '+jwt}:{});
+  },
+
   async check() {
     try {
       const r = await fetchWithTimeout(BASE + "/health", {}, 3000);
