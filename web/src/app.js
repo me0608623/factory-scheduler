@@ -13,9 +13,12 @@ import { makeScenario, scenarioStale, validateScenario } from './scenarios.js';
 import { executionOf, canReport, assertExecutionProtected } from './execution.js';
 import { workCatalog,assignments,occupiedWork,assignmentIssues,validateGeneralWork } from './general-work.js';
 import { legacyFieldMap } from './legacy-field-map.js';
+import {transferOrders,materialWarning,transferPlanWarnings,batchOf,validateTransfers} from './transfers.js';
+import {transferUI} from './transfer-ui.js';
 /* ===== 1. 常數與工具 ===== */
 const COLORS=["#FFE14D","#4CDB6E","#F58CF0","#4FE3EE","#FFA64D","#AFC0FF","#FF9A9A","#BFEA6C"];
 const PROCS=["裁切","沖壓","焊接","組裝","包裝"];
+const processNames=()=>[...new Set([...S.machines.map(m=>m.proc),...S.products.flatMap(p=>p.steps.map(s=>s.proc)),...workCatalog(S).map(w=>w.name)])].filter(Boolean);
 const DAY0=480, LUNCH_S=720, LUNCH_E=780, REG_END=1020, DAY1=1200, HORIZON=60;
 // 台灣國定假日（依行政院人事行政總處公告，請每年核對）
 const HOLI={"2026-01-01":"元旦","2026-02-16":"春節","2026-02-17":"春節","2026-02-18":"春節","2026-02-19":"春節","2026-02-20":"春節",
@@ -640,6 +643,7 @@ function topHTML(){
   (canArchive()?'<button class="btn" data-act="history"><span class="lbl">歷史排程</span></button>':'')+
   '<button class="btn" data-act="groups">分組／部門</button>'+
   '<button class="btn" data-act="work-contents" '+(PV?'disabled':'')+'>工作內容</button>'+
+  '<button class="btn" data-act="transfers" '+(PV?'disabled':'')+'>跨廠加工</button>'+
   '<div class="seg" role="group" aria-label="排程排列方式"><button data-act="layout" data-v="resource" aria-pressed="'+(UI.layout==='resource')+'" '+(PV?'disabled':'')+'>設備／工位</button><button data-act="layout" data-v="work" aria-pressed="'+(UI.layout==='work')+'" '+(PV?'disabled':'')+'>工作內容</button></div>'+
   '<button class="btn" data-act="resource-load" '+(PV?'disabled title="請先結束方案預覽，再分析已儲存排程"':'')+'>當日負荷</button>'+
   '<button class="btn" data-act="work-queue" '+(PV?'disabled':'')+'>未排工作</button>'+
@@ -914,7 +918,7 @@ document.addEventListener("keydown",e=>{
 });
 
 /* ===== 8. 按鈕動作 ===== */
-const PV_BLOCK=new Set(["work-contents","work-content-new","work-content-edit","general-add","general-edit","layout","work-queue","scenarios","execution","report-open","report-work","groups","group-edit","group-new","emp","emp-new","mach","mach-new","ord","ord-new","orders","products","cal","open","ot","issues","incident","auto","manual-add","undo","save"]);
+const PV_BLOCK=new Set(["transfers","tf-new","tf-detail","tf-edit","tf-save","tf-work","tf-batch","tf-batch-save","tf-flow","tf-flow-preview","tf-flow-apply","tf-plan","mach-products","work-contents","work-content-new","work-content-edit","general-add","general-edit","layout","work-queue","scenarios","execution","report-open","report-work","groups","group-edit","group-new","emp","emp-new","mach","mach-new","ord","ord-new","orders","products","cal","open","ot","issues","incident","auto","manual-add","undo","save"]);
 document.addEventListener("click",e=>{
   const a=e.target.closest("[data-act]");if(!a)return;
   const act=a.dataset.act,id=a.dataset.id;
@@ -983,6 +987,7 @@ document.addEventListener("click",e=>{
   }
 });
 document.addEventListener("change",e=>{
+  if(e.target.id==='tf-toFactory'&&UI.modal?.t==='transfer-edit'){syncInputs();UI.modal.draft.workIds=UI.modal.draft.workIds.filter(id=>workCatalog(S).some(w=>w.id===id&&w.factory===Number(e.target.value)));renderModal();return;}
   if(e.target.id?.startsWith('gw-')){generalChange(e.target);return;}
   if(e.target.id==='staff-group-filter'){UI.group=e.target.value;render();return;}
   if(e.target.id==="datepick"&&e.target.value){UI.date=e.target.value;render();}
@@ -1239,7 +1244,7 @@ emp(m){
 /* ---------- 機台 ---------- */
 mach(m){
   if(!m.draft){const M=m.id?mach(m.id):null;
-    m.draft=M?JSON.parse(JSON.stringify(M)):{id:"",label:"",factory:UI.factory==="all"?1:UI.factory,proc:PROCS[0],products:[],faults:[]};
+    m.draft=M?JSON.parse(JSON.stringify(M)):{id:"",label:"",factory:UI.factory==="all"?1:UI.factory,proc:'',products:[],faults:[]};
     const n=UI.date===todayStr()?Math.max(DAY0,Math.floor(nowMin()/10)*10):DAY0;m.fs=Math.min(n,DAY1-30);m.fd=60;m.note="";}
   const D=m.draft,ro=readOnly,rm=readOnly||!canMaster(),d=UI.date;
   const faults=m.id?mach(m.id).faults.map((f,i)=>({f,i})).filter(x=>x.f.date===d):[];
@@ -1256,8 +1261,8 @@ mach(m){
    (m.id?'':'<div class="field"><label for="f-id">代號（例：f）</label><input class="inp num" id="f-id" data-bind="id" value="'+esc(D.id)+'" maxlength="4" autocomplete="off"></div>')+
    '<div class="field"><label for="f-label">名稱</label><input class="inp" id="f-label" data-bind="label" value="'+esc(D.label)+'" '+(rm?"disabled":"")+' autocomplete="off"></div>'+
    '<div class="field"><span class="lab">所屬廠別</span><div class="toggles">'+FACTORIES.map(f=>tg("m-mach-factory",f,factoryOf(D)===f,factoryName(f))).join("")+'</div></div>'+
-   '<div class="field"><span class="lab">做哪一道工序</span><div class="toggles">'+[...new Set([D.proc,...PROCS])].map(p=>tg("m-proc",p,D.proc===p,esc(p))).join("")+'</div></div>'+
-   '<div class="field"><span class="lab">可以生產的產品／模具</span><div class="toggles">'+S.products.map(p=>tg("m-prod",p.id,D.products.includes(p.id),esc(p.name)+'<small>'+esc(p.steps.map(s=>s.proc).join("→"))+'</small>')).join("")+'</div></div>'+
+   '<div class="field"><label for="f-proc">設備工序／工作內容（可自行輸入）</label><input class="inp" id="f-proc" data-bind="proc" list="process-names" value="'+esc(D.proc)+'" '+(rm?'disabled':'')+'><datalist id="process-names">'+processNames().map(p=>'<option value="'+esc(p)+'"></option>').join('')+'</datalist><div class="hint">名稱由使用者設定，不限於示範工序；純人工請使用「工作內容」。</div></div>'+
+   '<div class="field"><span class="lab">允許加工的產品／品號</span><div class="toggles">'+S.products.map(p=>tg("m-prod",p.id,D.products.includes(p.id),esc(p.name)+'<small>'+esc(p.steps.map(s=>s.proc).join("→"))+'</small>')).join("")+'</div><div class="hint">這是使用者建立的產品清單，不代表 1023 已核定模具。模具尚未獨立建模。</div>'+(rm?'':'<button class="btn" data-act="mach-products">新增／編輯產品與工序</button><div class="hint">請先儲存本視窗修改，再切換產品設定。</div>')+'</div>'+
    '<div class="field"><span class="lab">誰會操作</span><div class="chips">'+(S.employees.filter(E=>E.skills.includes(D.id)).map(E=>'<span class="emp"><span class="sw" style="background:'+COLORS[E.color%COLORS.length]+'">'+esc(E.name[0])+'</span>'+esc(E.name)+'</span>').join("")||'<span class="hint">還沒有人會操作（到員工設定勾選）</span>')+'</div></div>'+
    (m.fromInc?"":faultBox);
   const foot=rm?'<button class="btn" data-act="close">關閉</button>':
@@ -1296,11 +1301,11 @@ orders(){
 products(m){
   if(!m.draft)m.draft=JSON.parse(JSON.stringify(S.products));
   const ro=readOnly||!canMaster();
-  const body='<div class="hint">每一站指定廠別與工序；同一工單可依序從 1 廠轉到 2 廠。前站做完幾件就能開始下一站（0 = 全部做完）。跨廠運送／交接時間尚未設定，暫以可立即交接計算。</div>'+
+  const body=(S.demo?'<div class="issue">目前包含示範產品，不是 1023 已核定的品號／模具。請自行新增現場產品與工序；速率必須由使用者確認。</div>':'')+'<div class="hint">工序名稱可自行輸入。已有工單的產品可改名稱；變更工序／產能請新增產品版本，以保留原排程。此為原生產品工序模型，跨廠加工單與點收紀錄另行管理，尚未自動串接；原生模型的跨廠運送／交接時間仍未設定，不能將它的預測當成實際到料。</div>'+
    m.draft.map((p,pi)=>'<div class="field" style="border:1px solid var(--line2);border-radius:12px;padding:12px">'+
     '<input class="inp" data-bind="'+pi+'.name" value="'+esc(p.name)+'" aria-label="產品名稱" '+(ro?"disabled":"")+'>'+
     '<div class="steps">'+p.steps.map((s,si)=>'<div class="step"><span class="no">'+(si+1)+'</span>'+
-      '<select class="inp" data-bind="'+pi+'.steps.'+si+'.proc" aria-label="工序" '+(ro?"disabled":"")+'>'+PROCS.map(x=>'<option'+(x===s.proc?" selected":"")+'>'+x+'</option>').join("")+'</select>'+
+      '<input class="inp" data-bind="'+pi+'.steps.'+si+'.proc" aria-label="工序" value="'+esc(s.proc)+'" '+(ro?'disabled':'')+' placeholder="自行輸入工序名稱">'+
       '<select class="inp" data-bind="'+pi+'.steps.'+si+'.factory" aria-label="第 '+(si+1)+' 站廠別" '+(ro?"disabled":"")+'>'+FACTORIES.map(f=>'<option value="'+f+'"'+(factoryOf(s)===f?' selected':'')+'>'+factoryName(f)+'</option>').join('')+'</select>'+
       '<label class="field" style="gap:2px"><span class="hint">件/分</span><input class="inp num" type="number" step="0.1" min="0.1" data-bind="'+pi+'.steps.'+si+'.rate" value="'+s.rate+'" '+(ro?"disabled":"")+'></label>'+
       '<label class="field" style="gap:2px"><span class="hint">幾件可傳下站</span><input class="inp num" type="number" min="0" data-bind="'+pi+'.steps.'+si+'.batch" value="'+s.batch+'" '+(ro?"disabled":"")+'></label>'+
@@ -1381,7 +1386,7 @@ export(){
 "import-preview"(m){
   const hasSecondFactory=S.employees.some(e=>factoryOf(e)===2)||S.machines.some(x=>factoryOf(x)===2)||S.products.some(p=>p.steps.some(s=>factoryOf(s)===2));
   const hasGroups=(S.groups||[]).length>0;
-  const hasGeneral=workCatalog(S).length>0||assignments(S).length>0;
+  const hasGeneral=workCatalog(S).length>0||assignments(S).length>0||transferOrders(S).length>0;
   const counts=m.data&&[m.data.employees.length,m.data.machines.length,m.data.products.length,m.data.orders.length];
   const summary=counts?'<div class="pv-sum">員工 '+counts[0]+' 人、機台 '+counts[1]+' 台、產品 '+counts[2]+' 種、工單 '+counts[3]+' 張</div>':'';
   const problems=m.errors.length?'<div class="issues">'+m.errors.map(t=>'<div class="issue">'+esc(t)+'</div>').join('')+'</div>':'';
@@ -1912,6 +1917,7 @@ Object.assign(MODAL_ACT,{
     syncInputs();const m=UI.modal,D=m.draft;
     D.factory=factoryOf(D);
     D.id=String(D.id).trim().toLowerCase();D.label=D.label.trim()||D.id;
+    D.proc=String(D.proc).trim();if(!D.proc||D.proc.length>80){toast('請輸入 1–80 字的設備工序名稱');return;}
     if(!m.id){if(!/^[a-z0-9]{1,4}$/.test(D.id)){toast("代號請用英文或數字");return;}if(mach(D.id)){toast("代號 "+D.id+" 已經有了");return;}}
     pushUndo();
     const old=mach(D.id);
@@ -1964,12 +1970,14 @@ Object.assign(MODAL_ACT,{
     S.employees.forEach(E=>E.leaves=[]);S.machines.forEach(M=>M.faults=[]);
     commit({kind:"edit",title:"清除示範工單，開始使用",lines:[]});closeModal();
   },
-  "p-addstep":a=>{syncInputs();UI.modal.draft[+a.dataset.v].steps.push({proc:PROCS[0],factory:UI.factory==="all"?1:UI.factory,rate:1,batch:0});rerender();},
+  "p-addstep":a=>{syncInputs();UI.modal.draft[+a.dataset.v].steps.push({proc:'',factory:UI.factory==="all"?1:UI.factory,rate:0,batch:0});rerender();},
   "p-delstep":a=>{syncInputs();const [pi,si]=a.dataset.v.split(".").map(Number);const st=UI.modal.draft[pi].steps;if(st.length>1)st.splice(si,1);rerender();},
-  "p-add":()=>{syncInputs();UI.modal.draft.push({id:uid(),name:"新產品",steps:[{proc:PROCS[0],factory:UI.factory==="all"?1:UI.factory,rate:1,batch:0}]});rerender();},
+  "p-add":()=>{syncInputs();UI.modal.draft.push({id:uid(),name:"新產品",steps:[{proc:'',factory:UI.factory==="all"?1:UI.factory,rate:0,batch:0}]});rerender();},
   "p-save":()=>{
     syncInputs();const D=UI.modal.draft;
-    for(const p of D){p.name=String(p.name).trim()||"未命名";for(const s of p.steps){s.factory=factoryOf(s);s.rate=+s.rate;s.batch=Math.max(0,Math.round(+s.batch||0));if(!(s.rate>0)){toast(p.name+"：每分鐘件數要大於 0");return;}}}
+    for(const p of D){p.name=String(p.name).trim();if(!p.name||p.name.length>80){toast('產品名稱須為 1–80 字');return;}for(const s of p.steps){s.proc=String(s.proc).trim();if(!s.proc||s.proc.length>80){toast('工序名稱須為 1–80 字');return;}s.factory=factoryOf(s);s.rate=+s.rate;s.batch=Math.max(0,Math.round(+s.batch||0));if(!(s.rate>0)){toast(p.name+"：每分鐘件數要大於 0");return;}}}
+    if(new Set(D.map(p=>p.name)).size!==D.length){toast('產品名稱重複，請用明確品號區分');return;}
+    for(const p of D){const old=prod(p.id);if(old&&S.orders.some(o=>o.pid===p.id)&&JSON.stringify(old.steps)!==JSON.stringify(p.steps)){toast('已有工單的產品只能改名稱；工序／產能變更請新增產品版本，以保留原排程');return;}}
     pushUndo();S.products=D;
     S.blocks=S.blocks.filter(b=>{const o=order(b.oid);return o&&prod(o.pid)&&b.step<prod(o.pid).steps.length;});
     commit({kind:"edit",title:"修改產品工序",lines:[]});closeModal();
@@ -2015,7 +2023,7 @@ Object.assign(MODAL_ACT,{
   },
   "x-import-confirm":()=>{
     const m=UI.modal;if(!m||m.t!=="import-preview"||m.errors.length||!canMaster())return;
-    if(workCatalog(S).length||assignments(S).length){toast('匯入範本不含一般工作資料，不能覆蓋目前名冊');return;}
+    if(workCatalog(S).length||assignments(S).length||transferOrders(S).length){toast('匯入範本不含一般工作／跨廠加工資料，不能覆蓋目前名冊');return;}
     if((S.groups||[]).length){toast('目前匯入範本不含分組，不能覆蓋已有分組的正式名冊');return;}
     if(S.employees.some(e=>factoryOf(e)===2)||S.machines.some(x=>factoryOf(x)===2)||S.products.some(p=>p.steps.some(s=>factoryOf(s)===2))){
       toast("目前範本沒有廠別欄，不能覆蓋已設定的 2 廠資料");return;}
@@ -2152,6 +2160,7 @@ function queueSync(entry){
 
 // ---------- 別人改了 → 重新讀取 ----------
 function normalizeState(){
+  S.transferOrders ||= [];
   S.workContents ||= [];S.workAssignments ||= [];
   S.execution ||= [];
   S.groups ||= [];S.groupMembers ||= [];
@@ -2380,6 +2389,7 @@ function readGeneralFields(){
   if(m.t==='general-edit'){
     D.date=$('#gw-date')?.value||D.date;D.s=timeValue($('#gw-start')?.value||hm(D.s));D.e=timeValue($('#gw-end')?.value||hm(D.e));
     const q=$('#gw-qty')?.value;D.qty=q===''?null:Number(q);D.note=$('#gw-note')?.value||'';D.orderId=$('#gw-order')?.value||null;
+    D.transferBatchId=$('#gw-transfer')?.value||null;D.transferStage=D.transferBatchId?($('#gw-stage')?.value||'process'):null;
   }
 }
 function generalChange(el){
@@ -2407,7 +2417,10 @@ MODALS['general-edit']=m=>{
     select('gw-employee','執行員工',S.employees.filter(e=>w?.employeeIds.includes(e.id)),D.emp)+
     (w?.requiresResource?select('gw-resource','設備／工位',S.machines.filter(m=>w.resourceIds.includes(m.id)),D.resourceId):'<div class="hint">工作位置：不需機台（純人工）</div>')+
     textInput('gw-date','工作日期',D.date,'date',off)+'<div class="row2">'+textInput('gw-start','工作開始',hm(D.s),'time',off)+textInput('gw-end','工作結束',hm(D.e),'time',off)+'</div>'+
-    textInput('gw-qty','參考件數（可留空）',D.qty??'','number',off)+select('gw-order','參考工單（可不選）',S.orders.concat((S.workReferenceOrders||[]).filter(o=>!S.orders.some(x=>x.id===o.id))),D.orderId)+textInput('gw-note','工作備註',D.note,'text',off),
+    textInput('gw-qty',D.transferBatchId?'跨廠計畫件數（必填）':'參考件數（可留空）',D.qty??'','number',off)+
+    select('gw-transfer','跨廠加工批次（可不選）',transferOrders(S).flatMap(o=>o.batches.map(b=>({id:b.id,name:o.code+'／'+b.code+' · '+o.itemCode}))),D.transferBatchId)+
+    (D.transferBatchId?'<div class="field"><label for="gw-stage">跨廠工作階段</label><select class="inp" id="gw-stage" '+off+'><option value="process" '+(D.transferStage!=='return'?'selected':'')+'>加工廠加工</option><option value="return" '+(D.transferStage==='return'?'selected':'')+'>回廠點收後工作</option></select></div>':'')+
+    select('gw-order','參考工單（可不選）',S.orders.concat((S.workReferenceOrders||[]).filter(o=>!S.orders.some(x=>x.id===o.id))),D.orderId)+textInput('gw-note','工作備註',D.note,'text',off),
     foot:(existing&&!ro?'<button class="btn danger" data-act="gw-remove-preview">移除此段工作</button>':'')+'<button class="btn" data-act="close">取消</button>'+(!ro?'<button class="btn primary" data-act="gw-preview">預覽工作排班</button>':'')};
 };
 function previewGeneral(D){
@@ -2417,12 +2430,13 @@ function previewGeneral(D){
 MODALS['general-preview']=m=>({title:'一般工作排班預覽',body:
   '<dl class="kv"><dt>工作內容</dt><dd>'+esc(workName(m.draft))+'</dd><dt>執行員工</dt><dd>'+esc(emp(m.draft.emp)?.name||'未指定')+'</dd><dt>設備／工位</dt><dd>'+esc(mach(m.draft.resourceId)?.label||'不需機台')+'</dd><dt>時段</dt><dd>'+esc(m.draft.date)+' '+hm(m.draft.s)+'–'+hm(m.draft.e)+'（'+(m.draft.e-m.draft.s)+' 分）</dd></dl>'+
   '<div class="hint">不改產品工序與其他工作。件數只作參考，不推定實際完成或產能。</div>'+
+  transferPlanWarnings(S,m.draft).map(t=>'<div class="issue">'+esc(t)+'。可保存為預排；實際加工完成仍須先點收。</div>').join('')+
   (m.issues.length?m.issues.map(t=>'<div class="issue">'+esc(t)+'</div>').join(''):'<div class="okbox">檢查通過；確認後才會存入排程。</div>'),
   foot:'<button class="btn" data-act="close">取消</button><button class="btn primary" data-act="gw-apply" '+(m.issues.length?'disabled':'')+'>確認工作排班</button>'});
 MODAL_ACT['gw-content-save']=()=>{
   if(PV||!canMaster())return;readGeneralFields();const D=UI.modal.draft;D.name=D.name.trim();
   const candidate=structuredClone(S);candidate.workContents=workCatalog(S).filter(w=>w.id!==D.id).concat(D);
-  try{validateGeneralWork(candidate,{today:todayStr(),baseAssignments:assignments(S)});}catch(e){toast(e.message);return;}
+  try{validateGeneralWork(candidate,{today:todayStr(),baseAssignments:assignments(S)});validateTransfers(candidate,{before:S});}catch(e){toast(e.message);return;}
   pushUndo();S.workContents=candidate.workContents;closeModal();commit({kind:'edit',title:'更新工作內容 '+D.name,lines:[]});
 };
 MODAL_ACT['gw-preview']=()=>{if(PV||readOnly||S.setupPending)return;readGeneralFields();previewGeneral(UI.modal.draft);};
@@ -2436,7 +2450,8 @@ MODAL_ACT['gw-apply']=()=>{
 };
 function workBlockHTML(a,px){
   const h=px(a.e)-px(a.s),bad=assignmentIssues(S,a,dayInfo(a.date).win).length;
-  return '<div class="workblk '+(bad?'bad':'')+'" data-gid="'+esc(a.id)+'" tabindex="0" role="button" aria-label="'+esc(emp(a.emp)?.name+' '+workName(a))+'" style="position:absolute;left:4px;right:4px;top:'+px(a.s)+'px;height:'+Math.max(20,h-2)+'px;background:'+empColor(a.emp)+';color:#17212b;border-radius:6px;padding:5px;overflow:hidden"><b>'+esc(emp(a.emp)?.name||'?')+'</b><div>'+esc(workName(a))+'</div><small>'+hm(a.s)+'–'+hm(a.e)+'</small>'+(!readOnly&&absOf(a.date,a.s)>=nowAbs()?'<div class="resize-handle" data-gresize="1" title="拉長或縮短工作時間"></div>':'')+'</div>';
+  const warning=materialWarning(S,a),linked=a.transferBatchId&&batchOf(S,a.transferBatchId);
+  return '<div class="workblk '+(bad||warning?'bad':'')+'" data-gid="'+esc(a.id)+'" tabindex="0" role="button" aria-label="'+esc(emp(a.emp)?.name+' '+workName(a)+(warning?' 待料':''))+'" title="'+esc(warning||linked&&linked.order.code+'／'+linked.batch.code||'')+'" style="position:absolute;left:4px;right:4px;top:'+px(a.s)+'px;height:'+Math.max(20,h-2)+'px;background:'+empColor(a.emp)+';color:#17212b;border-radius:6px;padding:5px;overflow:hidden"><b>'+esc(emp(a.emp)?.name||'?')+'</b><div>'+esc(workName(a))+(warning?' · 待料':'')+'</div><small>'+hm(a.s)+'–'+hm(a.e)+(linked?' · '+esc(linked.order.code):'')+'</small>'+(!readOnly&&absOf(a.date,a.s)>=nowAbs()?'<div class="resize-handle" data-gresize="1" title="拉長或縮短工作時間"></div>':'')+'</div>';
 }
 function workGridHTML(title,lanes){
   const d=UI.date,di=dayInfo(d),px=m=>(m-480)/60*hourPx();
@@ -2500,6 +2515,9 @@ async function start(){
   SOLVER.check().then(up=>{updateSyncChip();if(up)toast("已連上 OR-Tools 排程服務");});
   setInterval(()=>{if(!drag&&!generalDrag&&!UI.modal&&!PV&&UI.view==="day"&&UI.date===todayStr())render();},60000);
 }
+const crossFactoryUI=transferUI({state:()=>S,ui:UI,esc,uid,canEdit:()=>!PV&&!readOnly,open:openModal,close:closeModal,syncInputs,commit,toast,today:todayStr,clearUndo:()=>{undoStack=[];}});
+Object.assign(MODALS,crossFactoryUI.modals);Object.assign(MODAL_ACT,crossFactoryUI.actions);
+MODAL_ACT['mach-products']=()=>{if(!canMaster())return;syncInputs();const m=UI.modal;if(!m.id||JSON.stringify(m.draft)!==JSON.stringify(mach(m.id))){toast('請先儲存或取消設備設定，再開啟產品設定');return;}openModal({t:'products'});};
 export async function boot(store,authLinkType=""){
   STORE=store;
   await start();
