@@ -7,6 +7,7 @@ import { capacityIntervals as occupiedCapacityIntervals } from "./capacity.js";
 import { FACTORIES, factoryOf, factoryPreference, factoryName, inFactory, orderRoute, orderInFactory, compatible } from "./factory.js";
 import { batchReadyMinute, materialFlowIssue, remainingQty, quantityForMinutes } from "./manual.js";
 import { employeeGroups, groupedEmployees, memberStatus } from "./groups.js";
+import { resourceLoad } from "./resource-load.js";
 /* ===== 1. 常數與工具 ===== */
 const COLORS=["#FFE14D","#4CDB6E","#F58CF0","#4FE3EE","#FFA64D","#AFC0FF","#FF9A9A","#BFEA6C"];
 const PROCS=["裁切","沖壓","焊接","組裝","包裝"];
@@ -630,6 +631,7 @@ function topHTML(){
   '<button class="btn" data-act="export">'+IC.down+'<span class="lbl">Excel</span></button>'+
   (canArchive()?'<button class="btn" data-act="history"><span class="lbl">歷史排程</span></button>':'')+
   '<button class="btn" data-act="groups">分組／部門</button>'+
+  '<button class="btn" data-act="resource-load" '+(PV?'disabled title="請先結束方案預覽，再分析已儲存排程"':'')+'>當日負荷</button>'+
   '<div class="zoombox" role="group" aria-label="畫面大小"><button data-act="zoom-" aria-label="縮小">−</button><button class="zv" data-act="zoom0" title="回到 100%">'+Math.round(UI.zoom*100)+'%</button><button data-act="zoom+" aria-label="放大">＋</button></div>'+
   '<button class="btn" data-act="help" aria-label="操作說明"><b style="font-size:19px">?</b><span class="lbl">說明</span></button>'+
   '<button class="btn" data-act="theme" title="切換淺色／深色">'+THEME_UI[UI.theme]+'</button>'+
@@ -913,6 +915,7 @@ document.addEventListener("click",e=>{
     case "view":UI.view=a.dataset.v;render();break;
     case "factory":setFactory(a.dataset.v==="all"?"all":Number(a.dataset.v));render();break;
     case "groups":openModal({t:'groups'});break;
+    case "resource-load":if(!PV)openModal({t:'resource-load'});break;
     case "group-edit":openModal({t:'staff-group',id});break;
     case "group-new":if(canMaster())openModal({t:'staff-group'});break;
     case "goto":UI.date=a.dataset.d;UI.view="day";render();window.scrollTo(0,0);break;
@@ -1080,7 +1083,34 @@ function legacyCatalogHTML(catalog,factory){
   return group('製作站別／機台欄名',c.stations)+group('員工／人名候選',c.people)+group('原表人力備註',c.notes);
 }
 
+function resourceLoadHTML(){
+  const report=resourceLoad(S,UI.date,dayInfo(UI.date).win,UI.factory);
+  const duration=n=>n===null?'待確認':n+' 分';
+  const rows=(items,employee)=>items.map(r=>{
+    const warnings=[r.overloadMinutes>0?(employee?'超出顧機上限 ':'機台工作重疊 ')+duration(r.overloadMinutes):'',
+      r.outsideMinutes>0?'不在可用時段 '+duration(r.outsideMinutes):'',r.invalidFaults?'故障時間格式異常':''].filter(Boolean);
+    const availability=r.pending?'資料待確認':r.availableMinutes===0?(employee&&r.leave?'當日請假':'當日無可用時段'):'可用 '+duration(r.availableMinutes);
+    const rate=r.utilization===null?'—':Math.round(r.utilization*100)+'%';
+    const free=r.pending?'尚不能計算空檔':r.longest?'最長空檔 '+hm(r.longest[0])+'–'+hm(r.longest[1])+'（'+duration(r.longest[1]-r.longest[0])+'）':'沒有可用空檔';
+    return '<article class="load-row"><div class="load-row-head"><b>'+esc(r.name)+'</b><span class="tag mute">'+factoryName(r.factory)+'</span><span class="spacer"></span><span>'+rate+'</span></div>'+
+      '<div class="load-bar" aria-label="'+esc(r.name+' 可用時段占用率 '+rate)+'"><span style="width:'+(r.utilization===null?0:Math.min(100,Math.max(0,r.utilization*100)))+'%"></span></div>'+
+      '<div class="hint">'+esc(availability)+' · 已排 '+r.blockCount+' 段 · 占用 '+duration(r.busyMinutes)+
+      (employee?' · 機台工作合計 '+duration(r.assignedMinutes)+' · 同時最多 '+r.peak+' 段'+(r.limit===null?'（上限待確認）':' / 顧機上限 '+r.limit):r.faultMinutes>0?' · 故障占用 '+duration(r.faultMinutes):'')+'</div>'+
+      '<div class="hint">'+esc(free)+(r.pending?'':' · 總空檔 '+duration(r.freeMinutes))+'</div>'+
+      warnings.map(t=>'<div class="issue">'+esc(t)+'</div>').join('')+'</article>';
+  }).join('')||'<div class="empty">此範圍沒有資源</div>';
+  const anomalies=report.invalidBlocks+report.missingResources+report.invalidWindows;
+  return {title:'當日負荷 · '+mdw(UI.date),body:
+    '<div class="hint">'+esc(UI.factory==='all'?'兩廠全體資源':factoryName(UI.factory))+' · 分析目前畫面的排程，不套用名冊分組篩選，也不改排程。同步狀態請看右上角；週檢視仍分析上方選定的單日。</div>'+
+    '<div class="hint">占用率 = 可用時段內的占用時間 ÷ 可用時間。午休、停工、故障、請假及個人加班設定均扣除。一人同時顧多台時，占用時間不重複加總，機台工作合計另列；重疊或超限另外警示。</div>'+
+    '<div class="hint">空檔只代表時間未被占用，不保證技能、物料、工序或交期允許排入；負荷高也不等於已確認的生產瓶頸。待確認名冊不推測可用產能。</div>'+
+    (anomalies?'<div class="issue">有 '+report.invalidBlocks+' 段工作時間異常、'+report.missingResources+' 段缺少人員／機台對照、'+report.invalidWindows+' 個上班時段異常；統計可能不完整，請先檢查資料。</div>':'')+
+    '<h4>機台／操作位置</h4><div class="load-list">'+rows(report.machines,false)+'</div>'+
+    '<h4>員工</h4><div class="load-list">'+rows(report.employees,true)+'</div>',
+    foot:'<button class="btn" data-act="close">關閉</button>'};
+}
 const MODALS={
+"resource-load"(){return resourceLoadHTML();},
 "manual-add"(m){
   const choices=S.orders.flatMap(o=>{
     const p=prod(o.pid);if(!p)return [];
