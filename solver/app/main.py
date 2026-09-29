@@ -63,7 +63,7 @@ def require_api_key(x_api_key: str | None = Header(default=None)):
 @app.get("/health")
 def health():
     return {"ok": True, "ortools": ortools.__version__, "database": supa.configured,
-            "capabilities": ["work_assignments_v1", "staff_roster_draft_v1", "schedule_chat_readonly_v1"]}
+            "capabilities": ["work_assignments_v1", "staff_roster_draft_v1", "schedule_chat_readonly_v1", "schedule_chat_range_v1"]}
 
 
 async def answer_chat(req,raw):
@@ -97,7 +97,7 @@ async def chat_database(req: ChatQuery,authorization: str=Header(...)):
     try:
         if await supa.role(jwt) not in ('boss','lead'):
             raise HTTPException(403,'目前只有老闆或組長可查詢管理排程；尚未開放員工／電視聊天室')
-        raw=await supa.snapshot(jwt,start=req.date.isoformat(),end=req.date.isoformat())
+        raw=await supa.snapshot(jwt,start=req.date.isoformat(),end=(req.end_date or req.date).isoformat())
     except SupabaseError:
         raise HTTPException(401,'無法依登入權限讀取排程，請重新登入或核對權限')
     return await answer_chat(req,raw)

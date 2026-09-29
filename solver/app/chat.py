@@ -5,12 +5,13 @@ External model requests require explicit server-side data approval and credentia
 """
 import json
 import os
-from datetime import date
+from datetime import date, timedelta
 from typing import Literal
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from .schemas import Snapshot
+from .chat_ledgers import ledger_facts
 
 
 class ChatMessage(BaseModel):
@@ -21,9 +22,16 @@ class ChatMessage(BaseModel):
 class ChatQuery(BaseModel):
     question: str = Field(min_length=1, max_length=1000)
     date: date
+    end_date: date | None = None
     factory: Literal[1, 2, 'all'] = 'all'
     generate: bool = False
     history: list[ChatMessage] = Field(default_factory=list, max_length=6)
+
+    @model_validator(mode='after')
+    def bounded_dates(self):
+        end=self.end_date or self.date
+        if not 0<=(end-self.date).days<=30:raise ValueError('查詢日期範圍必須為 1–31 日')
+        return self
 
 
 class SnapshotChatQuery(ChatQuery):
@@ -37,9 +45,26 @@ def hm(n):
 def build_context(raw, query):
     if len(json.dumps(raw,ensure_ascii=False)) > 3000000:
         raise ValueError('排程快照超過查詢容量，請縮小範圍')
-    if any(len(raw.get(k,[])) > cap for k,cap in [('employees',500),('machines',1000),('orders',5000),('blocks',10000),('work_assignments',10000),('work_execution',10000)]):
+    if any(len(raw.get(k,[])) > cap for k,cap in [('employees',500),('machines',1000),('orders',5000),('blocks',10000),('work_assignments',10000),('work_execution',10000),('staff_rosters',24),('transfer_orders',1000)]):
         raise ValueError('排程資料過大，請縮小範圍')
     snap=Snapshot(**raw)  # validate dates/references before treating data as evidence
+    all_facts=[];end=query.end_date or query.date;day=query.date
+    while day<=end:
+        all_facts.extend(daily_context(raw,query.model_copy(update={'date':day}),snap));day+=timedelta(days=1)
+    kinds=query_kinds(query.question)
+    names=[e.name for e in snap.employees if len(e.name)>=2 and e.name in query.question]
+    relevant=[f for f in all_facts if f['kind']=='summary' or (not kinds or f['kind'] in kinds) and (not names or any(n in f['text'] for n in names))]
+    ranked=[f for f in relevant if f['kind']!='work']+[f for f in relevant if f['kind']=='work']
+    return {'date':query.date.isoformat(),'endDate':end.isoformat(),'factory':query.factory,'version':snap.version,
+            'facts':[dict(f,id=f'F{i+1}') for i,f in enumerate(ranked[:100])],
+            'totalFacts':len(relevant),'totalAvailableFacts':len(all_facts),'truncated':len(relevant)>100,
+            'limitations':['只依選定日期範圍及廠別的已保存資料；不含未套用方案。',
+                           '預排件數不是實際完成量；不保證工單準時或合法。',
+                           '輪班為草稿；現場回報為最新狀態，非歷史時點。',
+                           '跨廠流水按所選日截止；不推估運送或點收耗時。']}
+
+
+def daily_context(raw,query,snap):
     day=query.date.isoformat()
     machines={m.id:m for m in snap.machines};employees={e.id:e for e in snap.employees};orders={o.id:o for o in snap.orders}
     works={w['id']:w for w in raw.get('work_contents',[]) if isinstance(w,dict) and 'id' in w}
@@ -51,6 +76,7 @@ def build_context(raw, query):
                     'text':f"{works.get(a.workId,{}).get('name','一般工作')} · {employees[a.emp].name} · {hm(a.s)}–{hm(a.e)} · 人工／一般工作（不等於完成量）"}
                    for a in snap.work_assignments if a.date==day and scoped(works.get(a.workId,{}).get('factory',employees[a.emp].factory))]
     facts=[]
+    visible={a['id'] for a in activities}
     def add(kind,text,entity=None):
         facts.append({'id':f'F{len(facts)+1}','kind':kind,'text':text[:500],'entityId':entity,'date':day})
     add('summary',f"{day} · {'跨廠' if query.factory=='all' else str(query.factory)+' 廠'} · {len(activities)} 段預排工作；僅查看當日，不代表全部工單進度。")
@@ -81,7 +107,7 @@ def build_context(raw, query):
     # All assignments are included by schedule_snapshot, allowing earlier reservations.
     linked={b['id']:(o,b) for o in raw.get('transfer_orders',[]) for b in o.get('batches',[])}
     for a in raw.get('work_assignments',[]):
-        if a.get('date')!=day or not a.get('transferBatchId') or not any(x['id']==a['id'] for x in activities):continue
+        if a.get('date')!=day or not a.get('transferBatchId') or a['id'] not in visible:continue
         if a['transferBatchId'] not in linked:
             add('material','跨廠批次不存在，不能確認可開工',a['id']);continue
         o,b=linked[a['transferBatchId']];stage=a.get('transferStage') or 'process'
@@ -112,29 +138,31 @@ def build_context(raw, query):
         short='（完成回報少於預排量）' if r['status']=='done' and qty<b.qty else ''
         state='此段已完成' if r['status']=='done' else '進行中'
         add('execution',f'{label}：最新回報 {state}；累計 {qty}／預排 {b.qty} 件{short}；不代表整張工單完工，也不是選定日期當時的歷史狀態',b.id)
+    ledger_facts(raw,day,query.factory,add)
     for a in activities:add('work',a['text'],a['id'])
-    return {'date':day,'factory':query.factory,'version':snap.version,'facts':facts[:100],
-            'totalFacts':len(facts),'truncated':len(facts)>100,
-            'limitations':['只依選定日期及廠別的已保存資料；不含未套用方案。',
-                            '預排件數不是實際完成量；不保證工單準時或合法。',
-                            '現場回報只代表選定工作最新回報，並非歷史時點或整張工單完成量。',
-                            '跨廠只檢查已連結工作的待料與期限；尚未完整納入輪班草稿與全程訂單進度。']}
+    return facts
+
+
+def query_kinds(question):
+    for words,kinds in [(['故障','修復','修好'],['fault']),(['請假'],['leave','alert']),
+                        (['輪班','班別','崗位','人力'],['roster','alert']),
+                        (['跨廠','流轉','送回','交料'],['transfer','material','deadline']),
+                        (['缺料','待料','物料','點收'],['material','transfer']),
+                        (['衝突','重疊','問題'],['alert','fault','deadline','material']),
+                        (['交期','逾期'],['deadline','material']),
+                        (['進度','完成','開始','累計','回報'],['execution'])]:
+        if any(w in question for w in words):return kinds
+    return None
 
 
 def factual_answer(question,context):
-    kinds=None
-    if any(w in question for w in ['故障','修復','修好']):kinds=['fault']
-    elif '請假' in question:kinds=['leave','alert']
-    elif any(w in question for w in ['缺料','待料','物料','點收']):kinds=['material']
-    elif any(w in question for w in ['衝突','重疊','問題']):kinds=['alert','fault','deadline','material']
-    elif any(w in question for w in ['交期','逾期']):kinds=['deadline','material']
-    elif any(w in question for w in ['進度','完成','開始','累計','回報']):kinds=['execution']
+    kinds=query_kinds(question)
     if any(w in question for w in ['刪除','修改','套用','幫我排','移動']):
         return {'engine':'資料查詢（非生成式 AI）','answer':'聊天室目前唯讀，沒有修改任何排程。請使用排程表的預覽與確認功能。','citations':[]}
     matched=[f for f in context['facts'] if question.strip() in f['text']]
-    selected=([f for f in context['facts'] if f['kind'] in kinds] if kinds else matched or context['facts'])[:12]
-    return {'engine':'資料查詢（非生成式 AI）','answer':'\n'.join(f"[{f['id']}] {f['text']}" for f in selected) or '在這個日期／廠別的已讀資料中沒有找到此類紀錄。這不代表其他日期也沒有；請切換日期後再問。',
-            'citations':[f['id'] for f in selected]}
+    available=([f for f in context['facts'] if f['kind'] in kinds] if kinds else matched or context['facts']);selected=available[:12]
+    return {'engine':'資料查詢（非生成式 AI）','answer':'\n'.join(f"[{f['id']}] {f['date']} · {f['text']}" for f in selected) or '在這個日期／廠別的已讀資料中沒有找到此類紀錄。這不代表其他日期也沒有；請切換日期後再問。',
+            'citations':[f['id'] for f in selected],'answerTruncated':len(available)>12}
 
 
 class ChatUnavailable(RuntimeError):

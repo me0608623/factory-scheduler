@@ -407,7 +407,8 @@ body.tv .blk .d{font-size:16px}
 .chat-panel header{display:flex;gap:8px;align-items:center;padding:12px;border-bottom:1px solid var(--line)}
 .chat-panel header strong{flex:1}.chat-scope,.chat-disclosure{margin:6px 12px;font-size:12px;color:var(--muted)}
 .chat-mode{padding:4px 12px}.chat-quick{display:flex;flex-wrap:wrap;gap:4px;padding:6px 12px}.chat-quick .btn{font-size:12px}
-.chat-log{flex:1;min-height:90px;overflow:auto;padding:12px;overscroll-behavior:contain}
+.chat-range{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:4px 12px;font-size:12px}.chat-range label{min-width:0}.chat-range input{display:block;box-sizing:border-box;width:100%;min-width:0;background:var(--surface2);color:var(--text);border:1px solid var(--line);padding:4px}.chat-range small{grid-column:1/-1;color:var(--muted)}
+.chat-log{flex:1;min-height:48px;overflow:auto;padding:12px;overscroll-behavior:contain}
 .chat-message{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--surface2);padding:10px;border-radius:10px;margin:0 0 10px}
 .chat-message.user{background:var(--accent-soft);margin-left:30px}.chat-message.notice{font-size:12px;color:var(--warn)}
 .chat-message details{font-size:12px;border-top:1px solid var(--line);margin-top:8px;padding-top:6px}.chat-message details p{margin:6px 0}
@@ -415,3 +416,4 @@ body.tv .blk .d{font-size:16px}
 .chat-panel form label{grid-column:1/-1;font-size:12px}.chat-panel textarea{width:100%;resize:none;border:1px solid var(--line);border-radius:8px;background:var(--surface2);padding:8px}
 body:has(#ov:not([hidden])) #schedule-chat{z-index:15}
 @media print{#schedule-chat{display:none}}
+@media(max-height:600px){.chat-panel header{padding:8px}.chat-quick{max-height:72px;overflow:auto;flex-shrink:0}.chat-disclosure{font-size:11px}.chat-panel form{padding:6px 12px}}

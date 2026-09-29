@@ -9,7 +9,7 @@ from app.chat import ChatQuery, ChatUnavailable, build_context, respond
 
 
 def query(**kw):
-    return ChatQuery(question='目前排程有哪些問題？',date='2026-09-26',**kw)
+    return ChatQuery(**({'question':'目前排程有哪些問題？','date':'2026-09-26'}|kw))
 
 
 def test_grounding_scope_immutability_and_non_completion(demo):
@@ -42,7 +42,7 @@ def test_material_alert_matches_linked_work_without_inventing_receipts(demo):
 def test_bounded_context_and_snapshot(demo):
     raw=demo[0].model_dump(mode='json');base=raw['blocks'][0];base['date']='2026-09-26'
     raw['blocks']=[dict(base,id=str(i)) for i in range(110)]
-    ctx=build_context(raw,query());assert ctx['truncated'] and len(ctx['facts'])==100
+    ctx=build_context(raw,query(question='總覽'));assert ctx['truncated'] and len(ctx['facts'])==100
     raw['unused']='x'*3000001
     with pytest.raises(ValueError,match='容量'):build_context(raw,query())
 
@@ -52,13 +52,13 @@ def test_latest_execution_scoped_and_not_full_order_completion(demo):
     raw['blocks']=[b]
     raw['work_execution']=[{'blockId':b['id'],'status':'done','qtyDone':8,'note':'PRIVATE-NOTE'},
                            {'blockId':'not-visible','status':'running','qtyDone':999}]
-    before=deepcopy(raw);ctx=build_context(raw,query())
+    before=deepcopy(raw);ctx=build_context(raw,query(question='目前完成進度'))
     result=asyncio.run(respond(ChatQuery(question='目前完成進度',date='2026-09-26'),ctx))
     assert '累計 8／預排 10' in result['answer'] and '完成回報少於預排量' in result['answer']
     assert '不代表整張工單完工' in result['answer'] and '不是選定日期當時' in result['answer']
     assert 'PRIVATE-NOTE' not in json.dumps(ctx) and '999' not in result['answer'] and raw==before
     raw['work_execution']=[]
-    assert any(f['kind']=='execution' and '不能判定未開始或已完成' in f['text'] for f in build_context(raw,query())['facts'])
+    assert any(f['kind']=='execution' and '不能判定未開始或已完成' in f['text'] for f in build_context(raw,query(question='目前完成進度'))['facts'])
     raw['work_execution']=[{'blockId':b['id'],'status':'done','qtyDone':11}]
     assert any(f['kind']=='alert' and '回報格式異常' in f['text'] for f in build_context(raw,query())['facts'])
 
@@ -73,6 +73,46 @@ def test_manual_capacity_only_conflicts_when_intervals_overlap(demo):
     assert not conflicts()
     raw['work_assignments'][0]['s']=530;assert conflicts()
     raw['work_assignments'][0]['s']=570;assert not conflicts()
+
+
+def test_range_bounds_and_filtered_dated_reports(demo):
+    raw=demo[0].model_dump(mode='json');b=raw['blocks'][0];b['date']='2026-09-26'
+    raw['blocks']=[b,dict(b,id='next',date='2026-09-27')]
+    ctx=build_context(raw,query(question='完成進度',end_date='2026-09-27'))
+    assert ctx['endDate']=='2026-09-27' and any(f['kind']=='execution' and f['date']=='2026-09-27' for f in ctx['facts'])
+    with pytest.raises(ValueError):query(end_date='2026-09-25')
+    with pytest.raises(ValueError):query(end_date='2026-10-27')
+
+
+def test_large_range_retrieval_is_bounded_and_keeps_conflicts(demo):
+    import time
+    raw=demo[0].model_dump(mode='json');b=raw['blocks'][0]
+    raw['blocks']=[dict(b,id=f'large-{i}',date=f'2026-09-{1+i%30:02d}') for i in range(10000)]
+    started=time.monotonic();ctx=build_context(raw,query(date='2026-09-01',end_date='2026-09-30'))
+    assert len(ctx['facts'])<=100 and any(f['kind']=='alert' and '重疊' in f['text'] for f in ctx['facts'])
+    assert not any(f['kind']=='work' for f in ctx['facts'])
+    assert time.monotonic()-started<5  # synthetic regression guard, not production SLA
+
+
+def test_roster_draft_and_transfer_as_of_day_without_future_receipts(demo):
+    raw=demo[0].model_dump(mode='json');emp=raw['employees'][0]['id']
+    raw['staff_rosters']=[{'id':'draft','name':'測試輪班','status':'draft','factory':1,
+        'shifts':[{'id':'s','name':'日班','segments':[[480,720]]}],
+        'positions':[{'id':'pos','name':'檢查','rate':None}],
+        'cells':[{'emp':emp,'date':'2026-09-26','type':'work','shiftId':'s','positionId':'pos'}],
+        'demands':[{'date':'2026-09-26','shiftId':'s','positionId':'pos','people':2,'target':50}],'consentRef':'PRIVATE-REF'}]
+    raw['transfer_orders']=[{'id':'x','code':'X001','itemCode':'料號','fromFactory':1,'toFactory':2,'returnFactory':1,
+        'status':'active','totalQty':20,'urgentQty':10,'due':'2026-09-25','workIds':['w'],'batches':[{'id':'batch'}],
+        'events':[{'batchId':'batch','action':'send','qty':20,'at':'2026-09-26T09:00'},
+                  {'batchId':'batch','action':'receive','qty':20,'at':'2026-09-27T09:00','note':'PRIVATE-EVENT'}]}]
+    before=deepcopy(raw);roster=build_context(raw,query(question='輪班人力缺口',factory=1))
+    assert any(f['kind']=='roster' and '尚缺 1 人' in f['text'] and '產能未設定' in f['text'] for f in roster['facts'])
+    transfer=build_context(raw,query(question='跨廠流轉',factory=1))
+    assert any(f['kind']=='transfer' and '加工廠點收 0' in f['text'] for f in transfer['facts'])
+    assert any(f['kind']=='deadline' and '回廠逾期' in f['text'] for f in transfer['facts'])
+    assert 'PRIVATE-' not in json.dumps(roster)+json.dumps(transfer) and raw==before
+    next_day=build_context(raw,query(question='跨廠流轉',date='2026-09-27',factory=2))
+    assert any(f['kind']=='transfer' and '加工廠點收 20' in f['text'] for f in next_day['facts'])
 
 
 def test_external_model_disabled_until_explicit_approval(monkeypatch,demo):
@@ -99,6 +139,12 @@ def test_db_authority_and_viewer_denied_before_read(monkeypatch,demo):
     assert response.status_code==200,response.text
     assert response.json()['context']['version']!=999
     assert calls==[{'start':'2026-09-26','end':'2026-09-26'}]
+    req['end_date']='2026-09-28'
+    assert client.post('/chat/db',json=req,headers={'Authorization':'Bearer lead'}).status_code==200
+    assert calls[-1]=={'start':'2026-09-26','end':'2026-09-28'}
+    req['end_date']='2026-11-01'
+    assert client.post('/chat/db',json=req,headers={'Authorization':'Bearer lead'}).status_code==422
+    assert len(calls)==2
 
 
 def test_snapshot_auth_capacity_and_readonly(monkeypatch,demo):

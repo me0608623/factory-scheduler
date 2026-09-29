@@ -55,3 +55,36 @@ test('純人工工作只在真正重疊時占滿容量，不誤報其他時間�
   r.work_assignments[0].s=570;
   assert.ok(!chatContext(r,view).facts.some(f=>f.kind==='alert'&&f.text.includes('同時工作占用')));
 });
+
+test('31 日有界跨日依據與員工篩選，回答截短不冒充完整',()=>{
+  const r=raw();r.blocks.push({...r.blocks[0],id:'next',date:'2026-10-01'});
+  const ctx=chatContext(r,{date:'2026-09-30',end_date:'2026-10-01',factory:1,question:'測試員工目前完成進度'});
+  assert.equal(ctx.endDate,'2026-10-01');assert.ok(ctx.facts.some(f=>f.kind==='execution'&&f.date==='2026-10-01'));
+  assert.throws(()=>chatContext(r,{date:'2026-09-30',end_date:'2026-09-29'}),/31/);
+  assert.throws(()=>chatContext(r,{date:'2026-09-01',end_date:'2026-10-02'}),/31/);
+  assert.throws(()=>chatContext(r,{date:'2026-02-30'}),/31/);
+  r.blocks=Array.from({length:20},(_,i)=>({...r.blocks[0],id:'p'+i}));
+  const answer=answerFromFacts('完成進度',chatContext(r,{date:'2026-09-30',question:'完成進度'}));assert.equal(answer.answerTruncated,true);
+});
+
+test('輪班草稿與跨廠截止流水，不混入未來點收或備註',()=>{
+  const r=raw();r.staff_rosters=[{id:'draft',name:'測試輪班',status:'draft',factory:1,shifts:[{id:'s',name:'日班',segments:[[480,720]]}],positions:[{id:'pos',name:'檢查',rate:null}],cells:[{emp:'e',date:'2026-09-30',type:'work',shiftId:'s',positionId:'pos'}],demands:[{date:'2026-09-30',shiftId:'s',positionId:'pos',people:2,target:50}],consentRef:'PRIVATE-REF'}];
+  r.transfer_orders=[{id:'x',code:'X001',itemCode:'料號',fromFactory:1,toFactory:2,returnFactory:1,status:'active',totalQty:20,urgentQty:10,due:'2026-09-29',workIds:['w'],batches:[{id:'batch'}],events:[{batchId:'batch',action:'send',qty:20,at:'2026-09-30T09:00'},{batchId:'batch',action:'receive',qty:20,at:'2026-10-01T09:00',note:'PRIVATE-EVENT'}]}];
+  const before=structuredClone(r),ctx=chatContext(r,{date:'2026-09-30',factory:1});
+  assert.match(answerFromFacts('輪班人力缺口',ctx).answer,/尚缺 1 人.*產能未設定/);
+  assert.ok(ctx.facts.some(f=>f.kind==='roster'&&f.text.includes('不是正式產線排班')));
+  assert.match(answerFromFacts('跨廠流轉',ctx).answer,/加工廠點收 0/);
+  assert.ok(ctx.facts.some(f=>f.kind==='deadline'&&f.text.includes('回廠逾期')));
+  assert.ok(!JSON.stringify(ctx).includes('PRIVATE-'));assert.deepEqual(r,before);
+  const next=chatContext(r,{date:'2026-10-01',factory:2});assert.match(answerFromFacts('跨廠流轉',next).answer,/加工廠點收 20/);
+  assert.ok(!next.facts.some(f=>f.kind==='roster'));
+});
+
+test('跨日有界大資料查詢，警告不被一萬段預排蓋掉',()=>{
+  const r=raw();r.employees[0].leaves=[];
+  r.blocks=Array.from({length:10000},(_,i)=>({...r.blocks[0],id:'large-'+i,date:'2026-09-'+String(1+i%30).padStart(2,'0')}));
+  const started=performance.now(),ctx=chatContext(r,{date:'2026-09-01',end_date:'2026-09-30',factory:1,question:'目前排程問題'});
+  assert.equal(ctx.endDate,'2026-09-30');assert.ok(ctx.facts.some(f=>f.kind==='alert'&&f.text.includes('重疊')));
+  assert.ok(!ctx.facts.some(f=>f.kind==='work'));
+  assert.ok(performance.now()-started<5000,'合成資料查詢超過有界測試時間；不是正式效能保證');
+});
