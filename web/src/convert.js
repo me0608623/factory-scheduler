@@ -58,6 +58,7 @@ export function fromSnapshot(snap) {
   for (const [d, open] of Object.entries(c.overrides || {})) over[d] = open ? "work" : "off";
   return {
     v: 1, demo: false, version: snap.version || 0, setupPending: !!snap.setup_pending,
+    execution: snap.work_execution || [],
     groups: (snap.staff_groups || []).map(g=>({id:g.id,name:g.name,department:g.department||null,homeFactory:g.home_factory??null,sourceRef:g.source_ref||null})),
     groupMembers: (snap.staff_group_members || []).map(m=>({groupId:m.group_id,employeeId:m.employee_id,reviewStatus:m.review_status,sourceRef:m.source_ref||null})),
     cal: { week: c.week || [false, true, true, true, true, true, true], over },

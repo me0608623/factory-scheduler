@@ -8,6 +8,9 @@ import { FACTORIES, factoryOf, factoryPreference, factoryName, inFactory, orderR
 import { batchReadyMinute, materialFlowIssue, remainingQty, quantityForMinutes } from "./manual.js";
 import { employeeGroups, groupedEmployees, memberStatus } from "./groups.js";
 import { resourceLoad } from "./resource-load.js";
+import { workQueue } from './work-queue.js';
+import { makeScenario, scenarioStale, validateScenario } from './scenarios.js';
+import { executionOf, canReport, assertExecutionProtected } from './execution.js';
 /* ===== 1. 常數與工具 ===== */
 const COLORS=["#FFE14D","#4CDB6E","#F58CF0","#4FE3EE","#FFA64D","#AFC0FF","#FF9A9A","#BFEA6C"];
 const PROCS=["裁切","沖壓","焊接","組裝","包裝"];
@@ -545,8 +548,8 @@ function orderStatus(o){
   const lb=bl.filter(b=>b.step===last);
   if(sum(lb,b=>b.qty)<o.qty)return {k:"part"};
   const fin=Math.max(...lb.map(bEnd)),fd=dateOfAbs(fin);
-  const done=fin<=nowAbs();
-  return {k:done?"done":fd>o.due?"late":"ok",fin,fd};
+  const done=sum(lb,b=>{const r=executionOf(S,b.id);return r?.status==='done'?r.qtyDone:0;})>=o.qty;
+  return {k:done?"done":fd>o.due?"late":fin<=nowAbs()?"elapsed":"ok",fin,fd};
 }
 function lateCheck(lines){
   for(const o of S.orders){const st=orderStatus(o);
@@ -632,6 +635,9 @@ function topHTML(){
   (canArchive()?'<button class="btn" data-act="history"><span class="lbl">歷史排程</span></button>':'')+
   '<button class="btn" data-act="groups">分組／部門</button>'+
   '<button class="btn" data-act="resource-load" '+(PV?'disabled title="請先結束方案預覽，再分析已儲存排程"':'')+'>當日負荷</button>'+
+  '<button class="btn" data-act="work-queue" '+(PV?'disabled':'')+'>未排工作</button>'+
+  (canArchive()?'<button class="btn" data-act="scenarios" '+(PV?'disabled':'')+'>試排情境</button>':'')+
+  '<button class="btn" data-act="execution" '+(PV?'disabled':'')+'>現場回報</button>'+
   '<div class="zoombox" role="group" aria-label="畫面大小"><button data-act="zoom-" aria-label="縮小">−</button><button class="zv" data-act="zoom0" title="回到 100%">'+Math.round(UI.zoom*100)+'%</button><button data-act="zoom+" aria-label="放大">＋</button></div>'+
   '<button class="btn" data-act="help" aria-label="操作說明"><b style="font-size:19px">?</b><span class="lbl">說明</span></button>'+
   '<button class="btn" data-act="theme" title="切換淺色／深色">'+THEME_UI[UI.theme]+'</button>'+
@@ -683,7 +689,7 @@ function cardsHTML(){
 }
 function statusTag(o){
   const st=orderStatus(o);
-  return st.k==="late"?'<span class="tag bad">會延誤</span>':st.k==="ok"?'<span class="tag ok">準時</span>':st.k==="done"?'<span class="tag mute">完成</span>':'<span class="tag warn">未排</span>';
+  return st.k==="late"?'<span class="tag bad">會延誤</span>':st.k==="ok"?'<span class="tag ok">預計準時</span>':st.k==="done"?'<span class="tag mute">已回報完成</span>':st.k==='elapsed'?'<span class="tag warn">預定時段已過 · 待回報</span>':'<span class="tag warn">未排</span>';
 }
 const priTag=o=>o.pri===0?'<span class="tag bad">特急</span> ':o.pri===1?'<span class="tag warn">急</span> ':"";
 function orderRow(o){const p=prod(o.pid),route=orderRoute(o,S.products).map(factoryName).join(' → ');
@@ -733,7 +739,7 @@ function blkHTML(b,px,bad,cls=""){
   const short=h<52;
   return '<div class="blk'+(short?" short":"")+(bad?" bad":"")+(readOnly?" ro":"")+(cls?" "+cls:"")+'" data-bid="'+b.id+'" tabindex="0" role="button" aria-label="'+esc((E?E.name:"")+" "+label(b))+'" style="top:'+(px(b.s)+1)+'px;height:'+(h-2)+'px;background:'+empColor(b.emp)+'">'+
     '<div class="n">'+esc(E?E.name:"未指定")+'</div><div class="d">'+esc(o.code+" "+stepName(b)+" "+b.qty+"件")+'</div>'+(h>=92?'<div class="d num">'+hm(b.s)+"–"+hm(b.e)+'</div>':"")+
-    '<div class="flag">'+(cls==="chg"?'<span class="chgf">變</span>':cls==="willchg"?'<span class="chgf">會動</span>':"")+(o.pri===0?'<span class="warn" title="特急">急</span>':"")+(b.pin?'<span class="pin" title="手動固定">釘</span>':"")+(bad?'<span class="warn" title="有問題">!</span>':"")+'</div>'+(readOnly?'':'<div class="resize-handle" data-resize="end" title="拖曳調整結束時間" aria-hidden="true"></div>')+'</div>';
+    '<div class="flag">'+(cls==="chg"?'<span class="chgf">變</span>':cls==="willchg"?'<span class="chgf">會動</span>':"")+(o.pri===0?'<span class="warn" title="特急">急</span>':"")+(executionOf(S,b.id)?'<span class="pin" title="已有現場回報，排程已鎖定">'+(executionOf(S,b.id).status==='done'?'完':'做')+'</span>':b.pin?'<span class="pin" title="手動固定">釘</span>':"")+(bad?'<span class="warn" title="有問題">!</span>':"")+'</div>'+((readOnly||executionOf(S,b.id))?'':'<div class="resize-handle" data-resize="end" title="拖曳調整結束時間" aria-hidden="true"></div>')+'</div>';
 }
 
 /* ----- 週檢視 ----- */
@@ -774,7 +780,7 @@ document.addEventListener("pointerdown",e=>{
 document.addEventListener("pointermove",e=>{
   if(!drag)return;
   if(!drag.started){
-    if(readOnly||Math.hypot(e.clientX-drag.x0,e.clientY-drag.y0)<8)return;
+    if(readOnly||executionOf(S,drag.b.id)||Math.hypot(e.clientX-drag.x0,e.clientY-drag.y0)<8)return;
     drag.started=true;drag.el.classList.add("dragging");
     if(drag.mode==="move"){
       const g=document.createElement("div");g.className="dragghost";g.innerHTML=drag.el.innerHTML;
@@ -901,11 +907,12 @@ document.addEventListener("keydown",e=>{
 });
 
 /* ===== 8. 按鈕動作 ===== */
-const PV_BLOCK=new Set(["groups","group-edit","group-new","emp","emp-new","mach","mach-new","ord","ord-new","orders","products","cal","open","ot","issues","incident","auto","manual-add","undo","save"]);
+const PV_BLOCK=new Set(["work-queue","scenarios","execution","report-open","report-work","groups","group-edit","group-new","emp","emp-new","mach","mach-new","ord","ord-new","orders","products","cal","open","ot","issues","incident","auto","manual-add","undo","save"]);
 document.addEventListener("click",e=>{
   const a=e.target.closest("[data-act]");if(!a)return;
   const act=a.dataset.act,id=a.dataset.id;
   if(PV&&PV_BLOCK.has(act)){toast("預覽中：先按「套用」或「取消」");return;}
+  if(act.startsWith('b-')&&executionOf(S,UI.modal?.id)){toast('已有現場回報，不能修改這段排程');return;}
   const step=UI.view==="week"?7:1;
   switch(act){
     case "prev":UI.date=addDays(UI.date,-step);render();break;
@@ -916,6 +923,15 @@ document.addEventListener("click",e=>{
     case "factory":setFactory(a.dataset.v==="all"?"all":Number(a.dataset.v));render();break;
     case "groups":openModal({t:'groups'});break;
     case "resource-load":if(!PV)openModal({t:'resource-load'});break;
+    case 'work-queue':openModal({t:'work-queue'});break;
+    case 'queue-arrange':if(!readOnly&&!S.setupPending)openModal({t:'manual-add',choice:id+':'+a.dataset.step});break;
+    case 'scenarios':openScenarioList();break;
+    case 'scenario-view':viewScenario(id);break;
+    case 'scenario-save':if(canArchive())openModal({t:'scenario-save',base:structuredClone(PV?.B||S),candidate:structuredClone(PV?pvOpt().A:S),description:PV?.title||'目前排程',date:UI.date});break;
+    case 'scenario-confirm':saveScenarioFromModal(a);break;
+    case 'execution':openModal({t:'execution'});break;
+    case 'report-open':openModal({t:'execution-report',id});break;
+    case 'report-work':reportWork(a);break;
     case "group-edit":openModal({t:'staff-group',id});break;
     case "group-new":if(canMaster())openModal({t:'staff-group'});break;
     case "goto":UI.date=a.dataset.d;UI.view="day";render();window.scrollTo(0,0);break;
@@ -1120,7 +1136,7 @@ const MODALS={
   if(!choices.length)return {title:"手動排班",body:'<div class="hint">目前沒有可新增的工作：此廠工序已排滿，或尚未建立工單。可先新增工單，再回來安排人員與時段。</div>',
     foot:'<button class="btn" data-act="close">關閉</button><button class="btn primary" data-act="ord-new">＋新增工單</button>'};
   if(!m.draft){const start=UI.date===todayStr()?Math.max(DAY0,Math.ceil(nowMin()/10)*10):DAY0;
-    m.draft={choice:choices[0].o.id+":"+choices[0].step,machine:"",employee:"",s:Math.min(start,DAY1-10),e:Math.min(DAY1,Math.min(start,DAY1-10)+60)};}
+    m.draft={choice:m.choice||choices[0].o.id+":"+choices[0].step,machine:"",employee:"",s:Math.min(start,DAY1-10),e:Math.min(DAY1,Math.min(start,DAY1-10)+60)};}
   const D=m.draft,chosen=choices.find(x=>x.o.id+":"+x.step===D.choice)||choices[0];
   D.choice=chosen.o.id+":"+chosen.step;
   const machines=S.machines.filter(M=>M.proc===chosen.st.proc&&M.products.includes(chosen.o.pid)&&factoryOf(M)===factoryOf(chosen.st));
@@ -1283,7 +1299,7 @@ products(m){
 /* ---------- 單一方塊 ---------- */
 blk(m){
   const b=S.blocks.find(x=>x.id===m.id);if(!b)return null;
-  const o=order(b.oid),p=prod(o.pid),E=emp(b.emp),M=mach(b.m),iss=issuesOf(b),ro=readOnly;
+  const o=order(b.oid),p=prod(o.pid),E=emp(b.emp),M=mach(b.m),iss=issuesOf(b),ro=readOnly||!!executionOf(S,b.id);
   const others=S.blocks.filter(x=>x.oid===b.oid&&x!==b).sort((a,c)=>a.step-c.step||byAbs(a,c));
   let opts="",endOpts="";
   for(let t=DAY0;t<DAY1;t+=10)opts+='<option value="'+t+'"'+(t===b.s?" selected":"")+'>'+hm(t)+'</option>';
@@ -1293,6 +1309,7 @@ blk(m){
   const machT=S.machines.filter(X=>X.proc===p.steps[b.step].proc&&X.products.includes(o.pid)&&factoryOf(X)===factoryOf(p.steps[b.step])).map(X=>tg("b-mach",X.id,X.id===b.m,'<span class="num">'+esc(X.id)+'</span><small>'+esc(X.label)+'</small>')).join("");
   const body='<dl class="kv"><dt>產品</dt><dd>'+esc(p.name)+"　第 "+(b.step+1)+" 站／共 "+p.steps.length+" 站："+esc(p.steps[b.step].proc)+'</dd><dt>數量</dt><dd class="num">'+b.qty+' 件</dd><dt>時間</dt><dd class="num">'+mdw(b.date)+" "+hm(b.s)+"–"+hm(b.e)+"（"+(b.e-b.s)+' 分）</dd><dt>機台</dt><dd>'+esc(M.id+" "+M.label)+'</dd><dt>人員</dt><dd>'+esc(E?E.name:"未指定")+'</dd><dt>期限</dt><dd>'+mdw(o.due)+"　"+statusTag(o)+'</dd></dl>'+
    (iss.length?'<div class="issues">'+iss.map(t=>'<div class="issue">'+esc(t)+'</div>').join("")+'</div>':'<div class="okbox">沒有問題</div>')+
+   (executionOf(S,b.id)?'<div class="hint">已有現場回報，這段排程已鎖定，不可拖曳、改量、解除固定或刪除。</div><button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">查看現場回報</button>':'')+
    (ro?"":'<div class="field"><span class="lab">換人</span><div class="toggles">'+empT+'</div></div>'+
    '<div class="field"><span class="lab">換機台</span><div class="toggles">'+machT+'</div></div>'+
    '<div class="row2"><div class="field"><label for="f-bs">開始時間</label><select class="inp num" id="f-bs">'+opts+'</select></div>'+
@@ -1530,8 +1547,9 @@ function pvPanelHTML(o){
       (PV.ai.pick!==o.id?'<button class="btn" data-act="pv-pick" data-v="'+esc(PV.ai.pick)+'">看方案 '+esc(PV.ai.pick)+'</button>':"")+'</div>';
   }else ai='<div class="hint">AI 助理下一階段由伺服器提供。</div>';
   return '<section class="pv" aria-label="預覽">'+
-   '<div class="pv-h"><span class="pv-badge">預覽中</span><div class="pv-t"><b>'+esc(PV.title)+'</b><small>還沒套用，排程不會變。看清楚再按「套用」。　計算：'+planEngineLabel(o.solverMethod,PV.engine)+'</small></div><div class="spacer"></div>'+
-   '<button class="btn" data-act="pv-cancel">取消</button><button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+(o.applicable===false?'不可套用':'套用方案 '+o.id)+'</button></div>'+
+   '<div class="pv-h"><span class="pv-badge">'+(PV.savedScenario?'保存情境':'預覽中')+'</span><div class="pv-t"><b>'+esc(PV.title)+'</b><small>'+(PV.savedScenario?'只讀比較；正式班表與現場進度不會變更。':'還沒套用，排程不會變。看清楚再按「套用」。　計算：'+planEngineLabel(o.solverMethod,PV.engine))+'</small></div><div class="spacer"></div>'+
+   ((STORE.kind==='local'||['boss','lead'].includes(STORE.role))&&!PV.savedScenario?'<button class="btn" data-act="scenario-save">保存試排情境</button>':'')+
+   '<button class="btn" data-act="pv-cancel">'+(PV.savedScenario?'結束查看':'取消')+'</button><button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+(o.applicable===false?'不可套用':'套用方案 '+o.id)+'</button></div>'+
    '<div class="pv-opts">'+tabs+'</div>'+
    (o.applicable===false?'<div class="pv-sum"><b>目前不能套用：</b>'+o.diagnostics.map(esc).join('；')+'</div>':'')+
    '<div class="pv-sum"><b>方案 '+o.id+'：</b>'+esc(pvSummary(o))+'</div>'+
@@ -1539,7 +1557,7 @@ function pvPanelHTML(o){
    '<span class="hint">'+(PV.mode==="cmp"?"虛線／上排＝原本，彩色／下排＝調整後":PV.mode==="new"?"只看調整後，粗框＝有變動的工作":"只看原本，虛線框＝會被移動的工作")+'</span><div class="spacer"></div>'+
    '<div class="pv-dates"><span class="hint">影響的日期</span>'+(dates.map(ds=>'<button class="pv-date" data-act="pv-date" data-v="'+ds+'" aria-pressed="'+(ds===UI.date)+'"><b class="num">'+md(ds)+'</b><small>'+WD[parseD(ds).getUTCDay()]+' · '+d.dates[ds]+' 處</small></button>').join("")||'<span class="hint">無</span>')+'</div></div>'+
    '<div class="pv-grid"><div class="pv-main"><div class="pv-tabs">'+sub.map(([k,t])=>'<button class="tg" data-act="pv-tab" data-v="'+k+'" aria-pressed="'+(PV.tab===k)+'">'+t+'</button>').join("")+'</div>'+body+'</div>'+
-   '<div class="pv-side">'+ai+'<div class="field"><label for="pv-note">備註（會寫進紀錄）</label><input class="inp" id="pv-note" value="'+esc(PV.note)+'" placeholder="例：馬達燒掉，廠商下午來修" autocomplete="off"></div></div></div>'+
+   '<div class="pv-side">'+(PV.savedScenario?'<div class="hint">保存時的說明：'+esc(o.desc||'—')+'</div>':ai+'<div class="field"><label for="pv-note">備註（會寫進紀錄）</label><input class="inp" id="pv-note" value="'+esc(PV.note)+'" placeholder="例：馬達燒掉，廠商下午來修" autocomplete="off"></div>')+'</div></div>'+
    '</section>';
 }
 function openPlans(title,logTitle,kind,applyEvent,strategies,extra={}){
@@ -1576,6 +1594,7 @@ function openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra={}){
   },30);
 }
 function enterPreview({title,logTitle,kind,base,B,opts,ev,extra}){
+  for(const o of opts){try{assertExecutionProtected(B,o.A);}catch(e){o.applicable=false;o.diagnostics=[...(o.diagnostics||[]),e.message];}}
   {
     const best=opts.find(o=>o.best)||opts[0];
     const fk=f=>[f.date,f.s,f.e].join("|"),faultsNew=[];
@@ -1614,6 +1633,7 @@ async function askAI(){
 async function pvApply(){
   const o=pvOpt();if(!o)return;
   if(o.applicable===false){toast('這個方案尚無法套用，請查看原因與建議');return;}
+  try{assertExecutionProtected(S,o.A);}catch(e){toast(e.message);return;}
   const P=PV,noteEl=$("#pv-note");if(noteEl)P.note=noteEl.value.trim();
   if(P.previewId&&STORE.applyPlan){
     toast("套用中…");
@@ -2112,6 +2132,7 @@ function queueSync(entry){
 
 // ---------- 別人改了 → 重新讀取 ----------
 function normalizeState(){
+  S.execution ||= [];
   S.groups ||= [];S.groupMembers ||= [];
   if(UI.group!=='all'&&UI.group!=='ungrouped'&&!S.groups.some(g=>g.id===UI.group))UI.group='all';
   if(!S.cal)S.cal={week:[...DEF_WEEK],over:{}};
@@ -2225,6 +2246,88 @@ function showLogin(err="",email=""){
       showLogin("若此帳號存在，密碼設定信已寄出。請開啟信中的連結。",email);}
     catch(err){showLogin(err.message,email);}
   });
+}
+
+// ---------- 未排工作、保存試排與現場回報 ----------
+MODALS['work-queue']=()=>{
+  const rows=workQueue(S,todayStr(),UI.factory);
+  return {title:'未排工作與待處理差異',body:'<div class="hint">依工單工序列出尚未排入的件數及已回報短少；不是求解器不可行性證明。交接、空檔及物料仍須在安排預覽中檢查。</div>'+
+    rows.map(r=>'<article class="load-row"><b>'+esc(r.code+' · '+r.proc)+'</b> '+(r.overdue?'<span class="tag bad">已過交期</span>':'')+
+      '<div class="hint">期限 '+esc(r.due)+' · 已排 '+r.planned+' 件 · 尚待排 '+r.remaining+' 件'+(r.shortfall?' · 回報短少 '+r.shortfall+' 件':'')+'</div>'+
+      r.reasons.map(t=>'<div class="hint">'+esc(t)+'</div>').join('')+
+      (r.canArrange&&!readOnly?'<button class="btn" data-act="queue-arrange" data-id="'+esc(r.oid)+'" data-step="'+r.step+'">安排此工序</button>':'')+'</article>').join('')+
+      (!rows.length?'<div class="okbox">此範圍目前没有未排量或已回報短少。這不等於工作已實際完成。</div>':''),foot:'<button class="btn" data-act="close">關閉</button>'};
+};
+async function openScenarioList(){
+  if(!canArchive())return;openModal({t:'scenario-list',loading:true});const m=UI.modal;
+  try{m.items=await STORE.listScenarios();}catch(e){m.error=e.message;}m.loading=false;if(UI.modal===m)renderModal();
+}
+MODALS['scenario-list']=m=>({title:'保存的試排情境',body:
+  '<div class="hint">情境與正式班表分開保存，只供原本／調整後對照，不提供直接套用。雲端只列出此帳號保存的情境，最多 20 份。</div>'+
+  (m.loading?'<div class="hint">讀取中…</div>':m.error?'<div class="issue">'+esc(m.error)+'</div>':
+    (m.items||[]).map(s=>'<button class="btn" style="width:100%;height:auto;min-height:48px;margin:8px 0" data-act="scenario-view" data-id="'+esc(s.id)+'">'+esc(s.name)+' · '+esc(s.created_at.slice(0,10))+'</button>').join('')||'<div class="hint">還沒有保存的情境。</div>'),
+  foot:'<button class="btn" data-act="scenario-save">保存目前排程</button><button class="btn" data-act="close">關閉</button>'});
+MODALS['scenario-save']=m=>({title:'保存試排情境',body:'<div class="hint">只保存比較資料，不套用、不寫入正式班表。之後排程、名冊、技能或現場進度改變，會提示這份情境與現況不同。</div>'+
+  '<div class="field"><label for="scenario-name">情境名稱</label><input class="inp" id="scenario-name" maxlength="80" value="'+esc(m.name||'')+'"></div>',
+  foot:'<button class="btn" data-act="close">取消</button><button class="btn primary" data-act="scenario-confirm">確認保存情境</button>'});
+async function saveScenarioFromModal(button){
+  if(!canArchive())return;const m=UI.modal;if(m.t!=='scenario-save')return;
+  try{m.name=$('#scenario-name').value;const item=m.item||makeScenario(m.name,m.base,m.candidate,{description:m.description,date:m.date});m.item=item;
+    button.disabled=true;await STORE.saveScenario(item);closeModal();toast('情境已保存，正式班表沒有改變');}
+  catch(e){button.disabled=false;toast(e.message);}
+}
+async function viewScenario(id){
+  if(!canArchive())return;
+  try{
+    const item=await STORE.getScenario(id);if(!item)throw new Error('找不到情境');validateScenario(item.payload);
+    const stale=scenarioStale(item,S),B=item.payload.base,A=item.payload.candidate,ev={date:item.payload.date||UI.date};
+    const opts=[{id:'S',name:item.name,desc:item.payload.description||'保存的情境',A,state:JSON.stringify(A),
+      lines:[],mt:measure(B,A,ev),applicable:false,diagnostics:[stale?'此情境的基準與現況不同；僅供查看，不可覆蓋目前班表':'保存的情境僅供比較，不可直接套用'],best:false}];
+    enterPreview({title:'保存情境：'+item.name,logTitle:item.name,kind:'edit',base:JSON.stringify(B),B,opts,ev,
+      extra:{savedScenario:true,engine:'歷史試排資料'}});
+  }catch(e){toast(e.message);}
+}
+const reportingRole=()=>STORE.kind==='local'?'boss':STORE.role;
+const reportStatus=r=>!r?'尚未開始':r.status==='done'?'已回報完成':'進行中';
+MODALS.execution=()=>{
+  const worker=reportingRole()==='worker';
+  const blocks=S.blocks.filter(b=>b.date===UI.date&&inFactory(mach(b.m),UI.factory)&&(!worker||b.emp===STORE.employeeId)).sort((a,b)=>a.s-b.s);
+  return {title:'現場回報 · '+mdw(UI.date),body:
+    '<div class="hint">開始、更新累計件數、完成都另外保存實際事實。開始後鎖定此段排程。完成可低於原定件數，差異列入待處理清單；不會自動補排、改原定數量或推定新產能。</div>'+
+    (worker&&!STORE.employeeId?'<div class="issue">帳號尚未綁定員工，請由管理員綁定後使用。</div>':'')+
+    (S.setupPending?'<div class="issue">來源名冊與工時待確認，不能回報。</div>':'')+
+    blocks.map(b=>{const r=executionOf(S,b.id);return '<article class="load-row"><b>'+esc((order(b.oid)?.code||'?')+' · '+stepName(b))+'</b>'+
+      '<div class="hint">'+esc(emp(b.emp)?.name||'未指定')+' · '+esc(mach(b.m)?.label||b.m)+' · 原定 '+hm(b.s)+'–'+hm(b.e)+' · '+b.qty+' 件</div>'+
+      '<div class="hint">'+reportStatus(r)+(r?' · 累計 '+r.qtyDone+' 件 · 差異 '+(r.qtyDone-b.qty)+' 件':'')+'</div>'+
+      (canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending?'<button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">查看／回報進度</button>':'')+'</article>';}).join('')+
+    (!blocks.length?'<div class="hint">這個日期與範圍沒有可回報的排班；待確認的原表文字不是正式工作方塊。</div>':''),
+    foot:'<button class="btn" data-act="close">關閉</button>'};
+};
+MODALS['execution-report']=m=>{
+  const b=S.blocks.find(b=>b.id===m.id);if(!b)return {title:'現場回報',body:'<div class="issue">工作已變動，請重新載入。</div>'};
+  const r=executionOf(S,b.id),allowed=canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending&&!PV;
+  const actual=t=>t?new Date(t).toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}):'—';
+  return {title:'回報 '+(order(b.oid)?.code||'?')+' · '+stepName(b),body:
+    '<dl class="kv"><dt>原定</dt><dd>'+mdw(b.date)+' '+hm(b.s)+'–'+hm(b.e)+' · '+b.qty+' 件</dd><dt>狀態</dt><dd>'+reportStatus(r)+'</dd><dt>實際開始</dt><dd>'+esc(actual(r?.startedAt))+'</dd><dt>實際完成</dt><dd>'+esc(actual(r?.finishedAt))+'</dd></dl>'+
+    '<div class="hint">'+(r?'已鎖定排程，不可拖曳、改量、解除固定或刪除。':'按開始後會鎖定此段工作。')+' 件數填累計，不是這次增加量；完成會記錄實際時間，不用原定結束時間代替。</div>'+
+    (r&&r.status!=='done'?'<div class="field"><label for="execution-qty">累計已做件數</label><input class="inp" id="execution-qty" type="number" min="'+r.qtyDone+'" max="'+b.qty+'" step="1" value="'+r.qtyDone+'"></div>':'')+
+    (r?.status==='done'?'<div class="hint">已完成 '+r.qtyDone+' 件；相對原定差異 '+(r.qtyDone-b.qty)+' 件。此版不提供修改已完成回報。</div>':''),
+    foot:'<button class="btn" data-act="close">關閉</button>'+(allowed&&r?.status!=='done'?
+      (m.pendingRequest?'<button class="btn primary" data-act="report-work" data-v="retry">重試上一筆回報</button>':
+        !r?'<button class="btn primary" data-act="report-work" data-v="start">開始工作</button>':
+        '<button class="btn" data-act="report-work" data-v="quantity">更新累計件數</button><button class="btn primary" data-act="report-work" data-v="finish">確認完成並記錄件數</button>'):'')};
+};
+async function reportWork(button){
+  const m=UI.modal;if(m?.t!=='execution-report'||m.busy||PV)return;
+  const b=S.blocks.find(b=>b.id===m.id);if(!b||!canReport(reportingRole(),STORE.employeeId,b))return;
+  const action=button.dataset.v,r=executionOf(S,b.id),qty=action==='start'?0:Number($('#execution-qty')?.value);
+  if(!m.pendingRequest&&action!=='start'&&!$('#execution-qty')?.value.trim()){toast('請填入累計已做件數；沒有產出請明確填 0');return;}
+  if(!m.pendingRequest&&(!Number.isInteger(qty)||qty<(r?.qtyDone||0)||qty>b.qty)){toast('累計件數不可倒退或超過原定件數');return;}
+  m.pendingRequest ||= {id:uid(),blockId:b.id,action,qtyDone:qty,expectedRevision:r?.revision||0};
+  m.busy=true;button.disabled=true;
+  try{await syncChain;await STORE.reportExecution(m.pendingRequest);await reloadFromStore();m.pendingRequest=null;undoStack=[];toast('進度已保存');}
+  catch(e){toast(e.message);if(e.rejected)m.pendingRequest=null;if(e.conflict){m.pendingRequest=null;await reloadFromStore();}}
+  finally{m.busy=false;if(UI.modal===m)renderModal();}
 }
 
 // ---------- 啟動 ----------
