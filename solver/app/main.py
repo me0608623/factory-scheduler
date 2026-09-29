@@ -25,6 +25,7 @@ from .plans import make_plans, now_tw
 from .schemas import Event, Now, PlanRequest, Snapshot, SolveRequest
 from .validate import check
 from .roster import RosterRequest, Roster, solve_roster
+from .chat import ChatQuery, SnapshotChatQuery, ChatUnavailable, build_context, respond
 
 app = FastAPI(title="產線排程服務", version="0.1.0")
 app.add_middleware(GZipMiddleware, minimum_size=1024)
@@ -35,6 +36,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 supa = Supabase()
+_chat_slot = BoundedSemaphore(2)
 _solve_slot = BoundedSemaphore(1)
 
 
@@ -61,7 +63,44 @@ def require_api_key(x_api_key: str | None = Header(default=None)):
 @app.get("/health")
 def health():
     return {"ok": True, "ortools": ortools.__version__, "database": supa.configured,
-            "capabilities": ["work_assignments_v1", "staff_roster_draft_v1"]}
+            "capabilities": ["work_assignments_v1", "staff_roster_draft_v1", "schedule_chat_readonly_v1"]}
+
+
+async def answer_chat(req,raw):
+    if not _chat_slot.acquire(blocking=False):
+        raise HTTPException(429,'聊天室正忙，請稍後重試',headers={'Retry-After':'5'})
+    try:
+        context=await run_in_threadpool(build_context,raw,req)
+        return await respond(req,context)
+    except (ValueError,KeyError,TypeError):
+        raise HTTPException(400,'排程資料格式或容量無法查詢；請縮小範圍並核對資料')
+    except ChatUnavailable as exc:
+        raise HTTPException(503,str(exc))
+    finally:
+        _chat_slot.release()
+
+
+@app.post('/chat',dependencies=[Depends(require_api_key)])
+async def chat_snapshot(req: SnapshotChatQuery):
+    # Never allow an anonymous snapshot to spend money on a model in production.
+    if req.generate and not os.environ.get('SOLVER_API_KEY'):
+        raise HTTPException(403,'快照 AI 查詢必須先啟用 API 金鑰保護')
+    return await answer_chat(req,req.snapshot)
+
+
+@app.post('/chat/db')
+async def chat_database(req: ChatQuery,authorization: str=Header(...)):
+    if not supa.configured:raise HTTPException(503,'聊天室尚未設定資料庫')
+    if not authorization.startswith('Bearer ') or not authorization[7:].strip():
+        raise HTTPException(401,'需要有效登入憑證')
+    jwt=authorization[7:].strip()
+    try:
+        if await supa.role(jwt) not in ('boss','lead'):
+            raise HTTPException(403,'目前只有老闆或組長可查詢管理排程；尚未開放員工／電視聊天室')
+        raw=await supa.snapshot(jwt,start=req.date.isoformat(),end=req.date.isoformat())
+    except SupabaseError:
+        raise HTTPException(401,'無法依登入權限讀取排程，請重新登入或核對權限')
+    return await answer_chat(req,raw)
 
 
 @app.post('/roster/plans', dependencies=[Depends(require_api_key)])

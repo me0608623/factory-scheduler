@@ -9,6 +9,10 @@ export const SOLVER = {
   version: "",
   capabilities: [],
 
+  async chat(request,jwt) {
+    return post(jwt?'/chat/db':'/chat',request,jwt?{Authorization:'Bearer '+jwt}:{});
+  },
+
   async roster(request,jwt) {
     return post(jwt?'/roster/plans/db':'/roster/plans',request,jwt?{Authorization:'Bearer '+jwt}:{});
   },

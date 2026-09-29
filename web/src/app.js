@@ -9,13 +9,14 @@ import { batchReadyMinute, materialFlowIssue, remainingQty, quantityForMinutes }
 import { employeeGroups, groupedEmployees, memberStatus } from "./groups.js";
 import { resourceLoad } from "./resource-load.js";
 import { workQueue } from './work-queue.js';
-import { makeScenario, scenarioStale, validateScenario } from './scenarios.js';
+import { makeScenario, scenarioStale, validateScenario, scenarioKey } from './scenarios.js';
 import { executionOf, canReport, assertExecutionProtected } from './execution.js';
 import { workCatalog,assignments,occupiedWork,assignmentIssues,validateGeneralWork } from './general-work.js';
 import { legacyFieldMap } from './legacy-field-map.js';
 import {transferOrders,materialWarning,transferPlanWarnings,batchOf,validateTransfers} from './transfers.js';
 import {transferUI} from './transfer-ui.js';
 import {rosterUI} from './roster-ui.js';
+import {installScheduleChat} from './chat-ui.js';
 /* ===== 1. 常數與工具 ===== */
 const COLORS=["#FFE14D","#4CDB6E","#F58CF0","#4FE3EE","#FFA64D","#AFC0FF","#FF9A9A","#BFEA6C"];
 const PROCS=["裁切","沖壓","焊接","組裝","包裝"];
@@ -618,6 +619,7 @@ function render(){
   const sc2=$(".scroller");if(sc2)sc2.scrollLeft=sl;
   window.scrollTo(0,sy);
   if(UI.modal)renderModal();
+  scheduleChat?.refresh();
 }
 function topHTML(){
   const d=UI.date,di=dayInfo(d);
@@ -2114,6 +2116,7 @@ async function downloadCSV(){
 /* ===== 12. 資料層（本機／Supabase）、同步、登入、啟動 ===== */
 let SAMPLE=null,toastT=null;          // AI 助理下一階段改由伺服器提供
 let STORE=null;                        // LocalStore 或 SupabaseStore（main.js 決定）
+let scheduleChat=null;
 const SYNC={state:"ok",msg:""};
 let lastLocalWrite=0,pendingReload=false,reloadTimer=null;
 // 基本資料（員工、機台、產品工序、上班日）只有老闆能改；組長可以報故障、請假、工單、調排程
@@ -2514,6 +2517,7 @@ async function start(){
   if(!UI.date)UI.date=todayStr();
   render();
   STORE.subscribe(onRemoteChange);
+  scheduleChat?.destroy();scheduleChat=installScheduleChat({snapshot:()=>toSnapshot(S,HOLI),view:()=>({date:UI.date,factory:UI.factory}),store:()=>STORE,enabled:()=>!UI.tv&&(STORE.kind==='local'||['boss','lead'].includes(STORE.role)),stamp:()=>scenarioKey(S)+'|'+UI.date+'|'+UI.factory});
   SOLVER.check().then(up=>{updateSyncChip();if(up)toast("已連上 OR-Tools 排程服務");});
   setInterval(()=>{if(!drag&&!generalDrag&&!UI.modal&&!PV&&UI.view==="day"&&UI.date===todayStr())render();},60000);
 }
