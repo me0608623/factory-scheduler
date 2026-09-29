@@ -155,6 +155,11 @@ button{cursor:pointer}
 .blk.dragging{opacity:.35}
 .blk .resize-handle{position:absolute;left:0;right:0;bottom:0;height:12px;cursor:ns-resize;touch-action:none;background:linear-gradient(transparent 4px,rgba(0,0,0,.24) 4px,rgba(0,0,0,.24) 6px,transparent 6px);border-radius:0 0 7px 7px}
 .blk .resize-handle:hover{background:linear-gradient(transparent 3px,rgba(0,0,0,.5) 3px,rgba(0,0,0,.5) 7px,transparent 7px)}
+.workblk{z-index:2;cursor:grab;touch-action:none;user-select:none;border:2px solid rgba(0,0,0,.18);box-shadow:0 1px 2px rgba(0,0,0,.15);font-size:14px}
+.workblk.bad{border:3px solid var(--bad);box-shadow:0 0 0 3px var(--bad-bg)}
+.workblk:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.workblk .resize-handle{position:absolute;left:0;right:0;bottom:0;height:12px;cursor:ns-resize;touch-action:none;background:linear-gradient(transparent 4px,rgba(0,0,0,.24) 4px,rgba(0,0,0,.24) 6px,transparent 6px)}
+.workblk .resize-handle:hover{background:linear-gradient(transparent 3px,rgba(0,0,0,.5) 3px,rgba(0,0,0,.5) 7px,transparent 7px)}
 .dragghost{position:fixed;z-index:100;pointer-events:none;border-radius:9px;padding:5px 9px;color:var(--blk-ink);border:2px solid rgba(0,0,0,.3);box-shadow:0 12px 30px rgba(0,0,0,.3);opacity:.92}
 .drop{position:absolute;left:3px;right:3px;border-radius:9px;border:3px dashed var(--ok);background:color-mix(in srgb,var(--ok) 14%,transparent);z-index:4;pointer-events:none;display:flex;align-items:flex-start;justify-content:flex-end;padding:4px 8px;font-family:var(--mono);font-weight:700;font-size:15px;color:var(--ok)}
 .drop.push{border-color:var(--warn);background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}

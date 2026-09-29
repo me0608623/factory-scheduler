@@ -1,6 +1,7 @@
 // Read-only analysis of the saved schedule, not a capacity/feasibility promise.
 import { inFactory } from './factory.js';
 import { overtimeAllowed } from './overtime.js';
+import { occupiedWork } from './general-work.js';
 
 const valid = ([s, e]) => Number.isFinite(s) && Number.isFinite(e) && s >= 0 && e <= 1440 && s < e;
 export function unionIntervals(intervals) {
@@ -28,7 +29,7 @@ export function subtractIntervals(windows, busy) {
   return result;
 }
 function occupancy(intervals, limit) {
-  const events = intervals.flatMap(([s, e]) => [[s, 1], [e, -1]]).sort((a, b) => a[0] - b[0]);
+  const events = intervals.flatMap(([s, e, weight=1]) => [[s, weight], [e, -weight]]).sort((a, b) => a[0] - b[0]);
   let count = 0, previous = null, peak = 0;
   const overloaded = [];
   for (let i = 0; i < events.length;) {
@@ -48,7 +49,7 @@ function metrics(resource, blocks, available, pending, limit) {
   const occupiedMinutes = pending ? null : busyMinutes - outsideMinutes;
   const free = pending ? [] : subtractIntervals(available, busy);
   const longest = free.reduce((best, iv) => !best || iv[1] - iv[0] > best[1] - best[0] ? iv : best, null);
-  const concurrency = occupancy(intervals, limit);
+  const concurrency = occupancy(blocks.map(b=>[b.s,b.e,b.weight||1]), limit);
   return { id: resource.id, name: resource.name || resource.label || resource.id,
     factory: resource.factory || 1, pending, blockCount: blocks.length, assignedMinutes, busyMinutes,
     availableMinutes: availability, occupiedMinutes, outsideMinutes,
@@ -58,12 +59,12 @@ function metrics(resource, blocks, available, pending, limit) {
     overloadMinutes: pending ? null : concurrency.overloadMinutes };
 }
 export function resourceLoad(state, date, windows, factory = 'all') {
-  const dayBlocks = (state.blocks || []).filter(b => b.date === date);
+  const dayBlocks = [...(state.blocks || []),...occupiedWork(state)].filter(b => b.date === date);
   const invalidBlocks = dayBlocks.filter(b => !valid([b.s, b.e])).length;
   const goodBlocks = dayBlocks.filter(b => valid([b.s, b.e]));
   const allEmployees = state.employees || [], allMachines = state.machines || [];
   const employeeIds = new Set(allEmployees.map(e => e.id)), machineIds = new Set(allMachines.map(m => m.id));
-  const missingResources = dayBlocks.filter(b => !employeeIds.has(b.emp) || !machineIds.has(b.m)).length;
+  const missingResources = dayBlocks.filter(b => !employeeIds.has(b.emp) || !(b.workId&&b.m==null) && !machineIds.has(b.m)).length;
   const byMachine = new Map(), byEmployee = new Map();
   for (const b of goodBlocks) {
     if (!byMachine.has(b.m)) byMachine.set(b.m, []);

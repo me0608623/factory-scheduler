@@ -2,6 +2,7 @@
 
 import { assertExecutionProtected, transitionExecution } from '../execution.js';
 import { validateScenario } from '../scenarios.js';
+import { validateGeneralWork } from '../general-work.js';
 const KEY = "fsched-local-v1";
 const SCENARIOS = 'fsched-scenarios-v1';
 const ARCHIVE_INDEX = "fsched-legacy-index-v1";
@@ -27,6 +28,7 @@ export class LocalStore {
   async sync(S) {
     const old=await this.load();
     try {
+      validateGeneralWork(S,{today:new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Taipei'}).format(new Date()),baseAssignments:old?.workAssignments||[]});
       if(old){assertExecutionProtected(old,S);
         if(JSON.stringify(old.execution||[])!==JSON.stringify(S.execution||[]))throw new Error('現場進度只能由回報流程更新');}
     }catch(e){e.permission=true;throw e;}

@@ -7,6 +7,7 @@ export const SOLVER = {
   url: BASE,
   up: null,          // null = 還沒檢查；true / false
   version: "",
+  capabilities: [],
 
   async check() {
     try {
@@ -14,14 +15,19 @@ export const SOLVER = {
       const j = await r.json();
       this.up = !!j.ok;
       this.version = j.ortools || "";
+      this.capabilities = j.capabilities || [];
     } catch {
       this.up = false;
+      this.capabilities = [];
     }
     return this.up;
   },
 
   // 本機模式：把整份快照送過去算
   async plans(snapshot, event, now, timeLimit = 3) {
+    if(snapshot.work_assignments?.length&&!this.capabilities.includes('work_assignments_v1')){
+      const err=new Error('排程服務尚未支援一般工作占用，請先更新服務');err.status=409;throw err;
+    }
     return post("/plans", { snapshot, event, now, time_limit: timeLimit });
   },
 

@@ -162,6 +162,28 @@ class Now(BaseModel):
         return iso_day(value)
 
 
+class WorkAssignment(BaseModel):
+    """Independent planned work. No manufactured equipment or production rate."""
+    id: str
+    workId: str
+    emp: str
+    resourceId: str | None = None
+    date: str
+    s: int = Field(ge=0, lt=1440)
+    e: int = Field(gt=0, le=1440)
+
+    @field_validator("date")
+    @classmethod
+    def valid_date(cls, value: str) -> str:
+        return iso_day(value)
+
+    @model_validator(mode="after")
+    def valid_span(self):
+        if self.e <= self.s:
+            raise ValueError("一般工作結束時間須晚於開始時間")
+        return self
+
+
 class Snapshot(BaseModel):
     version: int = 0
     setup_pending: bool = False
@@ -171,6 +193,23 @@ class Snapshot(BaseModel):
     products: list[Product]
     orders: list[Order]
     blocks: list[Block] = Field(default_factory=list)
+    work_assignments: list[WorkAssignment] = Field(default_factory=list, max_length=10000)
+
+    @model_validator(mode="after")
+    def work_references(self):
+        employees = {e.id: e for e in self.employees}
+        machines = {m.id: m for m in self.machines}
+        seen = set()
+        for a in self.work_assignments:
+            if a.id in seen or a.emp not in employees:
+                raise ValueError("一般工作代號重複或員工不存在")
+            seen.add(a.id)
+            if a.resourceId is not None:
+                m = machines.get(a.resourceId)
+                e = employees[a.emp]
+                if m is None or m.factory != e.factory or m.id not in e.skills:
+                    raise ValueError("一般工作設備或員工操作資格不符合")
+        return self
 
 
 class Event(BaseModel):

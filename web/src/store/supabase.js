@@ -4,6 +4,7 @@ import { fromSnapshot, blockToDb } from "../convert.js";
 import { rowsOf, diffRows, UPSERT_ORDER, DELETE_ORDER, TABLE_KEYS, blocksKey } from "./diff.js";
 import { groupCatalog } from "../groups.js";
 import { assertExecutionProtected } from '../execution.js';
+import { generalKey,validateGeneralWork,assignmentToDb } from '../general-work.js';
 
 // 畫面的紀錄種類 ↔ 資料庫 change_sets.kind
 const KIND_TO_DB = { ot: "edit", save: "edit", move: "move", edit: "edit", auto: "auto", fault: "fault", leave: "leave", order: "order", recover: "recover" };
@@ -152,14 +153,25 @@ export class SupabaseStore {
     this.base = rowsOf(S);
     this.baseBlocks = blocksKey(S);
     this.baseGroups = JSON.stringify(groupCatalog(S));
+    this.baseGeneral=generalKey(S);this.baseContents=JSON.stringify(S.workContents||[]);
   }
 
   // ---------- 寫：只寫有變的列；排程方塊整批用 save_blocks（有版本號檢查） ----------
   async sync(S, entry) {
-    try{if(this.protectedBase){assertExecutionProtected(this.protectedBase,S);
+    try{validateGeneralWork(S,{today:new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Taipei'}).format(new Date()),baseAssignments:JSON.parse(this.baseGeneral||'{}').assignments||[]});if(this.protectedBase){assertExecutionProtected(this.protectedBase,S);
       if(JSON.stringify(this.protectedBase.execution)!==JSON.stringify(S.execution||[]))throw new Error('現場進度只能由回報流程更新');}}
     catch(e){e.permission=true;throw e;}
     const d = diffRows(this.base, rowsOf(S));
+    if(generalKey(S)!==this.baseGeneral){
+      if(Object.values(d).some(c=>c.upsert.length||c.del.length)||blocksKey(S)!==this.baseBlocks||JSON.stringify(groupCatalog(S))!==this.baseGroups)
+        throw new Error('請將工作內容／一般工作排班與產品排程、名冊分開儲存');
+      const contentsChanged=JSON.stringify(S.workContents||[])!==this.baseContents;
+      if(contentsChanged&&JSON.stringify(S.workAssignments||[])!==JSON.stringify(JSON.parse(this.baseGeneral).assignments))throw new Error('請先儲存工作內容，再安排工作');
+      const args=contentsChanged?{p_version:this.version,p_contents:S.workContents||[]}:{p_version:this.version,p_assignments:(S.workAssignments||[]).map(assignmentToDb)};
+      const {data,error}=await this.sb.rpc(contentsChanged?'save_work_contents':'save_work_assignments',args);
+      if(error){if(error.code==='40001')throw new ConflictError();throw Object.assign(new Error(error.message),{permission:true});}
+      S.version=this.version=Number(data);this._remember(S);return;
+    }
     const catalog=groupCatalog(S),groupsChanged=JSON.stringify(catalog)!==this.baseGroups;
     if(groupsChanged){
       if(Object.values(d).some(c=>c.upsert.length||c.del.length)||blocksKey(S)!==this.baseBlocks)
@@ -218,7 +230,7 @@ export class SupabaseStore {
   // ---------- 即時推送 ----------
   subscribe(onChange) {
     const ch = this.sb.channel("schedule-changes");
-    for (const t of ["schedule_state", "change_sets", "machine_faults", "leaves", "employee_overtime_days", "orders", "calendar_days", "work_execution"]) {
+    for (const t of ["schedule_state", "change_sets", "machine_faults", "leaves", "employee_overtime_days", "orders", "calendar_days", "work_execution","work_contents","work_assignments"]) {
       ch.on("postgres_changes", { event: "*", schema: "public", table: t }, () => onChange(t));
     }
     ch.subscribe();

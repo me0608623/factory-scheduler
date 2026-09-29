@@ -58,7 +58,8 @@ def require_api_key(x_api_key: str | None = Header(default=None)):
 
 @app.get("/health")
 def health():
-    return {"ok": True, "ortools": ortools.__version__, "database": supa.configured}
+    return {"ok": True, "ortools": ortools.__version__, "database": supa.configured,
+            "capabilities": ["work_assignments_v1"]}
 
 
 @app.post("/solve", dependencies=[Depends(require_api_key)])

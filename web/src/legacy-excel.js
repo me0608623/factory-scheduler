@@ -60,26 +60,28 @@ function colName(n) {
 }
 const headerText = value => String(value ?? "").replace(/\s+/g, " ").trim();
 export function legacyCatalog(first, second) {
-  const catalog = { "1廠": { stations: [], people: [], notes: [] }, "2廠": { stations: [], people: [], notes: [] } };
+  const catalog = { "1廠": { stations: [], people: [], notes: [], management: [] }, "2廠": { stations: [], people: [], notes: [], management: [] } };
   const add = (factory, kind, col, row, label, note = "") => {
     const name = headerText(label);
-    if (name) catalog[factory][kind].push({ cell: `${col}${row}`, label: name, ...(note ? { note } : {}) });
+    if (name){const item={ cell: `${col}${row}`, label: name, ...(note ? { note } : {}) };catalog[factory][kind].push(item);return item;}
   };
   const oneHead = first.get(2) || new Map();
+  for(const col of ['A','AF','AJ'])add('1廠','management',col,2,oneHead.get(col));
   for (let n = 2; n <= 27; n++) add("1廠", "stations", colName(n), 2, oneHead.get(colName(n)));
   for (let n = 28; n <= 31; n++) add("1廠", "people", colName(n), 2, oneHead.get(colName(n)), "原表以人名作欄名；是否仍在職、會操作哪些設備待確認");
   const oneTop = first.get(1) || new Map();
   for (const col of ["A", "J", "Q", "AB"]) add("1廠", "notes", col, 1, oneTop.get(col));
 
   const twoPeople = second.get(2) || new Map();
+  for(const col of ['A','AJ','AN'])add('2廠','management',col,2,twoPeople.get(col));
   const twoHead = second.get(3) || new Map();
   const twoSide = second.get(4) || new Map();
-  let machine = "";
+  let machine = "",headerCell="";
   for (let n = 2; n <= 27; n++) {
     const col = colName(n);
-    machine = headerText(twoHead.get(col)) || machine;
+    if(headerText(twoHead.get(col))){machine=headerText(twoHead.get(col));headerCell=col+'3';}
     const side = headerText(twoSide.get(col));
-    if (twoHead.get(col) || side) add("2廠", "stations", col, 3, machine + (side ? `（${side}）` : ""));
+    if (twoHead.get(col) || side){const item=add("2廠", "stations", col, 3, machine + (side ? `（${side}）` : ""));if(item&&side){item.headerCell=headerCell;item.positionCell=col+'4';}}
     add("2廠", "people", col, 2, twoPeople.get(col), machine ? `原表標在 ${machine} 上方；技能與目前是否在職待確認` : "是否在職待確認");
   }
   add("2廠", "stations", "AC", 2, "包裝");
