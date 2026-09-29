@@ -5,6 +5,7 @@
 //       blocks[{id,oid,step,m,emp,date,s,e,qty,pin}]、cal{week,over{date:"work"|"off"}}、dayOT{date:true}、log[]
 
 import { overtimeWeekdays } from "./overtime.js";
+import { groupCatalog } from "./groups.js";
 
 export const newId = () =>
   globalThis.crypto && crypto.randomUUID ? crypto.randomUUID()
@@ -24,6 +25,8 @@ export function toSnapshot(S, holidays = {}) {
   return {
     version: S.version || 0,
     setup_pending: !!S.setupPending,
+    staff_groups: groupCatalog(S).groups,
+    staff_group_members: groupCatalog(S).members,
     calendar: {
       week: [...S.cal.week],
       overrides: Object.fromEntries(Object.entries(S.cal.over || {}).map(([d, v]) => [d, v === "work"])),
@@ -55,6 +58,8 @@ export function fromSnapshot(snap) {
   for (const [d, open] of Object.entries(c.overrides || {})) over[d] = open ? "work" : "off";
   return {
     v: 1, demo: false, version: snap.version || 0, setupPending: !!snap.setup_pending,
+    groups: (snap.staff_groups || []).map(g=>({id:g.id,name:g.name,department:g.department||null,homeFactory:g.home_factory??null,sourceRef:g.source_ref||null})),
+    groupMembers: (snap.staff_group_members || []).map(m=>({groupId:m.group_id,employeeId:m.employee_id,reviewStatus:m.review_status,sourceRef:m.source_ref||null})),
     cal: { week: c.week || [false, true, true, true, true, true, true], over },
     dayOT: { ...(c.overtime || {}) },
     holidays: { ...(c.holidays || {}) },
