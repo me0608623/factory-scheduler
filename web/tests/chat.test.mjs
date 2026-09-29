@@ -32,3 +32,26 @@ test('畫面待料必須納入聊天室問題，排班不能冒充物料已點�
   const ctx=chatContext(r,{date:'2026-09-30',factory:1});
   assert.match(answerFromFacts('目前排程問題',ctx).answer,/待料.*20 件/);
 });
+
+test('最新現場回報依工作與廠別篩選，不把完成短量當工單完工，不外帶備註',()=>{
+  const r=raw();r.work_execution=[{blockId:'one',status:'running',qtyDone:3,note:'PRIVATE-NOTE'},{blockId:'two',status:'done',qtyDone:8},{blockId:'other',status:'done',qtyDone:10}];
+  const before=structuredClone(r),ctx=chatContext(r,{date:'2026-09-30',factory:1}),result=answerFromFacts('目前完成進度',ctx);
+  assert.match(result.answer,/進行中；累計 3／預排 10/);assert.match(result.answer,/完成回報少於預排量/);
+  assert.match(result.answer,/不代表整張工單完工/);assert.match(result.answer,/不是選定日期當時/);
+  assert.ok(!ctx.facts.some(f=>f.kind==='execution'&&f.entityId==='other'));
+  assert.ok(!JSON.stringify(ctx).includes('PRIVATE-NOTE'));assert.deepEqual(r,before);
+  r.work_execution=[];assert.match(answerFromFacts('完成進度',chatContext(r,{date:'2026-09-30',factory:1})).answer,/不能判定未開始或已完成/);
+  r.work_execution=[{blockId:'one',status:'done',qtyDone:11}];
+  assert.ok(chatContext(r,{date:'2026-09-30',factory:1}).facts.some(f=>f.kind==='alert'&&f.text.includes('回報格式異常')));
+});
+
+test('純人工工作只在真正重疊時占滿容量，不誤報其他時間同時顧機',()=>{
+  const r=raw();r.employees[0].leaves=[];r.blocks[1].machine='b';r.machines[1].factory=1;
+  r.work_contents=[{id:'w',name:'整理',factory:1}];r.work_assignments=[{id:'manual',emp:'e',workId:'w',resourceId:null,date:'2026-09-30',s:600,e:660}];
+  const view={date:'2026-09-30',factory:1};
+  assert.ok(!chatContext(r,view).facts.some(f=>f.kind==='alert'&&f.text.includes('同時工作占用')));
+  r.work_assignments[0].s=530;
+  assert.ok(chatContext(r,view).facts.some(f=>f.kind==='alert'&&f.text.includes('同時工作占用')));
+  r.work_assignments[0].s=570;
+  assert.ok(!chatContext(r,view).facts.some(f=>f.kind==='alert'&&f.text.includes('同時工作占用')));
+});

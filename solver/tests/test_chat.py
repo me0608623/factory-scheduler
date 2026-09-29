@@ -47,6 +47,34 @@ def test_bounded_context_and_snapshot(demo):
     with pytest.raises(ValueError,match='容量'):build_context(raw,query())
 
 
+def test_latest_execution_scoped_and_not_full_order_completion(demo):
+    raw=demo[0].model_dump(mode='json');b=raw['blocks'][0];b['date']='2026-09-26';b['qty']=10
+    raw['blocks']=[b]
+    raw['work_execution']=[{'blockId':b['id'],'status':'done','qtyDone':8,'note':'PRIVATE-NOTE'},
+                           {'blockId':'not-visible','status':'running','qtyDone':999}]
+    before=deepcopy(raw);ctx=build_context(raw,query())
+    result=asyncio.run(respond(ChatQuery(question='目前完成進度',date='2026-09-26'),ctx))
+    assert '累計 8／預排 10' in result['answer'] and '完成回報少於預排量' in result['answer']
+    assert '不代表整張工單完工' in result['answer'] and '不是選定日期當時' in result['answer']
+    assert 'PRIVATE-NOTE' not in json.dumps(ctx) and '999' not in result['answer'] and raw==before
+    raw['work_execution']=[]
+    assert any(f['kind']=='execution' and '不能判定未開始或已完成' in f['text'] for f in build_context(raw,query())['facts'])
+    raw['work_execution']=[{'blockId':b['id'],'status':'done','qtyDone':11}]
+    assert any(f['kind']=='alert' and '回報格式異常' in f['text'] for f in build_context(raw,query())['facts'])
+
+
+def test_manual_capacity_only_conflicts_when_intervals_overlap(demo):
+    raw=demo[0].model_dump(mode='json');b=raw['blocks'][0];b.update(date='2026-09-26',start=480,end=540)
+    raw['blocks']=[b,dict(b,id='second',start=500,end=570)]
+    next(e for e in raw['employees'] if e['id']==b['employee'])['max_concurrent_machines']=2
+    raw['work_contents']=[{'id':'w','name':'整理','factory':1}]
+    raw['work_assignments']=[{'id':'manual','emp':b['employee'],'workId':'w','resourceId':None,'date':'2026-09-26','s':600,'e':660}]
+    def conflicts():return any(f['kind']=='alert' and '同時工作占用' in f['text'] for f in build_context(raw,query())['facts'])
+    assert not conflicts()
+    raw['work_assignments'][0]['s']=530;assert conflicts()
+    raw['work_assignments'][0]['s']=570;assert not conflicts()
+
+
 def test_external_model_disabled_until_explicit_approval(monkeypatch,demo):
     monkeypatch.delenv('AI_SCHEDULE_DATA_APPROVED',raising=False)
     q=query(generate=True);ctx=build_context(demo[0].model_dump(mode='json'),q)

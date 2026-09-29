@@ -2517,7 +2517,7 @@ async function start(){
   if(!UI.date)UI.date=todayStr();
   render();
   STORE.subscribe(onRemoteChange);
-  scheduleChat?.destroy();scheduleChat=installScheduleChat({snapshot:()=>toSnapshot(S,HOLI),view:()=>({date:UI.date,factory:UI.factory}),store:()=>STORE,enabled:()=>!UI.tv&&(STORE.kind==='local'||['boss','lead'].includes(STORE.role)),stamp:()=>scenarioKey(S)+'|'+UI.date+'|'+UI.factory});
+  scheduleChat?.destroy();scheduleChat=installScheduleChat({snapshot:()=>({...toSnapshot(S,HOLI),work_execution:structuredClone(S.execution||[])}),view:()=>({date:UI.date,factory:UI.factory}),store:()=>STORE,enabled:()=>!UI.tv&&(STORE.kind==='local'||['boss','lead'].includes(STORE.role)),stamp:()=>scenarioKey(S)+'|'+UI.date+'|'+UI.factory});
   SOLVER.check().then(up=>{updateSyncChip();if(up)toast("已連上 OR-Tools 排程服務");});
   setInterval(()=>{if(!drag&&!generalDrag&&!UI.modal&&!PV&&UI.view==="day"&&UI.date===todayStr())render();},60000);
 }

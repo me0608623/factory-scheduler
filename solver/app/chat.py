@@ -37,7 +37,7 @@ def hm(n):
 def build_context(raw, query):
     if len(json.dumps(raw,ensure_ascii=False)) > 3000000:
         raise ValueError('排程快照超過查詢容量，請縮小範圍')
-    if any(len(raw.get(k,[])) > cap for k,cap in [('employees',500),('machines',1000),('orders',5000),('blocks',10000),('work_assignments',10000)]):
+    if any(len(raw.get(k,[])) > cap for k,cap in [('employees',500),('machines',1000),('orders',5000),('blocks',10000),('work_assignments',10000),('work_execution',10000)]):
         raise ValueError('排程資料過大，請縮小範圍')
     snap=Snapshot(**raw)  # validate dates/references before treating data as evidence
     day=query.date.isoformat()
@@ -63,10 +63,11 @@ def build_context(raw, query):
         rows=[a for a in activities if a['emp']==e.id]
         if day in e.leaves and (scoped(e.factory) or rows):add('leave',f'{e.name}：{day} 已登記請假',e.id)
         if day in e.leaves and rows:add('alert',f'{e.name} 請假但有預排工作，需檢查',e.id)
-        events=sorted([(a['s'],1) for a in rows]+[(a['e'],-1) for a in rows]);count=peak=0
+        limit=e.max_concurrent_machines
+        events=sorted([(a['s'],1 if a['m'] else limit) for a in rows]+[(a['e'],-1 if a['m'] else -limit) for a in rows]);count=peak=0
         for _,delta in events:count+=delta;peak=max(peak,count)
-        if peak>e.max_concurrent_machines or peak>1 and any(a['m'] is None for a in rows):
-            add('alert',f'{e.name} 有同時工作占用，峰值 {peak} 段；請核對顧機上限與純人工占用',e.id)
+        if peak>limit:
+            add('alert',f'{e.name} 有同時工作占用，峰值 {peak} 容量單位（純人工占滿顧機容量）；請核對顧機上限與純人工占用',e.id)
     for m in snap.machines:
         rows=sorted([a for a in activities if a['m']==m.id],key=lambda a:a['s']);end=-1
         overlap=False
@@ -97,12 +98,27 @@ def build_context(raw, query):
         if missing:add('material',f"{o.get('code','跨廠加工')}：{'待回廠點收' if stage=='return' else '待料：加工廠未點收足量或可用量不足'}，此段尚缺 {missing} 件；不能視為可開工",a['id'])
         if o.get('status')!='active':add('material','加工單已暫停／取消，請檢查仍保留的預排',a['id'])
         if o.get('due') and day>o['due']:add('material','此段預排已晚於要求回廠期限；尚未計算運送及點收時間',a['id'])
+    reports={r['blockId']:r for r in raw.get('work_execution',[]) if isinstance(r,dict) and 'blockId' in r}
+    visible={a['id'] for a in activities}
+    for b in snap.blocks:
+        if b.id not in visible:continue
+        label=f"{orders[b.order].code} · {employees[b.employee].name if b.employee in employees else '未指定人員'}"
+        r=reports.get(b.id)
+        if not r:
+            add('execution',label+'：這段沒有現場回報；不能判定未開始或已完成',b.id);continue
+        qty=r.get('qtyDone')
+        if r.get('status') not in ('running','done') or type(qty) is not int or not 0<=qty<=b.qty:
+            add('alert',label+'：現場回報格式異常，不能確認實際進度',b.id);continue
+        short='（完成回報少於預排量）' if r['status']=='done' and qty<b.qty else ''
+        state='此段已完成' if r['status']=='done' else '進行中'
+        add('execution',f'{label}：最新回報 {state}；累計 {qty}／預排 {b.qty} 件{short}；不代表整張工單完工，也不是選定日期當時的歷史狀態',b.id)
     for a in activities:add('work',a['text'],a['id'])
     return {'date':day,'factory':query.factory,'version':snap.version,'facts':facts[:100],
             'totalFacts':len(facts),'truncated':len(facts)>100,
             'limitations':['只依選定日期及廠別的已保存資料；不含未套用方案。',
                             '預排件數不是實際完成量；不保證工單準時或合法。',
-                            '跨廠只檢查已連結工作的待料與期限；尚未完整納入輪班草稿與現場回報問答。']}
+                            '現場回報只代表選定工作最新回報，並非歷史時點或整張工單完成量。',
+                            '跨廠只檢查已連結工作的待料與期限；尚未完整納入輪班草稿與全程訂單進度。']}
 
 
 def factual_answer(question,context):
@@ -112,6 +128,7 @@ def factual_answer(question,context):
     elif any(w in question for w in ['缺料','待料','物料','點收']):kinds=['material']
     elif any(w in question for w in ['衝突','重疊','問題']):kinds=['alert','fault','deadline','material']
     elif any(w in question for w in ['交期','逾期']):kinds=['deadline','material']
+    elif any(w in question for w in ['進度','完成','開始','累計','回報']):kinds=['execution']
     if any(w in question for w in ['刪除','修改','套用','幫我排','移動']):
         return {'engine':'資料查詢（非生成式 AI）','answer':'聊天室目前唯讀，沒有修改任何排程。請使用排程表的預覽與確認功能。','citations':[]}
     matched=[f for f in context['facts'] if question.strip() in f['text']]
