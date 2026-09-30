@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { batchReadyMinute, materialFlowIssue, remainingQty, quantityForMinutes } from "../src/manual.js";
+import { batchReadyMinute, effectiveBlockQty, materialFlowIssue, remainingQty, quantityForMinutes } from "../src/manual.js";
 
 const toAbs = (date, minute) => Date.parse(date + "T00:00:00Z") / 60000 + minute;
 
@@ -16,6 +16,14 @@ test("拉伸既有方塊可把原件數納回可分配量", () => {
   assert.equal(remainingQty(100, blocks, "o", 0, "a"), 40);
   assert.equal(quantityForMinutes(20, 2, 40), 40);
   assert.equal(quantityForMinutes(10, 2, 40), 20);
+});
+
+test("完工短少回到待排量，未完工仍保留原定件數", () => {
+  const blocks = [{ id: "done", oid: "o", step: 0, qty: 60 }, { id: "future", oid: "o", step: 0, qty: 20 }];
+  const execution = [{ blockId: "done", status: "done", qtyDone: 35 }, { blockId: "future", status: "running", qtyDone: 5 }];
+  assert.equal(effectiveBlockQty(blocks[0], execution), 35);
+  assert.equal(effectiveBlockQty(blocks[1], execution), 20);
+  assert.equal(remainingQty(100, blocks, "o", 0, null, execution), 45);
 });
 
 test("前站只完成交接批量，也可先安排後站一部分", () => {
@@ -65,4 +73,14 @@ test("前站與後站同時做時依累積產量判斷，不只看開工時間",
   assert.equal(materialFlowIssue(blocks, "o", 1, toAbs), false, "後站在前站完成時恰好做完是可行的");
   blocks[1].e = 590;
   assert.equal(materialFlowIssue(blocks, "o", 1, toAbs), true);
+});
+
+test("跨站判斷使用完工實績，不把原定但未做出的件數交給後站", () => {
+  const blocks = [
+    { id: "first", oid: "o", step: 0, date: "2026-09-28", s: 480, e: 540, qty: 60 },
+    { id: "next", oid: "o", step: 1, date: "2026-09-28", s: 540, e: 570, qty: 30 },
+  ];
+  const execution = [{ blockId: "first", status: "done", qtyDone: 20 }];
+  assert.equal(batchReadyMinute(60, 30, blocks, "o", 1, toAbs, new Set(), execution), Infinity);
+  assert.equal(materialFlowIssue(blocks, "o", 1, toAbs, execution), true);
 });

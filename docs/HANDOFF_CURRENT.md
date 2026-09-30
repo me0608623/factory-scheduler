@@ -25,6 +25,7 @@ As of the 2026-09-30 takeover, the local `main` and the live `origin/main` (`ce8
 
 Then read:
 
+- `docs/FIELD_EXECUTION_2026-09-30.md`
 - `docs/QA_RELEASE_GATE_2026-09-30.md`
 - `docs/QA_COMPONENT_INVENTORY_2026-09-30.md`
 - `docs/TEST_STATUS.md`
@@ -77,6 +78,10 @@ Recorded by the replacement agent immediately after takeover. All checks were re
 - Production database changes must be minimal, reversible, and verified from both UI and Supabase.
 - Before any future schema migration, obtain a restorable database backup; the production Supabase project is on the Free plan and does not provide managed database backups.
 - Never merge or deploy solely because tests passed locally; run the release-gate checks and verify Render health after deployment.
+
+## Local field-execution changes awaiting release
+
+The current local branch contains an un-deployed field execution loop documented in `docs/FIELD_EXECUTION_2026-09-30.md`. It makes completed shortfalls re-enter the remaining quantity, forwards actual execution to OR-Tools, adds an employee current/next work ticket with three large reporting buttons, makes failed writes say `沒存到`, and adds a print-today entry. Migration `0029_execution_shortfall_replan.sql` must be included in the next database release. Do not deploy it without the backup and release-gate procedure above.
 
 ## Current Git head when this file was first written
 

@@ -184,6 +184,13 @@ class WorkAssignment(BaseModel):
         return self
 
 
+class WorkExecution(BaseModel):
+    """現場回報；完工後排程以實際良品數而非原定件數扣除。"""
+    blockId: str
+    status: Literal["running", "done"]
+    qtyDone: int = Field(default=0, ge=0)
+
+
 class Snapshot(BaseModel):
     version: int = 0
     setup_pending: bool = False
@@ -194,6 +201,7 @@ class Snapshot(BaseModel):
     orders: list[Order]
     blocks: list[Block] = Field(default_factory=list)
     work_assignments: list[WorkAssignment] = Field(default_factory=list, max_length=10000)
+    work_execution: list[WorkExecution] = Field(default_factory=list, max_length=10000)
 
     @model_validator(mode="after")
     def work_references(self):

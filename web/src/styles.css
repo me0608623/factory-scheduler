@@ -98,6 +98,7 @@ button{cursor:pointer}
 .btn svg{width:20px;height:20px;flex:none}
 .btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .btn.danger{background:var(--bad);color:#fff;border-color:var(--bad)}
+.btn.success{background:var(--ok);color:#fff;border-color:var(--ok)}
 .btn.good{background:var(--ok);color:#fff;border-color:var(--ok)}
 .btn.ghost{background:none}
 .btn[disabled]{opacity:.45;cursor:not-allowed}
@@ -134,6 +135,7 @@ body.has-app-nav .wrap{margin-left:244px}
 .order-card:hover,.order-card.selected,.output-row:hover,.output-row.selected{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
 .order-card .deadline{width:12px;align-self:stretch;min-height:52px;border-radius:8px}.deadline.green{background:var(--ok)}.deadline.yellow{background:#dc9000}.deadline.red{background:var(--bad)}.deadline.gray{background:#7c8998}
 .order-card b{font-size:18px}.order-card small{display:block;margin-top:4px;color:var(--muted);font-weight:700}.order-card strong{font-size:16px}
+.order-phase{display:inline-block;margin:6px 0 1px;padding:3px 8px;border:0;border-radius:4px;font-size:12px;font-weight:900}.order-phase.green{background:var(--ok-bg);color:var(--ok)}.order-phase.yellow{background:var(--warn-bg);color:var(--warn)}.order-phase.red{background:var(--bad-bg);color:var(--bad)}.order-phase.gray{background:var(--line2);color:var(--muted)}
 .drawer-primary{width:100%;min-height:50px;margin-top:14px;border:2px solid var(--accent);background:var(--surface);color:var(--accent);border-radius:9px;font-size:17px;font-weight:900}
 .drawer-empty{padding:18px;text-align:center;color:var(--muted);background:var(--surface2);border-radius:9px}.drawer-hint{margin-top:14px;color:var(--muted);font-size:14px;line-height:1.5}
 .absence-box{background:var(--bad-bg);border:2px solid color-mix(in srgb,var(--bad) 50%,var(--line));border-radius:10px;padding:13px;margin-bottom:12px}.absence-box b{display:block;font-size:26px}.absence-box span{color:var(--bad);font-weight:800}
@@ -520,6 +522,10 @@ body.tv .blk .d{font-size:16px}
 .load-list{display:grid;gap:12px}
 .load-row{padding:12px;border:1px solid var(--line2);border-radius:10px;min-width:0}
 .load-row-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.worker-console{display:grid;gap:12px}.worker-machine{padding:12px 14px;border:2px solid var(--ink);background:var(--surface2);font-size:18px}.worker-machine b{font-size:22px}
+.worker-ticket{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 14px;padding:16px;border:2px solid var(--line);border-left:10px solid var(--muted);background:var(--surface);box-shadow:3px 3px 0 var(--line2)}
+.worker-ticket.running{border-color:var(--ok);border-left-color:var(--ok)}.worker-ticket>span{grid-column:1/-1;color:var(--muted);font-size:14px;font-weight:900}.worker-ticket>b{font-size:23px}.worker-ticket>strong{font-size:18px;text-align:right}.worker-ticket>time{font:800 20px/1.2 var(--mono)}.worker-ticket>small{font-size:15px;font-weight:800;text-align:right}.worker-ticket>.btn{grid-column:1/-1;margin-top:8px;height:58px;font-size:20px}.worker-ticket.empty{display:flex;flex-direction:column;box-shadow:none;border-left-color:var(--line)}
+.work-report-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;width:100%}.work-report-actions .btn{height:64px;font-size:20px;font-weight:900}.work-report-actions .btn:last-child{grid-column:1/-1;height:46px;font-size:16px}
 .load-bar{height:8px;margin:8px 0;border-radius:6px;background:var(--line2);overflow:hidden}
 .load-bar span{display:block;height:100%;background:var(--accent,#5599ff)}
 /* Excel-style staff presence draft: two-axis sticky headers and keyboard buttons. */
@@ -555,3 +561,21 @@ body:has(#ov:not([hidden])) #schedule-chat{z-index:15}
 .permission-row{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line2);border-radius:10px;padding:12px;margin:8px 0;background:var(--surface2);cursor:pointer}
 .permission-row input{width:22px;height:22px;flex:0 0 auto;margin-top:2px}
 .permission-row span{display:grid;gap:3px}.permission-row small{color:var(--muted);line-height:1.35}
+
+@media(max-width:620px){
+  .worker-ticket{grid-template-columns:1fr}.worker-ticket>strong,.worker-ticket>small{text-align:left}.worker-ticket>b{font-size:21px}
+  .work-report-actions{grid-template-columns:1fr}.work-report-actions .btn:last-child{grid-column:auto}
+}
+
+@media print{
+  @page{size:landscape;margin:8mm}
+  html,body{background:#fff!important;color:#000!important;font-size:10pt!important}
+  .app-nav,.top,.banner,.summary,.ops-drawer,.overlay,#schedule-chat,.toast,.board-h .btn,.board-h .legend,.reference-panel{display:none!important}
+  body.has-app-nav .wrap,.wrap{margin:0!important;padding:0!important;max-width:none!important}
+  main.wrap>section:not(.board){display:none!important}
+  .board{display:block!important;border:1px solid #444!important;box-shadow:none!important;break-inside:avoid}
+  .board-h{display:flex!important;color:#000!important;background:#fff!important}
+  .scroller{overflow:visible!important;max-height:none!important}
+  .grid{min-width:100%!important;transform:none!important;color:#000!important}
+  .blk{print-color-adjust:exact;-webkit-print-color-adjust:exact}
+}

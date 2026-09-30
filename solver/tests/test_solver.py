@@ -13,7 +13,7 @@ from app import plans as plan_api
 from app.main import app
 from app.model import PRESETS, Result, Weights, configured_workers, full_capacity_spans, solve
 from app.plans import make_plans
-from app.schemas import Block, Calendar, Employee, Event, Fault, Machine, Now, Order, PlanRequest, Product, Snapshot, Step, WindowDef
+from app.schemas import Block, Calendar, Employee, Event, Fault, Machine, Now, Order, PlanRequest, Product, Snapshot, Step, WindowDef, WorkExecution
 from app.timeline import Timeline, abs_min
 from app.validate import check
 
@@ -653,6 +653,27 @@ def test_pinned_block_stays(demo):
     r = solve(snap, now, PRESETS["on_time"], time_limit=3)
     assert any(x.id == b.id and x.start == b.start and x.date == b.date for x in r.blocks)
     assert check(snap, r.blocks, now) == []
+
+
+def test_completed_shortfall_is_kept_as_history_and_replanned():
+    day = "2026-09-28"
+    original = Block(id="reported", order="o", step=0, machine="m", employee="e",
+                     date=day, start=480, end=540, qty=60, pinned=True)
+    snap = Snapshot(
+        calendar=Calendar(week=[False, True, True, True, True, True, False]),
+        machines=[Machine(id="m", process="cut", products=["p"])],
+        employees=[Employee(id="e", name="Worker", skills=["m"])],
+        products=[Product(id="p", name="Part", steps=[Step(process="cut", rate=1)])],
+        orders=[Order(id="o", code="O", product="p", qty=60, due="2026-09-30")],
+        blocks=[original],
+        work_execution=[WorkExecution(blockId="reported", status="done", qtyDone=35)],
+    )
+    now = Now(date=day, min=540)
+    result = solve(snap, now, PRESETS["on_time"], time_limit=2)
+    assert result.status in ("OPTIMAL", "FEASIBLE")
+    assert any(b.id == "reported" and b.qty == 60 for b in result.blocks)
+    assert sum(b.qty for b in result.blocks if b.id != "reported") == 25
+    assert check(snap, result.blocks, now) == []
 
 
 def test_fault_cuts_pinned_block_at_integer_capacity_and_warns():

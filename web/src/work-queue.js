@@ -1,4 +1,5 @@
 import { factoryOf, inFactory, compatible } from './factory.js';
+import { effectiveBlockQty } from './manual.js';
 
 // Diagnostics are necessary conditions, not a proof that a complete schedule is feasible.
 export function workQueue(S, today, factory='all') {
@@ -13,7 +14,7 @@ export function workQueue(S, today, factory='all') {
     p.steps.forEach((st,step)=>{
       if(!inFactory(st,factory))return;
       const blocks=S.blocks.filter(b=>b.oid===o.id&&b.step===step);
-      const planned=blocks.reduce((n,b)=>n+b.qty,0), remaining=Math.max(0,o.qty-planned);
+      const planned=blocks.reduce((n,b)=>n+effectiveBlockQty(b,S.execution||[]),0), remaining=Math.max(0,o.qty-planned);
       const shortfall=blocks.reduce((n,b)=>{
         const r=(S.execution||[]).find(r=>r.blockId===b.id&&r.status==='done');
         return n+(r?Math.max(0,b.qty-r.qtyDone):0);
@@ -33,7 +34,7 @@ export function workQueue(S, today, factory='all') {
         if(previous<Math.min(o.qty,st.batch>0?st.batch:o.qty))reasons.push('前站尚未排足交接批量');
       }
       if(planned>o.qty)reasons.push('已排數量超過工單，需要核對');
-      if(shortfall)reasons.push(`已完成回報較原定少 ${shortfall} 件，待主管處理；不自動補排或更改產能`);
+      if(shortfall)reasons.push(`已完成回報較原定少 ${shortfall} 件，已回到待排量；重新排程會補足，原定產能不變`);
       const canArrange=remaining>0&&!S.setupPending&&confirmed.length>0&&Number.isFinite(st.rate)&&st.rate>0;
       if(!reasons.length)reasons.push('已有合格人機；仍須檢查空檔、物料與交期，不代表一定排得進去');
       rows.push({oid:o.id,code:o.code,step,proc:st.proc,factory:factoryOf(st),due:o.due,priority:o.pri,

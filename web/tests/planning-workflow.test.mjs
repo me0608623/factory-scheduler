@@ -6,6 +6,7 @@ import { transitionExecution,assertExecutionProtected } from '../src/execution.j
 import { makeDb,FakeSupabase } from './fake-supabase.mjs';
 import { SupabaseStore } from '../src/store/supabase.js';
 import { LocalStore } from '../src/store/local.js';
+import { toSnapshot } from '../src/convert.js';
 
 const day='2025-01-02';
 function state() {return {version:0,cal:{week:[false,true,true,true,true,true,true],over:{}},dayOT:{},
@@ -18,7 +19,8 @@ test('未排量、缺人機、待確認與實際短少分開診斷，不暗示�
   const S=state();let q=workQueue(S,'2025-01-03');assert.equal(q[0].remaining,40);assert.equal(q[0].canArrange,true);assert.equal(q[0].overdue,true);
   S.employees[0].skills=[];assert.match(workQueue(S,day)[0].reasons.join(),/操作技能/);
   S.setupPending=true;assert.equal(workQueue(S,day)[0].canArrange,false);
-  S.execution=[{blockId:'b',status:'done',qtyDone:20}];assert.equal(workQueue(S,day)[0].shortfall,40);
+  S.setupPending=false;S.employees[0].skills=['a'];S.execution=[{blockId:'b',status:'done',qtyDone:20}];q=workQueue(S,day)[0];assert.equal(q.shortfall,40);assert.equal(q.planned,20);assert.equal(q.remaining,80);assert.equal(q.canArrange,true);
+  assert.deepEqual(toSnapshot(S).work_execution,[{blockId:'b',status:'done',qtyDone:20}]);
   S.products=[];assert.match(workQueue(S,day)[0].reasons.join(),/缺少產品/);
 });
 test('分廠與前站批量诊斷不憑空推算空檔',()=>{
@@ -100,6 +102,13 @@ test('雲端：情境隔離權限、回報冪等與交易保護',async()=>{
     await assert.rejects(db.query('delete from schedule_blocks where id=$1',[block]),/已有現場回報/);
     await W.reportExecution({...change,id:crypto.randomUUID(),action:'finish',qtyDone:40,expectedRevision:2});
     live=await B.load();assert.equal(live.version,3);assert.equal(live.execution[0].qtyDone,40);assert.equal(live.execution[0].status,'done');
+    const supplement=crypto.randomUUID(),plan=[
+      {id:block,order_id:order,step_seq:0,start_min:480,end_min:540,qty:60},
+      {id:supplement,order_id:order,step_seq:0,start_min:540,end_min:620,qty:80},
+    ];
+    await db.query('select _assert_manual_quantity($1::jsonb,$2::uuid[])',[JSON.stringify(plan),[order]]);
+    plan[1].qty=81;
+    await assert.rejects(db.query('select _assert_manual_quantity($1::jsonb,$2::uuid[])',[JSON.stringify(plan),[order]]),/超過工單件數/);
     assert.equal((await db.query('select count(*)::int n from work_execution_events')).rows[0].n,3);
     const direct=await W.sb.from('progress_reports').insert({employee_id:employee,qty_done:999});assert.ok(direct.error);
   }finally{await db.close();}

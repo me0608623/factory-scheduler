@@ -3,7 +3,7 @@ const canonical=v=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Obje
 export function scenarioKey(S) {
   const snap=toSnapshot(S,S.holidays||{});
   // Array ordering is irrelevant for catalogs, but operation order is significant.
-  for(const k of ['employees','machines','products','orders','blocks','staff_groups','staff_group_members','work_contents','work_assignments','work_reference_orders','transfer_orders','staff_rosters'])
+  for(const k of ['employees','machines','products','orders','blocks','work_execution','staff_groups','staff_group_members','work_contents','work_assignments','work_reference_orders','transfer_orders','staff_rosters'])
     snap[k].sort((a,b)=>JSON.stringify(canonical(a)).localeCompare(JSON.stringify(canonical(b))));
   const execution=[...(S.execution||[])].sort((a,b)=>a.blockId.localeCompare(b.blockId));
   return JSON.stringify(canonical({...snap,execution}));

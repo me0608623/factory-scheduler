@@ -5,7 +5,7 @@ import { toSnapshot, applyOption, newId } from "./convert.js";
 import { ALL_WEEKDAYS, overtimeAllowed, overtimeDefault, overtimeWeekdays } from "./overtime.js";
 import { capacityIntervals as occupiedCapacityIntervals } from "./capacity.js";
 import { FACTORIES, factoryOf, factoryPreference, factoryName, inFactory, orderRoute, orderInFactory, compatible } from "./factory.js";
-import { batchReadyMinute, materialFlowIssue, remainingQty, quantityForMinutes } from "./manual.js";
+import { batchReadyMinute, effectiveBlockQty, materialFlowIssue, remainingQty, quantityForMinutes } from "./manual.js";
 import { acceptManualPreview, placementConflicts } from "./manual-apply.js";
 import { employeeGroups, groupedEmployees, memberStatus } from "./groups.js";
 import { resourceLoad } from "./resource-load.js";
@@ -19,7 +19,7 @@ import {transferUI} from './transfer-ui.js';
 import {rosterUI} from './roster-ui.js';
 import {installScheduleChat} from './chat-ui.js';
 import {PERMISSIONS,effectivePermission} from './permissions.js';
-import {orderCounters,productionSummary,leaveState,visibleMemos} from './overview.js';
+import {orderCounters,productionSummary,leaveState,visibleMemos,workerTimeline} from './overview.js';
 import {DEFAULT_PREFERENCES,applyPreferences,loadPreferences,notificationEnabled,patchPreference,savePreferences} from './settings.js';
 /* ===== 1. 常數與工具 ===== */
 const COLORS=["#FFE14D","#4CDB6E","#F58CF0","#4FE3EE","#FFA64D","#AFC0FF","#FF9A9A","#BFEA6C"];
@@ -205,13 +205,13 @@ function pairsFor(pid,k){
 function durOf(qty,rate){return Math.max(10,Math.ceil(qty/rate/10)*10);}
 function manualQty(oid,step,minutes,exceptId=null){
   const o=order(oid),p=o&&prod(o.pid),st=p&&p.steps[step];
-  return o&&st?quantityForMinutes(minutes,st.rate,remainingQty(o.qty,S.blocks,oid,step,exceptId)):0;
+  return o&&st?quantityForMinutes(minutes,st.rate,remainingQty(o.qty,S.blocks,oid,step,exceptId,S.execution||[])):0;
 }
 // 前站做到可以開始本站的時間（標準工序：前站完成 batch 件才能開始）
 function readyAbs(oid,k,ex=new Set()){
   if(k===0)return 0;
   const o=order(oid),st=prod(o.pid).steps[k];
-  return batchReadyMinute(o.qty,st.batch,S.blocks,oid,k,absOf,ex);
+  return batchReadyMinute(o.qty,st.batch,S.blocks,oid,k,absOf,ex,S.execution||[]);
 }
 function prevEndAbs(oid,k){
   if(k===0)return 0;
@@ -254,7 +254,7 @@ function autoPlan(fromAbs,seq){
   for(const o of list){
     const p=prod(o.pid);
     for(let k=0;k<p.steps.length;k++){
-      const rem=o.qty-sum(S.blocks.filter(b=>b.oid===o.id&&b.step===k),b=>b.qty);
+      const rem=o.qty-sum(S.blocks.filter(b=>b.oid===o.id&&b.step===k),b=>effectiveBlockQty(b,S.execution||[]));
       if(rem<=0)continue;
       const from=Math.max(fromAbs,readyAbs(o.id,k));
       if(!isFinite(from)){fails.push(o.code+" "+p.steps[k].proc+"：前站沒排好");break;}
@@ -270,7 +270,7 @@ function planOrder(oid,fromAbs){
   S.blocks=S.blocks.filter(b=>b.oid!==oid||b.pin||bAbs(b)<fromAbs);
   const o=order(oid),p=prod(o.pid),fails=[];
   for(let k=0;k<p.steps.length;k++){
-    const rem=o.qty-sum(S.blocks.filter(b=>b.oid===oid&&b.step===k),b=>b.qty);if(rem<=0)continue;
+    const rem=o.qty-sum(S.blocks.filter(b=>b.oid===oid&&b.step===k),b=>effectiveBlockQty(b,S.execution||[]));if(rem<=0)continue;
     const from=Math.max(fromAbs,readyAbs(oid,k));
     const nb=isFinite(from)?placeJob(oid,k,rem,from):null;
     if(!nb){fails.push(o.code+" "+p.steps[k].proc+"：排不進去");break;}
@@ -371,7 +371,7 @@ function insertOrder(oid){
   S.blocks=S.blocks.filter(b=>b.oid!==oid||b.pin||bAbs(b)<now);
   const movable=new Set(S.blocks.filter(b=>b.oid!==oid&&!b.pin&&bAbs(b)>=now&&outranks(o,order(b.oid))).map(b=>b.id));
   for(let k=0;k<p.steps.length;k++){
-    const rem=o.qty-sum(S.blocks.filter(b=>b.oid===oid&&b.step===k),b=>b.qty);if(rem<=0)continue;
+    const rem=o.qty-sum(S.blocks.filter(b=>b.oid===oid&&b.step===k),b=>effectiveBlockQty(b,S.execution||[]));if(rem<=0)continue;
     const from=Math.max(now,readyAbs(oid,k));
     const nb=isFinite(from)?placeJob(oid,k,rem,from,{ex:movable}):null;
     if(!nb){lines.push({k:"fail",t:o.code+" "+p.steps[k].proc+"：排不進去"});break;}
@@ -564,7 +564,7 @@ function orderStatus(o){
   const bl=S.blocks.filter(b=>b.oid===o.id);
   if(!bl.length)return {k:"none"};
   const lb=bl.filter(b=>b.step===last);
-  if(sum(lb,b=>b.qty)<o.qty)return {k:"part"};
+  if(sum(lb,b=>effectiveBlockQty(b,S.execution||[]))<o.qty)return {k:"part"};
   const fin=Math.max(...lb.map(bEnd)),fd=dateOfAbs(fin);
   const done=sum(lb,b=>{const r=executionOf(S,b.id);return r?.status==='done'?r.qtyDone:0;})>=o.qty;
   return {k:done?"done":fd>o.due?"late":fin<=nowAbs()?"elapsed":"ok",fin,fd};
@@ -597,7 +597,7 @@ function issuesOf(b,opt={}){
   if(E&&capacityIntervals(b.date,E,new Set([b.id])).some(([s,e])=>s<b.e&&e>b.s))
     out.push(E.name+" 同時顧機台超過上限 "+(E.maxMachines||1)+" 台");
   if(b.step>0){const r=readyAbs(b.oid,b.step);if(bAbs(b)<r)out.push("前站還沒完成交接批量（"+(isFinite(r)?mdw(dateOfAbs(r))+" "+hm(r%1440)+" 後才能做":"前站未排")+"）");
-    if(materialFlowIssue(S.blocks,b.oid,b.step,absOf))out.push("前站累積產量不足，後站不能先做完這些件數");}
+    if(materialFlowIssue(S.blocks,b.oid,b.step,absOf,S.execution||[]))out.push("前站累積產量不足，後站不能先做完這些件數");}
   return out;
 }
 /* ===== 6. 畫面 ===== */
@@ -731,8 +731,10 @@ function ordersDrawerHTML(){
   const summary=orderCounters([...shownOrders()].sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')||a.pri-b.pri),orderStatus,todayStr());
   const rows=summary.rows.map(({order:o,status,signal})=>{
     const p=prod(o.pid),selected=UI.focus?.type==='order'&&UI.focus.id===o.id;
-    const detail=signal==='gray'?'資料不足，暫不自動判斷':status.k==='done'?'已回報完成':status.k==='part'?'尚未排完':status.k==='late'?'預計逾期':status.k==='elapsed'?'排定時間已過，待回報':'照目前排程可完成';
-    return '<button class="order-card'+(selected?' selected':'')+'" data-act="focus-order" data-id="'+esc(o.id)+'"><i class="deadline '+signal+'"></i><span><b>'+esc(o.code)+'　'+esc(p?.name||'未設定產品')+' '+o.qty+'件</b><small>'+esc(detail)+'</small></span><strong>'+esc(o.due?md(o.due):'—')+'</strong></button>';
+    const reports=(S.execution||[]).filter(r=>S.blocks.some(b=>b.oid===o.id&&b.id===r.blockId));
+    const phase=status.k==='done'?'已完成':reports.some(r=>r.status==='running')?'進行中':reports.length?'已有回報':'未做';
+    const detail=signal==='gray'?'資料不足，暫不自動判斷':status.k==='done'?'實際件數已達工單量':status.k==='part'?'有未排或完工短少':status.k==='late'?'預計逾期':status.k==='elapsed'?'排定時間已過，待回報':'照目前排程可完成';
+    return '<button class="order-card'+(selected?' selected':'')+'" data-act="focus-order" data-id="'+esc(o.id)+'"><i class="deadline '+signal+'"></i><span><b>'+esc(o.code)+'　'+esc(p?.name||'未設定產品')+' '+o.qty+'件</b><mark class="order-phase '+signal+'">'+phase+'</mark><small>'+esc(detail)+'</small></span><strong>'+esc(o.due?md(o.due):'—')+'</strong></button>';
   }).join('');
   return '<div class="drawer-metrics"><div><b>'+summary.unfinished+'</b><span>未完成</span></div><div class="bad"><b>'+summary.late+'</b><span>會晚</span></div><div class="warn"><b>'+summary.dueToday+'</b><span>今日要交</span></div></div>'+
     '<div class="traffic-legend"><span><i class="green"></i>準時</span><span><i class="yellow"></i>注意</span><span><i class="red"></i>會晚</span><span><i class="gray"></i>資料不足</span></div>'+
@@ -1047,7 +1049,7 @@ function dragPreview(b,m,s,options={}){
   }));
   const end=options.end??s+(b.e-b.s);
   const direct=before.blocks.filter(x=>x.id!==b.id&&x.m===m&&x.date===b.date&&x.s<end&&x.e>s);
-  const remaining=o?remainingQty(o.qty,after.blocks,b.oid,b.step):0;
+  const remaining=o?remainingQty(o.qty,after.blocks,b.oid,b.step,null,after.execution||[]):0;
   return {base,after,lines,unpinned,problems:[...new Set(problems)],ops,statuses,direct,oldId:b.id,isNew,remaining,
     move:target&&{id:target.id,date:target.date,m:target.m,s:target.s,e:target.e},
     source:old?old.m+" "+mdw(old.date)+" "+hm(old.s)+"–"+hm(old.e):"未排入",
@@ -1366,7 +1368,7 @@ const MODALS={
 "manual-add"(m){
   const choices=S.orders.flatMap(o=>{
     const p=prod(o.pid);if(!p)return [];
-    return p.steps.map((st,step)=>({o,p,st,step,remaining:remainingQty(o.qty,S.blocks,o.id,step)}))
+    return p.steps.map((st,step)=>({o,p,st,step,remaining:remainingQty(o.qty,S.blocks,o.id,step,null,S.execution||[])}))
       .filter(x=>x.remaining>0&&(UI.factory==="all"||factoryOf(x.st)===UI.factory));
   });
   if(!choices.length)return {title:"手動排班",body:'<div class="hint">目前沒有可新增的工作：此廠工序已排滿，或尚未建立工單。可先新增工單，再回來安排人員與時段。</div>',
@@ -1593,6 +1595,7 @@ auto(){
 export(){
   return {title:"Excel 匯出／匯入",body:
    '<button class="btn primary" data-act="x-xlsx" style="height:60px;justify-content:flex-start">'+IC.down+'下載 '+mdw(UI.date)+' 彩色排程 Excel（.xlsx）</button>'+
+   '<button class="btn" data-act="x-print-day" style="height:60px;justify-content:flex-start">列印 '+mdw(UI.date)+' 現場班表</button>'+
    '<button class="btn" data-act="x-template" style="height:60px;justify-content:flex-start">'+IC.down+'下載批次匯入範本（.xlsx）</button>'+
    (canArchive()?'<button class="btn" data-act="x-import" style="height:60px;justify-content:flex-start">選擇 Excel 檔案，檢查並預覽</button><input id="xlsx-import" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>':'')+
    '<div class="hint">舊版排程可獨立存為歷史資料，按日期查看 1 廠、2 廠，不改目前排程。批次匯入範本會取代基本資料，只有老闆能確認。</div>'+
@@ -2263,6 +2266,7 @@ Object.assign(MODAL_ACT,{
   "auto-run":()=>runAuto(),
   "m-undo":()=>{undo();closeModal();},
   "x-copy-day":()=>copyText(dayTSV()),
+  "x-print-day":()=>{closeModal();requestAnimationFrame(()=>window.print());},
   "x-copy-all":()=>copyText(allRows().map(r=>r.join("\t")).join("\n")),
   "x-dl":()=>downloadCSV(),
   "x-xlsx":async()=>{
@@ -2416,7 +2420,7 @@ function queueSync(entry){
       SYNC.state="error";SYNC.msg=e.message;
       if(e.conflict){toast("別人剛更新過排程，已載入最新版本，請再做一次你的調整");await reloadFromStore();SYNC.state="ok";}
       else if(e.permission){toast(e.message+"，已還原");await reloadFromStore();SYNC.state="ok";}
-      else toast("同步失敗："+e.message,"重試",()=>queueSync(null));
+      else toast("沒存到："+e.message,"重試",()=>queueSync(null));
       return false;
     }
     finally{syncPending--;if(syncPending>0)SYNC.state="busy";updateSyncChip();}
@@ -2645,14 +2649,20 @@ const reportStatus=r=>!r?'尚未開始':r.status==='done'?'已回報完成':'進
 MODALS.execution=()=>{
   const worker=reportingRole()==='worker';
   const blocks=S.blocks.filter(b=>b.date===UI.date&&inFactory(mach(b.m),UI.factory)&&(!worker||b.emp===STORE.employeeId)).sort((a,b)=>a.s-b.s);
-  return {title:'現場回報 · '+mdw(UI.date),body:
-    '<div class="hint">開始、更新累計件數、完成都另外保存實際事實。開始後鎖定此段排程。完成可低於原定件數，差異列入待處理清單；不會自動補排、改原定數量或推定新產能。</div>'+
-    (worker&&!STORE.employeeId?'<div class="issue">帳號尚未綁定員工，請由管理員綁定後使用。</div>':'')+
-    (S.setupPending?'<div class="issue">來源名冊與工時待確認，不能回報。</div>':'')+
-    blocks.map(b=>{const r=executionOf(S,b.id);return '<article class="load-row"><b>'+esc((order(b.oid)?.code||'?')+' · '+stepName(b))+'</b>'+
+  const ticket=(b,caption)=>{if(!b)return '<article class="worker-ticket empty"><span>'+caption+'</span><b>沒有排定工作</b></article>';
+    const r=executionOf(S,b.id);return '<article class="worker-ticket '+(r?.status==='running'?'running':'')+'"><span>'+caption+'</span><b>'+esc(order(b.oid)?.code||'?')+' · '+esc(stepName(b))+'</b><strong>'+esc(mach(b.m)?.label||b.m)+'</strong><time>'+hm(b.s)+'–'+hm(b.e)+'</time><small>'+reportStatus(r)+' · 計畫 '+b.qty+' 件</small>'+
+      (canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending?'<button class="btn primary" data-act="report-open" data-id="'+esc(b.id)+'">'+(r?.status==='running'?'繼續回報':'查看工作')+'</button>':'')+'</article>';};
+  const line=worker?workerTimeline(S,STORE.employeeId,UI.date,UI.date===todayStr()?nowMin():DAY0):null;
+  const workerBody=worker?'<section class="worker-console"><div class="worker-machine">我的設備　<b>'+esc(line?.machineId?(mach(line.machineId)?.label||line.machineId):'尚未指定')+'</b></div>'+ticket(line?.current,'現在')+ticket(line?.next,'下一件')+'</section>':'';
+  const managerBody=!worker?blocks.map(b=>{const r=executionOf(S,b.id);return '<article class="load-row"><b>'+esc((order(b.oid)?.code||'?')+' · '+stepName(b))+'</b>'+
       '<div class="hint">'+esc(emp(b.emp)?.name||'未指定')+' · '+esc(mach(b.m)?.label||b.m)+' · 原定 '+hm(b.s)+'–'+hm(b.e)+' · '+b.qty+' 件</div>'+
       '<div class="hint">'+reportStatus(r)+(r?' · 累計 '+r.qtyDone+' 件 · 差異 '+(r.qtyDone-b.qty)+' 件':'')+'</div>'+
-      (canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending?'<button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">查看／回報進度</button>':'')+'</article>';}).join('')+
+      (canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending?'<button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">查看／回報進度</button>':'')+'</article>';}).join(''):'';
+  return {title:'現場回報 · '+mdw(UI.date),body:
+    '<div class="hint">開始、做了幾件、完工都另外保存實際事實。完工少做的件數會回到未排工作，下一次重排會補足；不會悄悄改掉原定產能。</div>'+
+    (worker&&!STORE.employeeId?'<div class="issue">帳號尚未綁定員工，請由管理員綁定後使用。</div>':'')+
+    (S.setupPending?'<div class="issue">來源名冊與工時待確認，不能回報。</div>':'')+
+    workerBody+managerBody+
     (!blocks.length?'<div class="hint">這個日期與範圍沒有可回報的排班；待確認的原表文字不是正式工作方塊。</div>':''),
     foot:'<button class="btn" data-act="close">關閉</button>'};
 };
@@ -2665,10 +2675,11 @@ MODALS['execution-report']=m=>{
     '<div class="hint">'+(r?'已鎖定排程，不可拖曳、改量、解除固定或刪除。':'按開始後會鎖定此段工作。')+' 件數填累計，不是這次增加量；完成會記錄實際時間，不用原定結束時間代替。</div>'+
     (r&&r.status!=='done'?'<div class="field"><label for="execution-qty">累計已做件數</label><input class="inp" id="execution-qty" type="number" min="'+r.qtyDone+'" max="'+b.qty+'" step="1" value="'+r.qtyDone+'"></div>':'')+
     (r?.status==='done'?'<div class="hint">已完成 '+r.qtyDone+' 件；相對原定差異 '+(r.qtyDone-b.qty)+' 件。此版不提供修改已完成回報。</div>':''),
-    foot:'<button class="btn" data-act="close">關閉</button>'+(allowed&&r?.status!=='done'?
-      (m.pendingRequest?'<button class="btn primary" data-act="report-work" data-v="retry">重試上一筆回報</button>':
-        !r?'<button class="btn primary" data-act="report-work" data-v="start">開始工作</button>':
-        '<button class="btn" data-act="report-work" data-v="quantity">更新累計件數</button><button class="btn primary" data-act="report-work" data-v="finish">確認完成並記錄件數</button>'):'')};
+    foot:'<div class="work-report-actions">'+(allowed&&r?.status!=='done'?
+      (m.pendingRequest?'<button class="btn danger" data-act="report-work" data-v="retry">重試上一筆回報</button>':
+        '<button class="btn primary" data-act="report-work" data-v="start" '+(r?'disabled':'')+'>開工</button>'+
+        '<button class="btn" data-act="report-work" data-v="quantity" '+(!r?'disabled':'')+'>做了幾件</button>'+
+        '<button class="btn success" data-act="report-work" data-v="finish" '+(!r?'disabled':'')+'>完工</button>'):'')+'<button class="btn" data-act="close">關閉</button></div>'};
 };
 async function reportWork(button){
   const m=UI.modal;if(m?.t!=='execution-report'||m.busy||PV)return;
@@ -2679,7 +2690,12 @@ async function reportWork(button){
   m.pendingRequest ||= {id:uid(),blockId:b.id,action,qtyDone:qty,expectedRevision:r?.revision||0};
   m.busy=true;button.disabled=true;
   try{await syncChain;await STORE.reportExecution(m.pendingRequest);await reloadFromStore();m.pendingRequest=null;undoStack=[];toast('進度已保存');}
-  catch(e){toast(e.message);if(e.rejected)m.pendingRequest=null;if(e.conflict){m.pendingRequest=null;await reloadFromStore();}}
+  catch(e){
+    const confirmed=e.rejected||e.conflict;
+    toast(confirmed?e.message:'沒存到：網路或伺服器沒有確認這筆回報，請按「重試上一筆回報」');
+    if(e.rejected)m.pendingRequest=null;
+    if(e.conflict){m.pendingRequest=null;await reloadFromStore();}
+  }
   finally{m.busy=false;if(UI.modal===m)renderModal();}
 }
 
@@ -2852,4 +2868,3 @@ export async function boot(store,authLinkType=""){
   if(STORE.kind==="supabase"&&STORE.session&&["invite","recovery"].includes(authLinkType))
     openModal({t:"password"});
 }
-

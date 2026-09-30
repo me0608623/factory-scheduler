@@ -124,9 +124,12 @@ def check(snap: Snapshot, blocks: list[Block], now: Now | None = None,
                 break
 
     # 數量、工序順序
+    reported_done = {r.blockId: r.qtyDone for r in snap.work_execution if r.status == "done"}
     by = defaultdict(list)
     for b in blocks:
-        by[(b.order, b.step)].append(b)
+        # 原方塊保留原定件數供計畫／實績比較；完工後的物料與完工量以回報為準。
+        effective = reported_done.get(b.id, b.qty)
+        by[(b.order, b.step)].append(b if effective == b.qty else b.model_copy(update={"qty": effective}))
     for o in snap.orders:
         p = prods.get(o.product)
         if not p:

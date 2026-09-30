@@ -183,9 +183,13 @@ def solve(
                 fixed.append(b.model_copy(update={"end": cut, "qty": q}))
 
     # ---------- 2. 要排的工作：每站剩下的數量 ----------
+    block_qty = {b.id: b.qty for b in snap.blocks if b.id is not None}
+    # 資料庫會拒絕超量；求解器仍採有界防護，未知或異常回報不能讓剩餘量變成負數。
+    reported_done = {r.blockId: min(r.qtyDone, block_qty[r.blockId]) for r in snap.work_execution
+                     if r.status == "done" and r.blockId in block_qty}
     done = {}
     for b in fixed:
-        done[(b.order, b.step)] = done.get((b.order, b.step), 0) + b.qty
+        done[(b.order, b.step)] = done.get((b.order, b.step), 0) + reported_done.get(b.id, b.qty)
     ref_blocks = reference if reference is not None else [b for b in snap.blocks if b not in fixed]
     refs: dict[tuple[str, int], list[Block]] = {}
     for b in ref_blocks:

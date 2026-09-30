@@ -52,3 +52,15 @@ export function visibleMemos(state,factoryOf,selectedFactory){
     return true;
   }).sort((a,b)=>Number(!!b.pinned)-Number(!!a.pinned)||String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
 }
+
+// 員工手機只呈現同一台設備的「現在」與「下一件」，避免被整張班表淹沒。
+export function workerTimeline({blocks=[],execution=[]},employeeId,date,minute){
+  const reports=new Map(execution.map(x=>[x.blockId,x]));
+  const jobs=blocks.filter(x=>x.emp===employeeId&&x.date===date&&reports.get(x.id)?.status!=='done')
+    .sort((a,b)=>a.s-b.s||a.e-b.e||String(a.id).localeCompare(String(b.id)));
+  const current=jobs.find(x=>reports.get(x.id)?.status==='running')||jobs.find(x=>x.s<=minute&&minute<x.e)||null;
+  const anchor=current||jobs.find(x=>x.s>=minute)||null;
+  const machineId=anchor?.m||null;
+  const next=anchor?(current?jobs.find(x=>x.m===machineId&&x.s>=current.e&&x.id!==current.id):anchor)||null:null;
+  return {current,next,machineId};
+}
