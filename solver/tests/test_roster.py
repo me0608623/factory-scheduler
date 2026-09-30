@@ -90,8 +90,8 @@ def test_database_endpoint_uses_authoritative_leave_and_date_range(monkeypatch, 
     calls=[]
     class Fake:
         configured=True
-        async def role(self,jwt):
-            assert jwt=='test-token';return 'lead'
+        async def permission(self,jwt,key):
+            assert jwt=='test-token' and key=='rosters.manage';return True
         async def snapshot(self,jwt,**bounds):
             calls.append(bounds);return deepcopy(raw)
     monkeypatch.setattr(api,'supa',Fake())
@@ -106,7 +106,7 @@ def test_database_endpoint_denies_viewer_before_snapshot(monkeypatch):
     import app.main as api
     class Fake:
         configured=True
-        async def role(self,jwt):return 'viewer'
+        async def permission(self,jwt,key):return False
         async def snapshot(self,*args,**kwargs):raise AssertionError('must not read after denial')
     monkeypatch.setattr(api,'supa',Fake())
     client=TestClient(app)

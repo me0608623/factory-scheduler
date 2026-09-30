@@ -39,6 +39,34 @@ test("登入：密碼錯誤、角色", async () => {
   assert.equal((await store("tv@x")).role, "viewer");
 });
 
+test("老闆可把既有唯讀帳號逐項授權，不需更改職位", async () => {
+  const { store } = await setup();
+  const boss = await store("boss@x");
+  const lead = await store("lead@x");
+  const viewer = await store("tv@x");
+  assert.equal(lead.can("schedule.manage"), true);
+  assert.equal(lead.can("master.manage"), false);
+  assert.equal(viewer.can("orders.manage"), false);
+  const permissions = Object.fromEntries([
+    "schedule.manage","incidents.manage","orders.manage","calendar.manage","master.manage","groups.manage",
+    "work_contents.manage","transfers.manage","rosters.manage","scenarios.manage","execution.manage","archives.manage"
+  ].map(key=>[key,key==="orders.manage"]));
+  await boss.setAccessPermissions(TV,permissions);
+  const accounts = await boss.listAccessAccounts();
+  const delegated = accounts.find(x=>x.userId===TV);
+  assert.equal(delegated.role,"viewer");
+  assert.equal(delegated.customized,true);
+  assert.equal(delegated.permissions["orders.manage"],true);
+  assert.equal(delegated.permissions["schedule.manage"],false);
+  await viewer._profile();
+  assert.equal(viewer.role,"viewer");
+  assert.equal(viewer.can("orders.manage"),true);
+  assert.equal(viewer.can("schedule.manage"),false);
+  await assert.rejects(viewer.setAccessPermissions(LEAD,permissions),/只有老闆/);
+  await boss.setAccessPermissions(TV,{});
+  assert.equal((await boss.listAccessAccounts()).find(x=>x.userId===TV).customized,false);
+});
+
 test("受邀帳號可設定密碼，忘記密碼信導向指定網址", async () => {
   const { db } = await setup();
   const sb = new FakeSupabase(db, structuredClone(USERS));

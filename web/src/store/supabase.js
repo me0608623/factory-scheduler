@@ -7,6 +7,7 @@ import { assertExecutionProtected } from '../execution.js';
 import { generalKey,validateGeneralWork,assignmentToDb } from '../general-work.js';
 import { transferKey,validateTransfers } from '../transfers.js';
 import { rosterKey,validateRosters } from '../roster.js';
+import { effectivePermission } from '../permissions.js';
 
 // 畫面的紀錄種類 ↔ 資料庫 change_sets.kind
 const KIND_TO_DB = { ot: "edit", save: "edit", move: "move", edit: "edit", auto: "auto", fault: "fault", leave: "leave", order: "order", recover: "recover" };
@@ -43,6 +44,7 @@ export class SupabaseStore {
     this.baseBlocks = "";
     this.version = 0;
     this.role = null;
+    this.permissions = {};
     this.userName = "";
     this.session = null;
   }
@@ -83,7 +85,7 @@ export class SupabaseStore {
   }
 
   _clearSession() {
-    this.session=null;this.role=null;this.userName='';this.employeeId=null;
+    this.session=null;this.role=null;this.permissions={};this.userName='';this.employeeId=null;
   }
 
   _watchAuthSession() {
@@ -103,6 +105,22 @@ export class SupabaseStore {
     this.role = data?.role || null;
     this.employeeId = data?.employee_id || null;
     this.userName = data?.display_name || this.session.user.email || "";
+    const {data:permissionRows,error:permissionError}=await this.sb.from('account_permissions').select('permission,allowed').eq('user_id',this.session.user.id);
+    if(permissionError)throw new Error('讀取帳號權限失敗：'+permissionError.message);
+    this.permissions=Object.fromEntries((Array.isArray(permissionRows)?permissionRows:[]).map(x=>[x.permission,!!x.allowed]));
+  }
+
+  can(permission) { return effectivePermission(this.role,this.permissions,permission); }
+
+  async listAccessAccounts() {
+    const {data,error}=await this.sb.rpc('list_access_accounts');
+    if(error)throw new Error('讀取帳號權限失敗：'+error.message);
+    return data||[];
+  }
+
+  async setAccessPermissions(userId,permissions) {
+    const {error}=await this.sb.rpc('set_account_permissions',{p_user:userId,p_permissions:permissions});
+    if(error)throw new Error('儲存帳號權限失敗：'+error.message);
   }
 
   jwt() { return this.session?.access_token || null; }
@@ -271,6 +289,8 @@ export class SupabaseStore {
     for (const t of ["schedule_state", "change_sets", "machine_faults", "leaves", "employee_overtime_days", "orders", "calendar_days", "work_execution","work_contents","work_assignments","transfer_orders","staff_rosters"]) {
       ch.on("postgres_changes", { event: "*", schema: "public", table: t }, () => onChange(t));
     }
+    if(this.session?.user?.id)ch.on("postgres_changes",{event:"*",schema:"public",table:"account_permissions",filter:"user_id=eq."+this.session.user.id},
+      async()=>{try{await this._profile();onChange("account_permissions");}catch{onChange("account_permissions");}});
     ch.subscribe();
     this.channel = ch;
   }

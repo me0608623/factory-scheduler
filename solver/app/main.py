@@ -95,8 +95,8 @@ async def chat_database(req: ChatQuery,authorization: str=Header(...)):
         raise HTTPException(401,'需要有效登入憑證')
     jwt=authorization[7:].strip()
     try:
-        if await supa.role(jwt) not in ('boss','lead'):
-            raise HTTPException(403,'目前只有老闆或組長可查詢管理排程；尚未開放員工／電視聊天室')
+        if not await supa.permission(jwt,'schedule.manage'):
+            raise HTTPException(403,'目前沒有查詢管理排程的權限')
         raw=await supa.snapshot(jwt,start=req.date.isoformat(),end=(req.end_date or req.date).isoformat())
     except SupabaseError:
         raise HTTPException(401,'無法依登入權限讀取排程，請重新登入或核對權限')
@@ -155,8 +155,8 @@ async def roster_plans_db(req: DbRosterRequest, authorization: str = Header(...)
         raise HTTPException(503, '排程服務尚未設定資料庫')
     jwt = authorization.removeprefix('Bearer ').strip()
     try:
-        if await supa.role(jwt) not in ('boss', 'lead'):
-            raise HTTPException(403, '只有老闆或組長可計算輪班')
+        if not await supa.permission(jwt,'rosters.manage'):
+            raise HTTPException(403, '目前沒有計算輪班的權限')
         from .roster import RULES
         raw = await supa.snapshot(jwt,start=(req.roster.start-timedelta(days=6)).isoformat(),
                                   end=(req.roster.start+timedelta(days=RULES[req.roster.regime][0])).isoformat())
@@ -189,8 +189,10 @@ async def plans_db(req: DbPlanRequest, authorization: str = Header(...)):
     jwt = authorization.removeprefix("Bearer ").strip()
     try:
         uid = await supa.user_id(jwt)
-        if await supa.role(jwt) not in ("boss", "lead"):
-            raise HTTPException(403, "只有老闆或組長可以計算方案")
+        permission = ('incidents.manage' if req.event.type in ('fault','leave','recover') else
+                      'orders.manage' if req.event.type == 'order' else 'schedule.manage')
+        if not await supa.permission(jwt,permission):
+            raise HTTPException(403, "目前沒有計算這類方案的權限")
         snap = Snapshot(**await supa.snapshot(jwt))
         require_catalog_ready(snap)
         with computation_slot():

@@ -45,6 +45,7 @@ export class LocalStore {
 
   subscribe() {}                                   // 本機模式沒有其他人
   jwt() { return null; }
+  can() { return true; }
 
   async listScenarios() {return JSON.parse(localStorage.getItem(SCENARIOS)||'[]').map(({payload,...meta})=>meta);}
   async getScenario(id) {return JSON.parse(localStorage.getItem(SCENARIOS)||'[]').find(s=>s.id===id);}

@@ -45,8 +45,8 @@ def test_pending_catalog_blocks_all_api_computation(demo, monkeypatch):
         async def user_id(self, jwt):
             return "tester"
 
-        async def role(self, jwt):
-            return "lead"
+        async def permission(self, jwt, key):
+            return key == "schedule.manage"
 
         async def snapshot(self, jwt):
             return snap.model_dump()
@@ -797,6 +797,26 @@ def test_public_deployment_disables_snapshot_endpoints(demo, monkeypatch):
     assert c.get("/health").status_code == 200
 
 
+@pytest.mark.parametrize(("event","scope"),[
+    ({"type":"auto"},"schedule.manage"),
+    ({"type":"fault","machine":"a","date":"2026-09-30","start":480,"end":540},"incidents.manage"),
+    ({"type":"leave","employee":"e1","date":"2026-09-30"},"incidents.manage"),
+    ({"type":"recover","fault_id":"fault-1"},"incidents.manage"),
+    ({"type":"order","order":{"id":"o-new","code":"NEW","product":"p1","qty":10,"due":"2026-10-01","priority":2}},"orders.manage"),
+])
+def test_database_plans_checks_event_specific_permission_before_snapshot(monkeypatch,event,scope):
+    asked=[]
+    class FakeSupabase:
+        configured=True
+        async def user_id(self,jwt):return "tester"
+        async def permission(self,jwt,key):asked.append(key);return False
+        async def snapshot(self,jwt):pytest.fail("permission denial must happen before reading the schedule")
+    monkeypatch.setattr(api,"supa",FakeSupabase())
+    response=TestClient(app).post("/plans/db",json={"event":event},headers={"Authorization":"Bearer test"})
+    assert response.status_code==403
+    assert asked==[scope]
+
+
 def test_api_rejects_unbounded_solver_time(demo):
     snap, now = demo
     c = TestClient(app)
@@ -1360,8 +1380,8 @@ def test_only_one_plan_computation_per_service_process(demo, monkeypatch):
         async def user_id(self, jwt):
             return "tester"
 
-        async def role(self, jwt):
-            return "boss"
+        async def permission(self, jwt, key):
+            return True
 
         async def snapshot(self, jwt):
             return snap.model_dump()

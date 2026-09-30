@@ -139,7 +139,7 @@ def test_db_authority_and_viewer_denied_before_read(monkeypatch,demo):
     raw=demo[0].model_dump(mode='json');calls=[]
     class Fake:
         configured=True
-        async def role(self,jwt):return 'lead' if jwt=='lead' else 'viewer'
+        async def permission(self,jwt,key):return jwt=='lead' and key=='schedule.manage'
         async def snapshot(self,jwt,**kwargs):
             assert jwt=='lead';calls.append(kwargs);return deepcopy(raw)
     monkeypatch.setattr(api,'supa',Fake());client=TestClient(api.app)

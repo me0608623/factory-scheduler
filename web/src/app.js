@@ -18,6 +18,7 @@ import {transferOrders,materialWarning,transferPlanWarnings,batchOf,validateTran
 import {transferUI} from './transfer-ui.js';
 import {rosterUI} from './roster-ui.js';
 import {installScheduleChat} from './chat-ui.js';
+import {PERMISSIONS,effectivePermission} from './permissions.js';
 /* ===== 1. 常數與工具 ===== */
 const COLORS=["#FFE14D","#4CDB6E","#F58CF0","#4FE3EE","#FFA64D","#AFC0FF","#FF9A9A","#BFEA6C"];
 const PROCS=["裁切","沖壓","焊接","組裝","包裝"];
@@ -138,10 +139,10 @@ function makeDemo(){
 
 /* ===== 4. 變更與復原（實際寫入由資料層 STORE 負責，見第 12 節） ===== */
 function pushUndo(){undoStack.push(JSON.stringify(S));if(undoStack.length>40)undoStack.shift();}
-function commit(entry){
+function commit(entry,permission="schedule.manage"){
   if(entry){entry.id=uid();entry.t=Date.now();S.log.unshift(entry);if(S.log.length>200)S.log.length=200;}
   render();
-  return readOnly?Promise.resolve(false):queueSync(entry);
+  return canPermission(permission)?queueSync(entry):Promise.resolve(false);
 }
 function undo(){
   if(!undoStack.length){toast("沒有可以復原的動作");return;}
@@ -644,7 +645,7 @@ function topHTML(){
   '<input type="date" id="datepick" value="'+d+'" style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none" tabindex="-1" aria-hidden="true">'+
   '<button class="iconbtn" data-act="next" aria-label="往後">›</button>'+
   '<button class="btn" data-act="today">今天</button></div>'+
-  (S.demo?'<span class="demo-chip">示範資料</span>':'')+(readOnly&&!PV?'<span class="ro-chip">檢視模式</span>':'')+
+  (S.demo?'<span class="demo-chip">示範資料</span>':'')+(readOnly&&!PV?'<span class="ro-chip">排程唯讀</span>':'')+
   '<div class="top-status">'+syncChipHTML()+
   '<button class="btn" data-act="account" title="帳號與連線">'+IC.user+'<span class="lbl">'+esc(STORE&&STORE.kind==="supabase"?(STORE.userName||"帳號"):"本機")+'</span></button></div></div>'+
   '<div class="top-actions" aria-label="常用操作">'+
@@ -654,7 +655,7 @@ function topHTML(){
   (canArchive()?'<button class="btn" data-act="history">歷史班表</button>':'')+
   '<button class="btn" data-act="export">'+IC.down+'匯出 Excel</button>'+
   (S.setupPending?'<button class="btn primary" data-act="catalog">核對員工與設備</button>':'')+
-  '<button class="btn danger admin priority-mobile-hide" data-act="incident" '+(readOnly||S.setupPending?'disabled title="名冊與工時確認後才能調整排班"':'')+'>故障／請假</button>'+
+  '<button class="btn danger admin priority-mobile-hide" data-act="incident" '+(!canIncidents()||S.setupPending?'disabled title="沒有故障／請假權限，或名冊與工時尚待確認"':'')+'>故障／請假</button>'+
   '<button class="btn admin priority-mobile-hide" data-act="auto" '+(readOnly||S.setupPending?'disabled title="名冊與工時確認後才能自動排班"':'title="會一併計算跨廠工序"')+'>'+IC.bolt+'自動排班</button>'+
   '<details class="more-tools"><summary>更多功能</summary><div class="more-tools-panel">'+
   '<div class="toolset"><strong>工作與資料</strong>'+
@@ -663,11 +664,11 @@ function topHTML(){
   '<button class="btn" data-act="groups">員工分組</button>'+
   '<button class="btn" data-act="work-queue" '+(PV?'disabled':'')+'>未排工作</button></div>'+
   '<div class="toolset"><strong>追蹤與調整</strong>'+
-  '<button class="btn danger admin mobile-only" data-act="incident" '+(readOnly||S.setupPending?'disabled title="名冊與工時確認後才能調整排班"':'')+'>故障／請假</button>'+
+  '<button class="btn danger admin mobile-only" data-act="incident" '+(!canIncidents()||S.setupPending?'disabled title="沒有故障／請假權限，或名冊與工時尚待確認"':'')+'>故障／請假</button>'+
   '<button class="btn admin mobile-only" data-act="auto" '+(readOnly||S.setupPending?'disabled title="名冊與工時確認後才能自動排班"':'title="會一併計算跨廠工序"')+'>'+IC.bolt+'自動排班</button>'+
   '<button class="btn" data-act="execution" '+(PV?'disabled':'')+'>現場回報</button>'+
   '<button class="btn" data-act="resource-load" '+(PV?'disabled title="請先結束方案預覽"':'')+'>當日負荷</button>'+
-  (canArchive()?'<button class="btn" data-act="scenarios" '+(PV?'disabled':'')+'>試排情境</button>':'')+
+  (canScenarios()?'<button class="btn" data-act="scenarios" '+(PV?'disabled':'')+'>試排情境</button>':'')+
   '<button class="btn admin" data-act="undo" '+(readOnly||!undoStack.length?'disabled':'')+'>'+IC.undo+'復原上一步</button></div>'+
   '<div class="toolset"><strong>畫面設定</strong>'+
   '<div class="zoombox" role="group" aria-label="畫面大小"><button data-act="zoom-" aria-label="縮小">−</button><button class="zv" data-act="zoom0" title="回到 100%">'+Math.round(UI.zoom*100)+'%</button><button data-act="zoom+" aria-label="放大">＋</button></div>'+
@@ -682,10 +683,10 @@ function bannerHTML(){
   if(UI.view!=="day")return pending;
   const d=UI.date,di=dayInfo(d),out=[pending];
   const name=di.type==="hol"?"國定假日："+di.hol:di.type==="sat"?"週六休息日":di.type==="sun"?"週日例假日":"";
-  const openBtn=readOnly?"":'<button class="btn admin '+(di.open?"ghost":"primary")+'" data-act="open">'+(di.open?"改為停工":"改為上班")+'</button>';
+  const openBtn=!canCalendar()?"":'<button class="btn admin '+(di.open?"ghost":"primary")+'" data-act="open">'+(di.open?"改為停工":"改為上班")+'</button>';
   if(!di.open)out.push('<div class="banner wk"><span class="grow">'+(name?esc(name)+"　":"")+'本日停工，不排工作</span>'+openBtn+'</div>');
   else if(di.special)out.push('<div class="banner hol"><span class="grow">'+esc(name)+'　有上班 · '+payNote(di)+'</span>'+openBtn+'</div>');
-  if(di.ot)out.push('<div class="banner ot"><span class="grow">今天加班到 20:00 · '+shownEmployees().filter(e=>overtimeAllowed(e,d)&&!e.leaves.includes(d)).length+' 人可加班</span>'+(readOnly?"":'<button class="btn ghost admin" data-act="ot">調整加班人員</button>')+'</div>');
+  if(di.ot)out.push('<div class="banner ot"><span class="grow">今天加班到 20:00 · '+shownEmployees().filter(e=>overtimeAllowed(e,d)&&!e.leaves.includes(d)).length+' 人可加班</span>'+(!canCalendar()?"":'<button class="btn ghost admin" data-act="ot">調整加班人員</button>')+'</div>');
   return out.join("");
 }
 function staffGroupFilterHTML(){
@@ -712,7 +713,7 @@ function cardsHTML(){
   return '<section class="cards" aria-label="總覽">'+
   '<div class="card"><div class="card-h"><h2>員工</h2><span class="count">'+employees.length+' 人'+(onLeave.length?" · 今天 "+onLeave.length+" 人請假":"")+'</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="emp-new">＋新增</button>':"")+'</div>'+staffGroupFilterHTML()+'<div class="chips">'+(emps||'<div class="hint">此廠在此分組沒有員工；可切換廠別或選擇全部分組。</div>')+'</div></div>'+
   '<div class="card"><div class="card-h"><h2>設備／工位</h2><span class="count">'+(machines.some(m=>m.catalogGroup)?new Set(machines.map(m=>m.catalogGroup||m.id)).size+' 組 · '+machines.length+' 個位置':machines.length+(S.setupPending?' 個待確認欄位':' 項'))+'</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="mach-new">＋新增</button>':"")+'</div><div class="hint">要設定做什麼工作，請按「更多功能」→「設定工作內容」；純人工不需要假機台。</div><div class="chips">'+machs+'</div></div>'+
-  '<div class="card"><div class="card-h"><h2>工單</h2><span class="count">'+orders.length+' 張</span>'+(readOnly?"":'<button class="add" data-act="ord-new">＋新增</button>')+'</div><div class="olist">'+orows+'</div>'+
+  '<div class="card"><div class="card-h"><h2>工單</h2><span class="count">'+orders.length+' 張</span>'+(canOrders()?'<button class="add" data-act="ord-new">＋新增</button>':"")+'</div><div class="olist">'+orows+'</div>'+
     '<div style="display:flex;gap:16px"><button class="more" data-act="orders">全部工單</button><button class="more" data-act="products">產品工序</button></div></div>'+
   '<div class="card"><div class="card-h"><h2>全廠紀錄</h2><span class="count">系統怎麼調整</span></div><div class="llist">'+lrows+'</div><button class="more" data-act="log">全部紀錄</button></div>'+
   '</section>';
@@ -753,7 +754,7 @@ function dayHTML(ctx={}){
     return '<button class="colhead'+(down?" down":"")+'" data-act="mach" data-id="'+M.id+'"><span class="L">'+esc(M.id)+'</span><span class="N">'+esc(M.label)+'<small>'+esc(M.proc)+'</small></span><span class="st tag '+(M.reviewStatus==='pending'?"warn":down?"bad":"ok")+'">'+(M.reviewStatus==='pending'?"待確認":down?"故障":"正常")+'</span></button>';}).join("");
   let times="";for(let m=DAY0;m<DAY1;m+=30)times+='<div class="'+(m%60?"half":"")+'">'+hm(m)+'</div>';
   const leave=shownEmployees().filter(e=>e.leaves.includes(d));
-  const otBtn=readOnly?"":(di.open?'<button class="btn admin" data-act="ot">'+(di.ot?'調整加班人員':'開加班到 20:00')+'</button>':"")+'<button class="btn admin" data-act="cal">上班日設定</button>';
+  const otBtn=!canCalendar()?"":(di.open?'<button class="btn admin" data-act="ot">'+(di.ot?'調整加班人員':'開加班到 20:00')+'</button>':"")+'<button class="btn admin" data-act="cal">上班日設定</button>';
   return '<section class="board" aria-label="排程表"><div class="board-h"><h2>'+esc(UI.factory==="all"?"跨廠":factoryName(UI.factory))+' · '+mdw(d)+(ctx.pv?(PV.mode==="orig"?" 原本的排程":PV.mode==="new"?" 調整後":" 對照"):" 排程")+'</h2>'+
     (leave.length?'<span class="tag bad" style="font-size:15px;padding:4px 10px">請假：'+esc(leave.map(e=>e.name).join("、"))+'</span>':"")+
     (nBad?'<button class="btn danger" data-act="issues">'+nBad+' 個問題</button>':(blocks.length?'<span class="tag ok" style="font-size:15px;padding:4px 10px">沒有衝突</span>':""))+
@@ -974,7 +975,7 @@ document.addEventListener("click",e=>{
     case "groups":openModal({t:'groups'});break;
     case 'layout':UI.layout=a.dataset.v;render();break;
     case 'work-contents':openModal({t:'work-contents'});break;
-    case 'work-content-new':if(canMaster())openModal({t:'work-content-edit'});break;
+    case 'work-content-new':if(canWorkContents())openModal({t:'work-content-edit'});break;
     case 'work-content-edit':openModal({t:'work-content-edit',id});break;
     case 'general-add':if(!readOnly&&!S.setupPending)openModal({t:'general-edit'});break;
     case 'general-edit':openModal({t:'general-edit',id});break;
@@ -983,13 +984,13 @@ document.addEventListener("click",e=>{
     case 'queue-arrange':if(!readOnly&&!S.setupPending)openModal({t:'manual-add',choice:id+':'+a.dataset.step});break;
     case 'scenarios':openScenarioList();break;
     case 'scenario-view':viewScenario(id);break;
-    case 'scenario-save':if(canArchive())openModal({t:'scenario-save',base:structuredClone(PV?.B||S),candidate:structuredClone(PV?pvOpt().A:S),description:PV?.title||'目前排程',date:UI.date});break;
+    case 'scenario-save':if(canScenarios())openModal({t:'scenario-save',base:structuredClone(PV?.B||S),candidate:structuredClone(PV?pvOpt().A:S),description:PV?.title||'目前排程',date:UI.date});break;
     case 'scenario-confirm':saveScenarioFromModal(a);break;
     case 'execution':openModal({t:'execution'});break;
     case 'report-open':openModal({t:'execution-report',id});break;
     case 'report-work':reportWork(a);break;
     case "group-edit":openModal({t:'staff-group',id});break;
-    case "group-new":if(canMaster())openModal({t:'staff-group'});break;
+    case "group-new":if(canGroups())openModal({t:'staff-group'});break;
     case "goto":UI.date=a.dataset.d;UI.view="day";render();window.scrollTo(0,0);break;
     case "tv":UI.tv=!UI.tv;render();break;
     case "theme":{setTheme(THEMES[(THEMES.indexOf(UI.theme)+1)%THEMES.length]);render();
@@ -998,9 +999,9 @@ document.addEventListener("click",e=>{
       let i=ZOOMS.indexOf(UI.zoom);if(i<0)i=ZOOMS.indexOf(1);
       i=act==="zoom0"?ZOOMS.indexOf(1):Math.max(0,Math.min(ZOOMS.length-1,i+(act==="zoom+"?1:-1)));
       setZoom(ZOOMS[i]);render();break;}
-    case "auto":openModal({t:"auto"});break;
+    case "auto":if(!readOnly)openModal({t:"auto"});break;
     case "manual-add":if(!readOnly&&!S.setupPending)openModal({t:"manual-add"});break;
-    case "incident":openModal({t:"incident"});break;
+    case "incident":if(canIncidents())openModal({t:"incident"});break;
     case "help":openModal({t:"help",sec:0});break;
     case "undo":undo();break;
     case "sync":if(SYNC.state==="error")queueSync(null);else toast(STORE.kind==="local"?"資料存在這台電腦的瀏覽器":"已和雲端資料庫同步");break;
@@ -1008,14 +1009,14 @@ document.addEventListener("click",e=>{
     case "export":openModal({t:"export"});break;
     case "history":openLegacyHistory();break;
     case "ot":openModal({t:"ot",date:UI.date});break;
-    case "open":toggleOpen(UI.date);break;
-    case "cal":openModal({t:"cal"});break;
+    case "open":if(canCalendar())toggleOpen(UI.date);break;
+    case "cal":if(canCalendar())openModal({t:"cal"});break;
     case "emp":openModal({t:"emp",id});break;
     case "emp-new":openModal({t:"emp",id:null});break;
     case "mach":openModal({t:"mach",id});break;
     case "mach-new":openModal({t:"mach",id:null});break;
     case "ord":openModal({t:"ord",id});break;
-    case "ord-new":openModal({t:"ord",id:null});break;
+    case "ord-new":if(canOrders())openModal({t:"ord",id:null});break;
     case "orders":openModal({t:"orders"});break;
     case "products":openModal({t:"products"});break;
     case "log":openModal({t:"log"});break;
@@ -1053,26 +1054,32 @@ function closeDays(){  // 停工日上的工作移走
   return {aff,lines:aff.length?repair(aff,"ot"):[]};
 }
 function toggleOpen(d){
-  if(readOnly)return;
+  if(!canCalendar())return;
+  const willOpen=!isOpen(d);
+  if(!willOpen&&readOnly&&S.blocks.some(b=>b.date===d&&futureOf(b))){toast("這天已有排程；停工並順延工作還需要「調整與自動排程」權限");return;}
   pushUndo();
-  const open=!isOpen(d);setOpen(d,open);
+  const open=willOpen;setOpen(d,open);
   if(open){
-    commit({kind:"ot",title:mdw(d)+" 改為上班",lines:[{k:"info",t:payNote(dayInfo(d))||"一般上班日"}].filter(l=>l.t)});
+    commit({kind:"ot",title:mdw(d)+" 改為上班",lines:[{k:"info",t:payNote(dayInfo(d))||"一般上班日"}].filter(l=>l.t)},"calendar.manage");
     toast(mdw(d)+" 改為上班。要把工作排進來嗎？","重新排程",runAuto);
   }else{
     const r=closeDays();
-    commit({kind:"ot",title:mdw(d)+" 改為停工"+(r.aff.length?"，移走 "+r.aff.length+" 段工作":""),lines:r.lines});
+    commit({kind:"ot",title:mdw(d)+" 改為停工"+(r.aff.length?"，移走 "+r.aff.length+" 段工作":""),lines:r.lines},"calendar.manage");
     if(r.lines.length)showResult();else toast(mdw(d)+" 已改為停工");
   }
 }
 function saveDailyOT(m){
-  if(readOnly)return;
+  if(!canCalendar())return;
   const d=m.date;
   const changed=!!S.dayOT[d]!==m.open||S.employees.some(e=>{
     const old=Object.prototype.hasOwnProperty.call(e.otOverrides||{},d)?!!e.otOverrides[d]:null;
     return old!==m.overrides[e.id];
   });
   if(!changed){closeModal();return;}
+  const blocksInOvertime=S.blocks.filter(b=>b.date===d&&futureOf(b)&&b.e>REG_END);
+  if(readOnly&&blocksInOvertime.some(b=>!m.open||!(m.overrides[b.emp]??overtimeDefault(emp(b.emp),d)))){
+    toast("這天已有加班排程；縮短加班並順延工作還需要「調整與自動排程」權限");return;
+  }
   pushUndo();
   if(m.open)S.dayOT[d]=true;else delete S.dayOT[d];
   for(const e of S.employees){
@@ -1086,7 +1093,7 @@ function saveDailyOT(m){
     return !w||(w.ot&&(!E||!overtimeAllowed(E,d)));
   });
   const lines=aff.length?repair(aff,"ot"):[];
-  commit({kind:"ot",title:mdw(d)+" 更新加班設定"+(aff.length?"，調整 "+aff.length+" 段工作":""),lines});
+  commit({kind:"ot",title:mdw(d)+" 更新加班設定"+(aff.length?"，調整 "+aff.length+" 段工作":""),lines},"calendar.manage");
   if(lines.length)showResult();else{
     closeModal();toast("已儲存今天的加班設定"+(m.open?"，可加班 "+S.employees.filter(e=>overtimeAllowed(e,d)&&!e.leaves.includes(d)).length+" 人":""));
   }
@@ -1291,7 +1298,7 @@ emp(m){
   if(!m.draft){const E=m.id?emp(m.id):null;
     m.draft=E?JSON.parse(JSON.stringify(E)):{id:uid(),name:"",factory:UI.factory==="all"?1:UI.factory,color:S.employees.length%COLORS.length,skills:[],maxMachines:1,leaves:[],noOT:false,otWeekdays:[...ALL_WEEKDAYS],otOverrides:{}};
     m.draft.otWeekdays=overtimeWeekdays(m.draft);m.draft.otOverrides ||= {};}
-  const D=m.draft,ro=readOnly||!canMaster();
+  const D=m.draft,ro=!canMaster();
   const start=weekStart(UI.date<todayStr()?todayStr():UI.date);
   let days="";for(let i=0;i<21;i++){const d=addDays(start,i),di=dayInfo(d);
     days+=tg("m-leave",d,D.leaves.includes(d),'<span class="num">'+md(d)+'</span><small>'+WD[di.w]+(di.type==="hol"?" "+esc(di.hol.slice(0,3)):"")+'</small>',"leave"+(di.type!=="work"?" hol":""),ro);}
@@ -1317,7 +1324,7 @@ mach(m){
   if(!m.draft){const M=m.id?mach(m.id):null;
     m.draft=M?JSON.parse(JSON.stringify(M)):{id:"",label:"",factory:UI.factory==="all"?1:UI.factory,proc:'',products:[],faults:[]};
     const n=UI.date===todayStr()?Math.max(DAY0,Math.floor(nowMin()/10)*10):DAY0;m.fs=Math.min(n,DAY1-30);m.fd=60;m.note="";}
-  const D=m.draft,ro=readOnly,rm=readOnly||!canMaster(),d=UI.date;
+  const D=m.draft,ro=!canIncidents(),rm=!canMaster(),d=UI.date;
   const faults=m.id?mach(m.id).faults.map((f,i)=>({f,i})).filter(x=>x.f.date===d):[];
   let opts="";for(let t=DAY0;t<DAY1;t+=10)opts+='<option value="'+t+'"'+(t===m.fs?" selected":"")+'>'+hm(t)+'</option>';
   const durs=[[30,"30 分"],[60,"1 小時"],[120,"2 小時"],[240,"半天"],[-1,"到 17:00"],[-2,"整天"]];
@@ -1345,7 +1352,7 @@ ord(m){
   if(!m.draft){const O=m.id?order(m.id):null;
     const first=S.products.find(p=>UI.factory==="all"||p.steps.some(s=>factoryOf(s)===UI.factory))||S.products[0];
     m.draft=O?{...O}:{id:uid(),code:nextCode(),pid:first?first.id:"",qty:100,due:workdaysFrom(addDays(todayStr(),1),3)[2],pri:m.pri??2};}
-  const D=m.draft,ro=readOnly,p=prod(D.pid);
+  const D=m.draft,ro=!canOrders(),p=prod(D.pid);
   const flow=p?p.steps.map((s,i)=>'<span class="pill">'+(i+1)+". "+factoryName(s.factory)+" "+esc(s.proc)+" "+durOf(D.qty||0,s.rate)+"分"+(s.batch>0?"（前站 "+s.batch+" 件就開始）":"")+'</span>').join('<span class="arr">→</span>'):"";
   let plan="";
   if(m.id){const O=order(m.id),st=orderStatus(O);
@@ -1366,12 +1373,12 @@ ord(m){
 orders(){
   const rows=[...shownOrders()].sort((a,b)=>a.due.localeCompare(b.due)||a.pri-b.pri).map(orderRow).join("")||'<div class="empty">此廠沒有工單</div>';
   return {title:"全部工單",body:'<div class="olist">'+rows+'</div>',
-    foot:(S.demo&&!readOnly?'<button class="btn danger" data-act="clear-demo">清除示範工單</button><div class="spacer"></div>':'')+(readOnly?"":'<button class="btn primary" data-act="ord-new">＋新增工單</button>')};
+    foot:(S.demo&&canMaster()&&!readOnly?'<button class="btn danger" data-act="clear-demo">清除示範工單</button><div class="spacer"></div>':'')+(canOrders()?'<button class="btn primary" data-act="ord-new">＋新增工單</button>':"")};
 },
 /* ---------- 產品工序（標準公式） ---------- */
 products(m){
   if(!m.draft)m.draft=JSON.parse(JSON.stringify(S.products));
-  const ro=readOnly||!canMaster();
+  const ro=!canMaster();
   const body=(S.demo?'<div class="issue">目前包含示範產品，不是 1023 已核定的品號／模具。請自行新增現場產品與工序；速率必須由使用者確認。</div>':'')+'<div class="hint">工序名稱可自行輸入。已有工單的產品可改名稱；變更工序／產能請新增產品版本，以保留原排程。此為原生產品工序模型，跨廠加工單與點收紀錄另行管理，尚未自動串接；原生模型的跨廠運送／交接時間仍未設定，不能將它的預測當成實際到料。</div>'+
    m.draft.map((p,pi)=>'<div class="field" style="border:1px solid var(--line2);border-radius:12px;padding:12px">'+
     '<input class="inp" data-bind="'+pi+'.name" value="'+esc(p.name)+'" aria-label="產品名稱" '+(ro?"disabled":"")+'>'+
@@ -1496,7 +1503,7 @@ export(){
 /* ---------- 上班日設定 ---------- */
 MODALS.cal=m=>{
   if(!m.draft)m.draft={week:[...S.cal.week],over:{...S.cal.over}};
-  const D=m.draft,ro=readOnly||!canMaster(),T=todayStr();
+  const D=m.draft,ro=!canCalendar(),T=todayStr();
   const openD=d=>{const o=D.over[d];return o?o==="work":!!D.week[parseD(d).getUTCDay()];};
   const hol=Object.keys(HOLI).filter(d=>d>=T&&d<=addDays(T,120)).sort();
   const body='<div class="field"><span class="lab">每週固定上班的日子</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("c-week",w,D.week[w],"週"+WD[w],"",ro)).join("")+'</div></div>'+
@@ -1542,13 +1549,16 @@ Object.assign(MODAL_ACT,{
     toast(P.movedLabel+' 已移到 '+mdw(moved.date)+' '+hm(moved.s)+'–'+hm(moved.e)+(P.unpinned.length?'；已解除 '+P.unpinned.length+' 段固定':''));
     setTimeout(()=>{if(recentManualMove===moved.id){recentManualMove=null;document.querySelector('.blk[data-bid="'+CSS.escape(moved.id)+'"]')?.classList.remove('just-applied');}},7000);
   },
-  "c-week":a=>{if(!canMaster())return;const w=+a.dataset.v,D=UI.modal.draft;D.week[w]=!D.week[w];rerender();},
-  "c-day":a=>{if(!canMaster())return;const d=a.dataset.v,D=UI.modal.draft;const def=!!D.week[parseD(d).getUTCDay()];const cur=D.over[d]?D.over[d]==="work":def;const nv=!cur;if(nv===def)delete D.over[d];else D.over[d]=nv?"work":"off";rerender();},
+  "c-week":a=>{if(!canCalendar())return;const w=+a.dataset.v,D=UI.modal.draft;D.week[w]=!D.week[w];rerender();},
+  "c-day":a=>{if(!canCalendar())return;const d=a.dataset.v,D=UI.modal.draft;const def=!!D.week[parseD(d).getUTCDay()];const cur=D.over[d]?D.over[d]==="work":def;const nv=!cur;if(nv===def)delete D.over[d];else D.over[d]=nv?"work":"off";rerender();},
   "c-save":()=>{
+    if(!canCalendar())return;
+    const D=UI.modal.draft,openD=d=>{const o=D.over[d];return o?o==="work":!!D.week[parseD(d).getUTCDay()];};
+    if(readOnly&&S.blocks.some(b=>futureOf(b)&&!openD(b.date))){toast("新設定會移動既有工作；還需要「調整與自動排程」權限");return;}
     pushUndo();S.cal={week:[...UI.modal.draft.week],over:{...UI.modal.draft.over}};
     for(const d of Object.keys(S.dayOT))if(!isOpen(d))delete S.dayOT[d];
     const r=closeDays();
-    commit({kind:"ot",title:"更新上班日設定"+(r.aff.length?"，移走 "+r.aff.length+" 段工作":""),lines:r.lines});
+    commit({kind:"ot",title:"更新上班日設定"+(r.aff.length?"，移走 "+r.aff.length+" 段工作":""),lines:r.lines},"calendar.manage");
     if(r.lines.length)showResult();else{closeModal();toast("已儲存。新開的上班日要排工作嗎？","重新排程",runAuto);}
   }
 });
@@ -1650,7 +1660,7 @@ function pvPanelHTML(o){
   }else ai='<div class="hint">AI 助理下一階段由伺服器提供。</div>';
   return '<section class="pv" aria-label="預覽">'+
    '<div class="pv-h"><span class="pv-badge">'+(PV.savedScenario?'保存情境':'預覽中')+'</span><div class="pv-t"><b>'+esc(PV.title)+'</b><small>'+(PV.savedScenario?'只讀比較；正式班表與現場進度不會變更。':'還沒套用，排程不會變。看清楚再按「套用」。　計算：'+planEngineLabel(o.solverMethod,PV.engine))+'</small></div><div class="spacer"></div>'+
-   ((STORE.kind==='local'||['boss','lead'].includes(STORE.role))&&!PV.savedScenario?'<button class="btn" data-act="scenario-save">保存試排情境</button>':'')+
+   (canScenarios()&&!PV.savedScenario?'<button class="btn" data-act="scenario-save">保存試排情境</button>':'')+
    '<button class="btn" data-act="pv-cancel">'+(PV.savedScenario?'結束查看':'取消')+'</button><button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+(o.applicable===false?'不可套用':'套用方案 '+o.id)+'</button></div>'+
    '<div class="pv-opts">'+tabs+'</div>'+
    (o.applicable===false?'<div class="pv-sum"><b>目前不能套用：</b>'+o.diagnostics.map(esc).join('；')+'</div>':'')+
@@ -1664,6 +1674,7 @@ function pvPanelHTML(o){
 }
 function openPlans(title,logTitle,kind,applyEvent,strategies,extra={}){
   if(S.setupPending){toast("原檔名冊與工作資料尚待確認，暫不開放排程");return;}
+  if(extra.event&&STORE.kind==="supabase"&&!STORE.can("schedule.manage")&&SOLVER.up===false){toast("這項授權需要 OR-Tools 服務在線才能安全調整既有排程");return;}
   if(extra.event&&SOLVER.up!==false)return openPlansSolver(title,logTitle,kind,applyEvent,strategies,extra);
   return openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra);
 }
@@ -1680,6 +1691,7 @@ async function openPlansSolver(title,logTitle,kind,applyEvent,strategies,extra){
     plan=STORE.kind==="supabase"?await SOLVER.plansDb(extra.event,now,STORE.jwt(),timeLimit):await SOLVER.plans(toSnapshot(S,HOLI),extra.event,now,timeLimit);
   }catch(e){
     if(e.status&&e.status<500){toast(e.message);return;}
+    if(STORE.kind==="supabase"&&!STORE.can("schedule.manage")){toast("OR-Tools 服務暫時無法使用；你的權限不包含瀏覽器內的完整重排");return;}
     toast("排程服務沒有回應，改用瀏覽器內的演算法");
     return openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra);
   }
@@ -1759,7 +1771,8 @@ async function pvApply(){
   PV=null;
   commit({kind:P.kind==="recover"?"fault":P.kind,title:P.logTitle+"：採用「"+o.name+"」",lines:o.lines,sum:sumTxt,shifts,people,
     ai:P.ai&&P.ai.pick?{pick:P.ai.pick,reason:P.ai.reason}:null,note:P.note,
-    alts:P.opts.map(x=>"方案 "+x.id+" "+x.name+"：延誤 "+x.mt.lateCodes.length+"、異動 "+x.mt.moved+"、影響他天 "+x.mt.otherDays+"、加班 "+x.mt.otH+" 小時"+(x===o?"（採用）":""))});
+    alts:P.opts.map(x=>"方案 "+x.id+" "+x.name+"：延誤 "+x.mt.lateCodes.length+"、異動 "+x.mt.moved+"、影響他天 "+x.mt.otherDays+"、加班 "+x.mt.otH+" 小時"+(x===o?"（採用）":""))},
+    ["fault","leave","recover"].includes(P.kind)?"incidents.manage":P.kind==="order"?"orders.manage":"schedule.manage");
   showResult();
 }
 Object.assign(MODAL_ACT,{
@@ -1811,12 +1824,13 @@ Object.assign(MODAL_ACT,{
   "inc-back":()=>{UI.modal.step=null;renderModal();},
   "inc-mach":a=>openModal({t:"mach",id:a.dataset.v,fromInc:true}),
   "inc-emp":a=>openModal({t:"leaveq",id:a.dataset.v}),
-  "inc-rush":()=>openModal({t:"ord",id:null,pri:0}),
+  "inc-rush":()=>{if(canOrders())openModal({t:"ord",id:null,pri:0});else toast("目前沒有新增急單的權限");},
   "lq-date":a=>{UI.modal.date=a.dataset.v;renderModal();},
   "lq-go":()=>{
+    if(!canIncidents())return;
     const eid=UI.modal.id,d=UI.modal.date,E=emp(eid);
     const n=S.blocks.filter(b=>b.emp===eid&&b.date===d&&futureOf(b)).length;
-    if(!n){pushUndo();E.leaves.push(d);commit({kind:"leave",title:E.name+" "+md(d)+" 請假（當天沒有排工作）",lines:[]});closeModal();toast("已登記，當天沒有他的工作");return;}
+    if(!n){pushUndo();E.leaves.push(d);commit({kind:"leave",title:E.name+" "+md(d)+" 請假（當天沒有排工作）",lines:[]},"incidents.manage");closeModal();toast("已登記，當天沒有他的工作");return;}
     const ev=()=>{const X=emp(eid);X.leaves.push(d);return {date:d,mode:"leave",aff:S.blocks.filter(b=>b.emp===eid&&b.date===d&&futureOf(b))};};
     openPlans(E.name+" "+mdw(d)+" 請假，"+n+" 段工作要調整",E.name+" "+md(d)+" 請假","leave",ev,STRAT_EVENT,{event:{type:"leave",employee:eid,date:d}});
   }
@@ -1907,9 +1921,9 @@ function toggleIn(arr,v){const i=arr.indexOf(v);if(i>=0)arr.splice(i,1);else arr
 function showResult(){openModal({t:"logone",id:S.log[0].id});}
 function captureFault(m){const fs=$("#f-fs"),nt=$("#f-note");if(fs)m.fs=+fs.value;if(nt)m.note=nt.value;}
 Object.assign(MODAL_ACT,{
-  "ot-day":a=>{UI.modal.open=a.dataset.v==="1";rerender();},
-  "ot-person":a=>{const selected=a.dataset.v==="1";UI.modal.overrides[a.dataset.id]=selected===overtimeDefault(emp(a.dataset.id),UI.modal.date)?null:selected;rerender();},
-  "ot-reset":a=>{UI.modal.overrides[a.dataset.id]=null;rerender();},
+  "ot-day":a=>{if(!canCalendar())return;UI.modal.open=a.dataset.v==="1";rerender();},
+  "ot-person":a=>{if(!canCalendar())return;const selected=a.dataset.v==="1";UI.modal.overrides[a.dataset.id]=selected===overtimeDefault(emp(a.dataset.id),UI.modal.date)?null:selected;rerender();},
+  "ot-reset":a=>{if(!canCalendar())return;UI.modal.overrides[a.dataset.id]=null;rerender();},
   "ot-save":()=>saveDailyOT(UI.modal),
   "m-color":a=>{if(!canMaster())return;UI.modal.draft.color=+a.dataset.v;rerender();},
   "m-emp-factory":a=>{if(!canMaster())return;const d=UI.modal.draft;d.factory=+a.dataset.v;d.skills=d.skills.filter(id=>factoryOf(mach(id))===d.factory);rerender();},
@@ -1922,6 +1936,7 @@ Object.assign(MODAL_ACT,{
     if(!D.name){toast("請輸入姓名");return;}
     if(!Number.isInteger(D.maxMachines)||D.maxMachines<1||D.maxMachines>100){toast("同時顧機台上限請填 1–100 台");return;}
     const old=emp(D.id);
+    if(old&&readOnly&&S.blocks.some(b=>b.emp===D.id&&futureOf(b))){toast("這位員工已有未來排程；修改後若需搬動工作，還需要「調整與自動排程」權限");return;}
     if(old&&D.maxMachines<old.maxMachines){
       const future=S.blocks.filter(b=>b.emp===D.id&&bEnd(b)>nowAbs());
       const overloaded=[...new Set(future.map(b=>b.date))].find(ds=>
@@ -1941,7 +1956,7 @@ Object.assign(MODAL_ACT,{
     if(delLv.length)title+=" 取消 "+delLv.map(md).join("、")+" 請假";
     if(!addLv.length&&!delLv.length)title+=" 資料更新";
     if(aff.length)title+="，系統調整 "+aff.length+" 段工作";
-    commit({kind:addLv.length||delLv.length?"leave":"edit",title,lines});
+    commit({kind:addLv.length||delLv.length?"leave":"edit",title,lines},"master.manage");
     if(lines.length)showResult();
     else{closeModal();delLv.length?toast("已取消請假。要把工作排回來嗎？","重新排程",runAuto):toast("已儲存");}
   },
@@ -1949,12 +1964,13 @@ Object.assign(MODAL_ACT,{
     if(employeeGroups(S,UI.modal.id).length){toast('請先在「分組／部門」移除此員工的分組，再刪除員工');return;}
     if(!confirmStep(a,"m-emp-del"))return;
     const m=UI.modal,E=emp(m.id);pushUndo();
+    if(readOnly&&S.blocks.some(b=>b.emp===E.id&&futureOf(b))){undoStack.pop();toast("這位員工仍有未來排程；刪除前還需要「調整與自動排程」權限");return;}
     E.skills=[];
     const aff=S.blocks.filter(b=>b.emp===E.id&&futureOf(b));
     const lines=aff.length?repair(aff,"leave"):[];
     S.blocks=S.blocks.filter(b=>b.emp!==E.id||!futureOf(b));
     S.employees=S.employees.filter(x=>x!==E);
-    commit({kind:"edit",title:"刪除員工 "+E.name,lines});
+    commit({kind:"edit",title:"刪除員工 "+E.name,lines},"master.manage");
     lines.length?showResult():closeModal();
   },
   "m-proc":a=>{UI.modal.draft.proc=a.dataset.v;rerender();},
@@ -1962,6 +1978,7 @@ Object.assign(MODAL_ACT,{
   "m-prod":a=>{if(!canMaster())return;toggleIn(UI.modal.draft.products,a.dataset.v);rerender();},
   "m-fd":a=>{captureFault(UI.modal);UI.modal.fd=+a.dataset.v;rerender();},
   "m-fault":()=>{
+    if(!canIncidents())return;
     const m=UI.modal;captureFault(m);syncInputs();
     const M=mach(m.id),d=UI.date,s=m.fs;
     const e=m.fd>0?Math.min(DAY1,s+m.fd):m.fd===-1?(s<REG_END?REG_END:DAY1):DAY1;
@@ -1977,11 +1994,12 @@ Object.assign(MODAL_ACT,{
     };
     const title=mid+" 機台故障 "+mdw(d)+" "+hm(s)+"–"+hm(e);
     const n=S.blocks.filter(b=>b.m===mid&&b.date===d&&b.e>s&&b.s<e).length;
-    if(!n){pushUndo();ev();commit({kind:"fault",title:title+"（這段時間沒有排工作）",lines:[]});closeModal();toast("已記錄故障，這段時間沒有工作受影響");return;}
+    if(!n){pushUndo();ev();commit({kind:"fault",title:title+"（這段時間沒有排工作）",lines:[]},"incidents.manage");closeModal();toast("已記錄故障，這段時間沒有工作受影響");return;}
     openPlans(title+"，"+n+" 段工作受影響",title,"fault",ev,STRAT_EVENT,{fid,event:{type:"fault",machine:mid,date:d,start:s,end:e,note}});
   },
   // 機台修好了 → 進入預覽，比較幾種「把機台加回排程」的方法
   "m-fix":a=>{
+    if(!canIncidents())return;
     const mid=UI.modal.id,idx=+a.dataset.v,F0=mach(mid).faults[idx],today=todayStr(),nm=Math.ceil(nowMin()/10)*10;
     const ev=()=>{
       const X=mach(mid),F=X.faults[idx];
@@ -2003,29 +2021,32 @@ Object.assign(MODAL_ACT,{
     if(!m.id){if(!/^[a-z0-9]{1,4}$/.test(D.id)){toast("代號請用英文或數字");return;}if(mach(D.id)){toast("代號 "+D.id+" 已經有了");return;}}
     pushUndo();
     const old=mach(D.id);
+    if(old&&readOnly&&S.blocks.some(b=>b.m===D.id&&futureOf(b))){undoStack.pop();toast("這台設備已有未來排程；修改後若需搬動工作，還需要「調整與自動排程」權限");return;}
     if(old){D.faults=old.faults;Object.assign(old,JSON.parse(JSON.stringify(D)));}else S.machines.push(JSON.parse(JSON.stringify(D)));
     const M=mach(D.id);
     S.employees.filter(E=>factoryOf(E)!==factoryOf(M)).forEach(E=>{E.skills=E.skills.filter(id=>id!==M.id);});
     const aff=S.blocks.filter(b=>b.m===M.id&&futureOf(b)&&(()=>{const o=order(b.oid),st=prod(o.pid).steps[b.step];return M.proc!==st.proc||!M.products.includes(o.pid)||factoryOf(M)!==factoryOf(st)||factoryOf(emp(b.emp))!==factoryOf(M);})());
     const lines=aff.length?repair(aff,"fault"):[];
-    commit({kind:"edit",title:(old?"更新":"新增")+"機台 "+M.id+" "+M.label+(aff.length?"，移走 "+aff.length+" 段工作":""),lines});
+    commit({kind:"edit",title:(old?"更新":"新增")+"機台 "+M.id+" "+M.label+(aff.length?"，移走 "+aff.length+" 段工作":""),lines},"master.manage");
     if(lines.length)showResult();else{closeModal();toast(old?"已儲存":"已新增機台，記得到員工設定勾選誰會操作");}
   },
   "m-mach-del":a=>{
     if(!confirmStep(a,"m-mach-del"))return;
     const M=mach(UI.modal.id);pushUndo();
+    if(readOnly&&S.blocks.some(b=>b.m===M.id&&futureOf(b))){undoStack.pop();toast("這台設備仍有未來排程；刪除前還需要「調整與自動排程」權限");return;}
     M.products=[];
     const aff=S.blocks.filter(b=>b.m===M.id&&futureOf(b));
     const lines=aff.length?repair(aff,"fault"):[];
     S.blocks=S.blocks.filter(b=>b.m!==M.id);
     S.machines=S.machines.filter(x=>x!==M);
     S.employees.forEach(E=>{E.skills=E.skills.filter(x=>x!==M.id);});
-    commit({kind:"edit",title:"刪除機台 "+M.id,lines});
+    commit({kind:"edit",title:"刪除機台 "+M.id,lines},"master.manage");
     lines.length?showResult():closeModal();
   },
-  "o-prod":a=>{if(readOnly)return;UI.modal.draft.pid=a.dataset.v;rerender();},
-  "o-pri":a=>{if(readOnly)return;UI.modal.draft.pri=+a.dataset.v;rerender();},
+  "o-prod":a=>{if(!canOrders())return;UI.modal.draft.pid=a.dataset.v;rerender();},
+  "o-pri":a=>{if(!canOrders())return;UI.modal.draft.pri=+a.dataset.v;rerender();},
   "o-save":()=>{
+    if(!canOrders())return;
     syncInputs();const m=UI.modal,D=m.draft;
     D.code=String(D.code).trim();D.qty=Math.round(+D.qty);
     if(!D.code||!(D.qty>0)||!D.due||!prod(D.pid)){toast("請填好工單號、數量、期限與產品");return;}
@@ -2038,15 +2059,26 @@ Object.assign(MODAL_ACT,{
     };
     const tag=["特急","急","一般","不急"][D.pri];
     const title=(isNew?"新增":"修改")+"工單 "+D.code+"（"+tag+"）"+prod(D.pid).name+" "+D.qty+"件";
-    openPlans(title+"：怎麼排？",title,"edit",ev,STRAT_ORDER,{oid:D.id,event:{type:"order",order:{id:snap.id,code:snap.code,product:snap.pid,qty:snap.qty,due:snap.due,priority:snap.pri}}});
+    if(readOnly){
+      const old=order(snap.id),P=old&&prod(old.pid);
+      const planned=old&&P?Math.max(0,...P.steps.map((_,i)=>sum(S.blocks.filter(b=>b.oid===old.id&&b.step===i),b=>b.qty))):0;
+      if(old&&old.pid!==snap.pid&&S.blocks.some(b=>b.oid===old.id)){toast("這張工單已有排程；更換產品需要「調整與自動排程」權限");return;}
+      if(snap.qty<planned){toast("新數量小於已排件數；請由有排程權限的人員先調整班表");return;}
+      pushUndo();if(old)Object.assign(old,snap);else S.orders.push({...snap});
+      closeModal();commit({kind:"order",title:title+"（待排程）",lines:[]},"orders.manage");return;
+    }
+    openPlans(title+"：怎麼排？",title,"order",ev,STRAT_ORDER,{oid:D.id,event:{type:"order",order:{id:snap.id,code:snap.code,product:snap.pid,qty:snap.qty,due:snap.due,priority:snap.pri}}});
   },
   "o-del":a=>{
+    if(!canOrders())return;
     if(!confirmStep(a,"o-del"))return;
     const O=order(UI.modal.id);pushUndo();
+    if(readOnly&&S.blocks.some(b=>b.oid===O.id)){undoStack.pop();toast("這張工單已有排程；刪除前還需要「調整與自動排程」權限");return;}
     S.blocks=S.blocks.filter(b=>b.oid!==O.id);S.orders=S.orders.filter(x=>x!==O);
-    commit({kind:"edit",title:"刪除工單 "+O.code,lines:[]});closeModal();
+    commit({kind:"order",title:"刪除工單 "+O.code,lines:[]},"orders.manage");closeModal();
   },
   "clear-demo":a=>{
+    if(!canMaster()||readOnly)return;
     if(!confirmStep(a,"clear-demo"))return;
     pushUndo();S.orders=[];S.blocks=[];S.log=[];S.demo=false;
     S.employees.forEach(E=>E.leaves=[]);S.machines.forEach(M=>M.faults=[]);
@@ -2062,7 +2094,7 @@ Object.assign(MODAL_ACT,{
     for(const p of D){const old=prod(p.id);if(old&&S.orders.some(o=>o.pid===p.id)&&JSON.stringify(old.steps)!==JSON.stringify(p.steps)){toast('已有工單的產品只能改名稱；工序／產能變更請新增產品版本，以保留原排程');return;}}
     pushUndo();S.products=D;
     S.blocks=S.blocks.filter(b=>{const o=order(b.oid);return o&&prod(o.pid)&&b.step<prod(o.pid).steps.length;});
-    commit({kind:"edit",title:"修改產品工序",lines:[]});closeModal();
+    commit({kind:"edit",title:"修改產品工序",lines:[]},"master.manage");closeModal();
     toast("工序已更新。要依新公式重新排程嗎？","重新排程",runAuto);
   },
   "b-emp":a=>{const b=S.blocks.find(x=>x.id===UI.modal.id);if(b.emp===a.dataset.v)return;pushUndo();const from=emp(b.emp);b.emp=a.dataset.v;b.pin=true;
@@ -2111,8 +2143,9 @@ Object.assign(MODAL_ACT,{
     if(S.employees.some(e=>factoryOf(e)===2)||S.machines.some(x=>factoryOf(x)===2)||S.products.some(p=>p.steps.some(s=>factoryOf(s)===2))){
       toast("目前範本沒有廠別欄，不能覆蓋已設定的 2 廠資料");return;}
     if(JSON.stringify(S)!==m.base){closeModal();toast("排程已更新，請重新選擇 Excel 檔案預覽");return;}
+    if(readOnly&&S.blocks.length){toast("匯入會清空既有排程；還需要「調整與自動排程」權限");return;}
     pushUndo();S={...S,...m.data,blocks:[],demo:false};
-    commit({kind:"edit",title:"Excel 批次匯入："+S.employees.length+" 位員工、"+S.machines.length+" 台機台、"+S.products.length+" 種產品、"+S.orders.length+" 張工單",lines:[{k:"info",t:"已清空原排程，請重新執行自動排程"}]});
+    commit({kind:"edit",title:"Excel 批次匯入："+S.employees.length+" 位員工、"+S.machines.length+" 台機台、"+S.products.length+" 種產品、"+S.orders.length+" 張工單",lines:[{k:"info",t:"已清空原排程，請重新執行自動排程"}]},"master.manage");
     closeModal();toast("Excel 匯入完成。請建立新排程","自動排程",runAuto);
   },
   "legacy-save":async()=>{
@@ -2198,10 +2231,17 @@ let STORE=null;                        // LocalStore 或 SupabaseStore（main.js
 let scheduleChat=null;
 const SYNC={state:"ok",msg:""};
 let lastLocalWrite=0,pendingReload=false,reloadTimer=null;
-// 基本資料（員工、機台、產品工序、上班日）只有老闆能改；組長可以報故障、請假、工單、調排程
-function canMaster(){return !readOnly&&(!STORE||STORE.kind==="local"||STORE.role==="boss");}
-function canArchive(){return !readOnly&&(!STORE||STORE.kind==="local"||["boss","lead"].includes(STORE.role));}
-const ROLE_NAME={boss:"老闆",lead:"組長",worker:"員工",viewer:"電視（只能看）"};
+// 職位只提供預設值；正式可寫範圍由老闆逐項授權，畫面與資料庫使用同一組權限鍵。
+function canPermission(key){return !PV&&(!STORE||STORE.kind==='local'||(STORE.can?STORE.can(key):effectivePermission(STORE.role,STORE.permissions,key)));}
+function canMaster(){return canPermission('master.manage');}
+function canArchive(){return canPermission('archives.manage');}
+function canOrders(){return canPermission('orders.manage');}
+function canIncidents(){return canPermission('incidents.manage');}
+function canCalendar(){return canPermission('calendar.manage');}
+function canGroups(){return canPermission('groups.manage');}
+function canWorkContents(){return canPermission('work_contents.manage');}
+function canScenarios(){return canPermission('scenarios.manage');}
+const ROLE_NAME={boss:"老闆",lead:"組長",worker:"員工",viewer:"電視／檢視"};
 
 function toast(msg,actLabel,fn){
   let el=$("#toast");
@@ -2264,7 +2304,11 @@ async function reloadFromStore(){
   try{const s=await STORE.load();if(s){S=s;normalizeState();}render();}
   catch(e){toast(e.message);}
 }
-function onRemoteChange(){
+function onRemoteChange(source){
+  if(source==="account_permissions"){
+    readOnly=STORE.kind==="supabase"&&!STORE.can("schedule.manage");
+    closeModal();render();toast("老闆已更新你的功能權限");return;
+  }
   if(PV||drag||generalDrag||UI.modal||SYNC.state==="busy"){pendingReload=true;return;}
   clearTimeout(reloadTimer);
   reloadTimer=setTimeout(async()=>{
@@ -2282,7 +2326,7 @@ MODALS.account=()=>({title:"帳號與連線",
     (STORE.kind==="supabase"?'<dt>帳號</dt><dd>'+esc(STORE.userName)+'</dd><dt>角色</dt><dd>'+esc(ROLE_NAME[STORE.role]||"未設定")+'</dd>':"")+
     '<dt>排程計算</dt><dd>'+(SOLVER.up?"OR-Tools "+esc(SOLVER.version):"瀏覽器內的演算法（排程服務未連線）")+'</dd></dl>'+
     (STORE.kind==="local"?'<div class="hint">要多人使用、手機和電視即時同步，請設定雲端資料庫（見 README）。</div>':""),
-  foot:(STORE.kind==="supabase"?'<button class="btn" data-act="password-open">設定登入密碼</button><button class="btn" data-act="logout">登出</button>':'<button class="btn danger" data-act="reset-local">清除這台電腦的資料</button>')+
+  foot:(STORE.kind==="supabase"?'<button class="btn" data-act="password-open">設定登入密碼</button>'+(STORE.role==='boss'?'<button class="btn" data-act="access-accounts">管理帳號權限</button>':'')+'<button class="btn" data-act="logout">登出</button>':'<button class="btn danger" data-act="reset-local">清除這台電腦的資料</button>')+
     '<div class="spacer"></div><button class="btn" data-act="solver-check">重新連線排程服務</button><button class="btn primary" data-act="close">關閉</button>'});
 MODALS.password=()=>({title:"設定登入密碼",
   body:'<div class="hint">收到邀請信或重設密碼信後，開啟信中連結登入，再在這裡設定新密碼。</div>'+
@@ -2304,17 +2348,32 @@ Object.assign(MODAL_ACT,{
   "solver-check":async()=>{await SOLVER.check();renderModal();toast(SOLVER.up?"已連上 OR-Tools 排程服務":"排程服務沒有回應："+SOLVER.url);}
 });
 
+MODALS['access-accounts']=m=>({title:'帳號權限',body:m.loading?'<div class="hint">讀取帳號中…</div>':
+  '<div class="hint">職位只決定預設值；老闆可逐一調整實際功能。這不會授予 Supabase Organization 或資料庫管理權。</div>'+m.accounts.map(x=>
+    '<button class="btn" data-act="access-account" data-id="'+esc(x.userId)+'" style="width:100%;height:auto;min-height:54px;justify-content:space-between;margin:8px 0"><span>'+esc(x.displayName||'未命名帳號')+'</span><span>'+esc(ROLE_NAME[x.role]||x.role)+'</span></button>').join(''),
+  foot:'<button class="btn" data-act="account">返回</button><button class="btn primary" data-act="close">關閉</button>'});
+MODALS['access-account']=m=>{const x=m.account,isBoss=x.role==='boss';return {title:'設定 '+esc(x.displayName||'帳號')+' 的權限',body:
+  '<div class="hint">職位：'+esc(ROLE_NAME[x.role]||x.role)+'。'+(isBoss?'老闆永遠擁有全部功能，避免失去管理入口。':'以下開關會決定實際可用功能；日後可再次調整。'+(x.customized?'目前使用自訂權限。':'目前使用職位預設。'))+'</div>'+PERMISSIONS.map(([key,name,desc])=>
+    '<label class="permission-row"><input type="checkbox" data-permission="'+key+'" '+(x.permissions?.[key]?'checked ':'')+(isBoss?'disabled ':'')+'><span><b>'+esc(name)+'</b><small>'+esc(desc)+'</small></span></label>').join(''),
+  foot:'<button class="btn" data-act="access-accounts">返回</button><div class="spacer"></div>'+(isBoss?'':(x.customized?'<button class="btn" data-act="access-reset">恢復職位預設</button>':'')+'<button class="btn primary" data-act="access-save">儲存權限</button>')};};
+Object.assign(MODAL_ACT,{
+  'access-accounts':async()=>{if(STORE.kind!=='supabase'||STORE.role!=='boss')return;openModal({t:'access-accounts',loading:true,accounts:[]});try{const accounts=await STORE.listAccessAccounts();if(UI.modal?.t==='access-accounts'){UI.modal.loading=false;UI.modal.accounts=accounts;renderModal();}}catch(e){toast(e.message);closeModal();}},
+  'access-account':a=>{if(STORE.role!=='boss')return;const x=UI.modal?.accounts?.find(v=>v.userId===a.dataset.id);if(x)openModal({t:'access-account',account:structuredClone(x)});},
+  'access-reset':async a=>{if(STORE.role!=='boss'||UI.modal?.t!=='access-account')return;a.disabled=true;try{await STORE.setAccessPermissions(UI.modal.account.userId,{});toast('已恢復職位預設權限');MODAL_ACT['access-accounts']();}catch(e){a.disabled=false;toast(e.message);}},
+  'access-save':async a=>{if(STORE.role!=='boss'||UI.modal?.t!=='access-account')return;const x=UI.modal.account,permissions={};document.querySelectorAll('[data-permission]').forEach(el=>permissions[el.dataset.permission]=el.checked);a.disabled=true;try{await STORE.setAccessPermissions(x.userId,permissions);toast('已更新 '+(x.displayName||'帳號')+' 的功能權限');MODAL_ACT['access-accounts']();}catch(e){a.disabled=false;toast(e.message);}}
+});
+
 // ---------- 分組：一人可多組，部門與廠別不是技能限制 ----------
 MODALS.groups=()=>({title:'員工分組／部門',body:
   '<div class="hint">分組與廠別、機台技能分開。一人可加入多組，分組可跨部門或跨廠；這不會自動修改所屬廠別或授予機台技能。原檔分組是來源紀錄，不代表已核定現在的人力配置。</div>'+
   (S.groups||[]).map(g=>{const ms=S.groupMembers.filter(m=>m.groupId===g.id),pending=ms.filter(m=>m.reviewStatus==='pending').length;
     return '<button class="btn" style="display:flex;width:100%;margin:10px 0;justify-content:space-between;height:auto;min-height:46px" data-act="group-edit" data-id="'+esc(g.id)+'"><span>'+esc(g.name)+(g.department?' · '+esc(g.department):'')+'</span><span>'+esc(g.homeFactory?factoryName(g.homeFactory):'跨廠')+' · '+ms.length+' 人'+(pending?' · '+pending+' 待核對':'')+'</span></button>';
   }).join('')+((S.groups||[]).length?'':'<div class="hint">還沒有分組，可建立第一個分組。</div>'),
-  foot:(canMaster()?'<button class="btn primary" data-act="group-new">＋新增分組</button>':'')+'<button class="btn" data-act="close">關閉</button>'});
+  foot:(canGroups()?'<button class="btn primary" data-act="group-new">＋新增分組</button>':'')+'<button class="btn" data-act="close">關閉</button>'});
 MODALS['staff-group']=m=>{
   if(!m.draft){const old=S.groups.find(g=>g.id===m.id);m.draft=old?JSON.parse(JSON.stringify(old)):{id:uid(),name:'',department:'',homeFactory:UI.factory==='all'?null:UI.factory,sourceRef:null};
     m.members=JSON.parse(JSON.stringify(S.groupMembers.filter(x=>x.groupId===m.draft.id)));}
-  const D=m.draft,ro=!canMaster(),off=ro?' disabled':'';
+  const D=m.draft,ro=!canGroups(),off=ro?' disabled':'';
   const body='<div class="field"><label for="group-name">分組名稱</label><input class="inp" id="group-name" data-bind="name" maxlength="80" value="'+esc(D.name)+'"'+off+'></div>'+
     '<div class="field"><label for="group-department">部門（可不填）</label><input class="inp" id="group-department" data-bind="department" maxlength="80" value="'+esc(D.department||'')+'"'+off+'><div class="hint">部門可自行命名；同一員工可以加入不同部門的分組，不另外建立重複員工。</div></div>'+
     '<div class="field"><label for="group-factory">分組所屬範圍</label><select class="inp" id="group-factory" data-bind="homeFactory"'+off+'>'+[['all','跨廠'],[1,'1 廠'],[2,'2 廠']].map(([id,t])=>'<option value="'+id+'"'+((D.homeFactory??'all')==id?' selected':'')+'>'+t+'</option>').join('')+'</select><div class="hint">分組範圍是管理標籤，不會限制加入人員；跨廠實際排班仍須符合現行技能與廠別規則。</div></div>'+
@@ -2327,17 +2386,17 @@ MODALS['staff-group']=m=>{
     (m.id?'<button class="btn danger" data-act="group-retire">停用分組</button>':'')+'<div class="spacer"></div><button class="btn" data-act="close">取消</button><button class="btn primary" data-act="group-save">儲存分組</button>'};
 };
 Object.assign(MODAL_ACT,{
-  'group-member':a=>{if(!canMaster())return;syncInputs();const m=UI.modal,id=a.dataset.v,i=m.members.findIndex(x=>x.employeeId===id);
+  'group-member':a=>{if(!canGroups())return;syncInputs();const m=UI.modal,id=a.dataset.v,i=m.members.findIndex(x=>x.employeeId===id);
     if(i<0)m.members.push({groupId:m.draft.id,employeeId:id,reviewStatus:'confirmed',sourceRef:null});else m.members.splice(i,1);renderModal();},
-  'group-confirm':a=>{if(!canMaster())return;syncInputs();const member=UI.modal.members.find(x=>x.employeeId===a.dataset.v);if(member)member.reviewStatus='confirmed';renderModal();},
-  'group-save':()=>{if(!canMaster())return;syncInputs();const m=UI.modal,D=m.draft;D.name=D.name.trim();D.department=(D.department||'').trim()||null;D.homeFactory=D.homeFactory==='all'||D.homeFactory==null?null:Number(D.homeFactory);
+  'group-confirm':a=>{if(!canGroups())return;syncInputs();const member=UI.modal.members.find(x=>x.employeeId===a.dataset.v);if(member)member.reviewStatus='confirmed';renderModal();},
+  'group-save':()=>{if(!canGroups())return;syncInputs();const m=UI.modal,D=m.draft;D.name=D.name.trim();D.department=(D.department||'').trim()||null;D.homeFactory=D.homeFactory==='all'||D.homeFactory==null?null:Number(D.homeFactory);
     if(!D.name||D.name.length>80){toast('請填寫 1–80 字的分組名稱');return;}
     if(S.groups.some(g=>g.id!==D.id&&g.name===D.name&&(g.department||null)===D.department&&(g.homeFactory??null)===D.homeFactory)){toast('相同範圍、部門已有這個分組');return;}
     pushUndo();const index=S.groups.findIndex(g=>g.id===D.id);if(index<0)S.groups.push(JSON.parse(JSON.stringify(D)));else S.groups[index]=JSON.parse(JSON.stringify(D));
     S.groupMembers=S.groupMembers.filter(x=>x.groupId!==D.id).concat(JSON.parse(JSON.stringify(m.members)));
-    closeModal();commit({kind:'edit',title:'更新員工分組 '+D.name,lines:[]});},
-  'group-retire':a=>{if(!canMaster()||!confirmStep(a,'group-retire'))return;const id=UI.modal.id,name=S.groups.find(g=>g.id===id)?.name;
-    pushUndo();S.groups=S.groups.filter(g=>g.id!==id);S.groupMembers=S.groupMembers.filter(m=>m.groupId!==id);if(UI.group===id)UI.group='all';closeModal();commit({kind:'edit',title:'停用員工分組 '+name,lines:[]});}
+    closeModal();commit({kind:'edit',title:'更新員工分組 '+D.name,lines:[]},'groups.manage');},
+  'group-retire':a=>{if(!canGroups()||!confirmStep(a,'group-retire'))return;const id=UI.modal.id,name=S.groups.find(g=>g.id===id)?.name;
+    pushUndo();S.groups=S.groups.filter(g=>g.id!==id);S.groupMembers=S.groupMembers.filter(m=>m.groupId!==id);if(UI.group===id)UI.group='all';closeModal();commit({kind:'edit',title:'停用員工分組 '+name,lines:[]},'groups.manage');}
 });
 
 // ---------- 登入畫面 ----------
@@ -2376,7 +2435,7 @@ MODALS['work-queue']=()=>{
       (!rows.length?'<div class="okbox">此範圍目前没有未排量或已回報短少。這不等於工作已實際完成。</div>':''),foot:'<button class="btn" data-act="close">關閉</button>'};
 };
 async function openScenarioList(){
-  if(!canArchive())return;openModal({t:'scenario-list',loading:true});const m=UI.modal;
+  if(!canScenarios())return;openModal({t:'scenario-list',loading:true});const m=UI.modal;
   try{m.items=await STORE.listScenarios();}catch(e){m.error=e.message;}m.loading=false;if(UI.modal===m)renderModal();
 }
 MODALS['scenario-list']=m=>({title:'保存的試排情境',body:
@@ -2388,13 +2447,13 @@ MODALS['scenario-save']=m=>({title:'保存試排情境',body:'<div class="hint">
   '<div class="field"><label for="scenario-name">情境名稱</label><input class="inp" id="scenario-name" maxlength="80" value="'+esc(m.name||'')+'"></div>',
   foot:'<button class="btn" data-act="close">取消</button><button class="btn primary" data-act="scenario-confirm">確認保存情境</button>'});
 async function saveScenarioFromModal(button){
-  if(!canArchive())return;const m=UI.modal;if(m.t!=='scenario-save')return;
+  if(!canScenarios())return;const m=UI.modal;if(m.t!=='scenario-save')return;
   try{m.name=$('#scenario-name').value;const item=m.item||makeScenario(m.name,m.base,m.candidate,{description:m.description,date:m.date});m.item=item;
     button.disabled=true;await STORE.saveScenario(item);closeModal();toast('情境已保存，正式班表沒有改變');}
   catch(e){button.disabled=false;toast(e.message);}
 }
 async function viewScenario(id){
-  if(!canArchive())return;
+  if(!canScenarios())return;
   try{
     const item=await STORE.getScenario(id);if(!item)throw new Error('找不到情境');validateScenario(item.payload);
     const stale=scenarioStale(item,S),B=item.payload.base,A=item.payload.candidate,ev={date:item.payload.date||UI.date};
@@ -2404,7 +2463,7 @@ async function viewScenario(id){
       extra:{savedScenario:true,engine:'歷史試排資料'}});
   }catch(e){toast(e.message);}
 }
-const reportingRole=()=>STORE.kind==='local'?'boss':STORE.role;
+const reportingRole=()=>STORE.kind==='local'||canPermission('execution.manage')?'boss':STORE.role;
 const reportStatus=r=>!r?'尚未開始':r.status==='done'?'已回報完成':'進行中';
 MODALS.execution=()=>{
   const worker=reportingRole()==='worker';
@@ -2458,17 +2517,17 @@ MODALS['work-contents']=()=>({title:'工作內容 · 與設備分開管理',body
   '<h4>可獨立安排的工作內容</h4>'+workCatalog(S).filter(w=>inFactory(w,UI.factory)).map(w=>'<button class="rline" data-act="work-content-edit" data-id="'+esc(w.id)+'"><b>'+esc(w.name)+'</b><span>'+factoryName(w.factory)+' · '+(w.requiresResource?'需要設備／工位':'純人工，不需機台')+' · 核定 '+w.employeeIds.length+' 人</span></button>').join('')+
   (!workCatalog(S).length?'<div class="empty">尚未建立獨立工作內容；不會從 1023 欄名推測技能或產能。</div>':'')+
   '<div class="hint">1023 的工作／設備／規格對照在「歷史排程 → 製作項目名冊」查看；未確認欄位保持待確認。</div>',
-  foot:(canMaster()?'<button class="btn primary" data-act="work-content-new">新增工作內容</button>':'')+'<button class="btn" data-act="close">關閉</button>'});
+  foot:(canWorkContents()?'<button class="btn primary" data-act="work-content-new">新增工作內容</button>':'')+'<button class="btn" data-act="close">關閉</button>'});
 MODALS['work-content-edit']=m=>{
   m.draft ||= structuredClone(workCatalog(S).find(w=>w.id===m.id)||{id:uid(),name:'',factory:UI.factory==='all'?1:UI.factory,requiresResource:false,employeeIds:[],resourceIds:[],reviewStatus:'confirmed'});
-  const D=m.draft,off=canMaster()?'':'disabled';
+  const D=m.draft,off=canWorkContents()?'':'disabled';
   const picks=(items,key,label)=>'<div class="field"><span class="lab">'+label+'</span>'+items.filter(x=>factoryOf(x)===D.factory).map(x=>'<label><input type="checkbox" id="gw-'+key+'-'+esc(x.id)+'" data-key="'+key+'" data-id="'+esc(x.id)+'" '+(D[key].includes(x.id)?'checked':'')+' '+off+'> '+esc(x.name||x.label)+(x.reviewStatus==='pending'?' · 待確認':'')+'</label>').join('')+'</div>';
   return {title:m.id?'工作內容設定':'新增工作內容',body:textInput('gw-name','工作內容名稱',D.name,'text',off)+
     '<div class="field"><label for="gw-factory">所屬廠別</label><select class="inp" id="gw-factory" '+off+'>'+FACTORIES.map(f=>'<option value="'+f+'" '+(D.factory===f?'selected':'')+'>'+factoryName(f)+'</option>').join('')+'</select></div>'+
     '<div class="field"><label for="gw-kind">工作方式</label><select class="inp" id="gw-kind" '+off+'><option value="manual" '+(!D.requiresResource?'selected':'')+'>純人工，不需要機台</option><option value="resource" '+(D.requiresResource?'selected':'')+'>需要設備／工位</option></select></div>'+
     '<div class="hint">核定人員與設備由你明確勾選，不依原表顏色、名字位置或分組自動認定。設備工作另須具操作技能。</div>'+
     picks(S.employees,'employeeIds','核定可做此工作的人員')+(D.requiresResource?picks(S.machines,'resourceIds','允許使用的設備／工位'):'<div class="hint">純人工工作占用整段員工時間，不能一邊顧機台一邊做。</div>'),
-    foot:'<button class="btn" data-act="close">取消</button>'+(canMaster()?'<button class="btn primary" data-act="gw-content-save">儲存工作內容</button>':'')};
+    foot:'<button class="btn" data-act="close">取消</button>'+(canWorkContents()?'<button class="btn primary" data-act="gw-content-save">儲存工作內容</button>':'')};
 };
 function readGeneralFields(){
   const m=UI.modal,D=m?.draft;if(!D)return;
@@ -2481,7 +2540,7 @@ function readGeneralFields(){
 }
 function generalChange(el){
   const m=UI.modal,D=m?.draft;if(!D)return;readGeneralFields();
-  if(m.t==='work-content-edit'&&canMaster()){
+  if(m.t==='work-content-edit'&&canWorkContents()){
     if(el.dataset.key){const key=el.dataset.key;D[key]=D[key].filter(x=>x!==el.dataset.id);if(el.checked)D[key].push(el.dataset.id);}
     if(el.id==='gw-factory'){D.factory=Number(el.value);D.employeeIds=[];D.resourceIds=[];}
     if(el.id==='gw-kind'){D.requiresResource=el.value==='resource';if(!D.requiresResource)D.resourceIds=[];}
@@ -2521,10 +2580,10 @@ MODALS['general-preview']=m=>({title:'一般工作排班預覽',body:
   (m.issues.length?m.issues.map(t=>'<div class="issue">'+esc(t)+'</div>').join(''):'<div class="okbox">檢查通過；確認後才會存入排程。</div>'),
   foot:'<button class="btn" data-act="close">取消</button><button class="btn primary" data-act="gw-apply" '+(m.issues.length?'disabled':'')+'>確認工作排班</button>'});
 MODAL_ACT['gw-content-save']=()=>{
-  if(PV||!canMaster())return;readGeneralFields();const D=UI.modal.draft;D.name=D.name.trim();
+  if(PV||!canWorkContents())return;readGeneralFields();const D=UI.modal.draft;D.name=D.name.trim();
   const candidate=structuredClone(S);candidate.workContents=workCatalog(S).filter(w=>w.id!==D.id).concat(D);
   try{validateGeneralWork(candidate,{today:todayStr(),baseAssignments:assignments(S)});validateTransfers(candidate,{before:S});}catch(e){toast(e.message);return;}
-  pushUndo();S.workContents=candidate.workContents;closeModal();commit({kind:'edit',title:'更新工作內容 '+D.name,lines:[]});
+  pushUndo();S.workContents=candidate.workContents;closeModal();commit({kind:'edit',title:'更新工作內容 '+D.name,lines:[]},'work_contents.manage');
 };
 MODAL_ACT['gw-preview']=()=>{if(PV||readOnly||S.setupPending)return;readGeneralFields();previewGeneral(UI.modal.draft);};
 MODAL_ACT['gw-remove-preview']=()=>{if(PV||readOnly||S.setupPending||!UI.modal?.id)return;openModal({t:'general-remove',id:UI.modal.id});};
@@ -2589,7 +2648,7 @@ document.addEventListener('keydown',e=>{if(PV)return;const el=e.target.closest?.
 async function start(){
   const r=await STORE.init();
   if(r.needLogin){showLogin();return;}
-  readOnly=STORE.kind==="supabase"&&!["boss","lead"].includes(STORE.role);
+  readOnly=STORE.kind==="supabase"&&!STORE.can("schedule.manage");
   let s=null;
   try{s=await STORE.load();}catch(e){toast(e.message);}
   const madeDemo=!(s&&(STORE.kind==="supabase"||s.employees.length));
@@ -2600,13 +2659,13 @@ async function start(){
   if(!UI.date)UI.date=todayStr();
   render();
   STORE.subscribe(onRemoteChange);
-  scheduleChat?.destroy();scheduleChat=installScheduleChat({snapshot:()=>({...toSnapshot(S,HOLI),work_execution:structuredClone(S.execution||[])}),view:()=>({date:UI.date,factory:UI.factory}),store:()=>STORE,enabled:()=>!UI.tv&&(STORE.kind==='local'||['boss','lead'].includes(STORE.role)),stamp:()=>scenarioKey(S)+'|'+UI.date+'|'+UI.factory});
+  scheduleChat?.destroy();scheduleChat=installScheduleChat({snapshot:()=>({...toSnapshot(S,HOLI),work_execution:structuredClone(S.execution||[])}),view:()=>({date:UI.date,factory:UI.factory}),store:()=>STORE,enabled:()=>!UI.tv&&canPermission('schedule.manage'),stamp:()=>scenarioKey(S)+'|'+UI.date+'|'+UI.factory});
   SOLVER.check().then(up=>{updateSyncChip();if(up)toast("已連上 OR-Tools 排程服務");});
   setInterval(()=>{if(!drag&&!generalDrag&&!UI.modal&&!PV&&UI.view==="day"&&UI.date===todayStr())render();},60000);
 }
-const crossFactoryUI=transferUI({state:()=>S,ui:UI,esc,uid,canEdit:()=>!PV&&!readOnly,open:openModal,close:closeModal,syncInputs,commit,toast,today:todayStr,clearUndo:()=>{undoStack=[];}});
+const crossFactoryUI=transferUI({state:()=>S,ui:UI,esc,uid,canEdit:()=>canPermission('transfers.manage'),open:openModal,close:closeModal,syncInputs,commit:entry=>commit(entry,'transfers.manage'),toast,today:todayStr,clearUndo:()=>{undoStack=[];}});
 Object.assign(MODALS,crossFactoryUI.modals);Object.assign(MODAL_ACT,crossFactoryUI.actions);
-const staffRosterUI=rosterUI({state:()=>S,ui:UI,esc,uid,canEdit:()=>!PV&&!readOnly,canMaster,open:openModal,close:closeModal,syncInputs,commit,toast,today:todayStr,clearUndo:()=>{undoStack=[];},jwt:()=>STORE.jwt()});
+const staffRosterUI=rosterUI({state:()=>S,ui:UI,esc,uid,canEdit:()=>canPermission('rosters.manage'),canMaster,open:openModal,close:closeModal,syncInputs,commit:entry=>commit(entry,'rosters.manage'),toast,today:todayStr,clearUndo:()=>{undoStack=[];},jwt:()=>STORE.jwt()});
 Object.assign(MODALS,staffRosterUI.modals);Object.assign(MODAL_ACT,staffRosterUI.actions);
 MODAL_ACT['mach-products']=()=>{if(!canMaster())return;syncInputs();const m=UI.modal;if(!m.id||JSON.stringify(m.draft)!==JSON.stringify(mach(m.id))){toast('請先儲存或取消設備設定，再開啟產品設定');return;}openModal({t:'products'});};
 export async function boot(store,authLinkType=""){

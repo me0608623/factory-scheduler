@@ -50,6 +50,10 @@ class Supabase:
     async def role(self, jwt: str) -> str | None:
         return await self._post("/rest/v1/rpc/app_role", self._user_headers(jwt), {})
 
+    async def permission(self, jwt: str, permission: str) -> bool:
+        return bool(await self._post("/rest/v1/rpc/has_permission", self._user_headers(jwt),
+                                     {"p_permission": permission}))
+
     async def snapshot(self, jwt: str, *, start: str | None = None, end: str | None = None) -> dict:
         args = {} if start is None else {'p_from':start,'p_to':end}
         return await self._post("/rest/v1/rpc/schedule_snapshot", self._user_headers(jwt), args)

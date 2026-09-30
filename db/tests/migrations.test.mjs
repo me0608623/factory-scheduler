@@ -82,6 +82,32 @@ await as(LEAD, async () => {
   ok(r.affectedRows === 0, "組長不能把自己升成老闆");
 });
 
+console.log("職位與逐項授權");
+const accessAccounts = (await as(BOSS, async () => (await db.query("select list_access_accounts() a")).rows[0].a));
+ok(accessAccounts.length === 3 && accessAccounts.find(x => x.userId === TV)?.permissions?.["orders.manage"] === false,
+  "老闆可查看既有帳號與每項有效權限");
+await as(BOSS, () => db.query("select set_account_permissions($1,$2::jsonb)", [TV, JSON.stringify({"orders.manage":true,"schedule.manage":false})]));
+await as(TV, async () => {
+  ok((await db.query("select has_permission('orders.manage') p")).rows[0].p === true &&
+     (await db.query("select has_permission('schedule.manage') p")).rows[0].p === false,
+    "老闆可讓唯讀職位只取得指定功能");
+  await db.query("insert into orders (code, product_id, qty, due_date) values ('DELEGATED-ORDER','00000000-0000-4000-8000-0000000000a1',10,current_date)");
+  ok(true,"取得工單權限的既有帳號可新增工單");
+  await expectErr("insert into machine_faults (machine_id,date,start_min,end_min) values ('c',current_date,480,540)",[],/row-level security/,
+    "未授予故障權限時仍不能報故障");
+  await expectErr("select set_account_permissions($1,'{}'::jsonb)",[LEAD],/只有老闆/,
+    "非老闆不能轉授權限");
+});
+await db.query("delete from orders where code='DELEGATED-ORDER'");
+await as(BOSS, () => db.query("select set_account_permissions($1,$2::jsonb)", [LEAD, JSON.stringify({"incidents.manage":false})]));
+await as(LEAD, () => expectErr("insert into machine_faults (machine_id,date,start_min,end_min) values ('c',current_date,480,540)",[],/row-level security/,
+  "老闆可收回組長職位原本擁有的單項權限"));
+await as(BOSS, async () => {
+  await db.query("select set_account_permissions($1,$2::jsonb)", [BOSS, JSON.stringify({"schedule.manage":false})]);
+  ok((await db.query("select has_permission('schedule.manage') p")).rows[0].p === true,"老闆本人的管理權限不能被關閉");
+  await db.query("select set_account_permissions(user_id,'{}'::jsonb) from (values ($1::uuid),($2::uuid),($3::uuid)) v(user_id)", [BOSS,LEAD,TV]);
+});
+
 console.log("舊版排程歷史資料");
 const archiveHash = "0f118c081f872fc05f08e699f91582799fe98077fdbeb62e0ad0b7e0c9e6c913";
 await as(LEAD, async () => {
@@ -160,7 +186,7 @@ await as(LEAD, () => expectErr("select apply_plan($1,'A')", [blockedPreview], /�
 ok((await db.query("select version::int v from schedule_state")).rows[0].v === 0, "被拒絕的方案不會修改排程版本");
 const pv1 = (await db.query("insert into plan_previews (kind, title, event, base_version, options) values ('auto','重新排程','{}',0,$1) returning id",
   [JSON.stringify([opt("A", blocks, { overtime_on: ["2026-10-05"] })])])).rows[0].id;
-await as(TV, () => expectErr("select apply_plan($1,'A')", [pv1], /只有老闆或組長/, "電視帳號不能套用方案"));
+await as(TV, () => expectErr("select apply_plan($1,'A')", [pv1], /沒有套用這類方案的權限/, "電視帳號不能套用方案"));
 const cs1 = await as(LEAD, async () => (await db.query("select apply_plan($1,'A','第一次') cs", [pv1])).rows[0].cs);
 ok(!!cs1, "組長可以套用方案");
 ok((await db.query("select version from schedule_state")).rows[0].version === 1n || (await db.query("select version::int v from schedule_state")).rows[0].v === 1, "版本號 +1");
