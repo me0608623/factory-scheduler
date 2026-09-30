@@ -48,7 +48,7 @@ test("老闆可把既有唯讀帳號逐項授權，不需更改職位", async ()
   assert.equal(lead.can("master.manage"), false);
   assert.equal(viewer.can("orders.manage"), false);
   const permissions = Object.fromEntries([
-    "schedule.manage","incidents.manage","orders.manage","calendar.manage","master.manage","groups.manage",
+    "schedule.manage","incidents.manage","orders.manage","calendar.manage","master.manage","groups.manage","notes.manage",
     "work_contents.manage","transfers.manage","rosters.manage","scenarios.manage","execution.manage","archives.manage"
   ].map(key=>[key,key==="orders.manage"]));
   await boss.setAccessPermissions(TV,permissions);
@@ -65,6 +65,24 @@ test("老闆可把既有唯讀帳號逐項授權，不需更改職位", async ()
   await assert.rejects(viewer.setAccessPermissions(LEAD,permissions),/只有老闆/);
   await boss.setAccessPermissions(TV,{});
   assert.equal((await boss.listAccessAccounts()).find(x=>x.userId===TV).customized,false);
+});
+
+test("請假詢問核准前不影響排程；備忘依權限寫入並出現在快照", async()=>{
+  const {store}=await setup();const lead=await store('lead@x'),viewer=await store('tv@x');
+  const requestId=crypto.randomUUID(),date='2026-10-08';
+  await lead.createLeaveRequest({id:requestId,employeeId:E1,date,note:'家中有事'});
+  let snap=await lead.load();
+  assert.equal(snap.leaveRequests.find(x=>x.id===requestId).status,'pending');
+  assert.equal(snap.employees.find(x=>x.id===E1).leaves.includes(date),false);
+  await lead.resolveLeaveRequest(requestId,'approved');
+  snap=await lead.load();
+  assert.equal(snap.leaveRequests.find(x=>x.id===requestId).status,'approved');
+  assert.equal(snap.employees.find(x=>x.id===E1).leaves.includes(date),true);
+  await assert.rejects(viewer.resolveLeaveRequest(requestId,'rejected'),/權限|permission/);
+  const memo={id:crypto.randomUUID(),text:'換刀後再接工單',machineId:'a',employeeId:null,pinned:true,author:'組長'};
+  await lead.saveMemo(memo);snap=await lead.load();
+  assert.equal(snap.memos.find(x=>x.id===memo.id).text,memo.text);
+  await assert.rejects(viewer.saveMemo({...memo,id:crypto.randomUUID()}),/權限|permission/);
 });
 
 test("受邀帳號可設定密碼，忘記密碼信導向指定網址", async () => {

@@ -11,11 +11,13 @@ export const PERMISSIONS = [
   ['scenarios.manage','試排情境','儲存與查看個人試排情境'],
   ['execution.manage','全部現場回報','可替任何員工開始、報量與完成'],
   ['archives.manage','Excel 與歷史排程','匯入、封存與查看歷史排程'],
+  ['notes.manage','現場備忘','新增、修改與釘選人員或機台備忘'],
 ];
 
 const LEAD_DEFAULT = new Set([
   'schedule.manage','incidents.manage','orders.manage','calendar.manage',
   'transfers.manage','rosters.manage','scenarios.manage','execution.manage','archives.manage',
+  'notes.manage',
 ]);
 
 export function roleDefaultPermission(role,key){

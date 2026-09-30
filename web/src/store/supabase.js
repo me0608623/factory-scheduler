@@ -174,6 +174,22 @@ export class SupabaseStore {
     return data;
   }
 
+  async createLeaveRequest(request) {
+    const {error}=await this.sb.from('leave_requests').insert({id:request.id,employee_id:request.employeeId,date:request.date,note:request.note||'',status:'pending'});
+    if(error)throw writeError('請假詢問',error,'新增');
+  }
+
+  async resolveLeaveRequest(id,status) {
+    const {error}=await this.sb.rpc('resolve_leave_request',{p_id:id,p_status:status});
+    if(error)throw writeError('請假詢問',error,'處理');
+  }
+
+  async saveMemo(memo) {
+    const row={id:memo.id,text:memo.text,machine_id:memo.machineId||null,employee_id:memo.employeeId||null,pinned:!!memo.pinned,author:memo.author||this.userName||''};
+    const {error}=await this.sb.from('schedule_memos').upsert([row],{onConflict:'id'});
+    if(error)throw writeError('備忘',error,'儲存');
+  }
+
   // ---------- 讀 ----------
   async load() {
     const { data, error } = await this.sb.rpc("schedule_snapshot");
@@ -286,7 +302,7 @@ export class SupabaseStore {
   // ---------- 即時推送 ----------
   subscribe(onChange) {
     const ch = this.sb.channel("schedule-changes");
-    for (const t of ["schedule_state", "change_sets", "machine_faults", "leaves", "employee_overtime_days", "orders", "calendar_days", "work_execution","work_contents","work_assignments","transfer_orders","staff_rosters"]) {
+    for (const t of ["schedule_state", "change_sets", "machine_faults", "leaves", "employee_overtime_days", "orders", "calendar_days", "work_execution","work_contents","work_assignments","transfer_orders","staff_rosters","leave_requests","schedule_memos"]) {
       ch.on("postgres_changes", { event: "*", schema: "public", table: t }, () => onChange(t));
     }
     if(this.session?.user?.id)ch.on("postgres_changes",{event:"*",schema:"public",table:"account_permissions",filter:"user_id=eq."+this.session.user.id},

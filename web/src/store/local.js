@@ -87,6 +87,30 @@ export class LocalStore {
     return item;
   }
 
+  async createLeaveRequest(request) {
+    const S=await this.load();if(!S)throw new Error('請先儲存排程');
+    S.leaveRequests ||= [];
+    if(S.leaveRequests.some(x=>x.employeeId===request.employeeId&&x.date===request.date&&x.status==='pending'))throw new Error('這一天已有等待決定的請假詢問');
+    S.leaveRequests.push({...request,status:'pending',createdAt:new Date().toISOString()});
+    await this.sync(S);
+  }
+
+  async resolveLeaveRequest(id,status) {
+    if(!['approved','rejected'].includes(status))throw new Error('決定狀態不正確');
+    const S=await this.load();if(!S)throw new Error('請先儲存排程');const request=(S.leaveRequests||[]).find(x=>x.id===id);
+    if(!request||request.status!=='pending')throw new Error('這筆詢問已處理或不存在');
+    request.status=status;request.resolvedAt=new Date().toISOString();
+    if(status==='approved'){const employee=S.employees.find(x=>x.id===request.employeeId);if(!employee)throw new Error('找不到人員');if(!employee.leaves.includes(request.date))employee.leaves.push(request.date);}
+    await this.sync(S);
+  }
+
+  async saveMemo(memo) {
+    const S=await this.load();if(!S)throw new Error('請先儲存排程');S.memos ||= [];
+    const next={...memo,text:String(memo.text||'').trim()};if(!next.text||next.text.length>140)throw new Error('備忘需為 1–140 字');
+    const i=S.memos.findIndex(x=>x.id===next.id);if(i<0)S.memos.push(next);else S.memos[i]=next;
+    await this.sync(S);
+  }
+
   async reset() {
     try {
       for (const item of await this.listLegacyArchives()) localStorage.removeItem(archiveKey(item.id));
