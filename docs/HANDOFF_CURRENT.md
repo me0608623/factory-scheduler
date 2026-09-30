@@ -21,7 +21,7 @@ git status --short --branch
 git log -5 --oneline
 ```
 
-As of the 2026-09-30 takeover, the local `main` and the live `origin/main` (`ce8aec1`) diverged after merge base `b24fbc6`: the remote already contains the sidebar/settings UI and Z.ai assistant code (as duplicate commits authored by 任庭宇), while the local-only commits are the three handoff/QA docs commits. Treat this local workspace as the canonical working copy. Do not reset it to `origin/main`, and do not push blindly: a push to `main` may trigger a Render production deployment and would currently be rejected as non-fast-forward. Fetch and inspect the exact difference first (see the takeover verification section below).
+The duplicate local/remote commit divergence described later in this file was resolved on 2026-09-30 without a force push. Production migration 0029, GitHub `main`, and both Render services were released and verified. Read `docs/RELEASE_2026-09-30.md` for the authoritative release checkpoint before relying on the historical takeover notes below.
 
 Then read:
 
@@ -79,9 +79,9 @@ Recorded by the replacement agent immediately after takeover. All checks were re
 - Before any future schema migration, obtain a restorable database backup; the production Supabase project is on the Free plan and does not provide managed database backups.
 - Never merge or deploy solely because tests passed locally; run the release-gate checks and verify Render health after deployment.
 
-## Local field-execution changes awaiting release
+## Released field-execution changes
 
-The current local branch contains an un-deployed field execution loop documented in `docs/FIELD_EXECUTION_2026-09-30.md`. It makes completed shortfalls re-enter the remaining quantity, forwards actual execution to OR-Tools, adds an employee current/next work ticket with three large reporting buttons, makes failed writes say `沒存到`, and adds a print-today entry. Migration `0029_execution_shortfall_replan.sql` must be included in the next database release. Do not deploy it without the backup and release-gate procedure above.
+The field-execution loop documented in `docs/FIELD_EXECUTION_2026-09-30.md` was released on 2026-09-30. It makes completed shortfalls re-enter the remaining quantity, forwards actual execution to OR-Tools, adds an employee current/next work ticket with three large reporting buttons, makes failed writes say `沒存到`, and adds a print-today entry. Migration `0029_execution_shortfall_replan.sql` is active in production. The feature remains deliberately gated by `setupPending` until the imported catalog and work rules are confirmed.
 
 ## Current Git head when this file was first written
 
