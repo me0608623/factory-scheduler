@@ -217,6 +217,26 @@ def test_zai_general_api_grounded_answer(monkeypatch,demo):
     assert seen['payload']['model']=='glm-test' and 'tools' not in seen['payload']
 
 
+def test_zai_coding_plan_uses_dedicated_endpoint(monkeypatch,demo):
+    monkeypatch.setenv('AI_SCHEDULE_DATA_APPROVED','true');monkeypatch.setenv('SCHEDULE_CHAT_AI_ENABLED','true')
+    monkeypatch.setenv('SCHEDULE_CHAT_PROVIDER','zai_coding');monkeypatch.setenv('ZAI_API_KEY','fake-zai-key')
+    monkeypatch.setenv('SCHEDULE_CHAT_MODEL','glm-5.3-flash')
+    import app.chat as chat
+    seen={}
+    class Response:
+        status_code=200
+        def json(self):return {'choices':[{'message':{'content':json.dumps({'answer':'唯讀答案','citations':['F1']})}}]}
+    class FakeClient:
+        def __init__(self,**kw):pass
+        async def __aenter__(self):return self
+        async def __aexit__(self,*args):pass
+        async def post(self,url,**kw):seen.update(url=url,payload=kw['json']);return Response()
+    monkeypatch.setattr(chat.httpx,'AsyncClient',FakeClient)
+    q=query(generate=True);result=asyncio.run(respond(q,build_context(demo[0].model_dump(mode='json'),q)))
+    assert seen['url']=='https://api.z.ai/api/coding/paas/v4/chat/completions'
+    assert seen['payload']['model']=='glm-5.3-flash' and result['engine']=='AI（Z.ai，唯讀）'
+
+
 def test_health_only_advertises_ai_when_fully_configured(monkeypatch):
     client=TestClient(api.app)
     monkeypatch.setenv('SCHEDULE_CHAT_PROVIDER','zai')

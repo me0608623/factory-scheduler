@@ -176,7 +176,7 @@ async def respond(query,context):
     if os.environ.get('SCHEDULE_CHAT_AI_ENABLED')!='true':
         raise ChatUnavailable('雲端 AI 目前已停用；請使用資料查詢')
     provider=os.environ.get('SCHEDULE_CHAT_PROVIDER','openai').lower()
-    key=(os.environ.get('ZAI_API_KEY','') if provider=='zai' else os.environ.get('OPENAI_API_KEY',''))
+    key=(os.environ.get('ZAI_API_KEY','') if provider in ('zai','zai_coding') else os.environ.get('OPENAI_API_KEY',''))
     model=os.environ.get('SCHEDULE_CHAT_MODEL','')
     if not key or not model:raise ChatUnavailable('尚未設定 AI 模型與伺服器金鑰；請取消雲端 AI 改用資料查詢')
     schema={'type':'object','properties':{'answer':{'type':'string'},'citations':{'type':'array','items':{'type':'string'}}},'required':['answer','citations'],'additionalProperties':False}
@@ -187,26 +187,27 @@ async def respond(query,context):
              'text':{'format':{'type':'json_schema','name':'schedule_answer','strict':True,'schema':schema}}}
     try:
         async with httpx.AsyncClient(timeout=25) as client:
-            if provider=='zai':
+            if provider in ('zai','zai_coding'):
                 prompt=payload['instructions']+'\n只能輸出 JSON：{"answer":"答案","citations":["F1"]}。citations 只能列出 evidence 中存在的 F 代號。'
                 zai_payload={'model':model,'messages':[{'role':'system','content':prompt},
                     {'role':'user','content':payload['input'][0]['content']}],
                     'temperature':0.1,'max_tokens':1000,'response_format':{'type':'json_object'}}
-                response=await client.post('https://api.z.ai/api/paas/v4/chat/completions',
+                base=('https://api.z.ai/api/coding/paas/v4' if provider=='zai_coding' else 'https://api.z.ai/api/paas/v4')
+                response=await client.post(base+'/chat/completions',
                     headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'},json=zai_payload)
             elif provider=='openai':
                 response=await client.post('https://api.openai.com/v1/responses',headers={'Authorization':'Bearer '+key},json=payload)
             else:raise ChatUnavailable('AI 供應商設定不受支援；未外傳資料')
         if response.status_code!=200:
-            if provider=='zai' and response.status_code in (401,403):
+            if provider in ('zai','zai_coding') and response.status_code in (401,403):
                 raise ChatUnavailable('Z.ai 金鑰無法使用一般 API；請核對金鑰類型，已自動保留資料查詢')
-            if provider=='zai' and response.status_code==429:
+            if provider in ('zai','zai_coding') and response.status_code==429:
                 raise ChatUnavailable('Z.ai 一般 API 額度不足或正在限流；已自動保留資料查詢')
-            if provider=='zai' and response.status_code==400:
+            if provider in ('zai','zai_coding') and response.status_code==400:
                 raise ChatUnavailable('Z.ai 一般 API 不接受目前模型或回覆格式；已自動保留資料查詢')
             raise ChatUnavailable('AI 服務暫時無法回答；請使用資料查詢，不代表排程沒有問題')
         data=response.json()
-        if provider=='zai':
+        if provider in ('zai','zai_coding'):
             choices=data.get('choices',[])
             if not choices:raise ChatUnavailable('AI 回答未完成，請重試或改用資料查詢')
             text=choices[0].get('message',{}).get('content','')
@@ -216,6 +217,6 @@ async def respond(query,context):
         parsed=json.loads(text);known={f['id'] for f in context['facts']}
         if not isinstance(parsed.get('answer'),str) or not 0<len(parsed['answer'])<=6000 or not isinstance(parsed.get('citations'),list) or any(not isinstance(i,str) or i not in known for i in parsed['citations']):
             raise ChatUnavailable('AI 回答的依據無法核對，已拒絕呈現；請改用資料查詢')
-        return {'engine':('AI（Z.ai，唯讀）' if provider=='zai' else 'AI（OpenAI，唯讀）'),**parsed,'context':context}
+        return {'engine':('AI（Z.ai，唯讀）' if provider in ('zai','zai_coding') else 'AI（OpenAI，唯讀）'),**parsed,'context':context}
     except (httpx.HTTPError,ValueError,KeyError,TypeError) as exc:
         raise ChatUnavailable('AI 連線或格式驗證失敗，未更動排程；請改用資料查詢') from exc

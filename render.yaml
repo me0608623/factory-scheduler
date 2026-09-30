@@ -24,9 +24,9 @@ services:
       - key: SCHEDULE_CHAT_AI_ENABLED
         value: "false"
       - key: SCHEDULE_CHAT_PROVIDER
-        value: zai
+        value: zai_coding
       - key: SCHEDULE_CHAT_MODEL
-        value: glm-4.6
+        value: glm-5.3-flash
       - key: ZAI_API_KEY
         sync: false
       - key: ALLOWED_ORIGINS
