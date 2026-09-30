@@ -2838,7 +2838,7 @@ async function start(){
   render();
   STORE.subscribe(onRemoteChange);
   scheduleChat?.destroy();scheduleChat=installScheduleChat({snapshot:()=>({...toSnapshot(S,HOLI),work_execution:structuredClone(S.execution||[])}),view:()=>({date:UI.date,factory:UI.factory}),store:()=>STORE,enabled:()=>!UI.tv&&canPermission('schedule.manage'),stamp:()=>scenarioKey(S)+'|'+UI.date+'|'+UI.factory});
-  SOLVER.check().then(up=>{updateSyncChip();if(up)toast("已連上 OR-Tools 排程服務");});
+  SOLVER.check().then(up=>{updateSyncChip();scheduleChat?.refresh();if(up)toast("已連上 OR-Tools 排程服務");});
   setInterval(()=>{if(!drag&&!generalDrag&&!UI.modal&&!PV&&UI.view==="day"&&UI.date===todayStr())render();},60000);
 }
 const crossFactoryUI=transferUI({state:()=>S,ui:UI,esc,uid,canEdit:()=>canPermission('transfers.manage'),open:openModal,close:closeModal,syncInputs,commit:entry=>commit(entry,'transfers.manage'),toast,today:todayStr,clearUndo:()=>{undoStack=[];}});
@@ -2852,3 +2852,4 @@ export async function boot(store,authLinkType=""){
   if(STORE.kind==="supabase"&&STORE.session&&["invite","recovery"].includes(authLinkType))
     openModal({t:"password"});
 }
+
