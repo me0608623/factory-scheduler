@@ -609,6 +609,14 @@ const IC={
   user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
   tv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8"/></svg>'
 };
+const NAV_IC={
+  today:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M7 2.5v4M17 2.5v4M3 9h18M7.5 13h3v3h-3z"/></svg>',
+  orders:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2.5h6V4M8.5 9h7M8.5 13h7M8.5 17h4"/></svg>',
+  people:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 20v-2a5.5 5.5 0 0 1 11 0v2M16 5.5a3 3 0 0 1 0 5.5M17 14a5 5 0 0 1 3.5 4.8V20"/></svg>',
+  output:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 20V11h4v9M10 20V5h4v15M16 20v-7h4v7M3 20h18"/></svg>',
+  notes:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 3h14v14l-4 4H5z"/><path d="M15 21v-4h4M8 8h8M8 12h8"/></svg>',
+  more:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M8 4v6M8 14v6M16 14v6M16 4v6"/></svg>'
+};
 const LOGIC={leave:"假",fault:"修",move:"移",auto:"排",ot:"加",edit:"改",save:"存"};
 function hourPx(){return parseFloat(getComputedStyle(document.body).getPropertyValue("--hour"))||72;}
 
@@ -641,6 +649,7 @@ function topHTML(){
   const sub=wk?"第 "+isoWeek(ws)+" 週":dayLabel(d);
   return '<header class="top"><div class="top-in"><div class="top-main">'+
   '<div class="brand"><span class="brand-mark"><span></span></span>產線排程</div>'+
+  '<div class="workspace-heading"><span class="workspace-glyph">'+NAV_IC.today+'</span><span><b>'+(UI.prefs.language==='en'?'Schedule':esc(tx('today'))+'排程')+'</b><small>'+(UI.prefs.language==='en'?'Machines × time':'機台 × 時間')+'</small></span></div>'+
   '<div class="seg factory-switch" role="group" aria-label="排程廠別">'+
   [[1,'1 廠'],[2,'2 廠'],['all','跨廠']].map(([v,t])=>'<button data-act="factory" data-v="'+v+'" aria-pressed="'+(UI.factory===v)+'">'+t+'</button>').join('')+'</div>'+
   '<div class="datenav"><button class="iconbtn" data-act="prev" aria-label="往前">‹</button>'+
@@ -654,10 +663,19 @@ function topHTML(){
 }
 
 function appNavHTML(){
-  const item=(page,icon,label)=>'<button class="app-nav-item" data-act="drawer" data-v="'+page+'" aria-pressed="'+(UI.drawer===page)+'"><b>'+icon+'</b><span>'+label+'</span></button>';
+  const item=(page,label)=>'<button class="app-nav-item nav-'+page+'" data-act="drawer" data-v="'+page+'" aria-pressed="'+(UI.drawer===page)+'"><b>'+NAV_IC[page]+'</b><span>'+label+'</span></button>';
+  const account=STORE&&STORE.kind==='supabase'?(STORE.userName||STORE.session?.user?.email||'帳號'):'本機模式';
+  const role=ROLE_NAME[STORE?.role]||'本機管理者';
+  const sync=SYNC.state==='busy'?'同步中':SYNC.state==='error'?'同步失敗':STORE?.kind==='supabase'?'雲端已同步':'存在這台電腦';
   return '<nav class="app-nav" aria-label="主要功能">'+
-    '<button class="app-nav-item" data-act="today" aria-pressed="'+(!UI.drawer)+'"><b>▦</b><span>'+tx('today')+'</span></button>'+
-    item('orders','▣',tx('orders'))+item('people','人',tx('people'))+item('output','▰',tx('output'))+item('notes','▤',tx('notes'))+item('more','•••',tx('more'))+'</nav>';
+    '<div class="side-chrome" aria-hidden="true"><i></i><i></i><i></i><span>'+NAV_IC.more+'</span></div>'+
+    '<div class="side-brand"><span class="brand-mark"><span></span></span><span><b>產線排程</b><small>工廠工作台</small></span></div>'+
+    '<button class="side-profile" data-act="settings" aria-pressed="'+(UI.drawer==='settings')+'"><span class="side-avatar">'+esc(account.slice(0,1).toUpperCase())+'</span><span><b>'+esc(account)+'</b><small>'+esc(role)+'</small></span><i>›</i></button>'+
+    '<span class="side-section">排程</span>'+
+    '<button class="app-nav-item nav-today" data-act="today" aria-pressed="'+(!UI.drawer)+'"><b>'+NAV_IC.today+'</b><span>'+tx('today')+'</span></button>'+item('orders',tx('orders'))+
+    '<span class="side-section">現場</span>'+item('people',tx('people'))+item('output',tx('output'))+item('notes',tx('notes'))+
+    '<span class="side-section">系統</span>'+item('more',tx('more'))+
+    '<div class="side-footer"><button class="side-health '+SYNC.state+'" data-act="sync"><i></i><span><b>系統連線</b><small>'+esc(sync)+'</small></span></button></div></nav>';
 }
 function isoWeek(ds){const d=parseD(ds);d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));const y=new Date(Date.UTC(d.getUTCFullYear(),0,1));return Math.ceil(((d-y)/864e5+1)/7);}
 function bannerHTML(){
