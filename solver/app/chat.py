@@ -173,6 +173,8 @@ async def respond(query,context):
     if not query.generate:return {**factual_answer(query.question,context),'context':context}
     if os.environ.get('AI_SCHEDULE_DATA_APPROVED')!='true':
         raise ChatUnavailable('管理員尚未授權將提問與排程依據送到外部 AI；未外傳資料')
+    if os.environ.get('SCHEDULE_CHAT_AI_ENABLED')!='true':
+        raise ChatUnavailable('雲端 AI 目前已停用；請使用資料查詢')
     provider=os.environ.get('SCHEDULE_CHAT_PROVIDER','openai').lower()
     key=(os.environ.get('ZAI_API_KEY','') if provider=='zai' else os.environ.get('OPENAI_API_KEY',''))
     model=os.environ.get('SCHEDULE_CHAT_MODEL','')

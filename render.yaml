@@ -21,6 +21,8 @@ services:
         value: "1"
       - key: AI_SCHEDULE_DATA_APPROVED
         value: "false"
+      - key: SCHEDULE_CHAT_AI_ENABLED
+        value: "false"
       - key: SCHEDULE_CHAT_PROVIDER
         value: zai
       - key: SCHEDULE_CHAT_MODEL

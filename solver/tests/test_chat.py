@@ -131,7 +131,7 @@ def test_external_model_disabled_until_explicit_approval(monkeypatch,demo):
     monkeypatch.delenv('AI_SCHEDULE_DATA_APPROVED',raising=False)
     q=query(generate=True);ctx=build_context(demo[0].model_dump(mode='json'),q)
     with pytest.raises(ChatUnavailable,match='未外傳'):asyncio.run(respond(q,ctx))
-    monkeypatch.setenv('AI_SCHEDULE_DATA_APPROVED','true');monkeypatch.delenv('OPENAI_API_KEY',raising=False)
+    monkeypatch.setenv('AI_SCHEDULE_DATA_APPROVED','true');monkeypatch.setenv('SCHEDULE_CHAT_AI_ENABLED','true');monkeypatch.delenv('OPENAI_API_KEY',raising=False)
     with pytest.raises(ChatUnavailable,match='金鑰'):asyncio.run(respond(q,ctx))
 
 
@@ -171,7 +171,7 @@ def test_snapshot_auth_capacity_and_readonly(monkeypatch,demo):
 
 @pytest.mark.parametrize('citation',['F999',12])
 def test_model_unknown_citations_rejected(monkeypatch,demo,citation):
-    monkeypatch.setenv('AI_SCHEDULE_DATA_APPROVED','true');monkeypatch.setenv('OPENAI_API_KEY','fake-test-key');monkeypatch.setenv('SCHEDULE_CHAT_MODEL','test-model')
+    monkeypatch.setenv('AI_SCHEDULE_DATA_APPROVED','true');monkeypatch.setenv('SCHEDULE_CHAT_AI_ENABLED','true');monkeypatch.setenv('OPENAI_API_KEY','fake-test-key');monkeypatch.setenv('SCHEDULE_CHAT_MODEL','test-model')
     import app.chat as chat
     class Response:
         status_code=200
@@ -191,9 +191,11 @@ def test_model_unknown_citations_rejected(monkeypatch,demo,citation):
 
 def test_zai_general_api_grounded_answer(monkeypatch,demo):
     monkeypatch.setenv('AI_SCHEDULE_DATA_APPROVED','true')
+    monkeypatch.setenv('SCHEDULE_CHAT_AI_ENABLED','true')
     monkeypatch.setenv('SCHEDULE_CHAT_PROVIDER','zai')
     monkeypatch.setenv('ZAI_API_KEY','fake-zai-key')
     monkeypatch.setenv('SCHEDULE_CHAT_MODEL','glm-test')
+    monkeypatch.setenv('SCHEDULE_CHAT_AI_ENABLED','true')
     import app.chat as chat
     seen={}
     class Response:
@@ -223,12 +225,15 @@ def test_health_only_advertises_ai_when_fully_configured(monkeypatch):
     monkeypatch.setenv('SCHEDULE_CHAT_MODEL','glm-test')
     assert 'schedule_chat_ai_v1' not in client.get('/health').json()['capabilities']
     monkeypatch.setenv('ZAI_API_KEY','secret')
+    assert 'schedule_chat_ai_v1' not in client.get('/health').json()['capabilities']
+    monkeypatch.setenv('SCHEDULE_CHAT_AI_ENABLED','true')
     assert 'schedule_chat_ai_v1' in client.get('/health').json()['capabilities']
 
 
 @pytest.mark.parametrize(('status','message'),[(401,'金鑰'),(403,'金鑰'),(429,'額度'),(400,'模型')])
 def test_zai_errors_are_actionable_without_echoing_provider_body(monkeypatch,demo,status,message):
     monkeypatch.setenv('AI_SCHEDULE_DATA_APPROVED','true');monkeypatch.setenv('SCHEDULE_CHAT_PROVIDER','zai')
+    monkeypatch.setenv('SCHEDULE_CHAT_AI_ENABLED','true')
     monkeypatch.setenv('ZAI_API_KEY','fake-zai-key');monkeypatch.setenv('SCHEDULE_CHAT_MODEL','glm-test')
     import app.chat as chat
     class Response:
