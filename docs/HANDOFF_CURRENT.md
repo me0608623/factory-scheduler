@@ -21,6 +21,8 @@ git status --short --branch
 git log -5 --oneline
 ```
 
+As of this update, the local `main` contains commits that are not present in the local `origin/main` tracking ref, including the sidebar/settings UI, Z.ai assistant integration, and these handoff/QA notes. Treat this local workspace as the canonical working copy. Do not reset it to `origin/main`, and do not push blindly: a push to `main` may trigger a Render production deployment. Fetch and inspect the exact difference first.
+
 Then read:
 
 - `docs/QA_RELEASE_GATE_2026-09-30.md`
