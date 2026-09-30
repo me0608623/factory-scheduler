@@ -26,7 +26,7 @@ export function buildScheduleWorkbook(state, date) {
   const grid = workbook.addWorksheet("時間×機台", { views: [{ state: "frozen", xSplit: 1, ySplit: 5 }] });
   grid.properties.pageSetup = { fitToPage: true, fitToWidth: 1, fitToHeight: 1, orientation: "landscape" };
   grid.columns = [{ width: 13 }, ...state.machines.map(() => ({ width: 28 }))];
-  const last = state.machines.length + 1;
+  const last = Math.max(2,state.machines.length + 1);
   grid.mergeCells(2, 1, 2, last);
   grid.getCell(2, 1).value = `產線排程　${dateLabel(date)}`;
   grid.getCell(2, 1).font = { name: "Arial", size: 15, bold: true, color: { argb: "FF172331" } };
@@ -48,7 +48,7 @@ export function buildScheduleWorkbook(state, date) {
     row.getCell(1).fill = fill(t % 60 === 0 ? "FFF1F5F9" : "FFF8FAFC");
     state.machines.forEach((machine, index) => {
       const cell = row.getCell(index + 2);
-      const work = state.blocks.filter(b => b.date === date && b.m === machine.id && b.s < t + 30 && b.e > t)
+      const work = [...state.blocks,...(state.workAssignments||[]).map(a=>({...a,m:a.resourceId}))].filter(b => b.date === date && b.m === machine.id && b.s < t + 30 && b.e > t)
         .sort((a, b) => a.s - b.s);
       if (t >= 720 && t < 780 && !work.length) {
         cell.value = "午休";
@@ -57,6 +57,7 @@ export function buildScheduleWorkbook(state, date) {
       } else if (work.length) {
         cell.value = work.map(b => {
           const employee = state.employees.find(e => e.id === b.emp);
+          if(b.workId)return `${employee?.name||'未指定'}　${state.workContents?.find(w=>w.id===b.workId)?.name||'?'}\n${hm(b.s)}–${hm(b.e)}　${b.qty==null?'件數未填':'參考 '+b.qty+' 件'}`;
           const order = state.orders.find(o => o.id === b.oid);
           const product = order && state.products.find(p => p.id === order.pid);
           const step = product?.steps[b.step];
@@ -93,6 +94,17 @@ export function buildScheduleWorkbook(state, date) {
     row.getCell(5).fill = fill(colorOf(employee));
     row.eachCell(cell => { cell.font = { name: "Arial", size: 10, color: { argb: "FF172331" } }; cell.alignment = { vertical: "middle" }; });
   });
+  for(const a of (state.workAssignments||[]).filter(a=>a.date===date).sort((a,b)=>a.s-b.s)){
+    const employee=state.employees.find(e=>e.id===a.emp),w=state.workContents?.find(w=>w.id===a.workId),m=state.machines.find(m=>m.id===a.resourceId);
+    const row=detail.addRow([date,m?.label||(a.resourceId||'不需機台'),hm(a.s),hm(a.e),employee?.name||'',(state.orders.find(o=>o.id===a.orderId)||state.workReferenceOrders?.find(o=>o.id===a.orderId))?.code||'','',w?.name||'',a.qty??null,'是','一般工作（件數僅供參考，不計工單產量）']);
+    row.getCell(5).fill=fill(colorOf(employee));
+    row.eachCell(cell=>{cell.font={name:'Arial',size:10,color:{argb:'FF172331'}};cell.alignment={vertical:'middle',wrapText:true};});
+    row.height=42;
+  }
+  if(state.workAssignments?.some(a=>a.date===date)){
+    grid.getCell(3,1).value='設備工作顯示於格子；純人工工作與精確時間請看「排程明細」。一般工作件數只供參考。';
+    detail.getColumn(11).width=46;
+  }
   return workbook;
 }
 

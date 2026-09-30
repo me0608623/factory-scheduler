@@ -4,7 +4,8 @@ export function capacityIntervals(blocks, day, employee, excludedIds = new Set()
   const events = [];
   for (const block of blocks) {
     if (block.date === day && block.emp === employee.id && !excludedIds.has(block.id)) {
-      events.push([block.s, 1], [block.e, -1]);
+      const demand=block.weight||1;
+      events.push([block.s, demand], [block.e, -demand]);
     }
   }
   events.sort((a, b) => a[0] - b[0] || a[1] - b[1]);

@@ -16,6 +16,11 @@ def check(snap: Snapshot, blocks: list[Block], now: Now | None = None,
     prods = {p.id: p for p in snap.products}
     machs = {m.id: m for m in snap.machines}
     emps = {e.id: e for e in snap.employees}
+    work_by_day = defaultdict(list)
+    work_by_employee_day = defaultdict(list)
+    for a in snap.work_assignments:
+        work_by_day[a.date].append(a)
+        work_by_employee_day[(a.emp, a.date)].append(a)
     # 只建立實際有方塊的日期；避免固定 90 天視窗把遠期合法排程誤判成休息日，
     # 也避免因兩個日期相距多年而配置龐大的連續時間軸。
     days: dict[str, Timeline] = {}
@@ -76,12 +81,46 @@ def check(snap: Snapshot, blocks: list[Block], now: Now | None = None,
             if c.start < a.end:
                 issues.append(f"{name(a)} 和 {name(c)}：同一個機台時間重疊")
     for (employee_id, day), bl in employees_by_day.items():
-        events = sorted([(b.start, 1) for b in bl] + [(b.end, -1) for b in bl])
+        # General labor occupies the person's whole capacity, even when they can
+        # normally monitor multiple machines. Quantities do not enter order totals.
+        fixed_work = work_by_employee_day[(employee_id, day)]
+        limit = emps[employee_id].max_concurrent_machines
+        events = sorted([(b.start, 1) for b in bl] + [(b.end, -1) for b in bl] +
+                        [(a.s, 1 if a.resourceId else limit) for a in fixed_work] +
+                        [(a.e, -(1 if a.resourceId else limit)) for a in fixed_work])
         concurrent = 0
         for minute, change in events:
             concurrent += change
             if concurrent > emps[employee_id].max_concurrent_machines:
                 issues.append(f"{emps[employee_id].name} {day} {minute}：同時顧機台數超過上限 {emps[employee_id].max_concurrent_machines}")
+                break
+
+    # Also check the fixed work itself and equipment shared with production.
+    for a in snap.work_assignments:
+        e = emps[a.emp]
+        if a.date not in days:
+            days[a.date] = Timeline(snap.calendar, a.date, 1, extra_overtime)
+        w = days[a.date].window_of(a.date, a.s, a.e)
+        is_new = now_abs is None or abs_min(a.date, a.s) >= now_abs
+        if is_new and (not w or a.date in e.leaves or (w.overtime or w.special) and not e.allows_overtime(a.date)):
+            issues.append(f"一般工作 {a.id}：上班、請假或加班時段不符合；請手動調整")
+        if a.resourceId:
+            machine = machs[a.resourceId]
+            if is_new and any(f.date == a.date and f.start < a.e and f.end > a.s for f in machine.faults):
+                issues.append(f"一般工作 {a.id}：設備故障；請手動調整")
+            if any(b.machine == a.resourceId and b.date == a.date and b.start < a.e and b.end > a.s for b in blocks):
+                issues.append(f"一般工作 {a.id}：設備與工單工作重疊")
+        peers = [b for b in work_by_day[a.date] if b.s < a.e and b.e > a.s]
+        if any(b.id != a.id and a.resourceId and b.resourceId == a.resourceId for b in peers):
+            issues.append(f"一般工作 {a.id}：設備工作重疊")
+        own = [b for b in peers if b.emp == a.emp]
+        events = sorted([(b.s, 1 if b.resourceId else e.max_concurrent_machines) for b in own] +
+                        [(b.e, -(1 if b.resourceId else e.max_concurrent_machines)) for b in own])
+        load = 0
+        for _, change in events:
+            load += change
+            if load > e.max_concurrent_machines:
+                issues.append(f"一般工作 {a.id}：人員時間衝突")
                 break
 
     # 數量、工序順序

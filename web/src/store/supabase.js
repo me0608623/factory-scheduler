@@ -3,6 +3,10 @@
 import { fromSnapshot, blockToDb } from "../convert.js";
 import { rowsOf, diffRows, UPSERT_ORDER, DELETE_ORDER, TABLE_KEYS, blocksKey } from "./diff.js";
 import { groupCatalog } from "../groups.js";
+import { assertExecutionProtected } from '../execution.js';
+import { generalKey,validateGeneralWork,assignmentToDb } from '../general-work.js';
+import { transferKey,validateTransfers } from '../transfers.js';
+import { rosterKey,validateRosters } from '../roster.js';
 
 // 畫面的紀錄種類 ↔ 資料庫 change_sets.kind
 const KIND_TO_DB = { ot: "edit", save: "edit", move: "move", edit: "edit", auto: "auto", fault: "fault", leave: "leave", order: "order", recover: "recover" };
@@ -45,6 +49,7 @@ export class SupabaseStore {
 
   // ---------- 帳號 ----------
   async init() {
+    this._watchAuthSession();
     const { data } = await this.sb.auth.getSession();
     this.session = data.session;
     if (!this.session) return { needLogin: true };
@@ -53,6 +58,7 @@ export class SupabaseStore {
   }
 
   async login(email, password) {
+    this._watchAuthSession();
     const { data, error } = await this.sb.auth.signInWithPassword({ email, password });
     if (error) throw new Error(/invalid/i.test(error.message) ? "帳號或密碼不對" : error.message);
     this.session = data.session;
@@ -73,16 +79,51 @@ export class SupabaseStore {
 
   async logout() {
     await this.sb.auth.signOut();
-    this.session = null;
+    this._clearSession();
+  }
+
+  _clearSession() {
+    this.session=null;this.role=null;this.userName='';this.employeeId=null;
+  }
+
+  _watchAuthSession() {
+    if(this.authSubscription)return;
+    // Keep the callback synchronous: do not make auth/DB calls under the SDK lock.
+    const {data}=this.sb.auth.onAuthStateChange((event,session)=>{
+      if(event==='SIGNED_OUT'){this._clearSession();return;}
+      if(event!=='TOKEN_REFRESHED'||!this.session)return;
+      if(session?.user?.id!==this.session.user.id){this._clearSession();return;}
+      this.session=session;
+    });
+    this.authSubscription=data.subscription;
   }
 
   async _profile() {
-    const { data } = await this.sb.from("profiles").select("display_name,role").eq("user_id", this.session.user.id).maybeSingle();
+    const { data } = await this.sb.from("profiles").select("display_name,role,employee_id").eq("user_id", this.session.user.id).maybeSingle();
     this.role = data?.role || null;
+    this.employeeId = data?.employee_id || null;
     this.userName = data?.display_name || this.session.user.email || "";
   }
 
   jwt() { return this.session?.access_token || null; }
+
+  async listScenarios() {
+    const {data,error}=await this.sb.from('planning_scenarios').select('id,name,created_at').order('created_at',{ascending:false});
+    if(error)throw new Error('讀取試排情境失敗：'+error.message);return data||[];
+  }
+  async getScenario(id) {
+    const {data,error}=await this.sb.from('planning_scenarios').select('*').eq('id',id).single();
+    if(error)throw new Error('讀取試排情境失敗：'+error.message);if(!data)throw new Error('情境不存在或沒有權限');return data;
+  }
+  async saveScenario(item) {
+    const {data,error}=await this.sb.rpc('save_planning_scenario',{p_id:item.id,p_name:item.name,p_payload:item.payload});
+    if(error)throw new Error('保存情境失敗：'+error.message);return data;
+  }
+  async reportExecution(request) {
+    const {data,error}=await this.sb.rpc('report_work_execution',{p_request:request.id,p_block:request.blockId,p_action:request.action,p_qty:request.qtyDone,p_revision:request.expectedRevision});
+    if(error){if(error.code==='40001')throw new ConflictError('進度已被更新，請重新載入');throw Object.assign(new Error(error.message),{rejected:!!error.code});}
+    return data;
+  }
 
   // 舊版 Excel 作為獨立歷史資料儲存，絕不更動目前排程快照。
   async listLegacyArchives() {
@@ -128,14 +169,47 @@ export class SupabaseStore {
   }
 
   _remember(S) {
+    this.protectedBase=structuredClone({blocks:S.blocks,execution:S.execution||[],employees:S.employees.map(e=>({id:e.id})),machines:S.machines.map(m=>({id:m.id})),orders:S.orders.map(o=>({id:o.id}))});
     this.base = rowsOf(S);
     this.baseBlocks = blocksKey(S);
     this.baseGroups = JSON.stringify(groupCatalog(S));
+    this.baseGeneral=generalKey(S);this.baseContents=JSON.stringify(S.workContents||[]);
+    this.baseTransfers=transferKey(S);this.transferBase=structuredClone(S);
+    this.baseRosters=rosterKey(S);
   }
 
   // ---------- 寫：只寫有變的列；排程方塊整批用 save_blocks（有版本號檢查） ----------
   async sync(S, entry) {
+    try{validateRosters(S);}catch(e){e.permission=true;throw e;}
+    try{validateTransfers(S,{before:this.transferBase});}catch(e){e.permission=true;throw e;}
+    try{validateGeneralWork(S,{today:new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Taipei'}).format(new Date()),baseAssignments:JSON.parse(this.baseGeneral||'{}').assignments||[]});if(this.protectedBase){assertExecutionProtected(this.protectedBase,S);
+      if(JSON.stringify(this.protectedBase.execution)!==JSON.stringify(S.execution||[]))throw new Error('現場進度只能由回報流程更新');}}
+    catch(e){e.permission=true;throw e;}
     const d = diffRows(this.base, rowsOf(S));
+    if(rosterKey(S)!==this.baseRosters){
+      if(Object.values(d).some(c=>c.upsert.length||c.del.length)||blocksKey(S)!==this.baseBlocks||generalKey(S)!==this.baseGeneral||transferKey(S)!==this.baseTransfers||JSON.stringify(groupCatalog(S))!==this.baseGroups)
+        throw Object.assign(new Error('請將輪班草稿與產線排程／基本資料分開儲存'),{permission:true});
+      const {data,error}=await this.sb.rpc('save_staff_rosters',{p_version:this.version,p_rosters:S.staffRosters||[]});
+      if(error){if(error.code==='40001')throw new ConflictError();throw Object.assign(new Error(error.message),{permission:true});}
+      S.version=this.version=Number(data);this._remember(S);return;
+    }
+    if(transferKey(S)!==this.baseTransfers){
+      if(Object.values(d).some(c=>c.upsert.length||c.del.length)||blocksKey(S)!==this.baseBlocks||generalKey(S)!==this.baseGeneral||JSON.stringify(groupCatalog(S))!==this.baseGroups)
+        throw Object.assign(new Error('請將跨廠加工紀錄與排班／基本資料分開儲存'),{permission:true});
+      const {data,error}=await this.sb.rpc('save_transfer_orders',{p_version:this.version,p_orders:S.transferOrders||[]});
+      if(error){if(error.code==='40001')throw new ConflictError();throw Object.assign(new Error(error.message),{permission:true});}
+      S.version=this.version=Number(data);this._remember(S);return;
+    }
+    if(generalKey(S)!==this.baseGeneral){
+      if(Object.values(d).some(c=>c.upsert.length||c.del.length)||blocksKey(S)!==this.baseBlocks||JSON.stringify(groupCatalog(S))!==this.baseGroups)
+        throw new Error('請將工作內容／一般工作排班與產品排程、名冊分開儲存');
+      const contentsChanged=JSON.stringify(S.workContents||[])!==this.baseContents;
+      if(contentsChanged&&JSON.stringify(S.workAssignments||[])!==JSON.stringify(JSON.parse(this.baseGeneral).assignments))throw new Error('請先儲存工作內容，再安排工作');
+      const args=contentsChanged?{p_version:this.version,p_contents:S.workContents||[]}:{p_version:this.version,p_assignments:(S.workAssignments||[]).map(assignmentToDb)};
+      const {data,error}=await this.sb.rpc(contentsChanged?'save_work_contents':'save_work_assignments',args);
+      if(error){if(error.code==='40001')throw new ConflictError();throw Object.assign(new Error(error.message),{permission:true});}
+      S.version=this.version=Number(data);this._remember(S);return;
+    }
     const catalog=groupCatalog(S),groupsChanged=JSON.stringify(catalog)!==this.baseGroups;
     if(groupsChanged){
       if(Object.values(d).some(c=>c.upsert.length||c.del.length)||blocksKey(S)!==this.baseBlocks)
@@ -194,7 +268,7 @@ export class SupabaseStore {
   // ---------- 即時推送 ----------
   subscribe(onChange) {
     const ch = this.sb.channel("schedule-changes");
-    for (const t of ["schedule_state", "change_sets", "machine_faults", "leaves", "employee_overtime_days", "orders", "calendar_days"]) {
+    for (const t of ["schedule_state", "change_sets", "machine_faults", "leaves", "employee_overtime_days", "orders", "calendar_days", "work_execution","work_contents","work_assignments","transfer_orders","staff_rosters"]) {
       ch.on("postgres_changes", { event: "*", schema: "public", table: t }, () => onChange(t));
     }
     ch.subscribe();

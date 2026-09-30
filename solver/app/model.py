@@ -316,6 +316,13 @@ def solve(
                 occupy(machine_busy[block.machine], start, end)
             if block.employee in employee_load:
                 occupy(employee_load[block.employee], start, end)
+        for a in snap.work_assignments:
+            start, end = tl.to_t(a.date, a.s), tl.to_t(a.date, a.e)
+            if a.resourceId:
+                occupy(machine_busy[a.resourceId], start, end)
+                occupy(employee_load[a.emp], start, end)
+            else:
+                occupy(employee_busy[a.emp], start, end)
         for employee in snap.employees:
             employee_busy[employee.id].extend(
                 full_capacity_spans(employee_load[employee.id], employee.max_concurrent_machines)
@@ -420,6 +427,15 @@ def solve(
             mach_iv[b.machine].append(iv)
         if b.employee in emp_iv:
             emp_iv[b.employee].append(iv)
+    for a in snap.work_assignments:
+        iv = fixed_iv(tl.to_t(a.date, a.s), tl.to_t(a.date, a.e), f"work_{a.id}")
+        if iv is None:
+            continue
+        if a.resourceId:
+            mach_iv[a.resourceId].append(iv)
+            emp_iv[a.emp].append(iv)
+        else:
+            emp_unavailable[a.emp].append(iv)
     for mc in snap.machines:                                 # 機台故障
         # 故障紀錄可以重疊（例如全天故障後再補登上午）。若直接把每筆
         # 固定區間都交給 NoOverlap，紀錄本身就互相衝突，會誤判排程無解。

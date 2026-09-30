@@ -50,8 +50,9 @@ class Supabase:
     async def role(self, jwt: str) -> str | None:
         return await self._post("/rest/v1/rpc/app_role", self._user_headers(jwt), {})
 
-    async def snapshot(self, jwt: str) -> dict:
-        return await self._post("/rest/v1/rpc/schedule_snapshot", self._user_headers(jwt), {})
+    async def snapshot(self, jwt: str, *, start: str | None = None, end: str | None = None) -> dict:
+        args = {} if start is None else {'p_from':start,'p_to':end}
+        return await self._post("/rest/v1/rpc/schedule_snapshot", self._user_headers(jwt), args)
 
     async def save_preview(self, plan: dict, user_id: str) -> str:
         row = {"kind": plan["kind"], "title": plan["title"], "event": plan["event"],

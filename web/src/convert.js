@@ -25,6 +25,11 @@ export function toSnapshot(S, holidays = {}) {
   return {
     version: S.version || 0,
     setup_pending: !!S.setupPending,
+    work_contents: structuredClone(S.workContents||[]),
+    work_assignments: structuredClone(S.workAssignments||[]),
+    work_reference_orders: structuredClone(S.workReferenceOrders||[]),
+    transfer_orders: structuredClone(S.transferOrders||[]),
+    staff_rosters: structuredClone(S.staffRosters||[]),
     staff_groups: groupCatalog(S).groups,
     staff_group_members: groupCatalog(S).members,
     calendar: {
@@ -58,6 +63,10 @@ export function fromSnapshot(snap) {
   for (const [d, open] of Object.entries(c.overrides || {})) over[d] = open ? "work" : "off";
   return {
     v: 1, demo: false, version: snap.version || 0, setupPending: !!snap.setup_pending,
+    execution: snap.work_execution || [],
+    workContents: snap.work_contents||[],workAssignments:snap.work_assignments||[],workReferenceOrders:snap.work_reference_orders||[],
+    transferOrders:snap.transfer_orders||[],
+    staffRosters:snap.staff_rosters||[],
     groups: (snap.staff_groups || []).map(g=>({id:g.id,name:g.name,department:g.department||null,homeFactory:g.home_factory??null,sourceRef:g.source_ref||null})),
     groupMembers: (snap.staff_group_members || []).map(m=>({groupId:m.group_id,employeeId:m.employee_id,reviewStatus:m.review_status,sourceRef:m.source_ref||null})),
     cal: { week: c.week || [false, true, true, true, true, true, true], over },
