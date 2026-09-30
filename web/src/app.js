@@ -51,7 +51,7 @@ function mergeIv(iv){iv.sort((a,b)=>a[0]-b[0]);const o=[];for(const x of iv){if(
 /* ===== 2. 狀態 ===== */
 let S=null;            // 目前排程（全部資料）
 let readOnly=false, undoStack=[];
-const UI={date:null,view:"day",layout:'resource',factory:1,group:'all',modal:null,zoom:0.85,theme:"auto"};
+const UI={date:null,view:"day",layout:'resource',factory:1,group:'all',modal:null,zoom:1,theme:"light"};
 function loadFactory(){try{UI.factory=factoryPreference(localStorage.getItem("fsched-factory"));}catch(e){}}
 function setFactory(n){UI.factory=FACTORIES.includes(n)?n:"all";try{localStorage.setItem("fsched-factory",String(UI.factory));}catch(e){}}
 const shownEmployees=()=>groupedEmployees(S,S.employees.filter(e=>inFactory(e,UI.factory)),UI.group);
@@ -73,8 +73,8 @@ function setTheme(t){
   if(UI.theme==="auto")r.removeAttribute("data-app-theme");else r.setAttribute("data-app-theme",UI.theme);
   try{localStorage.setItem("fsched-theme",UI.theme);}catch(e){}
 }
-function loadTheme(){let t="auto";try{t=localStorage.getItem("fsched-theme")||"auto";}catch(e){}setTheme(t);}
-function loadZoom(){let z=0.85;try{const v=parseFloat(localStorage.getItem("fsched-zoom"));if(ZOOMS.includes(v))z=v;}catch(e){}setZoom(z);}
+function loadTheme(){let t="light";try{t=localStorage.getItem("fsched-theme")||"light";}catch(e){}setTheme(t);}
+function loadZoom(){let z=1;try{const v=parseFloat(localStorage.getItem("fsched-zoom"));if(ZOOMS.includes(v))z=v;}catch(e){}setZoom(z);}
 
 const emp=id=>S.employees.find(e=>e.id===id);
 const mach=id=>S.machines.find(m=>m.id===id);
@@ -605,6 +605,8 @@ function hourPx(){return parseFloat(getComputedStyle(document.body).getPropertyV
 
 function render(){
   const sc=$(".scroller"),sl=sc?sc.scrollLeft:0,sy=window.scrollY;
+  const toolsOpen=!!document.querySelector('.more-tools')?.open;
+  const referenceOpen=!!document.querySelector('.reference-panel')?.open;
   document.body.classList.toggle("tv",!!UI.tv);
   document.body.classList.toggle("pvmode",!!PV);
   let html;
@@ -614,8 +616,12 @@ function render(){
     readOnly=true;
     try{html=withState(o.A,()=>topHTML()+'<main class="wrap">'+pvPanelHTML(o))+withState(st,()=>bannerHTML()+(UI.view==="day"?dayHTML(ctx):weekHTML(ctx))+generalBoardHTML())+"</main>";}
     finally{readOnly=ro;}
-  }else html=topHTML()+'<main class="wrap">'+latestHTML()+bannerHTML()+cardsHTML()+(UI.view==="day"?(UI.layout==='work'?workViewHTML():dayHTML()+generalBoardHTML()):weekHTML()+generalBoardHTML())+"</main>";
+  }else html=topHTML()+'<main class="wrap">'+bannerHTML()+
+    '<details class="reference-panel"><summary>查看基本資料與最近變更 <span>員工、設備、工單</span></summary>'+cardsHTML()+latestHTML()+'</details>'+
+    (UI.view==="day"?(UI.layout==='work'?workViewHTML():dayHTML()+generalBoardHTML()):weekHTML()+generalBoardHTML())+'</main>';
   $("#app").innerHTML=html;
+  if(toolsOpen&&$(".more-tools"))$(".more-tools").open=true;
+  if(referenceOpen&&$(".reference-panel"))$(".reference-panel").open=true;
   const sc2=$(".scroller");if(sc2)sc2.scrollLeft=sl;
   window.scrollTo(0,sy);
   if(UI.modal)renderModal();
@@ -627,7 +633,7 @@ function topHTML(){
   const ws=weekStart(d);
   const title=wk?md(ws)+" – "+md(addDays(ws,6)):mdw(d);
   const sub=wk?"第 "+isoWeek(ws)+" 週":dayLabel(d);
-  return '<header class="top"><div class="top-in">'+
+  return '<header class="top"><div class="top-in"><div class="top-main">'+
   '<div class="brand"><span class="brand-mark"><span></span></span>產線排程</div>'+
   '<div class="seg factory-switch" role="group" aria-label="排程廠別">'+
   [[1,'1 廠'],[2,'2 廠'],['all','跨廠']].map(([v,t])=>'<button data-act="factory" data-v="'+v+'" aria-pressed="'+(UI.factory===v)+'">'+t+'</button>').join('')+'</div>'+
@@ -636,34 +642,41 @@ function topHTML(){
   '<input type="date" id="datepick" value="'+d+'" style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none" tabindex="-1" aria-hidden="true">'+
   '<button class="iconbtn" data-act="next" aria-label="往後">›</button>'+
   '<button class="btn" data-act="today">今天</button></div>'+
-  '<div class="seg" role="group" aria-label="檢視"><button data-act="view" data-v="day" aria-pressed="'+!wk+'">日</button><button data-act="view" data-v="week" aria-pressed="'+wk+'">週</button></div>'+
   (S.demo?'<span class="demo-chip">示範資料</span>':'')+(readOnly&&!PV?'<span class="ro-chip">檢視模式</span>':'')+
-  '<div class="spacer"></div>'+
-  '<button class="btn danger admin" data-act="incident" '+(readOnly||S.setupPending?"disabled":"")+'>突發狀況</button>'+
-  '<button class="btn admin" data-act="auto" title="自動排程會連同另一廠的工序一起計算" '+(readOnly||S.setupPending?"disabled":"")+'>'+IC.bolt+'<span class="lbl">自動排程</span></button>'+
-  '<button class="btn admin" data-act="undo" '+(readOnly||!undoStack.length?"disabled":"")+'>'+IC.undo+'<span class="lbl">復原</span></button>'+
-  '<button class="btn" data-act="export">'+IC.down+'<span class="lbl">Excel</span></button>'+
-  (canArchive()?'<button class="btn" data-act="history"><span class="lbl">歷史排程</span></button>':'')+
-  '<button class="btn" data-act="groups">分組／部門</button>'+
-  '<button class="btn" data-act="work-contents" '+(PV?'disabled':'')+'>工作內容</button>'+
+  '<div class="top-status">'+syncChipHTML()+
+  '<button class="btn" data-act="account" title="帳號與連線">'+IC.user+'<span class="lbl">'+esc(STORE&&STORE.kind==="supabase"?(STORE.userName||"帳號"):"本機")+'</span></button></div></div>'+
+  '<div class="top-actions" aria-label="常用操作">'+
+  '<div class="seg" role="group" aria-label="檢視"><button data-act="view" data-v="day" aria-pressed="'+!wk+'">日班表</button><button data-act="view" data-v="week" aria-pressed="'+wk+'">週班表</button></div>'+
+  '<div class="seg" role="group" aria-label="排班表查看方式"><button data-act="layout" data-v="resource" aria-pressed="'+(UI.layout==='resource')+'" '+(PV?'disabled':'')+'>按設備看</button><button data-act="layout" data-v="work" aria-pressed="'+(UI.layout==='work')+'" '+(PV?'disabled':'')+'>按工作看</button></div>'+
+  '<button class="btn" data-act="rosters" '+(PV?'disabled':'')+'>輪班表</button>'+
+  (canArchive()?'<button class="btn" data-act="history">歷史班表</button>':'')+
+  '<button class="btn" data-act="export">'+IC.down+'匯出 Excel</button>'+
+  (S.setupPending?'<button class="btn primary" data-act="catalog">核對員工與設備</button>':'')+
+  '<button class="btn danger admin priority-mobile-hide" data-act="incident" '+(readOnly||S.setupPending?'disabled title="名冊與工時確認後才能調整排班"':'')+'>故障／請假</button>'+
+  '<button class="btn admin priority-mobile-hide" data-act="auto" '+(readOnly||S.setupPending?'disabled title="名冊與工時確認後才能自動排班"':'title="會一併計算跨廠工序"')+'>'+IC.bolt+'自動排班</button>'+
+  '<details class="more-tools"><summary>更多功能</summary><div class="more-tools-panel">'+
+  '<div class="toolset"><strong>工作與資料</strong>'+
+  '<button class="btn" data-act="work-contents" '+(PV?'disabled':'')+'>設定工作內容</button>'+
   '<button class="btn" data-act="transfers" '+(PV?'disabled':'')+'>跨廠加工</button>'+
-  '<button class="btn" data-act="rosters" '+(PV?'disabled':'')+'>輪班班表</button>'+
-  '<div class="seg" role="group" aria-label="排程排列方式"><button data-act="layout" data-v="resource" aria-pressed="'+(UI.layout==='resource')+'" '+(PV?'disabled':'')+'>設備／工位</button><button data-act="layout" data-v="work" aria-pressed="'+(UI.layout==='work')+'" '+(PV?'disabled':'')+'>工作內容</button></div>'+
-  '<button class="btn" data-act="resource-load" '+(PV?'disabled title="請先結束方案預覽，再分析已儲存排程"':'')+'>當日負荷</button>'+
-  '<button class="btn" data-act="work-queue" '+(PV?'disabled':'')+'>未排工作</button>'+
-  (canArchive()?'<button class="btn" data-act="scenarios" '+(PV?'disabled':'')+'>試排情境</button>':'')+
+  '<button class="btn" data-act="groups">員工分組</button>'+
+  '<button class="btn" data-act="work-queue" '+(PV?'disabled':'')+'>未排工作</button></div>'+
+  '<div class="toolset"><strong>追蹤與調整</strong>'+
+  '<button class="btn danger admin mobile-only" data-act="incident" '+(readOnly||S.setupPending?'disabled title="名冊與工時確認後才能調整排班"':'')+'>故障／請假</button>'+
+  '<button class="btn admin mobile-only" data-act="auto" '+(readOnly||S.setupPending?'disabled title="名冊與工時確認後才能自動排班"':'title="會一併計算跨廠工序"')+'>'+IC.bolt+'自動排班</button>'+
   '<button class="btn" data-act="execution" '+(PV?'disabled':'')+'>現場回報</button>'+
+  '<button class="btn" data-act="resource-load" '+(PV?'disabled title="請先結束方案預覽"':'')+'>當日負荷</button>'+
+  (canArchive()?'<button class="btn" data-act="scenarios" '+(PV?'disabled':'')+'>試排情境</button>':'')+
+  '<button class="btn admin" data-act="undo" '+(readOnly||!undoStack.length?'disabled':'')+'>'+IC.undo+'復原上一步</button></div>'+
+  '<div class="toolset"><strong>畫面設定</strong>'+
   '<div class="zoombox" role="group" aria-label="畫面大小"><button data-act="zoom-" aria-label="縮小">−</button><button class="zv" data-act="zoom0" title="回到 100%">'+Math.round(UI.zoom*100)+'%</button><button data-act="zoom+" aria-label="放大">＋</button></div>'+
-  '<button class="btn" data-act="help" aria-label="操作說明"><b style="font-size:19px">?</b><span class="lbl">說明</span></button>'+
   '<button class="btn" data-act="theme" title="切換淺色／深色">'+THEME_UI[UI.theme]+'</button>'+
-  '<button class="btn" data-act="tv" aria-pressed="'+!!UI.tv+'">'+IC.tv+'<span class="lbl">'+(UI.tv?"管理模式":"大螢幕")+'</span></button>'+
-  syncChipHTML()+
-  '<button class="btn" data-act="account" title="帳號與連線">'+IC.user+'<span class="lbl">'+esc(STORE&&STORE.kind==="supabase"?(STORE.userName||"帳號"):"本機")+'</span></button>'+
-  '</div></header>';
+  '<button class="btn" data-act="tv" aria-pressed="'+!!UI.tv+'">'+IC.tv+(UI.tv?'管理模式':'大螢幕')+'</button>'+
+  '<button class="btn" data-act="help">操作說明</button></div>'+
+  '</div></details></div></div></header>';
 }
 function isoWeek(ds){const d=parseD(ds);d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));const y=new Date(Date.UTC(d.getUTCFullYear(),0,1));return Math.ceil(((d-y)/864e5+1)/7);}
 function bannerHTML(){
-  const pending=S.setupPending?'<div class="banner"><span class="grow">已匯入排程1023的員工與機台／工作站名冊（待確認）。技能、工序與工時尚未確認，暫不開放排班或自動排程。原始工作請看「歷史排程」。</span></div>':"";
+  const pending=S.setupPending?'<div class="banner pending"><span class="grow"><b>目前先核對資料，暫不排班。</b> 排程1023的員工與設備已匯入；技能、工作時間與工序尚待確認。可按「核對員工與設備」或查看「歷史班表」。</span></div>':"";
   if(UI.view!=="day")return pending;
   const d=UI.date,di=dayInfo(d),out=[pending];
   const name=di.type==="hol"?"國定假日："+di.hol:di.type==="sat"?"週六休息日":di.type==="sun"?"週日例假日":"";
@@ -696,7 +709,7 @@ function cardsHTML(){
   const lrows=S.log.slice(0,3).map(logRow).join("")||'<div class="empty">還沒有紀錄</div>';
   return '<section class="cards" aria-label="總覽">'+
   '<div class="card"><div class="card-h"><h2>員工</h2><span class="count">'+employees.length+' 人'+(onLeave.length?" · 今天 "+onLeave.length+" 人請假":"")+'</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="emp-new">＋新增</button>':"")+'</div>'+staffGroupFilterHTML()+'<div class="chips">'+(emps||'<div class="hint">此廠在此分組沒有員工；可切換廠別或選擇全部分組。</div>')+'</div></div>'+
-  '<div class="card"><div class="card-h"><h2>設備／工位</h2><span class="count">'+(machines.some(m=>m.catalogGroup)?new Set(machines.map(m=>m.catalogGroup||m.id)).size+' 組 · '+machines.length+' 個位置':machines.length+(S.setupPending?' 個待確認欄位':' 項'))+'</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="mach-new">＋新增</button>':"")+'</div><div class="hint">做什麼工作，請到上方「工作內容」設定；純人工不需要新增假機台。</div><div class="chips">'+machs+'</div></div>'+
+  '<div class="card"><div class="card-h"><h2>設備／工位</h2><span class="count">'+(machines.some(m=>m.catalogGroup)?new Set(machines.map(m=>m.catalogGroup||m.id)).size+' 組 · '+machines.length+' 個位置':machines.length+(S.setupPending?' 個待確認欄位':' 項'))+'</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="mach-new">＋新增</button>':"")+'</div><div class="hint">要設定做什麼工作，請按「更多功能」→「設定工作內容」；純人工不需要假機台。</div><div class="chips">'+machs+'</div></div>'+
   '<div class="card"><div class="card-h"><h2>工單</h2><span class="count">'+orders.length+' 張</span>'+(readOnly?"":'<button class="add" data-act="ord-new">＋新增</button>')+'</div><div class="olist">'+orows+'</div>'+
     '<div style="display:flex;gap:16px"><button class="more" data-act="orders">全部工單</button><button class="more" data-act="products">產品工序</button></div></div>'+
   '<div class="card"><div class="card-h"><h2>全廠紀錄</h2><span class="count">系統怎麼調整</span></div><div class="llist">'+lrows+'</div><button class="more" data-act="log">全部紀錄</button></div>'+
@@ -933,6 +946,7 @@ document.addEventListener("click",e=>{
     case "prev":UI.date=addDays(UI.date,-step);render();break;
     case "next":UI.date=addDays(UI.date,step);render();break;
     case "today":UI.date=todayStr();render();break;
+    case "catalog":{const panel=$(".reference-panel");if(panel){panel.open=true;panel.scrollIntoView({behavior:"smooth",block:"start"});}break;}
     case "pick":{const p=$("#datepick");try{p.showPicker();}catch(_){p.style.pointerEvents="auto";p.focus();p.click();}break;}
     case "view":UI.view=a.dataset.v;render();break;
     case "factory":setFactory(a.dataset.v==="all"?"all":Number(a.dataset.v));render();break;
@@ -1745,18 +1759,18 @@ Object.assign(MODAL_ACT,{
 /* ---------- 操作手冊 ---------- */
 const HELP=[
  ["快速上手",[
-  "上方四格：<b>員工、機台、工單、紀錄</b>。點任何一格都能看細節或修改。",
-  "下方大表跟 Excel 一樣：<b>左邊是時間、上面是機台，顏色代表員工</b>。",
-  "有狀況時按紅色的 <b>突發狀況</b>，選「機台故障、有人請假、急單」。",
-  "每個動作都會<b>自動儲存</b>，右上角會顯示「已同步」或「已存在這台電腦」。"],
-  "不小心改錯？按 <b>復原</b>，一次退一步。"],
+  "先選 <b>1 廠、2 廠或跨廠</b>，再選日期。",
+  "排班表像 Excel：<b>左邊是時間、上面是設備／工位，彩色方塊代表員工工作</b>。上方可切換「按設備看／按工作看」。",
+  "按 <b>查看基本資料與最近變更</b>，再看員工、設備、工單或新增資料。",
+  "其他設定在 <b>更多功能</b>；每個動作會自動儲存，右上角會顯示同步狀態。"],
+  "名冊顯示「待確認」時，先核對資料；系統不會拿猜測的技能與工時自動排班。"],
  ["看排程",[
   "按 <b>‹ ›</b> 換日期，按 <b>今天</b> 回到今天；按日期可以直接選。",
-  "按 <b>日／週</b> 切換。週檢視點任一格會跳到那一天。",
+  "按 <b>日班表／週班表</b> 切換。週檢視點任一格會跳到那一天。",
   "<b>紅框＋驚嘆號</b> = 有問題（人不會操作、請假、機台故障、時間撞到）。點方塊看原因。",
   "方塊上有 <b>釘</b> = 手動固定，系統自動排程不會動它；<b>急</b> = 特急工單。",
   "灰色斜線是午休，黃色是加班時段，紅色是機台故障時段。"],
-  "工廠大螢幕請按 <b>大螢幕</b>，字會變大、隱藏管理按鈕。"],
+  "工廠大螢幕請按 <b>更多功能 → 大螢幕</b>，字會變大、隱藏管理按鈕。"],
  ["拖曳調整",[
   "排程表按 <b>＋手動排班</b>，選工單工序、機台、員工與時段；先看預覽，確認後才會新增彩色方塊。",
   "按住方塊拖到別的時間或別台機台；拉方塊底邊可改結束時間和預計件數。放開會先看預覽，按「確認套用」才會儲存。手機、平板也可用手指操作。",
@@ -1766,20 +1780,20 @@ const HELP=[
   "點一下方塊（不要拖）可以換人、換機台、選開始／結束時間或刪除。"],
   "一般自動排程不會推固定（釘）的方塊；手動拖曳撞到固定方塊時，須在預覽明確確認才會解除固定並順延。"],
  ["工單、插單、急單",[
-  "工單格按 <b>＋新增</b>：填工單號、數量、產品、<b>最晚完成日</b>和優先順序（特急／急／一般／不急）。",
+  "按 <b>查看基本資料與最近變更</b>，在工單區按 <b>＋新增</b>：填工單號、數量、產品、最晚完成日和優先順序。",
   "按「下一步：選排法」，系統會列出三種排法：<b>排進空檔</b>（不動別人）、<b>插單優先</b>（擋到的較不急工作往後推）、<b>插單＋加班</b>。",
   "每個排法都會顯示：<b>本單幾號完成、會不會延誤、影響幾段工作、要加班幾小時</b>。選一個按「採用這個」。",
-  "急單最快的路：<b>突發狀況 → 急單／插單</b>，優先順序會預設為特急。"],
+  "急單最快的路：<b>故障／請假 → 急單／插單</b>，優先順序會預設為特急。"],
   "工序時間是依「產品工序」的標準公式自動算的：數量 ÷ 每分鐘件數。"],
  ["突發狀況與預覽",[
-  "按 <b>突發狀況 → 機台故障</b> → 點壞掉的機台 → 選從幾點開始、壞多久 → 按「確認故障」。",
+  "按 <b>故障／請假 → 機台故障</b> → 點壞掉的機台 → 選從幾點開始、壞多久 → 按「確認故障」。",
   "畫面會進入 <b>預覽中</b>（藍框）：系統算好幾種排法，上方可以切換方案 A、B、C、D，<b>還沒按「套用」前排程都不會變</b>。",
   "<b>一句話總結</b>：幾張工單變晚、會不會超過期限、影響哪幾天、誰的班表有變。",
   "<b>對照／調整後／原本</b>：下方排程表切換。對照模式裡，<b>虛線框是原本位置、粗框是調整後</b>；週檢視會分上下兩排（原本、調整後）。",
   "<b>跨日影響圖</b>：每張工單一列，上排虛線是原本、下排彩色是調整後，紅線是期限，右邊寫「晚幾天幾小時」。跨好幾天的影響一眼就看得到。",
   "<b>每個人的變動</b>：每位員工哪一天被拿掉、新增了哪段工作，方便通知本人。",
   "<b>問 AI</b>：AI 依「期限不能延誤 → 少動其他天 → 少加班」幫你挑一個，並說明原因。可以在備註寫下故障原因，會一起寫進紀錄。"],
-  "套用後，上方會出現黃色的 <b>最新變更</b>，員工打開網頁就知道誰的班表變了。"],
+  "套用後可展開 <b>查看基本資料與最近變更</b>，核對誰的班表變了。"],
  ["機台修好了",[
   "點機台 → 在故障那一行按 <b>修好了</b>。故障時間會算到現在為止。",
   "系統一樣進入預覽，比較四種「把機台加回排程」的方法：",
@@ -1790,15 +1804,14 @@ const HELP=[
   "如果故障本來就排到某個時間，時間到了系統會自動把機台當成可用，不需要按。"],
  ["排程怎麼算",[
   "<b>硬規則</b>（一定遵守）：人要會操作那台機台、機台要能做那個產品、前站做完（或做到可傳下站的件數）才開始下站、避開請假、故障、午休與未開放的加班。",
-  "<b>串列排程法</b>：依工單順序，一站一站找「最早能完成」的機台＋人，工作太長會自動跨午休或跨日分段。",
-  "<b>派工規則</b>（業界常用）：優先級、交期最早 EDD、工時最短 SPT、寬裕比最小 CR，先各排一次挑最好的當起點。",
-  "<b>模擬退火</b>（開源最佳化常用方法）：隨機調換工單順序，試上百種排法，保留「延誤最少 → 完成最早 → 變動最少」的那一個。",
+  "按 <b>自動排班</b> 會先由 OR-Tools 排程服務計算；服務暫時連不上時會標示改用瀏覽器備援。",
+  "預覽會比較期限、加班與受影響工作；在按「套用」前，正式班表不會改變。",
   "局部調整（請假、故障）會先試 <b>換人 → 換機台 → 延後 → 順延</b>，盡量不動其他天。"],
-  "以後工單變多時，可以把計算換成 Google OR-Tools（開源的工廠排程求解器），畫面和操作都不用改。"],
+  "如有工作資料、技能或工時待確認，先核對再排；不要把待確認資料當成可行排程。"],
  ["員工、機台、工序設定",[
-  "<b>員工</b>：點名字 → 設定會操作的機台、同時最多顧幾台、固定每週哪幾天可加班，以及請假日期。",
-  "<b>機台</b>：點機台 → 設定做哪一道工序、可以生產哪些產品（有哪些模具）。",
-  "<b>產品工序</b>（工單格下方）：每個產品要經過哪幾站、一個人每分鐘做幾件、前站做完幾件就能傳到下一站。",
+  "<b>員工</b>：展開「查看基本資料與最近變更」，點名字設定會操作的設備、同時最多顧幾台、加班與請假。",
+  "<b>設備／工位</b>：同一區可點設備，核對廠別、工序與可生產產品。純人工工作不需要假機台。",
+  "<b>產品工序</b>：在工單區按「產品工序」，設定每個產品的站別、速度與前後站交接。另在「更多功能 → 設定工作內容」管理獨立工作。",
   "順序不能跳：前一站沒做完（或還沒做到設定的件數），下一站不會開始。"],
   "新增機台後，記得到員工設定勾選誰會操作。"],
  ["上班日與加班",[
@@ -1811,8 +1824,8 @@ const HELP=[
   "每一個動作都會<b>自動儲存</b>。接上雲端資料庫後，所有打開的畫面（電視、手機、平板）會即時更新。",
   "右上角顯示儲存狀態；出現「同步失敗」時按一下重試。兩個人同時改時，後改的人會收到提醒並載入最新版本。",
   "現場電視、員工手機：由老闆建立帳號，角色設成「電視」或「員工」，就只能看不能改。",
-  "<b>Excel</b> 按鈕：複製當天排程表（和原本 Excel 一樣的格式），貼到 Google 試算表或 Excel；或下載全部明細。",
-  "畫面太大太小：用 <b>− 85% ＋</b> 調整；<b>淺色／深色</b> 按鈕切換顏色。"],
+  "<b>匯出 Excel</b>：下載當天彩色排班表或複製到試算表；也可從此處匯入範本。",
+  "畫面太大太小：到 <b>更多功能 → 畫面設定</b> 調整比例或淺色／深色。"],
   "每台電腦的畫面大小、顏色各自記住，不影響別人。"]
 ];
 MODALS.help=m=>{
@@ -2466,7 +2479,7 @@ function workGridHTML(title,lanes){
     (!di.ot?'<div class="zone ot-off" style="top:'+px(1020)+'px;height:'+(px(1200)-px(1020))+'px">未開加班</div>':'')+
     (l.production||[]).map(b=>blkHTML(b,px,issuesOf(b).length)).join('')+(l.general||[]).map(a=>workBlockHTML(a,px)).join('')+'</div>').join('');
   return '<section class="board" aria-label="'+title+'"><div class="board-h"><h2>'+title+' · '+mdw(d)+'</h2><div class="spacer"></div>'+(!readOnly&&!S.setupPending?'<button class="btn primary" data-act="general-add">＋一般工作排班</button>':'')+'</div><div class="hint" style="padding:10px">一般工作方塊可拖曳及拉底邊；放開先預覽，確認前不改班表。純人工占用完整人員時間；參考件數不算作工單已完成。產品工序方塊請在「設備／工位」檢視調整。</div>'+
-    (lanes.length?'<div class="scroller"><div class="grid" style="grid-template-columns:64px repeat('+lanes.length+',minmax(180px,1fr))"><div class="corner"></div>'+lanes.map(l=>'<div class="colhead"><span class="N">'+esc(l.name)+'</span></div>').join('')+'<div class="times">'+times+'</div>'+cols+'</div></div>':'<div class="empty">尚未有可安排的工作內容。先到「工作內容」明確核定工作、人員與所需設備。</div>')+'</section>';
+    (lanes.length?'<div class="scroller"><div class="grid" style="grid-template-columns:64px repeat('+lanes.length+',minmax(180px,1fr))"><div class="corner"></div>'+lanes.map(l=>'<div class="colhead"><span class="N">'+esc(l.name)+'</span></div>').join('')+'<div class="times">'+times+'</div>'+cols+'</div></div>':'<div class="empty">尚未有可安排的工作內容。請按「更多功能」→「設定工作內容」，先核定工作、人員與所需設備。</div>')+'</section>';
 }
 function generalLanes(){
   return workCatalog(S).filter(w=>inFactory(w,UI.factory)).flatMap(w=>{
