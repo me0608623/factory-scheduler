@@ -1168,7 +1168,7 @@ function renderModal(){
   ov.addEventListener("click",e=>{if(e.target===ov)closeModal();});
 }
 function rerender(){syncInputs();renderModal();}
-const tg=(act,v,on,txt,extra="")=>'<button class="tg '+extra+'" data-act="'+act+'" data-v="'+esc(v)+'" aria-pressed="'+!!on+'">'+txt+'</button>';
+const tg=(act,v,on,txt,extra="",disabled=false)=>'<button class="tg '+extra+'" data-act="'+act+'" data-v="'+esc(v)+'" aria-pressed="'+!!on+'"'+(disabled?' disabled':'')+'>'+txt+'</button>';
 const RK={early:"提早",swap:"換人",mach:"換機台",delay:"延後",push:"順延",chain:"連動",fail:"要處理",late:"延誤",info:"說明"};
 function resultHTML(lines){
   if(!lines||!lines.length)return '<div class="okbox">不用調整，其他排程都沒變</div>';
@@ -1294,19 +1294,19 @@ emp(m){
   const D=m.draft,ro=readOnly||!canMaster();
   const start=weekStart(UI.date<todayStr()?todayStr():UI.date);
   let days="";for(let i=0;i<21;i++){const d=addDays(start,i),di=dayInfo(d);
-    days+=tg("m-leave",d,D.leaves.includes(d),'<span class="num">'+md(d)+'</span><small>'+WD[di.w]+(di.type==="hol"?" "+esc(di.hol.slice(0,3)):"")+'</small>',"leave"+(di.type!=="work"?" hol":""));}
+    days+=tg("m-leave",d,D.leaves.includes(d),'<span class="num">'+md(d)+'</span><small>'+WD[di.w]+(di.type==="hol"?" "+esc(di.hol.slice(0,3)):"")+'</small>',"leave"+(di.type!=="work"?" hol":""),ro);}
   const body=(D.sourceRef?'<div class="hint">原檔來源：'+esc(D.sourceRef)+'。'+(D.reviewStatus==='pending'?'姓名與技能待確認；未推測會操作哪些機台。':'')+'</div>':'')+
    '<div class="hint">原始員工代號：'+esc(D.sourceCode||'原檔未提供或尚未核定')+'</div>'+
    (D.sourceNotes?'<div class="hint">原文備註：'+esc(D.sourceNotes)+'</div>':'')+
    (D.catalogSources?.length?'<div class="hint">補充來源：'+D.catalogSources.map(esc).join('；')+'</div>':'')+
    (D.identityCandidates?.length?'<div class="field"><span class="lab">別名待核對（尚未合併）</span>'+D.identityCandidates.map(c=>'<div class="hint">'+esc(c.name)+' · '+esc(c.source_employee_code||'無代號')+' · '+esc(c.source_ref||'')+'</div>').join('')+'</div>':'')+
    '<div class="field"><label for="f-name">姓名</label><input class="inp" id="f-name" data-bind="name" value="'+esc(D.name)+'" '+(ro?"disabled":"")+' autocomplete="off"></div>'+
-   '<div class="field"><span class="lab">所屬廠別</span><div class="toggles">'+FACTORIES.map(f=>tg("m-emp-factory",f,factoryOf(D)===f,factoryName(f))).join("")+'</div></div>'+
+   '<div class="field"><span class="lab">所屬廠別</span><div class="toggles">'+FACTORIES.map(f=>tg("m-emp-factory",f,factoryOf(D)===f,factoryName(f),"",ro)).join("")+'</div></div>'+
    '<div class="field"><span class="lab">所屬分組／部門</span><div class="hint">'+(employeeGroups(S,D.id).map(x=>esc(x.group.name)+(x.group.department?'（'+esc(x.group.department)+'）':'')+' · '+memberStatus(x.membership.reviewStatus)).join('；')||'尚未分組')+'。分組可在「分組／部門」調整，不等於機台技能。</div></div>'+
-   '<div class="field"><span class="lab">代表顏色</span><div class="swatches">'+COLORS.map((c,i)=>'<button class="swatch" style="background:'+c+'" data-act="m-color" data-v="'+i+'" aria-pressed="'+(D.color===i)+'" aria-label="顏色 '+(i+1)+'"></button>').join("")+'</div></div>'+
-   '<div class="field"><span class="lab">會操作的機台</span><div class="toggles">'+S.machines.filter(M=>factoryOf(M)===factoryOf(D)).map(M=>tg("m-skill",M.id,D.skills.includes(M.id),'<span class="num">'+esc(M.id)+'</span><small>'+esc(M.label)+'</small>')).join("")+'</div></div>'+
+   '<div class="field"><span class="lab">代表顏色</span><div class="swatches">'+COLORS.map((c,i)=>'<button class="swatch" style="background:'+c+'" data-act="m-color" data-v="'+i+'" aria-pressed="'+(D.color===i)+'" aria-label="顏色 '+(i+1)+'"'+(ro?' disabled':'')+'></button>').join("")+'</div></div>'+
+   '<div class="field"><span class="lab">會操作的機台</span><div class="toggles">'+S.machines.filter(M=>factoryOf(M)===factoryOf(D)).map(M=>tg("m-skill",M.id,D.skills.includes(M.id),'<span class="num">'+esc(M.id)+'</span><small>'+esc(M.label)+'</small>',"",ro)).join("")+'</div></div>'+
    '<div class="field"><label for="f-max-machines">同時最多顧幾台機台</label><input class="inp num" type="number" min="1" max="100" step="1" id="f-max-machines" data-bind="maxMachines" value="'+(D.maxMachines||1)+'" '+(ro?"disabled":"")+'><div class="hint">預設 1 台；只計算同時運轉的不同機台，不影響會操作的機台清單。</div></div>'+
-   '<div class="field"><span class="lab">固定每週可加班日</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("m-ot-week",w,D.otWeekdays.includes(w),"週"+WD[w])).join("")+'</div><div class="hint">當天是否加班另由排程表開放；臨時意願可在當天的「加班設定」調整。</div></div>'+
+   '<div class="field"><span class="lab">固定每週可加班日</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("m-ot-week",w,D.otWeekdays.includes(w),"週"+WD[w],"",ro)).join("")+'</div><div class="hint">當天是否加班另由排程表開放；臨時意願可在當天的「加班設定」調整。</div></div>'+
    '<div class="field"><span class="lab">請假（點日期切換，紅色 = 請假）</span><div class="toggles">'+days+'</div></div>';
   const foot=ro?'<button class="btn" data-act="close">關閉</button>':
    (m.id?'<button class="btn danger" data-act="m-emp-del">刪除員工</button>':'')+'<div class="spacer"></div><button class="btn" data-act="close">取消</button><button class="btn primary" data-act="m-emp-save">儲存並自動調整</button>';
@@ -1331,9 +1331,9 @@ mach(m){
    (D.catalogGroup?'<div class="hint">來源資源群組：'+esc(D.catalogGroup)+(D.catalogSide?' · '+esc(D.catalogSide)+'側操作位置':'')+'。僅作來源對照，尚未確認共用產能。</div>':'')+
    (m.id?'':'<div class="field"><label for="f-id">代號（例：f）</label><input class="inp num" id="f-id" data-bind="id" value="'+esc(D.id)+'" maxlength="4" autocomplete="off"></div>')+
    '<div class="field"><label for="f-label">名稱</label><input class="inp" id="f-label" data-bind="label" value="'+esc(D.label)+'" '+(rm?"disabled":"")+' autocomplete="off"></div>'+
-   '<div class="field"><span class="lab">所屬廠別</span><div class="toggles">'+FACTORIES.map(f=>tg("m-mach-factory",f,factoryOf(D)===f,factoryName(f))).join("")+'</div></div>'+
+   '<div class="field"><span class="lab">所屬廠別</span><div class="toggles">'+FACTORIES.map(f=>tg("m-mach-factory",f,factoryOf(D)===f,factoryName(f),"",rm)).join("")+'</div></div>'+
    '<div class="field"><label for="f-proc">設備工序／工作內容（可自行輸入）</label><input class="inp" id="f-proc" data-bind="proc" list="process-names" value="'+esc(D.proc)+'" '+(rm?'disabled':'')+'><datalist id="process-names">'+processNames().map(p=>'<option value="'+esc(p)+'"></option>').join('')+'</datalist><div class="hint">名稱由使用者設定，不限於示範工序；純人工請使用「工作內容」。</div></div>'+
-   '<div class="field"><span class="lab">允許加工的產品／品號</span><div class="toggles">'+S.products.map(p=>tg("m-prod",p.id,D.products.includes(p.id),esc(p.name)+'<small>'+esc(p.steps.map(s=>s.proc).join("→"))+'</small>')).join("")+'</div><div class="hint">這是使用者建立的產品清單，不代表 1023 已核定模具。模具尚未獨立建模。</div>'+(rm?'':'<button class="btn" data-act="mach-products">新增／編輯產品與工序</button><div class="hint">請先儲存本視窗修改，再切換產品設定。</div>')+'</div>'+
+   '<div class="field"><span class="lab">允許加工的產品／品號</span><div class="toggles">'+S.products.map(p=>tg("m-prod",p.id,D.products.includes(p.id),esc(p.name)+'<small>'+esc(p.steps.map(s=>s.proc).join("→"))+'</small>',"",rm)).join("")+'</div><div class="hint">這是使用者建立的產品清單，不代表 1023 已核定模具。模具尚未獨立建模。</div>'+(rm?'':'<button class="btn" data-act="mach-products">新增／編輯產品與工序</button><div class="hint">請先儲存本視窗修改，再切換產品設定。</div>')+'</div>'+
    '<div class="field"><span class="lab">誰會操作</span><div class="chips">'+(S.employees.filter(E=>E.skills.includes(D.id)).map(E=>'<span class="emp"><span class="sw" style="background:'+COLORS[E.color%COLORS.length]+'">'+esc(E.name[0])+'</span>'+esc(E.name)+'</span>').join("")||'<span class="hint">還沒有人會操作（到員工設定勾選）</span>')+'</div></div>'+
    (m.fromInc?"":faultBox);
   const foot=rm?'<button class="btn" data-act="close">關閉</button>':
@@ -1355,9 +1355,9 @@ ord(m){
   const body=
    '<div class="row2"><div class="field"><label for="f-code">工單號</label><input class="inp num" id="f-code" data-bind="code" value="'+esc(D.code)+'" '+(ro?"disabled":"")+'></div>'+
    '<div class="field"><label for="f-qty">數量（件）</label><input class="inp num" type="number" min="1" id="f-qty" data-bind="qty" value="'+D.qty+'" '+(ro?"disabled":"")+'></div></div>'+
-   '<div class="field"><span class="lab">產品</span><div class="toggles">'+S.products.filter(x=>x.id===D.pid||UI.factory==="all"||x.steps.some(s=>factoryOf(s)===UI.factory)).map(x=>tg("o-prod",x.id,D.pid===x.id,esc(x.name))).join("")+'</div></div>'+
+   '<div class="field"><span class="lab">產品</span><div class="toggles">'+S.products.filter(x=>x.id===D.pid||UI.factory==="all"||x.steps.some(s=>factoryOf(s)===UI.factory)).map(x=>tg("o-prod",x.id,D.pid===x.id,esc(x.name),"",ro)).join("")+'</div></div>'+
    '<div class="row2"><div class="field"><label for="f-due">最晚完成日（硬性期限）</label><input class="inp num" type="date" id="f-due" data-bind="due" value="'+D.due+'" '+(ro?"disabled":"")+'></div>'+
-   '<div class="field"><span class="lab">優先順序</span><div class="toggles">'+[[0,"特急"],[1,"急"],[2,"一般"],[3,"不急"]].map(([v,t])=>tg("o-pri",v,D.pri===v,t)).join("")+'</div></div></div>'+
+   '<div class="field"><span class="lab">優先順序</span><div class="toggles">'+[[0,"特急"],[1,"急"],[2,"一般"],[3,"不急"]].map(([v,t])=>tg("o-pri",v,D.pri===v,t,"",ro)).join("")+'</div></div></div>'+
    '<div class="field"><span class="lab">標準工序（依產品設定自動算時間）</span><div class="flow">'+flow+'</div></div>'+plan;
   const foot=ro?'<button class="btn" data-act="close">關閉</button>':
    (m.id?'<button class="btn danger" data-act="o-del">刪除工單</button>':'')+'<div class="spacer"></div><button class="btn" data-act="close">取消</button><button class="btn primary" data-act="o-save">下一步：選排法</button>';
@@ -1499,9 +1499,9 @@ MODALS.cal=m=>{
   const D=m.draft,ro=readOnly||!canMaster(),T=todayStr();
   const openD=d=>{const o=D.over[d];return o?o==="work":!!D.week[parseD(d).getUTCDay()];};
   const hol=Object.keys(HOLI).filter(d=>d>=T&&d<=addDays(T,120)).sort();
-  const body='<div class="field"><span class="lab">每週固定上班的日子</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("c-week",w,D.week[w],"週"+WD[w])).join("")+'</div></div>'+
+  const body='<div class="field"><span class="lab">每週固定上班的日子</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("c-week",w,D.week[w],"週"+WD[w],"",ro)).join("")+'</div></div>'+
    '<div class="field"><span class="lab">接下來的國定假日（預設照常上班，只標示工資加倍）</span><div class="result">'+
-   (hol.map(d=>'<div class="rline" style="align-items:center"><span style="flex:1">'+mdw(d)+"　"+esc(HOLI[d])+'</span>'+tg("c-day",d,openD(d),openD(d)?"上班":"停工")+'</div>').join("")||'<div class="empty">近期沒有國定假日</div>')+'</div></div>'+
+   (hol.map(d=>'<div class="rline" style="align-items:center"><span style="flex:1">'+mdw(d)+"　"+esc(HOLI[d])+'</span>'+tg("c-day",d,openD(d),openD(d)?"上班":"停工","",ro)+'</div>').join("")||'<div class="empty">近期沒有國定假日</div>')+'</div></div>'+
    '<div class="hint">其他單日要停工或加開，直接到那一天按「改為停工／改為上班」。</div>';
   return {title:"上班日設定",body,foot:ro?'<button class="btn" data-act="close">關閉</button>':'<button class="btn" data-act="close">取消</button><button class="btn primary" data-act="c-save">儲存</button>'};
 };
@@ -1542,8 +1542,8 @@ Object.assign(MODAL_ACT,{
     toast(P.movedLabel+' 已移到 '+mdw(moved.date)+' '+hm(moved.s)+'–'+hm(moved.e)+(P.unpinned.length?'；已解除 '+P.unpinned.length+' 段固定':''));
     setTimeout(()=>{if(recentManualMove===moved.id){recentManualMove=null;document.querySelector('.blk[data-bid="'+CSS.escape(moved.id)+'"]')?.classList.remove('just-applied');}},7000);
   },
-  "c-week":a=>{const w=+a.dataset.v,D=UI.modal.draft;D.week[w]=!D.week[w];rerender();},
-  "c-day":a=>{const d=a.dataset.v,D=UI.modal.draft;const def=!!D.week[parseD(d).getUTCDay()];const cur=D.over[d]?D.over[d]==="work":def;const nv=!cur;if(nv===def)delete D.over[d];else D.over[d]=nv?"work":"off";rerender();},
+  "c-week":a=>{if(!canMaster())return;const w=+a.dataset.v,D=UI.modal.draft;D.week[w]=!D.week[w];rerender();},
+  "c-day":a=>{if(!canMaster())return;const d=a.dataset.v,D=UI.modal.draft;const def=!!D.week[parseD(d).getUTCDay()];const cur=D.over[d]?D.over[d]==="work":def;const nv=!cur;if(nv===def)delete D.over[d];else D.over[d]=nv?"work":"off";rerender();},
   "c-save":()=>{
     pushUndo();S.cal={week:[...UI.modal.draft.week],over:{...UI.modal.draft.over}};
     for(const d of Object.keys(S.dayOT))if(!isOpen(d))delete S.dayOT[d];
@@ -1911,11 +1911,11 @@ Object.assign(MODAL_ACT,{
   "ot-person":a=>{const selected=a.dataset.v==="1";UI.modal.overrides[a.dataset.id]=selected===overtimeDefault(emp(a.dataset.id),UI.modal.date)?null:selected;rerender();},
   "ot-reset":a=>{UI.modal.overrides[a.dataset.id]=null;rerender();},
   "ot-save":()=>saveDailyOT(UI.modal),
-  "m-color":a=>{UI.modal.draft.color=+a.dataset.v;rerender();},
-  "m-emp-factory":a=>{const d=UI.modal.draft;d.factory=+a.dataset.v;d.skills=d.skills.filter(id=>factoryOf(mach(id))===d.factory);rerender();},
-  "m-skill":a=>{toggleIn(UI.modal.draft.skills,a.dataset.v);rerender();},
-  "m-ot-week":a=>{toggleIn(UI.modal.draft.otWeekdays,+a.dataset.v);UI.modal.draft.otWeekdays.sort();rerender();},
-  "m-leave":a=>{toggleIn(UI.modal.draft.leaves,a.dataset.v);rerender();},
+  "m-color":a=>{if(!canMaster())return;UI.modal.draft.color=+a.dataset.v;rerender();},
+  "m-emp-factory":a=>{if(!canMaster())return;const d=UI.modal.draft;d.factory=+a.dataset.v;d.skills=d.skills.filter(id=>factoryOf(mach(id))===d.factory);rerender();},
+  "m-skill":a=>{if(!canMaster())return;toggleIn(UI.modal.draft.skills,a.dataset.v);rerender();},
+  "m-ot-week":a=>{if(!canMaster())return;toggleIn(UI.modal.draft.otWeekdays,+a.dataset.v);UI.modal.draft.otWeekdays.sort();rerender();},
+  "m-leave":a=>{if(!canMaster())return;toggleIn(UI.modal.draft.leaves,a.dataset.v);rerender();},
   "m-emp-save":()=>{
     syncInputs();const m=UI.modal,D=m.draft;D.name=D.name.trim();
     D.factory=factoryOf(D);D.skills=D.skills.filter(id=>factoryOf(mach(id))===D.factory);
@@ -1958,8 +1958,8 @@ Object.assign(MODAL_ACT,{
     lines.length?showResult():closeModal();
   },
   "m-proc":a=>{UI.modal.draft.proc=a.dataset.v;rerender();},
-  "m-mach-factory":a=>{UI.modal.draft.factory=+a.dataset.v;rerender();},
-  "m-prod":a=>{toggleIn(UI.modal.draft.products,a.dataset.v);rerender();},
+  "m-mach-factory":a=>{if(!canMaster())return;UI.modal.draft.factory=+a.dataset.v;rerender();},
+  "m-prod":a=>{if(!canMaster())return;toggleIn(UI.modal.draft.products,a.dataset.v);rerender();},
   "m-fd":a=>{captureFault(UI.modal);UI.modal.fd=+a.dataset.v;rerender();},
   "m-fault":()=>{
     const m=UI.modal;captureFault(m);syncInputs();
@@ -2023,8 +2023,8 @@ Object.assign(MODAL_ACT,{
     commit({kind:"edit",title:"刪除機台 "+M.id,lines});
     lines.length?showResult():closeModal();
   },
-  "o-prod":a=>{UI.modal.draft.pid=a.dataset.v;rerender();},
-  "o-pri":a=>{UI.modal.draft.pri=+a.dataset.v;rerender();},
+  "o-prod":a=>{if(readOnly)return;UI.modal.draft.pid=a.dataset.v;rerender();},
+  "o-pri":a=>{if(readOnly)return;UI.modal.draft.pri=+a.dataset.v;rerender();},
   "o-save":()=>{
     syncInputs();const m=UI.modal,D=m.draft;
     D.code=String(D.code).trim();D.qty=Math.round(+D.qty);
