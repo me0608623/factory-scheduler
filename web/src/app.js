@@ -6,7 +6,7 @@ import { ALL_WEEKDAYS, overtimeAllowed, overtimeDefault, overtimeWeekdays } from
 import { capacityIntervals as occupiedCapacityIntervals } from "./capacity.js";
 import { FACTORIES, factoryOf, factoryPreference, factoryName, inFactory, orderRoute, orderInFactory, compatible } from "./factory.js";
 import { batchReadyMinute, materialFlowIssue, remainingQty, quantityForMinutes } from "./manual.js";
-import { acceptManualPreview } from "./manual-apply.js";
+import { acceptManualPreview, placementConflicts } from "./manual-apply.js";
 import { employeeGroups, groupedEmployees, memberStatus } from "./groups.js";
 import { resourceLoad } from "./resource-load.js";
 import { workQueue } from './work-queue.js';
@@ -892,6 +892,17 @@ function dragPreview(b,m,s,options={}){
     return issuesOf(x).filter(t=>!oldSet.has(t)).map(t=>label(x)+"："+t);
   }));
   const target=after.blocks.find(x=>x.id===b.id),o=order(b.oid);
+  const requestedEnd=options.end??s+(b.e-b.s);
+  const earliest=withState(before,()=>readyAbs(b.oid,b.step));
+  const placement=placementConflicts({date:b.date,m,s,e:requestedEnd},target,earliest,absOf(b.date,s));
+  if(placement.upstream){
+    problems.push('前一道工序尚未備妥；'+o.code+' '+withState(before,()=>stepName(b))+
+      (isFinite(earliest)?' 最早可於 '+mdw(dateOfAbs(earliest))+' '+hm(earliest%1440)+' 開始':' 的前站尚未排完')+
+      '，不能移到 '+mdw(b.date)+' '+hm(s));
+  }
+  if(placement.shifted){
+    problems.push('試排後無法保留指定的 '+m+' 機台 '+mdw(b.date)+' '+hm(s)+'–'+hm(requestedEnd)+'；原排程不會改動，請選其他時段');
+  }
   if(target&&target.qty<1)problems.push("這段工作不足 1 件；請拉長時間或調整工序速率");
   if(o){const planned=sum(after.blocks.filter(x=>x.oid===b.oid&&x.step===b.step),x=>x.qty);
     if(planned>o.qty)problems.push(o.code+" 這道工序排了 "+planned+" 件，超過工單 "+o.qty+" 件");}
@@ -1205,7 +1216,7 @@ const MODALS={
   }).filter(Boolean);
   const main='<div class="pv-sum"><b>'+esc(P.movedLabel)+'</b>：'+esc(P.source)+' → '+esc(P.target)+(P.newQty!==undefined?'；預計 '+P.newQty+' 件':'')+(P.remaining?'；此站還有 '+P.remaining+' 件未排':'')+'</div>';
   const suggest=displaced.length?'<div class="field"><span class="lab">建議順延到最早可用時間</span><div class="result">'+displaced.map(t=>'<div class="rline"><span class="k push">順延</span><span>'+esc(t)+'</span></div>').join("")+'</div></div>':'';
-  const pins=P.unpinned.length?'<div class="issues">'+P.unpinned.map(x=>'<div class="issue">'+esc(x.label)+' 已固定（釘）。確認後會解除固定並移動它；取消則保持原樣。</div>').join("")+'</div>':'';
+  const pins=!P.problems.length&&P.unpinned.length?'<div class="issues">'+P.unpinned.map(x=>'<div class="issue">'+esc(x.label)+' 已固定（釘）。確認後會解除固定並移動它；取消則保持原樣。</div>').join("")+'</div>':'';
   const impact='<div class="field"><span class="lab">連帶影響的工作（'+others.length+' 道工序）</span>'+(others.length?'<div class="result">'+others.map(x=>'<div class="rline"><span class="k '+(x.next[0]&&x.prev[0]&&bAbs(x.next[0])>bAbs(x.prev[0])?"delay":"info")+'">'+esc(x.code)+'</span><span>'+esc(x.step+"："+place(x.prev)+" → "+place(x.next))+'</span></div>').join("")+'</div>':'<div class="okbox">其他工作不變</div>')+'</div>';
   const due='<div class="field"><span class="lab">受影響工單的交期</span><div class="result">'+P.statuses.map(x=>{
     const bad=["late","part","none"].includes(x.status);

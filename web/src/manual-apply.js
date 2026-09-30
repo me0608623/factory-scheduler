@@ -11,3 +11,11 @@ export function acceptManualPreview(current, proposal) {
     throw new Error('排程沒有實際變化，請重新選擇時段');
   return {state: proposal.after, block};
 }
+
+export function placementConflicts(requested, actual, earliest, requestedAt) {
+  return {
+    upstream: requestedAt < earliest,
+    shifted: !actual || actual.date !== requested.date || actual.m !== requested.m ||
+      actual.s !== requested.s || actual.e !== requested.e,
+  };
+}
