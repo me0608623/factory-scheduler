@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>產線排程｜抽屜式功能線框</title>
+  <style>
+    :root {
+      --ink:#14243a;
+      --muted:#657287;
+      --line:#c6cfda;
+      --grid:#dfe5ec;
+      --paper:#f4f6f8;
+      --white:#fff;
+      --nav:#16304d;
+      --blue:#2368b2;
+      --green:#2e8b57;
+      --yellow:#d89216;
+      --red:#c94040;
+      --gray:#788494;
+      --shadow:0 18px 44px rgba(20,36,58,.22);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:#d9dee5;color:var(--ink);font-family:"Microsoft JhengHei","Noto Sans TC",sans-serif}
+    button{font:inherit;color:inherit}
+    .workbench{min-height:100vh;padding:18px}
+    .reviewbar{max-width:1500px;margin:0 auto 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .reviewbar strong{font-size:20px}
+    .reviewbar span{color:#445269}
+    .switch{margin-left:auto;display:flex;border:1px solid #aeb8c5;border-radius:10px;overflow:hidden;background:#fff}
+    .switch button{border:0;background:#fff;padding:10px 18px;font-weight:700;cursor:pointer}
+    .switch button.on{background:var(--nav);color:#fff}
+    .frame{position:relative;max-width:1500px;height:820px;margin:auto;background:var(--paper);border:1px solid #aeb8c5;border-radius:14px;overflow:hidden;box-shadow:0 12px 32px rgba(20,36,58,.18)}
+    .topbar{position:absolute;left:78px;right:0;top:0;height:76px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:10px 18px;z-index:2}
+    .brand{font-weight:900;font-size:23px;white-space:nowrap}
+    .factory,.date{height:50px;border:2px solid #7e8b9d;border-radius:8px;background:#fff;padding:0 16px;font-size:18px;font-weight:800}
+    .factory{color:#fff;background:var(--nav);border-color:var(--nav)}
+    .date{min-width:210px}
+    .verify{margin-left:auto;border:1px solid #e4aa42;background:#fff6dc;color:#704a08;border-radius:8px;padding:9px 12px;font-weight:800}
+    .disabled-action{border:1px dashed #aeb8c5;background:#eef1f4;color:#7d8794;border-radius:8px;padding:10px 12px;font-weight:700}
+    .rail{position:absolute;left:0;top:0;bottom:0;width:78px;background:var(--nav);z-index:4;padding:12px 8px;display:flex;flex-direction:column;align-items:center;gap:8px}
+    .mark{height:50px;width:54px;border-radius:11px;background:#fff;color:var(--nav);display:grid;place-items:center;font-weight:900;font-size:23px;margin-bottom:8px}
+    .navitem{width:62px;min-height:64px;border:0;border-radius:10px;background:transparent;color:#dce7f2;display:grid;place-items:center;padding:5px 2px;cursor:pointer;font-weight:800;font-size:13px;line-height:1.2}
+    .navitem b{font-size:25px;line-height:1}
+    .navitem.active{background:#fff;color:var(--nav)}
+    .navitem.more{margin-top:auto}
+    .schedule{position:absolute;left:78px;right:0;top:76px;bottom:0;padding:16px 18px;overflow:hidden}
+    .schedule-head{height:62px;display:flex;align-items:center;gap:12px}
+    .schedule-head h2{margin:0;font-size:22px}
+    .status-ok{background:#ddf2e4;color:#1f6f43;padding:7px 10px;border-radius:7px;font-weight:800}
+    .manual{margin-left:auto;background:#fff;border:2px solid var(--blue);color:var(--blue);border-radius:8px;padding:10px 14px;font-weight:900}
+    .grid{position:relative;height:648px;border:1px solid #95a3b5;background:#fff;display:grid;grid-template-columns:66px repeat(5,1fr);grid-template-rows:62px repeat(12,49px);overflow:hidden}
+    .grid::after{content:"";position:absolute;left:66px;right:0;top:62px;bottom:0;background-image:linear-gradient(to right,var(--grid) 1px,transparent 1px),linear-gradient(to bottom,var(--grid) 1px,transparent 1px);background-size:calc(100% / 5) 100%,100% 49px;pointer-events:none}
+    .corner{grid-column:1;grid-row:1;background:#edf1f5;border-right:1px solid #95a3b5;border-bottom:1px solid #95a3b5}
+    .machine{background:#edf1f5;border-right:1px solid #95a3b5;border-bottom:1px solid #95a3b5;padding:9px 10px;font-weight:900;z-index:1}
+    .machine small{display:block;color:var(--muted);font-weight:700;margin-top:3px}
+    .time{grid-column:1;color:#59677a;padding:5px 7px;border-right:1px solid #95a3b5;font-weight:700;font-size:13px;z-index:1}
+    .job{position:absolute;border:2px solid rgba(0,0,0,.23);border-radius:6px;padding:7px 8px;font-weight:900;line-height:1.2;z-index:2;overflow:hidden;box-shadow:0 2px 0 rgba(0,0,0,.14)}
+    .job small{display:block;font-weight:700;margin-top:4px}
+    .job.a01{left:calc(66px + (100% - 66px)/5 * .03);width:calc((100% - 66px)/5 * .94);top:160px;height:96px;background:#ffe166}
+    .job.b02{left:calc(66px + (100% - 66px)/5 * 1.03);width:calc((100% - 66px)/5 * .94);top:258px;height:145px;background:#5bd7de}
+    .job.c03{left:calc(66px + (100% - 66px)/5 * 2.03);width:calc((100% - 66px)/5 * .94);top:111px;height:194px;background:#5bdd78}
+    .job.a04{left:calc(66px + (100% - 66px)/5 * 3.03);width:calc((100% - 66px)/5 * .94);top:305px;height:98px;background:#e786e5}
+    .job.b05{left:calc(66px + (100% - 66px)/5 * 4.03);width:calc((100% - 66px)/5 * .94);top:209px;height:96px;background:#ff9e62}
+    .job.focus{outline:5px solid #16304d;outline-offset:2px;filter:saturate(1.25)}
+    .drawer{position:absolute;right:0;top:76px;bottom:0;width:440px;background:#fff;border-left:2px solid #97a4b5;box-shadow:var(--shadow);z-index:5;display:flex;flex-direction:column}
+    .drawer-head{min-height:74px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:15px 18px}
+    .drawer-head h2{margin:0;font-size:27px}
+    .close{margin-left:auto;width:48px;height:48px;border:1px solid #aeb8c5;background:#fff;border-radius:9px;font-size:26px;font-weight:800;cursor:pointer}
+    .panel{display:none;padding:18px;overflow:auto;flex:1}
+    .panel.active{display:block}
+    .numbers{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:16px}
+    .number{padding:13px 8px;text-align:center;border-right:1px solid var(--line)}
+    .number:last-child{border:0}.number b{display:block;font-size:31px}.number span{font-weight:800;color:#536075}
+    .cards{display:grid;gap:10px}
+    .order{display:grid;grid-template-columns:12px 1fr auto;gap:12px;align-items:center;border:1px solid var(--line);border-radius:9px;padding:13px;background:#fff;cursor:pointer;text-align:left}
+    .lamp{width:12px;height:100%;min-height:54px;border-radius:6px}.lamp.green{background:var(--green)}.lamp.yellow{background:var(--yellow)}.lamp.red{background:var(--red)}.lamp.gray{background:var(--gray)}
+    .order b{font-size:19px}.order small{display:block;color:var(--muted);font-weight:700;margin-top:5px}.due{font-weight:900;font-size:16px}
+    .absent{background:#fff1f1;border:2px solid #e38d8d;border-radius:10px;padding:14px;margin-bottom:14px}
+    .absent b{font-size:26px}.absent span{display:block;color:#762d2d;font-weight:800;margin-top:4px}
+    .calendar{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+    .cal-title{background:#edf1f5;padding:11px 13px;font-weight:900;display:flex;justify-content:space-between}
+    .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--grid)}
+    .day{min-height:51px;background:#fff;padding:5px;font-weight:800;font-size:12px}.day i{display:block;width:12px;height:12px;border-radius:50%;margin-top:5px;background:var(--green)}.day.ask i{background:var(--yellow)}.day.leave i{background:var(--red)}.day.wait i{background:var(--gray)}
+    .request{margin-top:14px;border:2px solid var(--yellow);border-radius:10px;padding:13px}.request strong{display:block;font-size:18px}.request p{margin:5px 0 11px;color:#5d4a1d;font-weight:700}.actions{display:flex;gap:8px}.actions button{flex:1;min-height:46px;border-radius:8px;font-weight:900;background:#fff}.approve{border:2px solid var(--green);color:var(--green)}.deny{border:2px solid var(--red);color:var(--red)}
+    .total{display:flex;align-items:baseline;gap:8px;background:#e8f0fa;border:1px solid #aebfD4;border-radius:10px;padding:14px 16px;margin-bottom:16px}.total b{font-size:38px}.total span{font-weight:900}
+    .machine-output{border-bottom:1px solid var(--line);padding:12px 0}.output-top{display:flex;justify-content:space-between;font-weight:900}.bars{height:20px;background:#e1e6ec;margin-top:8px;position:relative;border-radius:3px;overflow:hidden}.plan{position:absolute;inset:0 18% 0 0;background:#a9bfd9}.actual{position:absolute;inset:5px 34% 5px 0;background:var(--blue)}.no-report{margin-top:7px;color:#704a08;font-weight:900;background:#fff2c9;display:inline-block;padding:4px 8px;border-radius:5px}
+    .notes{display:grid;grid-template-columns:1fr 1fr;gap:12px}.note{min-height:145px;background:#fff1a8;border:1px solid #d4b345;box-shadow:3px 4px 0 #d7dce2;padding:14px;position:relative;transform:rotate(-.8deg)}.note:nth-child(2){background:#d8f0ff;transform:rotate(.6deg)}.pin{position:absolute;right:10px;top:8px;font-size:21px}.note b{display:block;margin-right:24px}.note p{font-size:18px;font-weight:800;line-height:1.45}.note small{color:#5b6370;font-weight:700}.add-note{width:100%;min-height:50px;margin-top:14px;border:2px solid var(--blue);background:#fff;color:var(--blue);border-radius:8px;font-weight:900;font-size:17px}
+    .legend{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;color:#4d5b6f;font-weight:800;font-size:14px}.legend i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:4px;vertical-align:-1px}
+    .mobile .frame{width:390px;height:844px;border-radius:26px}
+    .mobile .topbar{left:0;height:68px;padding:8px 10px;gap:7px}.mobile .brand{font-size:18px}.mobile .factory{height:44px;padding:0 10px;font-size:15px}.mobile .date{height:44px;min-width:130px;padding:0 8px;font-size:15px}.mobile .verify,.mobile .disabled-action{display:none}
+    .mobile .rail{left:0;right:0;top:auto;height:76px;width:auto;bottom:0;flex-direction:row;padding:5px 6px;z-index:9;border-top:1px solid #8c9aad;justify-content:space-around}.mobile .mark{display:none}.mobile .navitem{width:58px;min-height:62px;font-size:11px}.mobile .navitem b{font-size:21px}.mobile .navitem.more{margin:0}.mobile .schedule{left:0;top:68px;bottom:76px;padding:10px 8px;overflow:hidden}.mobile .schedule-head{height:56px}.mobile .schedule-head h2{font-size:18px}.mobile .status-ok{display:none}.mobile .manual{font-size:13px;padding:8px}.mobile .grid{width:760px;height:644px;grid-template-columns:58px repeat(5,140px)}.mobile .grid::after{left:58px;background-size:140px 100%,100% 49px}.mobile .job.a01{left:62px;width:132px}.mobile .job.b02{left:202px;width:132px}.mobile .job.c03{left:342px;width:132px}.mobile .job.a04{left:482px;width:132px}.mobile .job.b05{left:622px;width:132px}
+    .mobile .drawer{top:auto;left:0;right:0;bottom:76px;width:auto;height:70%;border-left:0;border-top:2px solid #8997a9;border-radius:18px 18px 0 0}.mobile .drawer::before{content:"";position:absolute;top:7px;left:50%;width:54px;height:5px;border-radius:5px;background:#aeb8c5;transform:translateX(-50%)}.mobile .drawer-head{min-height:69px;padding:18px 14px 10px}.mobile .drawer-head h2{font-size:23px}.mobile .close{width:44px;height:44px}.mobile .panel{padding:12px 14px 20px}.mobile .number b{font-size:26px}.mobile .number span{font-size:13px}.mobile .notes{grid-template-columns:1fr}.mobile .note{min-height:118px}.mobile .calendar .day{min-height:44px}.mobile .drawer.mobile-peek{height:70%}
+    .caption{max-width:1500px;margin:12px auto 0;color:#34445a;font-weight:700;line-height:1.6}
+    .caption b{color:#10243d}
+    body.capture .reviewbar,body.capture .caption{display:none}
+    body.capture .workbench{padding:0;display:flex;justify-content:center;min-height:0}
+    body.capture .frame{margin:0;box-shadow:none}
+    body.capture.mobile .frame{height:548px;border-radius:20px}
+    @media(max-width:700px){.workbench{padding:8px}.reviewbar strong{font-size:17px}.reviewbar span{display:none}.switch{margin-left:0}.frame:not(.mobile .frame){transform-origin:top left}}
+  </style>
+</head>
+<body>
+  <main class="workbench" id="workbench">
+    <div class="reviewbar">
+      <strong>排程主畫面＋四個覆蓋層</strong>
+      <span>線框版：只確認資訊層級與操作，不是正式配色</span>
+      <div class="switch" aria-label="裝置預覽">
+        <button id="desktopBtn" class="on">桌面</button>
+        <button id="mobileBtn">手機</button>
+      </div>
+    </div>
+    <section class="frame" aria-label="線框預覽">
+      <header class="topbar">
+        <div class="brand">產線排程</div>
+        <button class="factory">1 廠⌄</button>
+        <button class="date">‹　9/30（三）　›</button>
+        <div class="verify">資料尚待核對｜班表可看</div>
+        <button class="disabled-action" disabled>自動排班暫停</button>
+      </header>
+
+      <nav class="rail" aria-label="主要功能">
+        <div class="mark">排</div>
+        <button class="navitem" data-page="today"><b>▦</b>今天</button>
+        <button class="navitem active" data-page="orders"><b>▣</b>工單</button>
+        <button class="navitem" data-page="people"><b>人</b>人</button>
+        <button class="navitem" data-page="output"><b>▰</b>產量</button>
+        <button class="navitem" data-page="notes"><b>▤</b>備忘</button>
+        <button class="navitem more" data-page="more"><b>•••</b>更多</button>
+      </nav>
+
+      <section class="schedule" aria-label="固定的機台時間排程表">
+        <div class="schedule-head">
+          <h2>1 廠・今日班表</h2>
+          <span class="status-ok">沒有衝突</span>
+          <button class="manual">＋手動排班</button>
+        </div>
+        <div class="grid">
+          <div class="corner"></div>
+          <div class="machine">a 裁切機 1<small>正常</small></div>
+          <div class="machine">b 裁切機 2<small>正常</small></div>
+          <div class="machine">c 沖壓機<small>正常</small></div>
+          <div class="machine">d 焊接機<small>正常</small></div>
+          <div class="machine">e 包裝線<small>正常</small></div>
+          <div class="time" style="grid-row:2">08:00</div><div class="time" style="grid-row:3">08:30</div>
+          <div class="time" style="grid-row:4">09:00</div><div class="time" style="grid-row:5">09:30</div>
+          <div class="time" style="grid-row:6">10:00</div><div class="time" style="grid-row:7">10:30</div>
+          <div class="time" style="grid-row:8">11:00</div><div class="time" style="grid-row:9">11:30</div>
+          <div class="time" style="grid-row:10">12:00</div><div class="time" style="grid-row:11">13:00</div>
+          <div class="time" style="grid-row:12">13:30</div><div class="time" style="grid-row:13">14:00</div>
+          <div class="job a01 focus" data-job="A01">張三<small>A01 裁切 120件</small></div>
+          <div class="job b02" data-job="B02">林七<small>B02 裁切 180件</small></div>
+          <div class="job c03" data-person="陳六">陳六<small>C03 沖壓 240件</small></div>
+          <div class="job a04">李四<small>A04 焊接 200件</small></div>
+          <div class="job b05">王五<small>B05 包裝 90件</small></div>
+        </div>
+      </section>
+
+      <aside class="drawer" aria-label="功能覆蓋層">
+        <div class="drawer-head"><h2 id="panelTitle">工單</h2><button class="close" aria-label="關閉">×</button></div>
+        <section class="panel active" data-panel="orders">
+          <div class="numbers"><div class="number"><b>12</b><span>未完成</span></div><div class="number"><b style="color:var(--red)">2</b><span>會晚</span></div><div class="number"><b style="color:var(--yellow)">3</b><span>今日要交</span></div></div>
+          <div class="legend"><span><i style="background:var(--green)"></i>準時</span><span><i style="background:var(--yellow)"></i>注意</span><span><i style="background:var(--red)"></i>會晚</span><span><i style="background:var(--gray)"></i>資料不足</span></div>
+          <div class="cards">
+            <button class="order" data-highlight="A01"><i class="lamp red"></i><span><b>A01　外殼 120件</b><small>目前在裁切機 1</small></span><span class="due">今天</span></button>
+            <button class="order" data-highlight="B02"><i class="lamp yellow"></i><span><b>B02　支架 180件</b><small>還差焊接、包裝</small></span><span class="due">10/2</span></button>
+            <button class="order"><i class="lamp green"></i><span><b>C03　底座 240件</b><small>照計畫生產</small></span><span class="due">10/5</span></button>
+            <button class="order"><i class="lamp gray"></i><span><b>D08　待核資料</b><small>缺交期，暫不自動排</small></span><span class="due">—</span></button>
+          </div>
+        </section>
+        <section class="panel" data-panel="people">
+          <div class="absent"><b>今日缺席　2 人</b><span>陳六・林七</span></div>
+          <div class="legend"><span><i style="background:var(--green)"></i>在班</span><span><i style="background:var(--red)"></i>請假</span><span><i style="background:var(--yellow)"></i>詢問中</span><span><i style="background:var(--gray)"></i>待確認</span></div>
+          <div class="calendar"><div class="cal-title"><span>陳六</span><span>2026 年 9 月</span></div><div class="cal-grid">
+            <div class="day">24<i></i></div><div class="day">25<i></i></div><div class="day ask">26<i></i></div><div class="day">27<i></i></div><div class="day leave">28<i></i></div><div class="day wait">29<i></i></div><div class="day leave">30<i></i></div>
+            <div class="day">1<i></i></div><div class="day">2<i></i></div><div class="day">3<i></i></div><div class="day">4<i></i></div><div class="day">5<i></i></div><div class="day">6<i></i></div><div class="day">7<i></i></div>
+          </div></div>
+          <div class="request"><strong>林七詢問 10/1 請假</strong><p>核准前不會加入正式請假，也不會觸發重排。</p><div class="actions"><button class="approve">准假</button><button class="deny">駁回</button></div></div>
+        </section>
+        <section class="panel" data-panel="output">
+          <div class="total"><b>860</b><span>今日計畫總件數</span></div>
+          <div class="machine-output"><div class="output-top"><span>a 裁切機 1</span><span>計畫 240｜回報 180</span></div><div class="bars"><i class="plan"></i><i class="actual"></i></div></div>
+          <div class="machine-output"><div class="output-top"><span>b 裁切機 2</span><span>計畫 180｜回報 180</span></div><div class="bars"><i class="plan" style="right:25%"></i><i class="actual" style="right:25%"></i></div></div>
+          <div class="machine-output"><div class="output-top"><span>c 沖壓機</span><span>計畫 240</span></div><span class="no-report">尚未回報</span></div>
+          <div class="machine-output"><div class="output-top"><span>d 焊接機</span><span>計畫 110｜回報 40</span></div><div class="bars"><i class="plan" style="right:48%"></i><i class="actual" style="right:80%"></i></div></div>
+        </section>
+        <section class="panel" data-panel="notes">
+          <div class="notes">
+            <article class="note"><span class="pin">●</span><b>王組長・裁切機 1</b><p>午休後先換刀，再接 A01。</p><small>今天 08:12</small></article>
+            <article class="note"><span class="pin">○</span><b>林七</b><p>下午可能晚到，等回覆。</p><small>今天 08:25</small></article>
+          </div>
+          <button class="add-note">＋新增備忘</button>
+        </section>
+      </aside>
+    </section>
+    <p class="caption"><b>互動規則：</b>點左側／底部同一入口會收回面板；點工單會讓班表中的同工單色塊加粗，不改日期與廠別。資料核對未完成時，今天仍顯示班表或空表，但自動排班與故障重排維持停用。</p>
+  </main>
+  <script>
+    const workbench=document.querySelector('#workbench');
+    const frame=document.querySelector('.frame');
+    const drawer=document.querySelector('.drawer');
+    const title=document.querySelector('#panelTitle');
+    const labels={orders:'工單',people:'人',output:'產量',notes:'備忘'};
+    let openPage='orders';
+    function showPage(page){
+      if(page==='today' || page==='more'){drawer.style.display='none';openPage=null;document.querySelectorAll('.navitem').forEach(b=>b.classList.toggle('active',b.dataset.page==='today'));return;}
+      if(openPage===page && drawer.style.display!=='none'){drawer.style.display='none';openPage=null;document.querySelectorAll('.navitem').forEach(b=>b.classList.toggle('active',b.dataset.page==='today'));return;}
+      drawer.style.display='flex';openPage=page;title.textContent=labels[page];
+      document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===page));
+      document.querySelectorAll('.navitem').forEach(b=>b.classList.toggle('active',b.dataset.page===page));
+      document.querySelectorAll('.job').forEach(j=>j.classList.remove('focus'));
+      if(page==='people')document.querySelector('[data-person="陳六"]').classList.add('focus');
+    }
+    document.querySelectorAll('.navitem').forEach(b=>b.addEventListener('click',()=>showPage(b.dataset.page)));
+    document.querySelector('.close').addEventListener('click',()=>showPage('today'));
+    document.querySelectorAll('[data-highlight]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.job').forEach(j=>j.classList.toggle('focus',j.dataset.job===b.dataset.highlight));}));
+    document.querySelector('#desktopBtn').addEventListener('click',()=>{workbench.classList.remove('mobile');desktopBtn.classList.add('on');mobileBtn.classList.remove('on')});
+    document.querySelector('#mobileBtn').addEventListener('click',()=>{workbench.classList.add('mobile');mobileBtn.classList.add('on');desktopBtn.classList.remove('on')});
+    const params=new URLSearchParams(location.search);
+    if(params.get('capture')==='mobile'){
+      document.body.classList.add('capture','mobile');
+      workbench.classList.add('mobile');
+      mobileBtn.classList.add('on');
+      desktopBtn.classList.remove('on');
+    }
+    if(labels[params.get('page')]&&params.get('page')!=='orders')showPage(params.get('page'));
+  </script>
+</body>
+</html>
