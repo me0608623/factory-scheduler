@@ -7,7 +7,7 @@ This is the first file a replacement agent should read. It records the current r
 ## Project locations
 
 - Local repository: `C:\Users\me060\Downloads\factory-scheduler`
-- GitHub: `git@github.com:me0608623/factory-scheduler.git`
+- GitHub: `https://github.com/me0608623/factory-scheduler` (remote `origin` switched from SSH to HTTPS on 2026-09-30: this machine has no SSH key; HTTPS credentials come from the GitHub CLI login for `me0608623`)
 - Active branch: `main`
 - Production web: `https://factory-scheduler-web.onrender.com/`
 - Production Supabase project ref: `kjnnguekhshkhgycmryl`
@@ -21,7 +21,7 @@ git status --short --branch
 git log -5 --oneline
 ```
 
-As of this update, the local `main` contains commits that are not present in the local `origin/main` tracking ref, including the sidebar/settings UI, Z.ai assistant integration, and these handoff/QA notes. Treat this local workspace as the canonical working copy. Do not reset it to `origin/main`, and do not push blindly: a push to `main` may trigger a Render production deployment. Fetch and inspect the exact difference first.
+As of the 2026-09-30 takeover, the local `main` and the live `origin/main` (`ce8aec1`) diverged after merge base `b24fbc6`: the remote already contains the sidebar/settings UI and Z.ai assistant code (as duplicate commits authored by 任庭宇), while the local-only commits are the three handoff/QA docs commits. Treat this local workspace as the canonical working copy. Do not reset it to `origin/main`, and do not push blindly: a push to `main` may trigger a Render production deployment and would currently be rejected as non-fast-forward. Fetch and inspect the exact difference first (see the takeover verification section below).
 
 Then read:
 
@@ -58,6 +58,17 @@ Completed on 2026-09-30:
 12. Final database state: no `calendar_days` row for `2026-12-15`, `overtime` null, `schedule_state.version` 3. The test left no calendar override behind.
 13. Results are recorded in `docs/QA_RELEASE_GATE_2026-09-30.md`.
 
+## 2026-09-30 takeover verification
+
+Recorded by the replacement agent immediately after takeover. All checks were read-only; nothing was reset, merged, or pushed.
+
+- Working tree clean at `0435b05` before this update; `git fetch` over SSH failed (`Permission denied (publickey)`), so the remote URL was switched to HTTPS and `git fetch origin` then succeeded.
+- Live `origin/main` is `ce8aec1`. Local `main` and `origin/main` diverged after merge base `b24fbc6`: remote carries `ed4a061` + `ce8aec1` (author 任庭宇), local carries the same changes as `2f9dad0` + `e2d8999` (author me0608623) plus three local-only docs commits (`880e005`, `0de2695`, `0435b05`).
+- Ignoring line endings (CRLF/LF), the only content difference between remote tip `ce8aec1` and local `e2d8999` is one trailing blank line in `solver/app/chat.py` and one in `web/src/app.js`. The code is functionally identical; the divergence is duplicate commits from two environments, not lost work.
+- Consequence: `git push` from this workspace would be rejected (non-fast-forward). When the user approves publishing, rebase or merge the local docs commits onto `origin/main`, re-check the diff, and only then push — a push to `main` may trigger a Render production deployment.
+- Remote branches now visible: `codex/catalog-completion-20260928`, `codex/excel-friendly-ui-20260930`, `codex/legacy-1023-conversion-20260927`, `codex/overnight-reliability-20260926`, `codex/staff-groups-20260929`, `codex/work-content-resources-20260929`.
+- Read-only production health on 2026-09-30: web `GET /` returned 200; solver `/health` returned `ok`, OR-Tools `9.15.6755`, `database: true`, capabilities `work_assignments_v1`, `staff_roster_draft_v1`, `schedule_chat_readonly_v1`, `schedule_chat_range_v1`, `schedule_chat_ai_v1`.
+
 ## Safety and deployment rules
 
 - Do not expose secrets in Markdown, Git, terminal output, screenshots, or chat.
@@ -71,3 +82,5 @@ Completed on 2026-09-30:
 
 - `e2d8999 fix: identify Coding Plan failures accurately`
 - Working tree was clean before adding this handoff file.
+
+The 2026-09-30 takeover update is committed locally only (never pushed without explicit user approval); check `git log -1` for its hash.
