@@ -187,3 +187,40 @@ def test_model_unknown_citations_rejected(monkeypatch,demo,citation):
     monkeypatch.setattr(chat.httpx,'AsyncClient',FakeClient)
     q=query(generate=True)
     with pytest.raises(ChatUnavailable,match='依據'):asyncio.run(respond(q,build_context(demo[0].model_dump(mode='json'),q)))
+
+
+def test_zai_general_api_grounded_answer(monkeypatch,demo):
+    monkeypatch.setenv('AI_SCHEDULE_DATA_APPROVED','true')
+    monkeypatch.setenv('SCHEDULE_CHAT_PROVIDER','zai')
+    monkeypatch.setenv('ZAI_API_KEY','fake-zai-key')
+    monkeypatch.setenv('SCHEDULE_CHAT_MODEL','glm-test')
+    import app.chat as chat
+    seen={}
+    class Response:
+        status_code=200
+        def json(self):return {'choices':[{'message':{'content':json.dumps({'answer':'需檢查排程','citations':['F1']})}}]}
+    class FakeClient:
+        def __init__(self,**kw):pass
+        async def __aenter__(self):return self
+        async def __aexit__(self,*args):pass
+        async def post(self,url,**kw):
+            seen.update(url=url,headers=kw['headers'],payload=kw['json'])
+            return Response()
+    monkeypatch.setattr(chat.httpx,'AsyncClient',FakeClient)
+    q=query(generate=True);result=asyncio.run(respond(q,build_context(demo[0].model_dump(mode='json'),q)))
+    assert result['engine']=='AI（Z.ai，唯讀）' and result['citations']==['F1']
+    assert seen['url']=='https://api.z.ai/api/paas/v4/chat/completions'
+    assert seen['headers']['Authorization']=='Bearer fake-zai-key'
+    assert seen['payload']['response_format']=={'type':'json_object'}
+    assert seen['payload']['model']=='glm-test' and 'tools' not in seen['payload']
+
+
+def test_health_only_advertises_ai_when_fully_configured(monkeypatch):
+    client=TestClient(api.app)
+    monkeypatch.setenv('SCHEDULE_CHAT_PROVIDER','zai')
+    monkeypatch.delenv('ZAI_API_KEY',raising=False)
+    monkeypatch.setenv('AI_SCHEDULE_DATA_APPROVED','true')
+    monkeypatch.setenv('SCHEDULE_CHAT_MODEL','glm-test')
+    assert 'schedule_chat_ai_v1' not in client.get('/health').json()['capabilities']
+    monkeypatch.setenv('ZAI_API_KEY','secret')
+    assert 'schedule_chat_ai_v1' in client.get('/health').json()['capabilities']

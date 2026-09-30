@@ -1,4 +1,4 @@
-"""Read-only, bounded schedule retrieval and optional grounded Responses adapter.
+"""Read-only, bounded schedule retrieval and optional grounded model adapters.
 
 No SQL tools, writes, service-role reads, files, or arbitrary outbound URLs.
 External model requests require explicit server-side data approval and credentials.
@@ -172,8 +172,10 @@ class ChatUnavailable(RuntimeError):
 async def respond(query,context):
     if not query.generate:return {**factual_answer(query.question,context),'context':context}
     if os.environ.get('AI_SCHEDULE_DATA_APPROVED')!='true':
-        raise ChatUnavailable('管理員尚未授權將提問與排程依據送到 OpenAI；未外傳資料')
-    key=os.environ.get('OPENAI_API_KEY','');model=os.environ.get('SCHEDULE_CHAT_MODEL','')
+        raise ChatUnavailable('管理員尚未授權將提問與排程依據送到外部 AI；未外傳資料')
+    provider=os.environ.get('SCHEDULE_CHAT_PROVIDER','openai').lower()
+    key=(os.environ.get('ZAI_API_KEY','') if provider=='zai' else os.environ.get('OPENAI_API_KEY',''))
+    model=os.environ.get('SCHEDULE_CHAT_MODEL','')
     if not key or not model:raise ChatUnavailable('尚未設定 AI 模型與伺服器金鑰；請取消雲端 AI 改用資料查詢')
     schema={'type':'object','properties':{'answer':{'type':'string'},'citations':{'type':'array','items':{'type':'string'}}},'required':['answer','citations'],'additionalProperties':False}
     # History is untrusted context, never a source of current schedule facts.
@@ -183,14 +185,28 @@ async def respond(query,context):
              'text':{'format':{'type':'json_schema','name':'schedule_answer','strict':True,'schema':schema}}}
     try:
         async with httpx.AsyncClient(timeout=25) as client:
-            response=await client.post('https://api.openai.com/v1/responses',headers={'Authorization':'Bearer '+key},json=payload)
+            if provider=='zai':
+                prompt=payload['instructions']+'\n只能輸出 JSON：{"answer":"答案","citations":["F1"]}。citations 只能列出 evidence 中存在的 F 代號。'
+                zai_payload={'model':model,'messages':[{'role':'system','content':prompt},
+                    {'role':'user','content':payload['input'][0]['content']}],
+                    'temperature':0.1,'max_tokens':1000,'response_format':{'type':'json_object'}}
+                response=await client.post('https://api.z.ai/api/paas/v4/chat/completions',
+                    headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'},json=zai_payload)
+            elif provider=='openai':
+                response=await client.post('https://api.openai.com/v1/responses',headers={'Authorization':'Bearer '+key},json=payload)
+            else:raise ChatUnavailable('AI 供應商設定不受支援；未外傳資料')
         if response.status_code!=200:raise ChatUnavailable('AI 服務暫時無法回答；請使用資料查詢，不代表排程沒有問題')
         data=response.json()
-        if data.get('status')!='completed':raise ChatUnavailable('AI 回答未完成，請重試或改用資料查詢')
-        texts=[c['text'] for item in data.get('output',[]) if item.get('type')=='message' for c in item.get('content',[]) if c.get('type')=='output_text']
-        parsed=json.loads(''.join(texts));known={f['id'] for f in context['facts']}
+        if provider=='zai':
+            choices=data.get('choices',[])
+            if not choices:raise ChatUnavailable('AI 回答未完成，請重試或改用資料查詢')
+            text=choices[0].get('message',{}).get('content','')
+        else:
+            if data.get('status')!='completed':raise ChatUnavailable('AI 回答未完成，請重試或改用資料查詢')
+            text=''.join(c['text'] for item in data.get('output',[]) if item.get('type')=='message' for c in item.get('content',[]) if c.get('type')=='output_text')
+        parsed=json.loads(text);known={f['id'] for f in context['facts']}
         if not isinstance(parsed.get('answer'),str) or not 0<len(parsed['answer'])<=6000 or not isinstance(parsed.get('citations'),list) or any(not isinstance(i,str) or i not in known for i in parsed['citations']):
             raise ChatUnavailable('AI 回答的依據無法核對，已拒絕呈現；請改用資料查詢')
-        return {'engine':'AI（OpenAI，唯讀）',**parsed,'context':context}
+        return {'engine':('AI（Z.ai，唯讀）' if provider=='zai' else 'AI（OpenAI，唯讀）'),**parsed,'context':context}
     except (httpx.HTTPError,ValueError,KeyError,TypeError) as exc:
         raise ChatUnavailable('AI 連線或格式驗證失敗，未更動排程；請改用資料查詢') from exc

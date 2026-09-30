@@ -62,8 +62,13 @@ def require_api_key(x_api_key: str | None = Header(default=None)):
 
 @app.get("/health")
 def health():
+    capabilities=["work_assignments_v1", "staff_roster_draft_v1", "schedule_chat_readonly_v1", "schedule_chat_range_v1"]
+    provider=os.environ.get('SCHEDULE_CHAT_PROVIDER','openai').lower()
+    has_key=bool(os.environ.get('ZAI_API_KEY') if provider=='zai' else os.environ.get('OPENAI_API_KEY'))
+    if os.environ.get('AI_SCHEDULE_DATA_APPROVED')=='true' and has_key and os.environ.get('SCHEDULE_CHAT_MODEL'):
+        capabilities.append('schedule_chat_ai_v1')
     return {"ok": True, "ortools": ortools.__version__, "database": supa.configured,
-            "capabilities": ["work_assignments_v1", "staff_roster_draft_v1", "schedule_chat_readonly_v1", "schedule_chat_range_v1"]}
+            "capabilities": capabilities}
 
 
 async def answer_chat(req,raw):
