@@ -125,7 +125,7 @@ begin
       coalesce(old.started_at,at_time),case when p_action='finish' then at_time end,p_revision+1)
     on conflict(block_id) do update set status=excluded.status,qty_done=excluded.qty_done,
       finished_at=excluded.finished_at,revision=excluded.revision;
-  update schedule_state set version=ver+1,updated_at=at_time,updated_by=auth.uid();
+  update schedule_state set version=ver+1,updated_at=at_time,updated_by=auth.uid() where id;
   select jsonb_build_object('blockId',block_id,'employeeId',employee_id,'status',status,'qtyDone',qty_done,
     'startedAt',started_at,'finishedAt',finished_at,'revision',revision) into result from work_execution where block_id=p_block;
   result:=result||jsonb_build_object('version',ver+1);

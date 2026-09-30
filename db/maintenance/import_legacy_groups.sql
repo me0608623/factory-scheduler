@@ -47,7 +47,7 @@ begin
     or (select count(*) from staff_group_members m join staff_groups g on g.id=m.group_id join employees e on e.id=m.employee_id where g.home_factory<>e.factory)<>0
     or (select count(*) from staff_groups where home_factory=1)<>4
     or (select count(*) from staff_groups where home_factory=2)<>3 then raise exception '來源分組結果不符，整次撤回'; end if;
-  update schedule_state set version=v+1,updated_at=now();
+  update schedule_state set version=v+1,updated_at=now() where id;
   return jsonb_build_object('groups',7,'members',29,'pending',4,'version',v+1,'setup_pending',true);
 end $$;
 revoke all on function pg_temp.import_legacy_groups(text,bigint,jsonb,jsonb) from public;

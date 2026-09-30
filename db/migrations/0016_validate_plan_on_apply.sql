@@ -93,7 +93,7 @@ begin
   end if;
 
   perform _apply_blocks(coalesce(opt -> 'blocks', '[]'));
-  update schedule_state set version = ver + 1, updated_at = now(), updated_by = auth.uid();
+  update schedule_state set version = ver + 1, updated_at = now(), updated_by = auth.uid() where id;
   update plan_previews set applied_option = p_option where id = p_preview;
   return cs;
 end $$;

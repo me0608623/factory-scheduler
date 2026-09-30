@@ -129,7 +129,7 @@ begin
  -- Changing a definition must not make existing assignments incompatible.
  if exists(select 1 from work_assignments a join work_contents w on w.id=a.work_id join employees e on e.id=a.employee_id where
    w.factory<>e.factory or not e.id=any(w.employee_ids) or (w.requires_resource and (a.resource_id is null or not a.resource_id=any(w.resource_ids))) or (not w.requires_resource and a.resource_id is not null)) then raise exception '已有排班不符合新的工作定義，整次撤回'; end if;
- update schedule_state set version=ver+1,updated_at=now(),updated_by=auth.uid();return ver+1;
+ update schedule_state set version=ver+1,updated_at=now(),updated_by=auth.uid() where id;return ver+1;
 end $$;
 
 create function save_work_assignments(p_version bigint,p_assignments jsonb) returns bigint
@@ -153,7 +153,7 @@ begin
  select id,work_id,employee_id,resource_id,date,start_min,end_min,qty,order_id,coalesce(note,'') from jsonb_to_recordset(p_assignments)
    as x(id uuid,work_id uuid,employee_id uuid,resource_id text,date date,start_min smallint,end_min smallint,qty integer,order_id uuid,note text)
    where not exists(select 1 from work_assignments a where a.id=x.id);
- update schedule_state set version=ver+1,updated_at=now(),updated_by=auth.uid();return ver+1;
+ update schedule_state set version=ver+1,updated_at=now(),updated_by=auth.uid() where id;return ver+1;
 end $$;
 revoke all on function save_work_contents(bigint,jsonb),save_work_assignments(bigint,jsonb) from public,anon;
 grant execute on function save_work_contents(bigint,jsonb),save_work_assignments(bigint,jsonb) to authenticated;

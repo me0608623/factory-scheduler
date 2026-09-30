@@ -90,7 +90,7 @@ begin
  insert into change_sets(id,kind,title,version_before,version_after) values(cs,'edit','更新輪班草稿（不更動產線）',ver,ver+1);perform set_config('app.change_set_id',cs::text,true);
  delete from staff_rosters where not exists(select 1 from jsonb_array_elements(p_rosters) x where x->>'id'=staff_rosters.id::text);
  for x in select value from jsonb_array_elements(p_rosters) loop insert into staff_rosters(id,body) values((x->>'id')::uuid,x) on conflict(id) do update set body=excluded.body;end loop;
- update schedule_state set version=ver+1,updated_at=now(),updated_by=auth.uid();return ver+1;
+ update schedule_state set version=ver+1,updated_at=now(),updated_by=auth.uid() where id;return ver+1;
 end $$;
 revoke all on function save_staff_rosters(bigint,jsonb) from public,anon;
 grant execute on function save_staff_rosters(bigint,jsonb) to authenticated;

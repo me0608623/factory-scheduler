@@ -105,7 +105,7 @@ begin
    insert into transfer_orders(id,code,body) values((x->>'id')::uuid,x->>'code',x) on conflict(id) do update set code=excluded.code,body=excluded.body;
  end loop;
  for a in select * from work_assignments where transfer_batch_id is not null loop perform _assert_transfer_assignment(a,true);end loop;
- update schedule_state set version=ver+1,updated_at=now(),updated_by=auth.uid();return ver+1;
+ update schedule_state set version=ver+1,updated_at=now(),updated_by=auth.uid() where id;return ver+1;
 end $$;
 revoke all on function save_transfer_orders(bigint,jsonb) from public,anon;
 grant execute on function save_transfer_orders(bigint,jsonb) to authenticated;
@@ -126,7 +126,7 @@ begin
  insert into work_assignments(id,work_id,employee_id,resource_id,date,start_min,end_min,qty,order_id,note,transfer_batch_id,transfer_stage)
  select id,work_id,employee_id,resource_id,date,start_min,end_min,qty,order_id,coalesce(note,''),transfer_batch_id,transfer_stage from jsonb_to_recordset(p_assignments)
  as x(id uuid,work_id uuid,employee_id uuid,resource_id text,date date,start_min smallint,end_min smallint,qty integer,order_id uuid,note text,transfer_batch_id uuid,transfer_stage text) where not exists(select 1 from work_assignments a where a.id=x.id);
- update schedule_state set version=ver+1,updated_at=now(),updated_by=auth.uid();return ver+1;
+ update schedule_state set version=ver+1,updated_at=now(),updated_by=auth.uid() where id;return ver+1;
 end $$;
 
 create function _guard_transfer_content() returns trigger language plpgsql security definer set search_path=public as $$

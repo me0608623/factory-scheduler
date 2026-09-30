@@ -141,6 +141,6 @@ begin
   insert into change_sets (id, kind, title, summary, detail, version_before, version_after)
   values (cs, p_kind, p_title, p_detail ->> 'summary', p_detail, ver, ver + 1);
   perform _apply_blocks(p_blocks);
-  update schedule_state set version = ver + 1, updated_at = now(), updated_by = auth.uid();
+  update schedule_state set version = ver + 1, updated_at = now(), updated_by = auth.uid() where id;
   return cs;
 end $$;

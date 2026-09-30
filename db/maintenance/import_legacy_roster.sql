@@ -54,7 +54,7 @@ begin
     select 'legacy-f'||factory||'-'||lower(cell)||'-'||position,name,
       ((row_number() over(order by factory,cell,position)-1)%8)::smallint,true,array[]::smallint[],factory,'pending',
       src.source_name||' · '||factory||'廠!'||cell from import_people order by factory,cell,position;
-  update schedule_state set version=current_version+1,setup_pending=true,updated_at=now();
+  update schedule_state set version=current_version+1,setup_pending=true,updated_at=now() where id;
   return jsonb_build_object('employees',people_count,'stations',machine_count,'version',current_version+1,'setup_pending',true);
 end $$;
 revoke all on function pg_temp.import_legacy_roster(uuid,bigint) from public;

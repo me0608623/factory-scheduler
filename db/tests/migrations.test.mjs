@@ -40,6 +40,28 @@ for (const f of fs.readdirSync(path.join(ROOT, "migrations")).sort()) {
   try { await db.exec(sql); ok(true, f); }
   catch (e) { if (f.includes("realtime")) { console.log("  - 略過", f, e.message); } else { ok(false, f + " → " + e.message + (e.position?" @"+e.position:"")); process.exit(1); } }
 }
+const unsafeStateWriters = await db.query(`
+  select p.proname
+  from pg_proc p
+  join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public'
+    and p.prokind = 'f'
+    and pg_get_functiondef(p.oid) ~* 'update[[:space:]]+schedule_state[[:space:]]+set'
+    and pg_get_functiondef(p.oid) !~* 'update[[:space:]]+schedule_state[[:space:]]+set[^;]*[[:space:]]where[[:space:]]'
+`);
+ok(unsafeStateWriters.rows.length === 0, "所有排程版本更新都有 WHERE 範圍，可在 Supabase safeupdate 下執行");
+await db.exec(`
+  create function _qa_legacy_state_writer() returns void language plpgsql as $$
+  begin
+    update schedule_state set updated_at = now();
+  end $$;
+`);
+await db.exec(fs.readFileSync(path.join(ROOT, "migrations", "0025_safe_singleton_updates.sql"), "utf8"));
+const repairedLegacyWriter = (await db.query(`
+  select pg_get_functiondef('public._qa_legacy_state_writer()'::regprocedure) as source
+`)).rows[0].source;
+ok(/update\s+schedule_state\s+set[^;]*\swhere\sid/i.test(repairedLegacyWriter), "0025 會原地修正既有環境中的舊函式");
+await db.exec("drop function _qa_legacy_state_writer()");
 await db.exec(fs.readFileSync(path.join(ROOT, "seed.sql"), "utf8")); ok(true, "seed.sql");
 
 console.log("帳號與角色");

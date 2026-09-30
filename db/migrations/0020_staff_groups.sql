@@ -59,7 +59,7 @@ begin
   insert into staff_group_members(group_id,employee_id,review_status,source_ref)
     select group_id,employee_id,review_status,source_ref from jsonb_to_recordset(p_members)
       m(group_id uuid,employee_id uuid,review_status text,source_ref text);
-  update schedule_state set version=v+1,updated_at=now();
+  update schedule_state set version=v+1,updated_at=now() where id;
   return v+1;
 end $$;
 revoke all on function save_staff_groups(bigint,jsonb,jsonb,text) from public,anon;

@@ -99,7 +99,7 @@ begin
     or (select count(*) from employees where active and factory=1)<>13
     or (select count(*) from employees where active and factory=2)<>17 then
     raise exception '补齊後數量不符，整筆交易撤回'; end if;
-  update schedule_state set version=p_version+1,setup_pending=true,updated_at=now();
+  update schedule_state set version=p_version+1,setup_pending=true,updated_at=now() where id;
   return jsonb_build_object('added',added,'held_aliases',held,'employees',30,'positions',45,'setup_pending',true,'version',p_version+1);
 end $$;
 revoke all on function pg_temp.complete_legacy_catalog(uuid,text,bigint,jsonb,jsonb) from public;
