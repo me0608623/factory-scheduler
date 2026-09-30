@@ -52,7 +52,7 @@ export function toSnapshot(S, holidays = {}) {
         fixed: !!f.fixed, original_blocks: (f.orig || []).map(blockToDb) })) })),
     products: S.products.map((p) => ({ id: p.id, name: p.name,
       steps: p.steps.map((s) => ({ process: s.proc, factory: s.factory || 1, rate: +s.rate, batch: +s.batch || 0 })) })),
-    orders: S.orders.map((o) => ({ id: o.id, code: o.code, product: o.pid, qty: o.qty, due: o.due, priority: o.pri })),
+    orders: S.orders.map((o) => ({ id: o.id, code: o.code, product: o.pid, qty: o.qty, due: o.due, priority: o.pri, note: o.note ?? null })),
     blocks: S.blocks.map((b) => ({ id: b.id, order: b.oid, step: b.step, machine: b.m, employee: b.emp ?? null,
       date: b.date, start: b.s, end: b.e, qty: b.qty, pinned: !!b.pin })),
     work_execution: (S.execution || []).map((r) => ({ blockId: r.blockId, status: r.status, qtyDone: Number(r.qtyDone) || 0 })),
@@ -69,6 +69,7 @@ export function fromSnapshot(snap) {
     execution: snap.work_execution || [],
     workContents: snap.work_contents||[],workAssignments:snap.work_assignments||[],workReferenceOrders:snap.work_reference_orders||[],
     transferOrders:snap.transfer_orders||[],
+    rushOrders:snap.rush_orders||[],
     staffRosters:snap.staff_rosters||[],
     leaveRequests:(snap.leave_requests||[]).map(x=>({id:x.id,employeeId:x.employee_id??x.employeeId,date:x.date,status:x.status,note:x.note||'',createdAt:(x.created_at??x.createdAt)||null,createdBy:(x.created_by??x.createdBy)||null,resolvedAt:(x.resolved_at??x.resolvedAt)||null})),
     memos:(snap.schedule_memos||[]).map(x=>({id:x.id,text:x.text,machineId:(x.machine_id??x.machineId)||null,employeeId:(x.employee_id??x.employeeId)||null,pinned:!!x.pinned,author:x.author||'',createdAt:(x.created_at??x.createdAt)||null})),
@@ -90,7 +91,7 @@ export function fromSnapshot(snap) {
         fixed: !!f.fixed, fixedAt: f.fixed_at || null, orig: (f.original_blocks || []).map(blockFromDb) })) })),
     products: (snap.products || []).map((p) => ({ id: p.id, name: p.name,
       steps: p.steps.map((s) => ({ proc: s.process, factory: s.factory || 1, rate: +s.rate, batch: +s.batch || 0 })) })),
-    orders: (snap.orders || []).map((o) => ({ id: o.id, code: o.code, pid: o.product, qty: o.qty, due: o.due, pri: o.priority })),
+    orders: (snap.orders || []).map((o) => ({ id: o.id, code: o.code, pid: o.product, qty: o.qty, due: o.due, pri: o.priority, note: o.note ?? null })),
     blocks: (snap.blocks || []).map((b) => ({ id: b.id, oid: b.order, step: b.step, m: b.machine, emp: b.employee ?? null,
       date: b.date, s: b.start, e: b.end, qty: b.qty, pin: !!b.pinned })),
     log: [],
@@ -102,7 +103,7 @@ export function applyOption(base, opt) {
   const S = JSON.parse(JSON.stringify(base));
   const eff = opt.effects || {};
   for (const o of eff.orders_upsert || []) {
-    const row = { id: o.id, code: o.code, pid: o.product_id, qty: o.qty, due: o.due_date, pri: o.priority ?? 2 };
+    const row = { id: o.id, code: o.code, pid: o.product_id, qty: o.qty, due: o.due_date, pri: o.priority ?? 2, note: o.note ?? null };
     const i = S.orders.findIndex((x) => x.id === o.id);
     if (i >= 0) S.orders[i] = row; else S.orders.push(row);
   }

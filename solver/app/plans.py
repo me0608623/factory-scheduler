@@ -16,7 +16,7 @@ from time import monotonic
 from typing import Callable
 
 from .model import PRESETS, Result, Weights, configured_workers, solve
-from .schemas import Block, Event, Fault, Now, Order, PlanRequest, Snapshot
+from .schemas import Block, Event, Fault, Hints, Now, Order, PlanRequest, Snapshot
 from .timeline import abs_min, add_days, s2d, Timeline
 from .validate import check
 
@@ -203,6 +203,48 @@ STRATEGIES: dict[str, list[Strategy]] = {
 STRATEGIES["leave"] = [s for s in STRATEGIES["fault"]]
 
 
+# ---------- 「再給條件重排」：把口語條件變成額外的 R 方案 ----------
+def _ot_hint_days(a: Applied, n: Now) -> set[str]:
+    """可加班：從今天到最晚期限之間，還沒開加班的上班日全部允許（上限 60 天）。"""
+    dues = [o.due for o in a.snap.orders]
+    end = max(dues) if dues else a.date
+    days: set[str] = set()
+    d = n.date
+    while d <= end and len(days) < 60:
+        tl = Timeline(a.snap.calendar, d, 1)
+        if tl.is_open(d) and not a.snap.calendar.overtime.get(d):
+            days.add(d)
+        d = add_days(d, 1)
+    return days
+
+
+def hint_strategies(hints: Hints) -> list[Strategy]:
+    pin = {m for m in hints.pin_machines if m}
+    parts: list[str] = []
+    if hints.no_late_orders:
+        parts.append("「" + "、".join(hints.no_late_orders[:4]) + "」不能超過期限")
+    if hints.keep_people:
+        parts.append("盡量不換人")
+    if hints.allow_overtime:
+        parts.append("可以開加班")
+    if pin:
+        parts.append("機台 " + "、".join(sorted(pin)) + " 不動")
+    if hints.note and hints.note.strip():
+        parts.append("你說：「" + hints.note.strip()[:40] + "」")
+    desc = ("照你剛才給的條件：" + "；".join(parts)) if parts else "照你剛才給的條件重排"
+    moved = (lambda a: (lambda b: b.machine not in pin)) if pin else None
+    ot = _ot_hint_days if hints.allow_overtime else (lambda a, n: set())
+    extra = {"overtime": ot}
+    if moved is not None:
+        extra["movable"] = moved   # 沒有 pin 就不要覆蓋 dataclass 的預設 callable
+    # R1：貼近現況的解法（不能晚→準時優先；少換人→不換人不換機；否則少動為主）
+    preset1 = "on_time" if hints.no_late_orders else ("keep_assign" if hints.keep_people else "min_change")
+    out = [Strategy("R1", "照你的條件", desc, preset1, **extra)]
+    # R2：同一組條件，但以整體不延誤為第一目標，全部重排找最好
+    out.append(Strategy("R2", "照你的條件＋準時優先", desc + "；以不延誤為第一目標", "on_time", **extra))
+    return out
+
+
 # ---------- 前後差異：給人看的 ----------
 def _key(b: Block):
     return (b.order, b.step, b.date, b.start, b.end, b.machine, b.employee, b.qty, b.pinned)
@@ -350,6 +392,8 @@ def make_plans(req: PlanRequest) -> dict:
     base = req.snapshot
     a = apply_event(base, req.event, now)
     strategies = [s for s in STRATEGIES[req.event.type] if s.when(a, now)]
+    if req.hints:
+        strategies += hint_strategies(req.hints)
     products = {product.id: product for product in a.snap.products}
     operation_count = sum(len(products[order.product].steps) for order in a.snap.orders
                           if order.product in products)
@@ -403,6 +447,12 @@ def make_plans(req: PlanRequest) -> dict:
             diagnostics.extend(f"{o.code}：找不到產品資料；請先建立產品與工序" for o in missing_products)
         elif not (res and res.status == "SKIPPED"):
             diagnostics.extend(check(a.snap, blocks, now, overtime_days)[:5])
+        if req.hints and req.hints.no_late_orders and st.id.startswith("R"):
+            fin = _finish(a.snap, blocks)
+            no_late = set(req.hints.no_late_orders)
+            for o in a.snap.orders:
+                if o.code in no_late and fin[o.id]["k"] != "ok":
+                    diagnostics.append(f"條件未滿足：{o.code} 仍會超過期限；可試「可以加班」或調整其他條件")
         applicable = (res is None or res.status in ("OPTIMAL", "FEASIBLE")) and not diagnostics
         eff = copy.deepcopy(a.effects)
         if overtime_days:

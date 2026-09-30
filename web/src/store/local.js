@@ -4,6 +4,7 @@ import { assertExecutionProtected, transitionExecution } from '../execution.js';
 import { validateScenario } from '../scenarios.js';
 import { validateGeneralWork } from '../general-work.js';
 import { validateTransfers } from '../transfers.js';
+import { validateRush } from '../rush.js';
 import { validateRosters } from '../roster.js';
 const KEY = "fsched-local-v1";
 const SCENARIOS = 'fsched-scenarios-v1';
@@ -38,6 +39,7 @@ export class LocalStore {
     const old=await this.load();
     try {
       validateTransfers(S,{before:old});
+      validateRush(S.rushOrders||[]);
       validateRosters(S);
       validateGeneralWork(S,{today:new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Taipei'}).format(new Date()),baseAssignments:old?.workAssignments||[]});
       if(old){assertExecutionProtected(old,S);

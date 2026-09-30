@@ -13,7 +13,7 @@ from app import plans as plan_api
 from app.main import app
 from app.model import PRESETS, Result, Weights, configured_workers, full_capacity_spans, solve
 from app.plans import make_plans
-from app.schemas import Block, Calendar, Employee, Event, Fault, Machine, Now, Order, PlanRequest, Product, Snapshot, Step, WindowDef, WorkExecution
+from app.schemas import Block, Calendar, Employee, Event, Fault, Hints, Machine, Now, Order, PlanRequest, Product, Snapshot, Step, WindowDef, WorkExecution
 from app.timeline import Timeline, abs_min
 from app.validate import check
 
@@ -1419,3 +1419,48 @@ def test_only_one_plan_computation_per_service_process(demo, monkeypatch):
             assert response.status_code == 429, path
             assert response.headers["retry-after"] == "5"
     assert c.post("/plans", json={**payload, "event": {"type": "auto"}}).status_code == 200
+
+
+def test_plans_with_hints_add_r_options(demo):
+    """「再給條件重排」：hints 附加 R1/R2 方案，描述含口語條件，pin 機台的工作不動。"""
+    snap, now = demo
+    day = now.date
+    order = snap.orders[0]
+    pinned_machine = snap.machines[0].id
+    pinned_before = {(b.order, b.step): (b.date, b.start, b.end)
+                     for b in snap.blocks if b.machine == pinned_machine}
+    hints = Hints(no_late_orders=[order.code], keep_people=True,
+                  pin_machines=[pinned_machine], note="星期五前一定要交")
+    plan = make_plans(PlanRequest(snapshot=snap, event=Event(type="auto"),
+                                  now=Now(date=day, min=480), time_limit=0.5, hints=hints))
+    ids = [o["id"] for o in plan["options"]]
+    assert "R1" in ids and "R2" in ids
+    r1 = next(o for o in plan["options"] if o["id"] == "R1")
+    assert "照你剛才給的條件" in r1["desc"]
+    assert order.code in r1["desc"] and "星期五前一定要交" in r1["desc"]
+    assert any(o["name"] == "照你的條件＋準時優先" for o in plan["options"])
+    for opt in (o for o in plan["options"] if o["id"].startswith("R")):
+        # pin 機台上每段原本的工作，輸出裡都要留著同樣的位置（不搬不刪）
+        for b in snap.blocks:
+            if b.machine != pinned_machine:
+                continue
+            assert any(x["order_id"] == b.order and x["step_seq"] == b.step
+                       and x["date"] == b.date and x["start_min"] == b.start and x["end_min"] == b.end
+                       for x in opt["blocks"]), (b.order, b.step)
+
+
+def test_plans_hints_no_late_unmet_marks_inapplicable(demo):
+    """指定不能晚的單若仍會逾期，R 方案要標不可套用並說明條件未滿足。"""
+    snap, now = demo
+    day = now.date
+    yesterday = (date.fromisoformat(day) - timedelta(days=1)).isoformat()
+    impossible = snap.model_copy(deep=True)
+    impossible.orders[0].due = yesterday
+    hints = Hints(no_late_orders=[impossible.orders[0].code])
+    plan = make_plans(PlanRequest(snapshot=impossible, event=Event(type="auto"),
+                                  now=Now(date=day, min=480), time_limit=0.5, hints=hints))
+    r_opts = [o for o in plan["options"] if o["id"].startswith("R")]
+    assert r_opts
+    for opt in r_opts:
+        assert any("條件未滿足" in d for d in opt["diagnostics"])
+        assert opt["applicable"] is False

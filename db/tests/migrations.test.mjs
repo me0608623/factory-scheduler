@@ -572,5 +572,34 @@ await expectErr('select pg_temp.import_legacy_groups($1,$2,$3,$4)',[archiveHash,
 await as(LEAD,()=>expectErr('select save_staff_groups($1,$2,$3)',[16,'[]','[]'],/只有老闆/,'組長不得變更固定分組'));
 await as(BOSS,()=>expectErr('select save_staff_groups($1,$2,$3)',[15,'[]','[]'],/版本已變/,'分組修改版本衝突整次拒絕'));
 
+console.log('特別趕貨紀錄與工單備註（0030）');
+const rushRow={id:'eeeeeeee-eeee-4eee-8eee-eeeeeeee0001',f1:{shipDate:'2026-10-01',vendor:'AVK-5',desc:'521F00137',shortQty:100,note:''},f2:{startDate:'2026-10-02',dueDate:'',itemProcess:'521F00137',desc:'進貨布輪擦拭',qty:240,note:''}};
+const rushVer=(await db.query('select version::int v from schedule_state')).rows[0].v;
+await as(TV,()=>expectErr('select save_rush_orders($1,$2)',[rushVer,JSON.stringify([rushRow])],/只有老闆或組長/,'電視帳號不能改趕貨紀錄'));
+await as(LEAD,()=>db.query('select save_rush_orders($1,$2)',[rushVer,JSON.stringify([rushRow])]));
+ok((await db.query('select count(*)::int n from rush_orders')).rows[0].n===1,'組長可新增趕貨紀錄');
+const rushSnap=(await as(LEAD,()=>db.query('select schedule_snapshot() s'))).rows[0].s;
+ok(rushSnap.rush_orders.length===1&&rushSnap.rush_orders[0].f1.vendor==='AVK-5','登入快照包含趕貨紀錄');
+ok(Array.isArray(rushSnap.orders)&&rushSnap.orders.every(o=>'note' in o),'快照工單格式都帶 note 欄位');
+await as(LEAD,()=>expectErr('select save_rush_orders($1,$2)',[rushVer,'[]'],/版本已變/,'趕貨版本衝突整次拒絕'));
+const rushVer2=rushVer+1;
+const badQty=structuredClone(rushRow);badQty.f1.shortQty=-5;
+await as(LEAD,()=>expectErr('select save_rush_orders($1,$2)',[rushVer2,JSON.stringify([badQty])],/整數/,'負數數量拒絕'));
+const emptyRush={id:'eeeeeeee-eeee-4eee-8eee-eeeeeeee0002',f1:{shipDate:'',vendor:'',desc:'',shortQty:null,note:''},f2:{startDate:'',dueDate:'',itemProcess:'',desc:'',qty:null,note:''}};
+await as(LEAD,()=>expectErr('select save_rush_orders($1,$2)',[rushVer2,JSON.stringify([emptyRush])],/至少要填/,'兩邊全空的列拒絕'));
+const zeroQty=structuredClone(rushRow);zeroQty.f2.qty=0;
+await as(LEAD,()=>db.query('select save_rush_orders($1,$2)',[rushVer2,JSON.stringify([zeroQty])]));
+ok((await db.query('select count(*)::int n from rush_orders')).rows[0].n===1,'0 件可儲存（覆蓋同一列）');
+await as(LEAD,()=>db.query('select save_rush_orders($1,$2)',[rushVer2+1,'[]']));
+ok((await db.query('select count(*)::int n from rush_orders')).rows[0].n===0,'整批替換可移除趕貨列');
+ok((await db.query("select count(*)::int n from change_sets where title='更新特別趕貨紀錄'")).rows[0].n>=3,'趕貨寫入留下變更紀錄');
+const anyProduct=(await db.query('select id from products limit 1')).rows[0]?.id;
+if(anyProduct){
+  await as(BOSS,()=>db.query("insert into orders(id,code,product_id,qty,due_date,priority,note) values('99999999-9999-4999-8999-999999999999','RN-1',$1,10,'2026-10-31',2,'客戶指定第一批') on conflict(id) do update set note=excluded.note",[anyProduct]));
+  const noteSnap=(await as(LEAD,()=>db.query('select schedule_snapshot() s'))).rows[0].s;
+  const rn=noteSnap.orders.find(o=>o.code==='RN-1');
+  ok(rn&&rn.note==='客戶指定第一批','快照可讀回工單備註');
+}else ok(false,'缺少產品資料，無法驗證工單備註讀回');
+
 console.log(`\n通過 ${pass}，失敗 ${fail}`);
 process.exit(fail ? 1 : 0);

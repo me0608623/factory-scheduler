@@ -31,17 +31,17 @@ export const SOLVER = {
     return this.up;
   },
 
-  // 本機模式：把整份快照送過去算
-  async plans(snapshot, event, now, timeLimit = 3) {
+  // 本機模式：把整份快照送過去算；hints = 「再給條件重排」的限制（沒有就不傳）
+  async plans(snapshot, event, now, timeLimit = 3, hints = null) {
     if(snapshot.work_assignments?.length&&!this.capabilities.includes('work_assignments_v1')){
       const err=new Error('排程服務尚未支援一般工作占用，請先更新服務');err.status=409;throw err;
     }
-    return post("/plans", { snapshot, event, now, time_limit: timeLimit });
+    return post("/plans", { snapshot, event, now, time_limit: timeLimit, ...(hints?{hints}:{}) });
   },
 
   // 資料庫模式：伺服器自己讀資料庫，算完存成預覽（回傳 preview_id）
-  async plansDb(event, now, jwt, timeLimit = 3) {
-    return post("/plans/db", { event, now, time_limit: timeLimit }, { Authorization: "Bearer " + jwt });
+  async plansDb(event, now, jwt, timeLimit = 3, hints = null) {
+    return post("/plans/db", { event, now, time_limit: timeLimit, ...(hints?{hints}:{}) }, { Authorization: "Bearer " + jwt });
   },
 };
 

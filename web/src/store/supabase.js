@@ -6,6 +6,7 @@ import { groupCatalog } from "../groups.js";
 import { assertExecutionProtected } from '../execution.js';
 import { generalKey,validateGeneralWork,assignmentToDb } from '../general-work.js';
 import { transferKey,validateTransfers } from '../transfers.js';
+import { validateRush } from '../rush.js';
 import { rosterKey,validateRosters } from '../roster.js';
 import { effectivePermission } from '../permissions.js';
 
@@ -17,6 +18,8 @@ const jsAbs = (date, min) => {
   const [y, m, d] = date.split("-").map(Number);
   return Math.round(Date.UTC(y, m - 1, d) / 864e5) * 1440 + min;
 };
+
+const rushKey = (S) => JSON.stringify(S.rushOrders || []);
 
 const TABLE_NAME = { processes: "工序", employees: "員工", employee_skills: "員工技能", leaves: "請假",
   employee_overtime_days: "單日加班意願", machines: "機台",
@@ -215,6 +218,7 @@ export class SupabaseStore {
     this.baseGroups = JSON.stringify(groupCatalog(S));
     this.baseGeneral=generalKey(S);this.baseContents=JSON.stringify(S.workContents||[]);
     this.baseTransfers=transferKey(S);this.transferBase=structuredClone(S);
+    this.baseRush=rushKey(S);
     this.baseRosters=rosterKey(S);
   }
 
@@ -235,8 +239,16 @@ export class SupabaseStore {
     }
     if(transferKey(S)!==this.baseTransfers){
       if(Object.values(d).some(c=>c.upsert.length||c.del.length)||blocksKey(S)!==this.baseBlocks||generalKey(S)!==this.baseGeneral||JSON.stringify(groupCatalog(S))!==this.baseGroups)
-        throw Object.assign(new Error('請將跨廠加工紀錄與排班／基本資料分開儲存'),{permission:true});
+        throw Object.assign(new Error('請將跨廠加工紀錄與排程／基本資料分開儲存'),{permission:true});
       const {data,error}=await this.sb.rpc('save_transfer_orders',{p_version:this.version,p_orders:S.transferOrders||[]});
+      if(error){if(error.code==='40001')throw new ConflictError();throw Object.assign(new Error(error.message),{permission:true});}
+      S.version=this.version=Number(data);this._remember(S);return;
+    }
+    if(rushKey(S)!==this.baseRush){
+      if(Object.values(d).some(c=>c.upsert.length||c.del.length)||blocksKey(S)!==this.baseBlocks||generalKey(S)!==this.baseGeneral||transferKey(S)!==this.baseTransfers||JSON.stringify(groupCatalog(S))!==this.baseGroups)
+        throw Object.assign(new Error('請將特別趕貨紀錄與排程／基本資料分開儲存'),{permission:true});
+      try{validateRush(S.rushOrders||[]);}catch(e){throw Object.assign(e,{permission:true});}
+      const {data,error}=await this.sb.rpc('save_rush_orders',{p_version:this.version,p_orders:S.rushOrders||[]});
       if(error){if(error.code==='40001')throw new ConflictError();throw Object.assign(new Error(error.message),{permission:true});}
       S.version=this.version=Number(data);this._remember(S);return;
     }
@@ -308,7 +320,7 @@ export class SupabaseStore {
   // ---------- 即時推送 ----------
   subscribe(onChange) {
     const ch = this.sb.channel("schedule-changes");
-    for (const t of ["schedule_state", "change_sets", "machine_faults", "leaves", "employee_overtime_days", "orders", "calendar_days", "work_execution","work_contents","work_assignments","transfer_orders","staff_rosters","leave_requests","schedule_memos"]) {
+    for (const t of ["schedule_state", "change_sets", "machine_faults", "leaves", "employee_overtime_days", "orders", "calendar_days", "work_execution","work_contents","work_assignments","transfer_orders","rush_orders","staff_rosters","leave_requests","schedule_memos"]) {
       ch.on("postgres_changes", { event: "*", schema: "public", table: t }, () => onChange(t));
     }
     if(this.session?.user?.id)ch.on("postgres_changes",{event:"*",schema:"public",table:"account_permissions",filter:"user_id=eq."+this.session.user.id},

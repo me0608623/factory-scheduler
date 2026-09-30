@@ -22,7 +22,7 @@ from starlette.concurrency import run_in_threadpool
 from .db import Supabase, SupabaseError
 from .model import PRESETS, solve
 from .plans import make_plans, now_tw
-from .schemas import Event, Now, PlanRequest, Snapshot, SolveRequest
+from .schemas import Event, Hints, Now, PlanRequest, Snapshot, SolveRequest
 from .validate import check
 from .roster import RosterRequest, Roster, solve_roster
 from .chat import ChatQuery, SnapshotChatQuery, ChatUnavailable, build_context, respond
@@ -142,6 +142,7 @@ class DbPlanRequest(BaseModel):
     event: Event
     now: Now | None = None
     time_limit: float = Field(default=5.0, gt=0, le=10)
+    hints: Hints | None = None   # 「再給條件重排」的口語條件
 
 
 def require_catalog_ready(snapshot: Snapshot):
@@ -201,7 +202,7 @@ async def plans_db(req: DbPlanRequest, authorization: str = Header(...)):
         snap = Snapshot(**await supa.snapshot(jwt))
         require_catalog_ready(snap)
         with computation_slot():
-            plan = await run_in_threadpool(make_plans, PlanRequest(snapshot=snap, event=req.event, now=req.now, time_limit=req.time_limit))
+            plan = await run_in_threadpool(make_plans, PlanRequest(snapshot=snap, event=req.event, now=req.now, time_limit=req.time_limit, hints=req.hints))
         plan["preview_id"] = await supa.save_preview(plan, uid)
         return plan
     except SupabaseError as e:

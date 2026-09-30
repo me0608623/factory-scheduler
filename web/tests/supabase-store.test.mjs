@@ -276,7 +276,7 @@ test("格式轉換：畫面 → 快照 → 畫面", () => {
       sourceCode: null, sourceNotes: null, catalogSources: [], identityCandidates: [], otWeekdays: [], otOverrides: {} }],
     machines: [{ id: "a", label: "A", factory: 2, proc: "裁切", products: ["p"], faults: [{ id: "f", date: "2026-10-04", s: 480, e: 600, note: "", fixed: false, orig: [] }] }],
     products: [{ id: "p", name: "P", steps: [{ proc: "裁切", factory: 2, rate: 2, batch: 0 }] }],
-    orders: [{ id: "o", code: "O1", pid: "p", qty: 10, due: "2026-10-09", pri: 0 }],
+    orders: [{ id: "o", code: "O1", pid: "p", qty: 10, due: "2026-10-09", pri: 0, note: "客戶指定第一批" }],
     blocks: [{ id: "b", oid: "o", step: 0, m: "a", emp: "e", date: "2026-10-05", s: 480, e: 490, qty: 10, pin: true }] };
   const back = fromSnapshot({ ...toSnapshot(S), calendar: toSnapshot(S).calendar });
   for (const k of ["employees", "orders", "blocks", "products"]) assert.deepEqual(back[k], S[k], k);

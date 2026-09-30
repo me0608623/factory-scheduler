@@ -91,6 +91,7 @@ class Order(BaseModel):
     qty: int = Field(gt=0)
     due: str                         # 最晚完成日
     priority: int = Field(default=2, ge=0, le=3)  # 0 特急、1 急、2 一般、3 不急
+    note: str | None = None          # 內部備註；不參與求解
 
     @field_validator("due")
     @classmethod
@@ -250,11 +251,21 @@ class Event(BaseModel):
         return self
 
 
+class Hints(BaseModel):
+    """「再給條件重排」：把使用者的口語條件轉成求解限制；只影響新增的 R 方案。"""
+    no_late_orders: list[str] = Field(default_factory=list)   # 這些工單號不能超過期限
+    keep_people: bool = False                                  # 盡量不換人
+    allow_overtime: bool = False                               # 可以開加班
+    pin_machines: list[str] = Field(default_factory=list)      # 這些機台上的工作不要動
+    note: str | None = None                                    # 使用者補充的一句白話
+
+
 class PlanRequest(BaseModel):
     snapshot: Snapshot
     event: Event
     now: Now | None = None
     time_limit: float = Field(default=5.0, gt=0, le=10)  # 每個方案最多算幾秒
+    hints: Hints | None = None
 
 
 class SolveRequest(BaseModel):

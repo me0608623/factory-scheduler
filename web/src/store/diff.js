@@ -51,7 +51,7 @@ export function rowsOf(S) {
       { product_id: p.id, seq: i, process: s.proc, factory: s.factory || 1, rate: +s.rate, transfer_batch: +s.batch || 0 }));
   }
   for (const o of S.orders) {
-    put("orders", o.id, { id: o.id, code: o.code, product_id: o.pid, qty: o.qty, due_date: o.due, priority: o.pri });
+    put("orders", o.id, { id: o.id, code: o.code, product_id: o.pid, qty: o.qty, due_date: o.due, priority: o.pri, note: o.note ?? null });
   }
   S.cal.week.forEach((v, i) => put("calendar_weekly", String(i), { weekday: i, is_open: !!v }));
   const over = S.cal.over || {}, ot = S.dayOT || {};
