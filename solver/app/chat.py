@@ -195,7 +195,14 @@ async def respond(query,context):
             elif provider=='openai':
                 response=await client.post('https://api.openai.com/v1/responses',headers={'Authorization':'Bearer '+key},json=payload)
             else:raise ChatUnavailable('AI 供應商設定不受支援；未外傳資料')
-        if response.status_code!=200:raise ChatUnavailable('AI 服務暫時無法回答；請使用資料查詢，不代表排程沒有問題')
+        if response.status_code!=200:
+            if provider=='zai' and response.status_code in (401,403):
+                raise ChatUnavailable('Z.ai 金鑰無法使用一般 API；請核對金鑰類型，已自動保留資料查詢')
+            if provider=='zai' and response.status_code==429:
+                raise ChatUnavailable('Z.ai 一般 API 額度不足或正在限流；已自動保留資料查詢')
+            if provider=='zai' and response.status_code==400:
+                raise ChatUnavailable('Z.ai 一般 API 不接受目前模型或回覆格式；已自動保留資料查詢')
+            raise ChatUnavailable('AI 服務暫時無法回答；請使用資料查詢，不代表排程沒有問題')
         data=response.json()
         if provider=='zai':
             choices=data.get('choices',[])

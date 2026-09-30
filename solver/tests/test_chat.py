@@ -224,3 +224,23 @@ def test_health_only_advertises_ai_when_fully_configured(monkeypatch):
     assert 'schedule_chat_ai_v1' not in client.get('/health').json()['capabilities']
     monkeypatch.setenv('ZAI_API_KEY','secret')
     assert 'schedule_chat_ai_v1' in client.get('/health').json()['capabilities']
+
+
+@pytest.mark.parametrize(('status','message'),[(401,'金鑰'),(403,'金鑰'),(429,'額度'),(400,'模型')])
+def test_zai_errors_are_actionable_without_echoing_provider_body(monkeypatch,demo,status,message):
+    monkeypatch.setenv('AI_SCHEDULE_DATA_APPROVED','true');monkeypatch.setenv('SCHEDULE_CHAT_PROVIDER','zai')
+    monkeypatch.setenv('ZAI_API_KEY','fake-zai-key');monkeypatch.setenv('SCHEDULE_CHAT_MODEL','glm-test')
+    import app.chat as chat
+    class Response:
+        status_code=status
+        def json(self):return {'error':{'message':'SENSITIVE-PROVIDER-BODY'}}
+    class FakeClient:
+        def __init__(self,**kw):pass
+        async def __aenter__(self):return self
+        async def __aexit__(self,*args):pass
+        async def post(self,*args,**kwargs):return Response()
+    monkeypatch.setattr(chat.httpx,'AsyncClient',FakeClient)
+    q=query(generate=True)
+    with pytest.raises(ChatUnavailable,match=message) as exc:
+        asyncio.run(respond(q,build_context(demo[0].model_dump(mode='json'),q)))
+    assert 'SENSITIVE' not in str(exc.value) and 'fake-zai-key' not in str(exc.value)
