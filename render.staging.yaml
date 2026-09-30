@@ -1,0 +1,49 @@
+# Isolated acceptance environment. This file never points at the production
+# Supabase project and uses Render's free compute unless explicitly upgraded.
+services:
+  - type: web
+    name: factory-scheduler-solver-staging
+    runtime: docker
+    plan: free
+    region: singapore
+    rootDir: solver
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: SUPABASE_URL
+        value: https://fkefarcwadvyqqjcjxvp.supabase.co
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SOLVER_DISABLE_SNAPSHOT_API
+        value: "1"
+      - key: AI_SCHEDULE_DATA_APPROVED
+        value: "false"
+      - key: ALLOWED_ORIGINS
+        fromService:
+          name: factory-scheduler-web-staging
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+
+  - type: web
+    name: factory-scheduler-web-staging
+    runtime: static
+    rootDir: web
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_SUPABASE_URL
+        value: https://fkefarcwadvyqqjcjxvp.supabase.co
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: VITE_SOLVER_URL
+        fromService:
+          name: factory-scheduler-solver-staging
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL

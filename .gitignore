@@ -5,8 +5,10 @@
 .venv/
 __pycache__/
 .pytest_cache/
+.vite/
 node_modules/
 *.dump
 web/dist/
+web/dist-qa/
 outputs/
 *.xlsx.inspect.ndjson

@@ -944,6 +944,13 @@ document.addEventListener("pointerup",()=>{
 document.addEventListener("pointercancel",()=>{endDrag();drag=null;});
 document.addEventListener("keydown",e=>{
   if(e.key==="Escape"&&UI.modal){closeModal();return;}
+  if(e.key==="Tab"&&UI.modal){
+    const modal=$("#modal-root .modal"),items=modalFocusable(modal);
+    if(!modal||!items.length){e.preventDefault();modal?.focus();return;}
+    const at=items.indexOf(document.activeElement);
+    if(e.shiftKey&&at<=0){e.preventDefault();items.at(-1).focus();}
+    else if(!e.shiftKey&&(at<0||at===items.length-1)){e.preventDefault();items[0].focus();}
+  }
   const el=e.target.closest&&e.target.closest(".blk");
   if(el&&(e.key==="Enter"||e.key===" ")){e.preventDefault();openModal({t:"blk",id:el.dataset.bid});}
 });
@@ -1086,8 +1093,35 @@ function saveDailyOT(m){
 }
 /* ===== 9. 視窗（員工、機台、工單、方塊、紀錄…） ===== */
 const MODAL_ACT={};
-function openModal(m){UI.modal=m;renderModal();}
-function closeModal(){UI.modal=null;const r=$("#modal-root");if(r)r.innerHTML="";maybeReload();}
+let modalReturnFocus=null;
+function modalFocusable(root){
+  if(!root)return [];
+  return [...root.querySelectorAll('button:not([disabled]),a[href],input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')]
+    .filter(el=>!el.hidden&&el.getClientRects().length);
+}
+function modalFocusToken(el){
+  if(!el)return null;
+  if(el.id)return {kind:"id",value:el.id};
+  for(const key of ["bind","act"]){if(el.dataset?.[key])return {kind:key,value:el.dataset[key]};}
+  return null;
+}
+function modalFocusFromToken(root,token){
+  if(!root||!token)return null;
+  if(token.kind==="id")return root.querySelector("#"+CSS.escape(token.value));
+  return [...root.querySelectorAll("[data-"+token.kind+"]")].find(el=>el.dataset[token.kind]===token.value)||null;
+}
+function openModal(m){
+  if(!UI.modal){
+    const active=document.activeElement;
+    modalReturnFocus=active instanceof HTMLElement&&active!==document.body?active:null;
+  }
+  UI.modal=m;renderModal();
+}
+function closeModal(){
+  UI.modal=null;const r=$("#modal-root");if(r)r.innerHTML="";maybeReload();
+  const target=modalReturnFocus;modalReturnFocus=null;
+  requestAnimationFrame(()=>{if(target?.isConnected&&!target.matches?.(":disabled"))target.focus();});
+}
 async function openLegacyHistory(preferredId){
   openModal({t:"legacy-history",loading:true});
   try{
@@ -1122,10 +1156,15 @@ function renderModal(){
   const m=UI.modal;if(!m){root.innerHTML="";return;}
   const f=MODALS[m.t];if(!f){closeModal();return;}
   const c=f(m);if(!c){closeModal();return;}
-  const keep=root.querySelector(".overlay");const st=keep?keep.scrollTop:0;
-  root.innerHTML='<div class="overlay" id="ov"><div class="modal" role="dialog" aria-modal="true" aria-label="'+esc(c.title)+'"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close" aria-label="關閉">×</button></div><div class="modal-b">'+c.body+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
+  const keep=root.querySelector(".overlay"),focusToken=keep&&root.contains(document.activeElement)?modalFocusToken(document.activeElement):null;
+  const st=keep?keep.scrollTop:0;
+  root.innerHTML='<div class="overlay" id="ov"><div class="modal" role="dialog" aria-modal="true" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close" aria-label="關閉">×</button></div><div class="modal-b">'+c.body+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
   const ov=$("#ov");ov.scrollTop=st;
-  const cb=$("#cbx");if(cb){cb.focus();cb.select();}
+  const cb=$("#cbx"),modal=ov.querySelector(".modal");
+  const restore=modalFocusFromToken(modal,focusToken);
+  if(cb){cb.focus();cb.select();}
+  else if(restore&&modalFocusable(modal).includes(restore))restore.focus();
+  else (modalFocusable(modal)[0]||modal).focus();
   ov.addEventListener("click",e=>{if(e.target===ov)closeModal();});
 }
 function rerender(){syncInputs();renderModal();}
@@ -1408,7 +1447,7 @@ export(){
   return {title:"Excel 匯出／匯入",body:
    '<button class="btn primary" data-act="x-xlsx" style="height:60px;justify-content:flex-start">'+IC.down+'下載 '+mdw(UI.date)+' 彩色排程 Excel（.xlsx）</button>'+
    '<button class="btn" data-act="x-template" style="height:60px;justify-content:flex-start">'+IC.down+'下載批次匯入範本（.xlsx）</button>'+
-   (canArchive()?'<label class="btn" style="height:60px;justify-content:flex-start;cursor:pointer">選擇 Excel 檔案，檢查並預覽<input id="xlsx-import" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none"></label>':'')+
+   (canArchive()?'<button class="btn" data-act="x-import" style="height:60px;justify-content:flex-start">選擇 Excel 檔案，檢查並預覽</button><input id="xlsx-import" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>':'')+
    '<div class="hint">舊版排程可獨立存為歷史資料，按日期查看 1 廠、2 廠，不改目前排程。批次匯入範本會取代基本資料，只有老闆能確認。</div>'+
    '<button class="btn" data-act="x-copy-day" style="height:60px;justify-content:flex-start">複製 '+mdw(UI.date)+' 排程表（和原本 Excel 一樣的格式）</button>'+
    '<button class="btn" data-act="x-copy-all" style="height:60px;justify-content:flex-start">複製全部明細（每段一列）</button>'+
@@ -2064,6 +2103,7 @@ Object.assign(MODAL_ACT,{
     const a=document.createElement("a");a.href="/匯入範本.xlsx";a.download="產線排程_匯入範本.xlsx";
     document.body.appendChild(a);a.click();a.remove();
   },
+  "x-import":()=>$("#xlsx-import")?.click(),
   "x-import-confirm":()=>{
     const m=UI.modal;if(!m||m.t!=="import-preview"||m.errors.length||!canMaster())return;
     if(workCatalog(S).length||assignments(S).length||transferOrders(S).length){toast('匯入範本不含一般工作／跨廠加工資料，不能覆蓋目前名冊');return;}

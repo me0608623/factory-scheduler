@@ -16,9 +16,11 @@ await db.exec(`
   create schema auth; create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb default '{}');
   create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 `);
+// Supabase 預先提供這個 publication；PGlite 必須建立同名替身，才能完整執行
+// 後續新增的 realtime migration，而不是靠檔名略過 migration。
+await db.exec("create publication supabase_realtime");
 for (const name of fs.readdirSync(path.join(root, "migrations")).sort()) {
-  try { await db.exec(fs.readFileSync(path.join(root, "migrations", name), "utf8")); }
-  catch (error) { if (!name.includes("realtime")) throw error; }
+  await db.exec(fs.readFileSync(path.join(root, "migrations", name), "utf8"));
 }
 await db.exec(fs.readFileSync(path.join(root, "seed.sql"), "utf8"));
 // seed.sql uses current_date for demo due dates; pin them so this regression stays repeatable.
