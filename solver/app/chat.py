@@ -199,12 +199,13 @@ async def respond(query,context):
                 response=await client.post('https://api.openai.com/v1/responses',headers={'Authorization':'Bearer '+key},json=payload)
             else:raise ChatUnavailable('AI 供應商設定不受支援；未外傳資料')
         if response.status_code!=200:
+            zai_api='Z.ai Coding Plan' if provider=='zai_coding' else 'Z.ai 一般 API'
             if provider in ('zai','zai_coding') and response.status_code in (401,403):
-                raise ChatUnavailable('Z.ai 金鑰無法使用一般 API；請核對金鑰類型，已自動保留資料查詢')
+                raise ChatUnavailable(zai_api+' 金鑰無法使用；請核對金鑰類型，已自動保留資料查詢')
             if provider in ('zai','zai_coding') and response.status_code==429:
-                raise ChatUnavailable('Z.ai 一般 API 額度不足或正在限流；已自動保留資料查詢')
+                raise ChatUnavailable(zai_api+' 額度不足或正在限流；已自動保留資料查詢')
             if provider in ('zai','zai_coding') and response.status_code==400:
-                raise ChatUnavailable('Z.ai 一般 API 不接受目前模型或回覆格式；已自動保留資料查詢')
+                raise ChatUnavailable(zai_api+' 不接受目前模型或回覆格式；已自動保留資料查詢')
             raise ChatUnavailable('AI 服務暫時無法回答；請使用資料查詢，不代表排程沒有問題')
         data=response.json()
         if provider in ('zai','zai_coding'):
@@ -220,3 +221,4 @@ async def respond(query,context):
         return {'engine':('AI（Z.ai，唯讀）' if provider in ('zai','zai_coding') else 'AI（OpenAI，唯讀）'),**parsed,'context':context}
     except (httpx.HTTPError,ValueError,KeyError,TypeError) as exc:
         raise ChatUnavailable('AI 連線或格式驗證失敗，未更動排程；請改用資料查詢') from exc
+
