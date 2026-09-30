@@ -8,6 +8,7 @@ import { validateRosters } from '../roster.js';
 const KEY = "fsched-local-v1";
 const SCENARIOS = 'fsched-scenarios-v1';
 const ARCHIVE_INDEX = "fsched-legacy-index-v1";
+const PROFILE_KEY = "fsched-local-profile-v1";
 const archiveKey = id => `fsched-legacy-${id}`;
 
 export class LocalStore {
@@ -16,7 +17,13 @@ export class LocalStore {
   userName = "";
 
   async init() {
+    try{this.userName=localStorage.getItem(PROFILE_KEY)||'';}catch{}
     return { needLogin: false };
+  }
+
+  async updateProfile({displayName}) {
+    const name=String(displayName||'').trim();if(name.length<1||name.length>60)throw new Error('顯示名稱需要 1–60 個字');
+    try{localStorage.setItem(PROFILE_KEY,name);this.userName=name;}catch{throw new Error('這台裝置無法儲存個人資料');}
   }
 
   async load() {
@@ -117,6 +124,7 @@ export class LocalStore {
       localStorage.removeItem(ARCHIVE_INDEX);
       localStorage.removeItem(KEY);
       localStorage.removeItem(SCENARIOS);
+      localStorage.removeItem(PROFILE_KEY);
     } catch {}
   }
 }

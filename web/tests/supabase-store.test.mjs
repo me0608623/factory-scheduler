@@ -36,7 +36,10 @@ test("登入：密碼錯誤、角色", async () => {
   await assert.rejects(s.login("boss@x", "wrong"), /帳號或密碼不對/);
   const boss = await store("boss@x");
   assert.equal(boss.role, "boss");
-  assert.equal((await store("tv@x")).role, "viewer");
+  const viewer=await store("tv@x");assert.equal(viewer.role, "viewer");
+  await viewer.updateProfile({displayName:'現場電視'});
+  await viewer._profile();assert.equal(viewer.userName,'現場電視');
+  await assert.rejects(viewer.updateProfile({displayName:' '.repeat(3)}),/1–60/);
 });
 
 test("老闆可把既有唯讀帳號逐項授權，不需更改職位", async () => {

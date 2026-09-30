@@ -20,6 +20,7 @@ import {rosterUI} from './roster-ui.js';
 import {installScheduleChat} from './chat-ui.js';
 import {PERMISSIONS,effectivePermission} from './permissions.js';
 import {orderCounters,productionSummary,leaveState,visibleMemos} from './overview.js';
+import {DEFAULT_PREFERENCES,applyPreferences,loadPreferences,notificationEnabled,patchPreference,savePreferences} from './settings.js';
 /* ===== 1. 常數與工具 ===== */
 const COLORS=["#FFE14D","#4CDB6E","#F58CF0","#4FE3EE","#FFA64D","#AFC0FF","#FF9A9A","#BFEA6C"];
 const PROCS=["裁切","沖壓","焊接","組裝","包裝"];
@@ -55,7 +56,7 @@ function mergeIv(iv){iv.sort((a,b)=>a[0]-b[0]);const o=[];for(const x of iv){if(
 let S=null;            // 目前排程（全部資料）
 let readOnly=false, undoStack=[];
 let recentManualMove=null;
-const UI={date:null,view:"day",layout:'resource',factory:1,group:'all',modal:null,zoom:1,theme:"light",drawer:null,focus:null};
+const UI={date:null,view:"day",layout:'resource',factory:1,group:'all',modal:null,zoom:1,theme:"light",drawer:null,focus:null,prefs:structuredClone(DEFAULT_PREFERENCES)};
 function loadFactory(){try{UI.factory=factoryPreference(localStorage.getItem("fsched-factory"));}catch(e){}}
 function setFactory(n){UI.factory=FACTORIES.includes(n)?n:"all";try{localStorage.setItem("fsched-factory",String(UI.factory));}catch(e){}}
 const shownEmployees=()=>groupedEmployees(S,S.employees.filter(e=>inFactory(e,UI.factory)),UI.group);
@@ -63,7 +64,8 @@ const shownMachines=()=>S.machines.filter(m=>inFactory(m,UI.factory));
 const shownOrders=()=>S.orders.filter(o=>orderInFactory(o,S.products,UI.factory));
 // 畫面縮放：每台電腦各自記住
 const ZOOMS=[0.6,0.7,0.75,0.8,0.85,0.9,1,1.1,1.25,1.4];
-function setZoom(z){UI.zoom=z;document.documentElement.style.setProperty("--z",z);try{localStorage.setItem("fsched-zoom",String(z));}catch(e){}}
+function persistPreferences(){try{UI.prefs=savePreferences(UI.prefs);}catch(e){toast('這台裝置無法保存設定');}applyPreferences(UI.prefs);UI.zoom=UI.prefs.scale;UI.theme=UI.prefs.theme;}
+function setZoom(z){UI.prefs=patchPreference(UI.prefs,'scale',z);persistPreferences();try{localStorage.setItem("fsched-zoom",String(UI.zoom));}catch(e){}}
 // 淺色／深色：每台電腦各自記住（auto = 跟著系統）
 const THEMES=["auto","light","dark"];
 const THEME_UI={
@@ -72,13 +74,16 @@ const THEME_UI={
   dark:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></svg><span class="lbl">深色</span>'
 };
 function setTheme(t){
-  UI.theme=THEMES.includes(t)?t:"auto";
-  const r=document.documentElement;
-  if(UI.theme==="auto")r.removeAttribute("data-app-theme");else r.setAttribute("data-app-theme",UI.theme);
+  UI.prefs=patchPreference(UI.prefs,'theme',THEMES.includes(t)?t:'auto');persistPreferences();
   try{localStorage.setItem("fsched-theme",UI.theme);}catch(e){}
 }
-function loadTheme(){let t="light";try{t=localStorage.getItem("fsched-theme")||"light";}catch(e){}setTheme(t);}
-function loadZoom(){let z=1;try{const v=parseFloat(localStorage.getItem("fsched-zoom"));if(ZOOMS.includes(v))z=v;}catch(e){}setZoom(z);}
+function loadPreferencesForDevice(){UI.prefs=loadPreferences();applyPreferences(UI.prefs);UI.zoom=UI.prefs.scale;UI.theme=UI.prefs.theme;}
+
+const SETTINGS_TEXT={
+  'zh-TW':{settings:'設定',today:'今天',orders:'工單',people:'人',output:'產量',notes:'備忘',more:'更多'},
+  en:{settings:'Settings',today:'Today',orders:'Orders',people:'People',output:'Output',notes:'Notes',more:'More'}
+};
+const tx=k=>SETTINGS_TEXT[UI.prefs.language]?.[k]||SETTINGS_TEXT['zh-TW'][k]||k;
 
 const emp=id=>S.employees.find(e=>e.id===id);
 const mach=id=>S.machines.find(m=>m.id===id);
@@ -645,14 +650,14 @@ function topHTML(){
   (S.demo?'<span class="demo-chip">示範資料</span>':'')+(readOnly&&!PV?'<span class="ro-chip">排程唯讀</span>':'')+
   (S.setupPending?'<button class="btn primary verify-entry" data-act="catalog">初次核對資料</button>':'')+
   '<div class="top-status">'+syncChipHTML()+
-  '<button class="btn" data-act="account" title="帳號與連線">'+IC.user+'<span class="lbl">'+esc(STORE&&STORE.kind==="supabase"?(STORE.userName||"帳號"):"本機")+'</span></button></div></div></div></header>';
+  '<button class="btn" data-act="settings" title="'+esc(tx('settings'))+'">'+IC.user+'<span class="lbl">'+esc(STORE&&STORE.kind==="supabase"?(STORE.userName||"帳號"):"本機")+'</span></button></div></div></div></header>';
 }
 
 function appNavHTML(){
   const item=(page,icon,label)=>'<button class="app-nav-item" data-act="drawer" data-v="'+page+'" aria-pressed="'+(UI.drawer===page)+'"><b>'+icon+'</b><span>'+label+'</span></button>';
   return '<nav class="app-nav" aria-label="主要功能">'+
-    '<button class="app-nav-item" data-act="today" aria-pressed="'+(!UI.drawer)+'"><b>▦</b><span>今天</span></button>'+
-    item('orders','▣','工單')+item('people','人','人')+item('output','▰','產量')+item('notes','▤','備忘')+item('more','•••','更多')+'</nav>';
+    '<button class="app-nav-item" data-act="today" aria-pressed="'+(!UI.drawer)+'"><b>▦</b><span>'+tx('today')+'</span></button>'+
+    item('orders','▣',tx('orders'))+item('people','人',tx('people'))+item('output','▰',tx('output'))+item('notes','▤',tx('notes'))+item('more','•••',tx('more'))+'</nav>';
 }
 function isoWeek(ds){const d=parseD(ds);d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));const y=new Date(Date.UTC(d.getUTCFullYear(),0,1));return Math.ceil(((d-y)/864e5+1)/7);}
 function bannerHTML(){
@@ -696,11 +701,12 @@ function cardsHTML(){
   '</section>';
 }
 
-const DRAWER_TITLES={orders:'工單',people:'人',output:'產量',notes:'備忘',more:'更多'};
+const drawerTitle=page=>page==='settings'?tx('settings'):tx(page)||page;
 function drawerHTML(){
   if(!UI.drawer)return '';
-  const body=UI.drawer==='orders'?ordersDrawerHTML():UI.drawer==='people'?peopleDrawerHTML():UI.drawer==='output'?outputDrawerHTML():UI.drawer==='notes'?notesDrawerHTML():moreDrawerHTML();
-  return '<aside class="ops-drawer" aria-label="'+DRAWER_TITLES[UI.drawer]+'" tabindex="-1"><div class="ops-drawer-h"><span class="drawer-grip"></span><h2>'+DRAWER_TITLES[UI.drawer]+'</h2><button class="iconbtn" data-act="drawer-close" aria-label="關閉">×</button></div><div class="ops-drawer-b">'+body+'</div></aside>';
+  const body=UI.drawer==='orders'?ordersDrawerHTML():UI.drawer==='people'?peopleDrawerHTML():UI.drawer==='output'?outputDrawerHTML():UI.drawer==='notes'?notesDrawerHTML():UI.drawer==='settings'?settingsDrawerHTML():moreDrawerHTML();
+  const title=drawerTitle(UI.drawer);
+  return '<aside class="ops-drawer" aria-label="'+esc(title)+'" tabindex="-1"><div class="ops-drawer-h"><span class="drawer-grip"></span><h2>'+esc(title)+'</h2><button class="iconbtn" data-act="drawer-close" aria-label="關閉">×</button></div><div class="ops-drawer-b">'+body+'</div></aside>';
 }
 
 function ordersDrawerHTML(){
@@ -746,11 +752,75 @@ function notesDrawerHTML(){
   return '<div class="memo-grid">'+memos.map(m=>'<article class="memo-card'+(m.pinned?' pinned':'')+'" data-act="focus-memo" data-id="'+m.id+'"><button class="memo-pin" data-act="memo-pin" data-id="'+m.id+'" aria-label="'+(m.pinned?'取消釘選':'釘選')+'">'+(m.pinned?'●':'○')+'</button><b>'+esc(memoLabel(m))+'</b><p>'+esc(m.text)+'</p><small>'+esc((m.createdAt||'').slice(0,16).replace('T',' '))+'</small></article>').join('')+'</div>'+(!memos.length?'<div class="drawer-empty">目前沒有備忘</div>':'')+(canPermission('notes.manage')?'<button class="drawer-primary" data-act="memo-new">＋新增備忘</button>':'');
 }
 
+function settingChoices(key,items){
+  const current=key.split('.').reduce((v,k)=>v?.[k],UI.prefs);
+  return '<div class="setting-choices">'+items.map(([v,label,sub])=>'<button data-act="setting-set" data-key="'+key+'" data-v="'+esc(v)+'" aria-pressed="'+(String(current)===String(v))+'"><b>'+esc(label)+'</b>'+(sub?'<small>'+esc(sub)+'</small>':'')+'</button>').join('')+'</div>';
+}
+function settingToggle(key,label,desc){
+  const value=key.split('.').reduce((v,k)=>v?.[k],UI.prefs);
+  return '<button class="setting-toggle" data-act="setting-toggle" data-key="'+key+'" aria-pressed="'+!!value+'"><span><b>'+esc(label)+'</b><small>'+esc(desc)+'</small></span><i></i></button>';
+}
+function settingsDrawerHTML(){
+  const en=UI.prefs.language==='en',permission=typeof Notification==='undefined'?'unsupported':Notification.permission;
+  const name=STORE?.userName||'',email=STORE?.session?.user?.email||'',role=ROLE_NAME[STORE?.role]||'本機管理者';
+  if(en)return '<div class="settings-intro"><b>Device settings</b><span>Changes preview immediately and are stored only on this device.</span></div>'+settingsSectionsHTML({en,name,email,role,permission});
+  return '<div class="settings-intro"><b>這台裝置的顯示方式</b><span>調整後立即預覽；不會改動其他電腦或手機的班表顯示。</span></div>'+settingsSectionsHTML({en,name,email,role,permission});
+}
+function settingsSectionsHTML({en,name,email,role,permission}){
+  const appearance='<section class="settings-section"><h3>'+(en?'Appearance':'外觀')+'</h3><label>'+(en?'Theme':'明暗')+'</label>'+settingChoices('theme',en?[["auto","System","Follow device"],["light","Light",""] ,["dark","Dark",""]]:[["auto","自動","跟著裝置"],["light","淺色",""] ,["dark","深色",""]])+
+    '<label>'+(en?'Text and controls':'字體與按鈕大小')+'</label>'+settingChoices('scale',en?[[.85,'Small','85%'],[1,'Standard','100%'],[1.15,'Large','115%'],[1.3,'Extra large','130%']]:[[.85,'小','85%'],[1,'標準','100%'],[1.15,'大','115%'],[1.3,'特大','130%']])+
+    '<label>'+(en?'Typeface':'字型')+'</label>'+settingChoices('font',en?[["standard","Standard","Noto Sans"],["clear","High legibility","Microsoft JhengHei"]]:[["standard","標準","思源黑體"],["clear","高辨識","微軟正黑體"]])+
+    '<label>'+(en?'Page color':'頁面主色')+'</label>'+settingChoices('accent',en?[["blue","Blue",""],["green","Green",""],["purple","Purple",""],["orange","Orange",""]]:[["blue","深藍",""],["green","墨綠",""],["purple","紫色",""],["orange","橘色",""]])+'</section>';
+  const notifications='<section class="settings-section"><h3>'+(en?'Notifications':'通知')+'</h3>'+settingToggle('notifications.schedule',en?'Schedule updates':'排程變更',en?'Notify when another user changes the schedule':'別人調整排程時提醒')+settingToggle('notifications.leave',en?'Leave decisions':'請假進度',en?'Notify when leave requests change':'請假詢問被新增或決定時提醒')+settingToggle('notifications.memo',en?'New notes':'新備忘',en?'Notify when a note is added or pinned':'新增或釘選備忘時提醒')+settingToggle('notifications.sound',en?'Sound':'提示音',en?'Play a short sound with an enabled alert':'有提醒時播放短提示音')+
+    settingToggle('notifications.desktop',en?'System notifications':'系統通知',en?'Show an alert when this page is in the background':'頁面在背景時仍顯示通知')+
+    '<div class="notification-permission '+permission+'"><span>'+(en?'Browser permission: ':'瀏覽器權限：')+(permission==='granted'?(en?'Allowed':'已允許'):permission==='denied'?(en?'Blocked — change it in browser settings':'已封鎖，需到瀏覽器設定開啟'):permission==='unsupported'?(en?'Not supported':'此瀏覽器不支援'):(en?'Not requested':'尚未詢問'))+'</span>'+(permission==='default'?'<button data-act="notification-permission">'+(en?'Allow':'允許系統通知')+'</button>':'')+'</div></section>';
+  const profile='<section class="settings-section"><h3>'+(en?'Profile':'個人資料')+'</h3><div class="profile-card"><span class="profile-avatar">'+esc((name||email||'本').slice(0,1).toUpperCase())+'</span><div><b>'+esc(name||'未設定名稱')+'</b><small>'+esc(email||'本機模式')+' · '+esc(role)+'</small></div></div><label for="profile-display-name">'+(en?'Display name':'顯示名稱')+'</label><div class="setting-save-row"><input class="inp" id="profile-display-name" maxlength="60" value="'+esc(name)+'"><button data-act="profile-save">'+(en?'Save':'儲存')+'</button></div><button class="settings-link" data-act="account">'+(en?'Account, password and connection':'帳號、密碼與連線')+'</button></section>';
+  const language='<section class="settings-section"><h3>'+(en?'Language and operation':'語言與操作')+'</h3><label>'+(en?'Interface language':'介面語言')+'</label>'+settingChoices('language',[["zh-TW","繁體中文",""],["en","English","Beta"]])+
+    '<label>'+(en?'Table spacing':'班表間距')+'</label>'+settingChoices('density',en?[["comfortable","Comfortable",""],["compact","Compact",""]]:[["comfortable","舒適",""],["compact","緊密",""]])+
+    '<label>'+(en?'Motion':'動畫')+'</label>'+settingChoices('motion',en?[["system","System",""],["reduce","Reduced",""]]:[["system","跟著裝置",""],["reduce","減少動畫",""]])+'</section>';
+  const privacy='<section class="settings-section"><h3>'+(en?'Data and privacy':'資料與隱私')+'</h3><dl class="settings-kv"><dt>'+(en?'Schedule data':'排程資料')+'</dt><dd>'+(STORE.kind==='supabase'?(en?'Supabase cloud':'Supabase 雲端'):(en?'This browser':'這台瀏覽器'))+'</dd><dt>'+(en?'Device preferences':'裝置偏好')+'</dt><dd>'+(en?'Stored in this browser only':'只存在這台裝置')+'</dd><dt>'+(en?'Time zone':'時區')+'</dt><dd>Asia/Taipei</dd></dl><button class="settings-link danger-link" data-act="settings-reset">'+(en?'Restore default device settings':'恢復這台裝置的預設值')+'</button></section>';
+  return appearance+notifications+profile+language+privacy;
+}
+function updateDeviceSetting(path,value){
+  if(path==='scale')value=Number(value);
+  UI.prefs=patchPreference(UI.prefs,path,value);persistPreferences();render();
+}
+function playAlertSound(){
+  if(!UI.prefs.notifications.sound)return;
+  try{const C=window.AudioContext||window.webkitAudioContext,c=new C(),o=c.createOscillator(),g=c.createGain();o.frequency.value=660;g.gain.setValueAtTime(.055,c.currentTime);g.gain.exponentialRampToValueAtTime(.001,c.currentTime+.16);o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+.17);o.onended=()=>c.close();}catch{}
+}
+function showDeviceNotification(title){
+  playAlertSound();
+  if(UI.prefs.notifications.desktop&&document.hidden&&typeof Notification!=='undefined'&&Notification.permission==='granted'){
+    try{new Notification('產線排程',{body:title,tag:'factory-scheduler-update'});}catch{}
+  }
+}
+async function requestNotificationPermission(){
+  if(typeof Notification==='undefined'){toast('這個瀏覽器不支援系統通知');return;}
+  try{const result=await Notification.requestPermission();UI.prefs=patchPreference(UI.prefs,'notifications.desktop',result==='granted');persistPreferences();render();toast(result==='granted'?'已允許系統通知':'未允許系統通知');}
+  catch{toast('無法開啟系統通知，請檢查瀏覽器設定');}
+}
+async function toggleDeviceSetting(button){
+  const path=button.dataset.key,current=path.split('.').reduce((v,k)=>v?.[k],UI.prefs);
+  if(path==='notifications.desktop'&&!current){
+    if(typeof Notification==='undefined'){toast('這個瀏覽器不支援系統通知');return;}
+    if(Notification.permission!=='granted'){await requestNotificationPermission();return;}
+  }
+  updateDeviceSetting(path,!current);
+}
+async function saveOwnProfile(button){
+  const name=$('#profile-display-name')?.value.trim()||'';
+  if(name.length<1||name.length>60){toast('顯示名稱需要 1–60 個字');return;}
+  button.disabled=true;
+  try{await STORE.updateProfile({displayName:name});STORE.userName=name;render();toast('個人資料已儲存');}
+  catch(e){button.disabled=false;toast(e.message);}
+}
+
 function moreDrawerHTML(){
   const btn=(act,label,extra='')=>'<button class="more-action" data-act="'+act+'" '+extra+'>'+label+'</button>';
   return '<section class="more-group"><h3>班表</h3><div class="more-grid"><div class="seg" role="group" aria-label="檢視"><button data-act="view" data-v="day" aria-pressed="'+(UI.view==='day')+'">日班表</button><button data-act="view" data-v="week" aria-pressed="'+(UI.view==='week')+'">週班表</button></div><div class="seg" role="group" aria-label="查看方式"><button data-act="layout" data-v="resource" aria-pressed="'+(UI.layout==='resource')+'">按設備</button><button data-act="layout" data-v="work" aria-pressed="'+(UI.layout==='work')+'">按工作</button></div>'+btn('manual-add','＋手動排班',readOnly||S.setupPending?'disabled':'')+btn('auto','⚡ 自動排班',readOnly||S.setupPending?'disabled':'')+btn('incident','故障／請假',!canIncidents()||S.setupPending?'disabled':'')+btn('undo','復原上一步',readOnly||!undoStack.length?'disabled':'')+'</div></section>'+
     '<section class="more-group"><h3>工作與人員</h3><div class="more-grid">'+btn('work-queue','未排工作')+btn('execution','現場回報')+btn('resource-load','當日負荷')+btn('rosters','輪班表')+btn('work-contents','工作內容')+btn('transfers','跨廠加工')+btn('groups','員工分組')+(canScenarios()?btn('scenarios','試排情境'):'')+'</div></section>'+
-    '<section class="more-group"><h3>資料與設定</h3><div class="more-grid">'+btn('catalog','員工、設備與工單')+(canArchive()?btn('history','歷史班表'):'')+btn('export','匯出／匯入 Excel')+btn('log','全部紀錄')+btn('theme','切換明暗')+btn('tv',UI.tv?'管理模式':'大螢幕')+btn('help','操作說明')+'</div><div class="drawer-zoom"><span>畫面大小</span><div class="zoombox"><button data-act="zoom-">−</button><button class="zv" data-act="zoom0">'+Math.round(UI.zoom*100)+'%</button><button data-act="zoom+">＋</button></div></div></section>';
+    '<section class="more-group"><h3>資料與設定</h3><div class="more-grid">'+btn('settings','⚙ 設定')+btn('catalog','員工、設備與工單')+(canArchive()?btn('history','歷史班表'):'')+btn('export','匯出／匯入 Excel')+btn('log','全部紀錄')+btn('tv',UI.tv?'管理模式':'大螢幕')+btn('help','操作說明')+'</div></section>';
 }
 function statusTag(o){
   const st=orderStatus(o);
@@ -1005,7 +1075,13 @@ document.addEventListener("click",e=>{
     case "next":UI.date=addDays(UI.date,step);render();break;
     case "today":UI.date=todayStr();UI.view='day';UI.drawer=null;UI.focus=null;render();break;
     case "drawer":UI.drawer=UI.drawer===a.dataset.v?null:a.dataset.v;UI.focus=null;render();requestAnimationFrame(()=>$('.ops-drawer')?.focus());break;
+    case "settings":UI.drawer='settings';UI.focus=null;render();requestAnimationFrame(()=>$('.ops-drawer')?.focus());break;
     case "drawer-close":UI.drawer=null;UI.focus=null;render();break;
+    case "setting-set":updateDeviceSetting(a.dataset.key,a.dataset.v);break;
+    case "setting-toggle":toggleDeviceSetting(a);break;
+    case "notification-permission":requestNotificationPermission();break;
+    case "profile-save":saveOwnProfile(a);break;
+    case "settings-reset":UI.prefs=structuredClone(DEFAULT_PREFERENCES);persistPreferences();render();toast('已恢復這台裝置的預設設定');break;
     case "focus-order":UI.focus={type:'order',id};UI.drawer=null;render();requestAnimationFrame(()=>$('.board')?.scrollIntoView({behavior:'smooth',block:'start'}));break;
     case "focus-person":UI.focus={type:'employee',id};render();break;
     case "focus-machine":UI.focus={type:'machine',id};render();break;
@@ -2362,7 +2438,11 @@ function onRemoteChange(source){
     const mine=Date.now()-lastLocalWrite<4000;
     await reloadFromStore();
     const l=S.log[0];
-    if(!mine&&l&&Date.now()-l.t<120000)toast("有新的變更："+l.title,"看細節",()=>openModal({t:"logone",id:l.id}));
+    if(!mine&&notificationEnabled(UI.prefs,source)){
+      const recent=l&&Date.now()-l.t<120000,title=recent?'有新的變更：'+l.title:source==='leave_requests'||source==='leaves'?'請假資料有更新':source==='schedule_memos'?'現場備忘有更新':'排程資料有更新';
+      if(recent)toast(title,"看細節",()=>openModal({t:"logone",id:l.id}));else toast(title);
+      showDeviceNotification(title);
+    }
   },600);
 }
 function maybeReload(){if(pendingReload&&!PV&&!UI.modal&&!drag&&!generalDrag){pendingReload=false;onRemoteChange();}}
@@ -2735,7 +2815,7 @@ async function start(){
   if(madeDemo)makeDemo();else S=s;
   normalizeState();
   if(madeDemo&&STORE.kind==="local")queueSync(null);
-  loadZoom();loadTheme();loadFactory();
+  loadPreferencesForDevice();loadFactory();
   if(!UI.date)UI.date=todayStr();
   render();
   STORE.subscribe(onRemoteChange);

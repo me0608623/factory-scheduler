@@ -123,6 +123,12 @@ export class SupabaseStore {
     if(error)throw new Error('儲存帳號權限失敗：'+error.message);
   }
 
+  async updateProfile({displayName}) {
+    const name=String(displayName||'').trim();if(name.length<1||name.length>60)throw new Error('顯示名稱需要 1–60 個字');
+    const {data,error}=await this.sb.rpc('update_own_profile',{p_display_name:name});
+    if(error)throw new Error('儲存個人資料失敗：'+error.message);this.userName=data?.displayName||name;
+  }
+
   jwt() { return this.session?.access_token || null; }
 
   async listScenarios() {
