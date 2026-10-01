@@ -853,7 +853,7 @@ function moreDrawerHTML(){
   const schedGate=S.setupPending?"":btn('manual-add','＋手動排班',readOnly?'disabled':'')+btn('auto','⚡ 自動排班',readOnly?'disabled':'')+btn('incident','故障／請假',!canIncidents()?'disabled':'');
   return '<section class="more-group"><h3>班表</h3><div class="more-grid"><div class="seg" role="group" aria-label="檢視"><button data-act="view" data-v="day" aria-pressed="'+(UI.view==='day')+'">日班表</button><button data-act="view" data-v="week" aria-pressed="'+(UI.view==='week')+'">週班表</button></div><div class="seg" role="group" aria-label="查看方式"><button data-act="layout" data-v="resource" aria-pressed="'+(UI.layout==='resource')+'">按設備</button><button data-act="layout" data-v="work" aria-pressed="'+(UI.layout==='work')+'">按工作</button></div>'+schedGate+btn('undo','復原上一步',readOnly||!undoStack.length?'disabled':'')+'</div></section>'+
     '<section class="more-group"><h3>工作與人員</h3><div class="more-grid">'+btn('work-queue','未排工作')+btn('execution','現場回報')+btn('resource-load','當日負荷')+btn('rosters','輪班表')+btn('work-contents','工作內容')+btn('transfers','跨廠加工')+btn('rush','欠缺品項')+btn('groups','員工分組')+(STORE.role==='boss'?btn('access','權限管理'):'')+(canScenarios()?btn('scenarios','試排情境'):'')+'</div></section>'+
-    '<section class="more-group"><h3>資料與設定</h3><div class="more-grid">'+btn('settings','⚙ 設定')+btn('catalog','員工、設備與工單')+(canArchive()?btn('history','歷史班表'):'')+btn('export','匯出／匯入 Excel')+btn('log','全部紀錄')+btn('tv',UI.tv?'管理模式':'大螢幕')+btn('help','操作說明')+'</div></section>';
+    '<section class="more-group"><h3>資料與設定</h3><div class="more-grid">'+btn('settings','⚙ 設定')+btn('catalog','員工、設備與工單')+(canArchive()?btn('history','歷史班表'):'')+btn('export','匯出／匯入 Excel')+btn('log','全部紀錄')+btn('tv',UI.tv?'管理模式':'大螢幕')+btn('help','操作說明')+btn('feedback','意見反饋')+(STORE.role==='boss'?btn('feedback-list','查看反饋'):'')+'</div></section>';
 }
 function statusTag(o){
   const st=orderStatus(o);
@@ -1303,6 +1303,9 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "manual-add":if(!readOnly&&!S.setupPending)openModal({t:"manual-add"});break;
     case "incident":if(canIncidents())openModal({t:"incident"});break;
     case "help":openModal({t:"help",sec:0});break;
+    case "feedback":openModal({t:"feedback"});break;
+    case "feedback-send":async a=>{const msg=$("#fb-msg")?.value.trim()||"",cat=$("#fb-cat")?.value||"other";if(!msg){toast("請寫一些內容");return;}a.disabled=true;try{const {error}=await STORE.sb.from("feedback").insert({author_name:STORE.userName||"未命名",category:cat,message:msg,page_url:location.href,user_id:STORE.session?.user?.id});if(error)throw error;closeModal();toast("感謝！意見已送出，我們會盡快處理。"+(STORE.role==="boss"?" 到「更多功能→查看反饋」看全部。":""));}catch(e){a.disabled=false;toast(e.message);}};break;
+    case "feedback-list":{if(STORE.role!=="boss"){toast("只有老闆可以查看全部反饋");break;}openModal({t:"feedback-list",loading:true,items:[]});(async()=>{try{const {data}=await STORE.sb.rpc("list_feedback",{p_limit:50});if(UI.modal?.t==="feedback-list"){UI.modal.loading=false;UI.modal.items=data||[];renderModal();}}catch(e){toast(e.message);closeModal();}})();break;}
     case "undo":undo();break;
     case "sync":if(SYNC.state==="error")queueSync(null);else toast(STORE.kind==="local"?"資料存在這台電腦的瀏覽器":"已和雲端資料庫同步");break;
     case "account":openModal({t:"account"});break;
@@ -2775,6 +2778,17 @@ Object.assign(MODAL_ACT,{
 MODALS['catalog-review']=()=>({title:S.setupPending?'初次核對資料':'員工、設備與工單',body:
   (S.setupPending?'<div class="catalog-step"><b>核對完成前</b><span>今天仍可查看空班表；自動排班與故障重排維持關閉。</span></div>':'')+cardsHTML()+latestHTML(),
   foot:'<button class="btn primary" data-act="close">返回班表</button>'});
+/* ---------- 意見反饋 ---------- */
+const FEEDBACK_CATS=[['bug','問題／錯誤'],['feature','希望新增的功能'],['ux','操作不方便'],['other','其他']];
+MODALS['feedback']=()=>({title:'意見反饋',body:
+  '<div class="hint">告訴我們哪裡有問題、或希望有什麼功能。送出後直接進入系統，開發者會盡快處理。</div>'+
+  '<div class="field"><label for="fb-cat">類型</label><select class="inp" id="fb-cat">'+FEEDBACK_CATS.map(([v,t])=>'<option value="'+v+'">'+t+'</option>').join('')+'</select></div>'+
+  '<div class="field"><label for="fb-msg">內容</label><textarea class="inp" id="fb-msg" rows="4" maxlength="2000" placeholder="例如：手機上排程表很難滑、希望可以…"></textarea></div>'+
+  '<a class="btn" href="mailto:me0608623@gmail.com?subject=[排程系統反饋]" style="text-decoration:none">用 Email 寄</a>',
+  foot:'<button class="btn" data-act="close">取消</button><button class="btn primary" data-act="feedback-send">送出</button>'});
+MODALS['feedback-list']=m=>m.loading?{title:'查看反饋',body:'<div class="hint">讀取中…</div>'}:{title:'查看反饋（最近 50 筆）',body:
+  (m.items||[]).map(x=>'<div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0"><b>'+esc(x.author)+'</b> <span class="tag">'+esc(FEEDBACK_CATS.find(c=>c[0]===x.category)?.[1]||x.category)+'</span> <span class="tag '+(x.status==='resolved'?'ok':x.status==='read'?'mute':'warn')+'">'+(x.status==='new'?'新':x.status==='read'?'已讀':'已解決')+'</span><p style="margin:6px 0">'+esc(x.message)+'</p><small style="color:var(--muted)">'+esc((x.createdAt||'').replace('T',' ').slice(0,16))+(x.pageUrl?' · '+esc(x.pageUrl.replace(location.origin,'')):'')+'</small></div>').join('')||'<div class="hint">還沒有反饋。</div>',
+  foot:'<button class="btn primary" data-act="close">關閉</button>'};
 MODALS['leave-request']=m=>({title:'新增請假詢問',body:
   '<div class="hint">詢問送出後不會立刻成為正式請假，也不會觸發自動重排；必須由有「故障與請假」權限的人准假。</div>'+
   '<div class="field"><label for="leave-request-employee">人員</label><select class="inp" id="leave-request-employee">'+shownEmployees().map(e=>'<option value="'+e.id+'">'+esc(e.name)+'</option>').join('')+'</select></div>'+
