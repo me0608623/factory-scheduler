@@ -865,10 +865,10 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
 .people-calendar .calendar-day.unconfirmed i{background:#1E88E5;width:14px;height:14px}
 /* 深色模式 */
 :root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.working,
-:root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.unconfirmed{background:#12263A !important}
+:root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.unconfirmed{background:#1E5799 !important}
 :root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.working b,
-:root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.unconfirmed b{color:#64B5F6}
+:root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.unconfirmed b{color:#90CAF9}
 :root[data-theme="dark"] .people-calendar .calendar-day.working,
-:root[data-theme="dark"] .people-calendar .calendar-day.unconfirmed{background:#12263A !important}
+:root[data-theme="dark"] .people-calendar .calendar-day.unconfirmed{background:#1E5799 !important}
 :root[data-theme="dark"] .people-calendar .calendar-day.working b,
-:root[data-theme="dark"] .people-calendar .calendar-day.unconfirmed b{color:#64B5F6}
+:root[data-theme="dark"] .people-calendar .calendar-day.unconfirmed b{color:#90CAF9}
