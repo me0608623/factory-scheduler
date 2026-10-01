@@ -1139,50 +1139,56 @@ document.addEventListener("click",e=>{
     case "focus-person":UI.focus={type:'employee',id};render();break;
     case "person-day":{
       if(!canIncidents()){toast('設定需要「故障與請假」權限；員工可從下方「＋新增詢問」提出');break;}
-      if(UI.leaveBrush==="uncertain"){
-        const eid=a.dataset.id,dd=a.dataset.d;
-        const toggleUnc=async d=>{
-          const pend=(S.leaveRequests||[]).find(x=>x.employeeId===eid&&x.date===d&&x.status==="pending");
-          if(pend){if(STORE.kind==="local"){pend.status="rejected";pend.resolvedAt=new Date().toISOString();await STORE.sync(S);}else await STORE.resolveLeaveRequest(pend.id,"rejected");return -1;}
-          const req={id:uid(),employeeId:eid,date:d,note:"未確定",status:"pending"};
-          if(STORE.kind==="local"){(S.leaveRequests||=[]).push(req);await STORE.sync(S);}else await STORE.createLeaveRequest(req);return 1;
-        };
-        if(!UI.brushStart){UI.brushStart={eid,d:dd};render();toast("起點 "+md(dd)+"；再點最後一天框選範圍");break;}
-        const st=UI.brushStart.d;UI.brushStart=null;
-        const [lo,hi]=st<=dd?[st,dd]:[dd,st];
-        (async()=>{try{let c=0;for(let x=lo;x<=hi&&c<62;x=addDays(x,1)){const r=await toggleUnc(x);if(r!==0)c++;}
-        await reloadFromStore();UI.drawer="people";toast("未確定 "+md(lo)+"～"+md(hi)+"（"+c+" 天）");}catch(e){toast("沒存到："+e.message);}})();
-        break;
-      }
       if(UI.leaveBrush){
         const eid=a.dataset.id,dd=a.dataset.d;
-        // 範圍框選：第一次點＝起點，第二次點＝終點
+        // 統一筆刷：work/leave/uncertain 互相覆蓋，同狀態再點=取消回上班
+        const applyBrush=async(eid,d)=>{
+          const E=emp(eid);if(!E)return 0;
+          const brush=UI.leaveBrush;
+          const isInLeave=E.leaves.includes(d);
+          const pend=(S.leaveRequests||[]).find(x=>x.employeeId===eid&&x.date===d&&x.status==="pending");
+          const isUnc=!!pend;
+          // 目標狀態
+          const wantLeave=brush==="leave";
+          const wantUnc=brush==="uncertain";
+          const wantWork=brush==="work";
+          // 已在目標狀態 → 取消（回到上班）
+          if((wantLeave&&isInLeave&&!isUnc)||(wantUnc&&isUnc&&!isInLeave)||(wantWork&&!isInLeave&&!isUnc)){
+            // toggle off：全部清回上班
+            if(isInLeave){E.leaves=E.leaves.filter(x=>x!==d;}
+            if(pend){pend.status="rejected";pend.resolvedAt=new Date().toISOString();}
+            return -1;
+          }
+          // 覆蓋：先清其他狀態，再套目標
+          if(isInLeave&&(!wantLeave))E.leaves=E.leaves.filter(x=>x!==d);
+          if(pend&&(!wantUnc)){pend.status="rejected";pend.resolvedAt=new Date().toISOString();}
+          if(wantLeave&&!isInLeave)E.leaves.push(d);
+          if(wantUnc&&!pend){
+            const req={id:uid(),employeeId:eid,date:d,note:"未確定",status:"pending"};
+            (S.leaveRequests||=[]).push(req);
+          }
+          return 1;
+        };
+        // 範圍框選
         if(!UI.brushStart){
           UI.brushStart={eid,d:dd};
           render();
           toast("起點 "+md(dd)+"；再點最後一天框選範圍，或繼續單點");
           break;
         }
-        const start=UI.brushStart.d,end=dd;
-        UI.brushStart=null;
-        const [lo,hi]=start<=end?[start,end]:[end,start];
-        let cnt=0;
+        const st=UI.brushStart.d;UI.brushStart=null;
+        const [lo,hi]=st<=dd?[st,dd]:[dd,st];
         const E=emp(eid);
+        let cnt=0;
         for(let x=lo;x<=hi&&cnt<62;x=addDays(x,1)){
-          const cur=E.leaves.includes(x);
-          const want=UI.leaveBrush==="leave";
-          if(want!==cur){
-            if(want&&!S.blocks.some(b=>b.emp===eid&&b.date===x&&futureOf(b))){
-              if(!E.leaves.includes(x))E.leaves.push(x);cnt++;
-            }else if(!want&&cur){
-              E.leaves=E.leaves.filter(y=>y!==x);cnt++;
-            }
-          }
+          // 有排工作的天不強制休假（保護）
+          if(UI.leaveBrush==="leave"&&S.blocks.some(b=>b.emp===eid&&b.date===x&&futureOf(b)))continue;
+          const r=applyBrush(eid,x);if(r!==0)cnt++;
         }
-        if(cnt){
+        if(cnt>0){
           pushUndo();
-          commit({kind:"leave",title:E.name+" 範圍設定 "+md(lo)+"～"+md(hi)+"（"+cnt+" 天）",lines:[]},"incidents.manage");
-          toast("已套用 "+md(lo)+" 到 "+md(hi)+"（"+cnt+" 天變更）");
+          commit({kind:"leave",title:E.name+" 筆刷 "+md(lo)+"～"+md(hi)+"（"+cnt+" 天）",lines:[]},"incidents.manage");
+          toast("已套用 "+md(lo)+"～"+md(hi)+"（"+cnt+" 天）");
         }else{
           render();
           toast("範圍內沒有需要變更的日期");
