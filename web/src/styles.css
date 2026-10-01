@@ -849,3 +849,13 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
 .drawer-close-btn{min-height:44px;min-width:72px;font-weight:700;font-size:15px}
 .ops-drawer-h{display:flex;align-items:center;gap:10px}
 .ops-drawer-h h2{margin:0;flex:1}
+/* 月曆筆刷：上班日藍色底、休假紅色底、起點亮待選 */
+.people-calendar .calendar-day.working{background:#E3F2FD !important}
+.people-calendar .calendar-day.working b{color:#1565C0;font-weight:900}
+.people-calendar .calendar-day.working i{background:#1E88E5;width:14px;height:14px}
+.people-calendar .calendar-day.leave{background:#FFEBEE !important}
+.people-calendar .calendar-day.leave b{color:#C62828;font-weight:900}
+.people-calendar .calendar-day.leave i{background:#E53935;width:14px;height:14px}
+.people-calendar .calendar-day.brush-start{outline:3px solid #1565C0;outline-offset:-3px}
+/* 筆刷選中時日期 hover 效果 */
+.cal-brush-active .calendar-day:not(.blank):hover{filter:brightness(.9);cursor:pointer}

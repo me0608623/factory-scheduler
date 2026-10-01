@@ -59,7 +59,7 @@ function mergeIv(iv){iv.sort((a,b)=>a[0]-b[0]);const o=[];for(const x of iv){if(
 let S=null;            // 目前排程（全部資料）
 let readOnly=false, undoStack=[];
 let recentManualMove=null;
-const UI={date:null,view:"day",layout:'resource',factory:1,group:'all',modal:null,zoom:1,theme:"light",drawer:null,focus:null,prefs:structuredClone(DEFAULT_PREFERENCES),page:null,returnTo:null,leaveBrush:null,editCell:null,confirmRow:null,workLogDate:null};
+const UI={date:null,view:"day",layout:'resource',factory:1,group:'all',modal:null,zoom:1,theme:"light",drawer:null,focus:null,prefs:structuredClone(DEFAULT_PREFERENCES),page:null,returnTo:null,leaveBrush:null,brushStart:null,editCell:null,confirmRow:null,workLogDate:null};
 function loadFactory(){try{UI.factory=factoryPreference(localStorage.getItem("fsched-factory"));}catch(e){}}
 function setFactory(n){UI.factory=FACTORIES.includes(n)?n:"all";try{localStorage.setItem("fsched-factory",String(UI.factory));}catch(e){}}
 const shownEmployees=()=>groupedEmployees(S,S.employees.filter(e=>inFactory(e,UI.factory)),UI.group);
@@ -1139,7 +1139,41 @@ document.addEventListener("click",e=>{
     case "focus-person":UI.focus={type:'employee',id};render();break;
     case "person-day":{
       if(!canIncidents()){toast('設定休假需要「故障與請假」權限；員工可從下方「＋新增詢問」提出');break;}
-      if(UI.leaveBrush){applyPersonDay(a.dataset.id,a.dataset.d,UI.leaveBrush==="leave");break;}
+      if(UI.leaveBrush){
+        const eid=a.dataset.id,dd=a.dataset.d;
+        // 範圍框選：第一次點＝起點（亮待選），第二次點＝終點（一次套用整段）
+        if(!UI.brushStart){
+          UI.brushStart={eid,d:dd};
+          render();
+          toast("起點 "+md(dd)+"；再點最後一天框選範圍，或繼續單點");
+          break;
+        }
+        const start=UI.brushStart.d,end=dd;
+        UI.brushStart=null;
+        const [lo,hi]=start<=end?[start,end]:[end,start];
+        let cnt=0;
+        const E=emp(eid);
+        for(let x=lo;x<=hi&&cnt<62;x=addDays(x,1)){
+          const cur=E.leaves.includes(x);
+          const want=UI.leaveBrush==="leave";
+          if(want!==cur){
+            if(want&&!S.blocks.some(b=>b.emp===eid&&b.date===x&&futureOf(b))){
+              if(!E.leaves.includes(x))E.leaves.push(x);cnt++;
+            }else if(!want&&cur){
+              E.leaves=E.leaves.filter(y=>y!==x);cnt++;
+            }
+          }
+        }
+        if(cnt){
+          pushUndo();
+          commit({kind:"leave",title:E.name+" 範圍設定 "+md(lo)+"～"+md(hi)+"（"+cnt+" 天）",lines:[]},"incidents.manage");
+          toast("已套用 "+md(lo)+" 到 "+md(hi)+"（"+cnt+" 天變更）");
+        }else{
+          render();
+          toast("範圍內沒有需要變更的日期");
+        }
+        break;
+      }
       openModal({t:'person-day',id,d:a.dataset.d});break;}
     case "cal-brush":{if(!canIncidents())break;const v=a.dataset.v;UI.leaveBrush=UI.leaveBrush===v?null:v;render();if(UI.leaveBrush)toast("已選「"+(UI.leaveBrush==="leave"?"休假":"上班")+"」：可以直接連續點日曆上這個月要"+(UI.leaveBrush==="leave"?"休假":"上班")+"的日期，點完即存。再按一次按鈕結束。");break;}
 case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
@@ -2934,17 +2968,19 @@ Object.assign(MODAL_ACT,{
 function applyPersonDay(eid,d,want){
   const E=emp(eid);if(!E)return;
   const already=E.leaves.includes(d);
-  if(want===already){toast("沒有變更");return;}
   if(!want){
-    pushUndo();E.leaves=E.leaves.filter(x=>x!==d);
-    commit({kind:"leave",title:E.name+" 取消 "+md(d)+" 休假",lines:[]},"incidents.manage");
-    toast("已改為上班");return;
+    if(already){
+      pushUndo();E.leaves=E.leaves.filter(x=>x!==d);
+      commit({kind:"leave",title:E.name+" 取消 "+md(d)+" 休假",lines:[]},"incidents.manage");
+    }
+    return;  // 已是上班日就安靜返回，不跳 toast
   }
+  if(already)return;  // 已是休假就安靜返回
   const n=S.blocks.filter(b=>b.emp===E.id&&b.date===d&&futureOf(b)).length;
   if(!n){
     pushUndo();if(!E.leaves.includes(d))E.leaves.push(d);
     commit({kind:"leave",title:E.name+" "+md(d)+" 臨時休假（當天沒有排工作）",lines:[]},"incidents.manage");
-    toast("已設為休假");return;
+    return;
   }
   const ev=()=>{const X=emp(eid);if(!X.leaves.includes(d))X.leaves.push(d);return {date:d,mode:"leave",aff:S.blocks.filter(b=>b.emp===eid&&b.date===d&&futureOf(b))};};
   openPlans(E.name+" "+mdw(d)+" 臨時休假，"+n+" 段工作要調整",E.name+" "+md(d)+" 休假","leave",ev,STRAT_EVENT,{event:{type:"leave",employee:eid,date:d}});
