@@ -3009,11 +3009,11 @@ function pageShell(title,subtitle,bodyHtml,ro,addAct,extraHead){
   return '<div class="fullpage">'+
     '<div class="page-top">'+
     '<div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">← 回今天班表</button>'+
-    '<div class="page-title"><h1>'+esc(title)+'</h1><span class="savestate '+SYNC.state+'">'+pageSaveState()+'</span>'+(extraHead||"")+'</div>'+
+    '<div class="page-title"><h1>'+esc(title)+'</h1><span class="savestate '+SYNC.state+'">'+pageSaveState()+'</span></div>'+
     (ro?"":(addAct?'<button class="btn addrow-head" data-act="'+addAct+'">＋加一列</button>':""))+'</div>'+
-    (subtitle?'<p class="page-sub">'+esc(subtitle)+'</p>':"")+
-    '<span class="perm">'+(ro?"只可查看":"老闆／組長：點格子即可修改")+'</span></div>'+
+    (subtitle?'<p class="page-sub">'+esc(subtitle)+'</p>':"")+'</div>'+
     bodyHtml+
+    (ro?"":(addAct?'<button class="btn addrow-mobile" data-act="'+addAct+'">＋加一列</button>':""))+
     '</div>';
 }
 function tfArchiveMonth(){const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");}
