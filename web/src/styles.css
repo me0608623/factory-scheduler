@@ -799,3 +799,9 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
 .ana-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
 .ana-bar2{width:100%;max-width:28px;background:var(--accent,#3CA2F4);border-radius:3px 3px 0 0;min-height:2px}
 .ana-dlabel{font-size:9px;color:var(--muted);white-space:nowrap}
+/* 語音輸入 */
+.chat-mic{flex:0 0 auto;min-height:44px;min-width:44px;font-size:18px;padding:0 8px}
+.chat-mic.rec{background:#c62828;color:#fff;border-color:#8e1b1b;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+/* 排程比對 */
+.diff-result .rline{padding:4px 0;border-bottom:1px solid var(--line)}

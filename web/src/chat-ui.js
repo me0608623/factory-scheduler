@@ -49,6 +49,30 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
     finally{if(token===generation){busy=false;submit.disabled=false;log.scrollTop=log.scrollHeight;}}
   }
   root.querySelector('form').onsubmit=e=>{e.preventDefault();send(input.value);};
+  // 語音輸入：按住說話，放開自動送出（Chrome/Edge 支援）
+  if('webkitSpeechRecognition' in window || 'SpeechRecognition' in window){
+    const micBtn=document.createElement('button');
+    micBtn.className='btn chat-mic';micBtn.type='button';micBtn.innerHTML='🎤';micBtn.title='按住說話';
+    micBtn.setAttribute('aria-label','語音輸入');
+    submit.before(micBtn);
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    let rec=null,listening=false;
+    micBtn.onclick=()=>{
+      if(listening){rec&&rec.stop();return;}
+      rec=new SR();
+      rec.lang='zh-TW';rec.interimResults=true;rec.continuous=false;
+      rec.onstart=()=>{listening=true;micBtn.textContent='🔴';micBtn.classList.add('rec');input.placeholder='說話中…';};
+      rec.onresult=e=>{
+        let txt='';
+        for(const r of e.results)txt+=r[0].transcript;
+        input.value=txt;
+        if(e.results[e.results.length-1].isFinal){micBtn.click();setTimeout(()=>{if(input.value.trim())send(input.value);},200);}
+      };
+      rec.onerror=()=>{listening=false;micBtn.textContent='🎤';micBtn.classList.remove('rec');input.placeholder='問我排程、請假、趕貨…';};
+      rec.onend=()=>{listening=false;micBtn.textContent='🎤';micBtn.classList.remove('rec');input.placeholder='問我排程、請假、趕貨…';};
+      rec.start();
+    };
+  }
   for(const button of root.querySelectorAll('.chat-quick button'))button.onclick=()=>send(button.textContent);
   refresh();return {refresh,destroy:()=>{generation++;root.remove();}};
 }

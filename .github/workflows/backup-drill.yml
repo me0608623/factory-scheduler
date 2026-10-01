@@ -1,0 +1,47 @@
+# 每月一日自動下載最新備份並驗證可還原
+name: 備份還原演練
+on:
+  schedule:
+    - cron: "0 3 1 * *"  # 每月 1 日 03:00 UTC = 台灣 11:00
+  workflow_dispatch: {}
+
+jobs:
+  drill:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 下載最新備份
+        run: |
+          ARTIFACTS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?per_page=20" | \
+            jq -r '.artifacts[] | select(.name | startswith("db-backup-")) | .id' | head -1)
+          if [ -z "$ARTIFACTS" ]; then echo "No backup artifact found"; exit 1; fi
+          curl -s -L -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACTS/zip" -o backup.zip
+          unzip -o backup.zip -d restored/
+          echo "Backup downloaded: $(ls -lh restored/)"
+      - name: 驗證備份完整性（pg_restore --list）
+        run: |
+          DUMP=$(ls restored/*.dump | head -1)
+          if [ -z "$DUMP" ]; then echo "No .dump file found"; exit 1; fi
+          echo "Verifying: $DUMP ($(stat -c%s "$DUMP") bytes)"
+          sudo apt-get install -y postgresql-client > /dev/null 2>&1 || true
+          pg_restore --list "$DUMP" > /dev/null && echo "✓ pg_restore --list OK" || { echo "✗ pg_restore failed"; exit 1; }
+          TABLES=$(pg_restore --list "$DUMP" | grep -c "TABLE DATA" || true)
+          echo "Tables in backup: $TABLES"
+          if [ "$TABLES" -lt 10 ]; then echo "⚠ Backup has fewer than 10 tables — may be incomplete"; fi
+      - name: 還原到暫存 PostgreSQL
+        services:
+          postgres:
+            image: postgres:17
+            env:
+              POSTGRES_PASSWORD: drill
+            ports: ["5432:5432"]
+            options: >-
+              --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+        run: |
+          DUMP=$(ls restored/*.dump | head -1)
+          PGPASSWORD=drill pg_restore --no-owner --no-privileges -h localhost -U postgres -d postgres "$DUMP" 2>&1 | tail -5
+          COUNT=$(PGPASSWORD=drill psql -h localhost -U postgres -d postgres -t -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'" 2>/dev/null | tr -d ' ')
+          echo "Restored tables in public schema: $COUNT"
+          if [ "$COUNT" -lt 10 ]; then echo "✗ Restore incomplete"; exit 1; fi
+          echo "✓ Backup restore drill PASSED"

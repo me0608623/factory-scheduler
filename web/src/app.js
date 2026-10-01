@@ -813,7 +813,7 @@ function settingsSectionsHTML({en,name,email,role,permission}){
     settingToggle('notifications.desktop',en?'System notifications':'系統通知',en?'Show an alert when this page is in the background':'頁面在背景時仍顯示通知')+
     '<div class="notification-permission '+permission+'"><span>'+(en?'Browser permission: ':'瀏覽器權限：')+(permission==='granted'?(en?'Allowed':'已允許'):permission==='denied'?(en?'Blocked — change it in browser settings':'已封鎖，需到瀏覽器設定開啟'):permission==='unsupported'?(en?'Not supported':'此瀏覽器不支援'):(en?'Not requested':'尚未詢問'))+'</span>'+(permission==='default'?'<button data-act="notification-permission">'+(en?'Allow':'允許系統通知')+'</button>':'')+'</div></section>';
   const profile='<section class="settings-section"><h3>'+(en?'Profile':'個人資料')+'</h3><div class="profile-card"><span class="profile-avatar">'+esc((name||email||'本').slice(0,1).toUpperCase())+'</span><div><b>'+esc(name||'未設定名稱')+'</b><small>'+esc(email||'本機模式')+' · '+esc(role)+'</small></div></div><label for="profile-display-name">'+(en?'Display name':'顯示名稱')+'</label><div class="setting-save-row"><input class="inp" id="profile-display-name" maxlength="60" value="'+esc(name)+'"><button data-act="profile-save">'+(en?'Save':'儲存')+'</button></div><button class="settings-link" data-act="account">'+(en?'Account, password and connection':'帳號、密碼與連線')+'</button></section>';
-  const language='<section class="settings-section"><h3>'+(en?'Language and operation':'語言與操作')+'</h3><label>'+(en?'Interface language':'介面語言')+'</label>'+settingChoices('language',[["zh-TW","繁體中文",""],["en","English","Beta"]])+
+  const language='<section class="settings-section"><h3>'+(en?'Language and operation':'語言與操作')+'</h3><label>'+(en?'Interface language':'介面語言')+'</label>'+settingChoices('language',[["zh-TW","繁體中文",""],["en","English","Beta"],["vi","Tiếng Việt","Beta"]])+
     '<label>'+(en?'Table spacing':'班表間距')+'</label>'+settingChoices('density',en?[["comfortable","Comfortable",""],["compact","Compact",""]]:[["comfortable","舒適",""],["compact","緊密",""]])+
     '<label>'+(en?'Motion':'動畫')+'</label>'+settingChoices('motion',en?[["system","System",""],["reduce","Reduced",""]]:[["system","跟著裝置",""],["reduce","減少動畫",""]])+'</section>';
   const privacy='<section class="settings-section"><h3>'+(en?'Data and privacy':'資料與隱私')+'</h3><dl class="settings-kv"><dt>'+(en?'Schedule data':'排程資料')+'</dt><dd>'+(STORE.kind==='supabase'?(en?'Supabase cloud':'Supabase 雲端'):(en?'This browser':'這台瀏覽器'))+'</dd><dt>'+(en?'Device preferences':'裝置偏好')+'</dt><dd>'+(en?'Stored in this browser only':'只存在這台裝置')+'</dd><dt>'+(en?'Time zone':'時區')+'</dt><dd>Asia/Taipei</dd></dl><button class="settings-link danger-link" data-act="settings-reset">'+(en?'Restore default device settings':'恢復這台裝置的預設值')+'</button></section>';
@@ -860,7 +860,7 @@ function moreDrawerHTML(){
   const schedGate=S.setupPending?"":btn('manual-add','＋手動排班',readOnly?'disabled':'')+btn('auto','⚡ 自動排班',readOnly?'disabled':'')+btn('incident','故障／請假',!canIncidents()?'disabled':'');
   return '<section class="more-group"><h3>班表</h3><div class="more-grid"><div class="seg" role="group" aria-label="檢視"><button data-act="view" data-v="day" aria-pressed="'+(UI.view==='day')+'">日班表</button><button data-act="view" data-v="week" aria-pressed="'+(UI.view==='week')+'">週班表</button></div><div class="seg" role="group" aria-label="查看方式"><button data-act="layout" data-v="resource" aria-pressed="'+(UI.layout==='resource')+'">按設備</button><button data-act="layout" data-v="work" aria-pressed="'+(UI.layout==='work')+'">按工作</button></div>'+schedGate+btn('undo','復原上一步',readOnly||!undoStack.length?'disabled':'')+'</div></section>'+
     '<section class="more-group"><h3>工作與人員</h3><div class="more-grid">'+btn('work-queue','未排工作')+btn('execution','現場回報')+btn('resource-load','當日負荷')+btn('rosters','輪班表')+btn('work-contents','工作內容')+btn('transfers','跨廠加工')+btn('rush','欠缺品項')+btn('groups','員工分組')+(STORE.role==='boss'?btn('access','權限管理'):'')+(canScenarios()?btn('scenarios','試排情境'):'')+'</div></section>'+
-    '<section class="more-group"><h3>資料與設定</h3><div class="more-grid">'+btn('settings','⚙ 設定')+btn('catalog','員工、設備與工單')+(canArchive()?btn('history','歷史班表'):'')+btn('export','匯出／匯入 Excel')+btn('log','全部紀錄')+btn('tv',UI.tv?'管理模式':'大螢幕')+btn('help','操作說明')+btn('feedback','意見反饋')+btn('analytics','產能分析')+btn('line-notify','LINE 通知')+(STORE.role==='boss'?btn('feedback-list','查看反饋'):'')+'</div></section>';
+    '<section class="more-group"><h3>資料與設定</h3><div class="more-grid">'+btn('settings','⚙ 設定')+btn('catalog','員工、設備與工單')+(canArchive()?btn('history','歷史班表'):'')+btn('export','匯出／匯入 Excel')+btn('log','全部紀錄')+btn('tv',UI.tv?'管理模式':'大螢幕')+btn('help','操作說明')+btn('feedback','意見反饋')+btn('analytics','產能分析')+btn('schedule-diff','排程比對')+btn('line-notify','LINE 通知')+(STORE.role==='boss'?btn('feedback-list','查看反饋'):'')+'</div></section>';
 }
 function statusTag(o){
   const st=orderStatus(o);
@@ -1297,6 +1297,20 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case 'execution':openModal({t:'execution'});break;
     case 'report-open':openModal({t:'execution-report',id});break;
     case 'report-work':reportWork(a);break;
+    case 'exec-confirm':{
+      if(!canPermission('execution.manage')){toast('只有老闆或組長可以確認完工');break;}
+      const r=(S.execution||[]).find(x=>x.blockId===a.dataset.id);
+      if(!r||r.status!=='done'){toast('這項工作還未報完工');break;}
+      r.confirmed=true;
+      commit({kind:"edit",title:"確認完工 "+(order(S.blocks.find(b=>b.id===r.blockId)?.oid)?.code||""),lines:[]},"execution.manage");
+      toast('已確認完工');break;}
+    case 'exec-unconfirm':{
+      if(!canPermission('execution.manage'))break;
+      const r=(S.execution||[]).find(x=>x.blockId===a.dataset.id);
+      if(!r)break;
+      delete r.confirmed;
+      commit({kind:"edit",title:"取消確認完工",lines:[]},"execution.manage");
+      toast('已取消確認，回報仍保留');break;}
     case "group-edit":openModal({t:'staff-group',id});break;
     case "group-new":if(canGroups())openModal({t:'staff-group'});break;
     case "goto":UI.date=a.dataset.d;UI.view="day";render();window.scrollTo(0,0);break;
@@ -1312,6 +1326,12 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "incident":if(canIncidents())openModal({t:"incident"});break;
     case "help":openModal({t:"help",sec:0});break;
     case "feedback":openModal({t:"feedback"});break;
+    case "schedule-diff":openModal({t:"schedule-diff"});break;
+    case "diff-run":{
+      const d1=$("#diff-date1")?.value,d2=$("#diff-date2")?.value;
+      if(!d1||!d2||d1===d2){toast("請選兩個不同日期");break;}
+      UI.modal.result=computeScheduleDiff(d1,d2);
+      renderModal();break;}
     case "analytics":UI.page="analytics";
     case "line-notify":openModal({t:"line-notify"});break;
     case "ln-save":async a=>{a.disabled=true;try{const enabled=$("#ln-enabled")?.checked||false;const userId=$("#ln-user")?.value.trim()||"";const groupId=$("#ln-group")?.value.trim()||"";const events={};for(const el of document.querySelectorAll("[data-ln-event]"))events[el.dataset.lnEvent]=el.checked;await STORE.sb.from("line_notify_settings").upsert({user_id:STORE.session?.user?.id,enabled,line_user_id:userId,line_group_id:groupId,events},{onConflict:"user_id"});closeModal();toast("LINE 通知設定已儲存");}catch(e){a.disabled=false;toast(e.message);}};break;UI.drawer=null;try{history.replaceState(null,"","?view=analytics");}catch{}render();window.scrollTo(0,0);break;
@@ -1321,6 +1341,22 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "sync":if(SYNC.state==="error")queueSync(null);else toast(STORE.kind==="local"?"資料存在這台電腦的瀏覽器":"已和雲端資料庫同步");break;
     case "account":openModal({t:"account"});break;
     case "export":openModal({t:"export"});break;
+    case "erp-export":{
+      const now=new Date();
+      const month=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
+      const rows=[["工單號","產品","完工件數","不良件數","員工","完工日期","確認"]];
+      for(const r of S.execution||[]){
+        if(r.status!=="done")continue;
+        const b=S.blocks.find(x=>x.id===r.blockId);
+        if(!b)continue;
+        const o=order(b.oid),p=o&&prod(o.pid);
+        rows.push([o?o.code:"",p?p.name:"",(r.qtyDone||0)+"",(r.badQty||0)+"",emp(b.emp)?.name||"",b.date,r.confirmed?"已確認":"待確認"]);
+      }
+      const csv="\uFEFF"+rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(",")).join("\n");
+      const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+      const a2=document.createElement("a");a2.href=URL.createObjectURL(blob);a2.download="完工量_"+month+".csv";a2.click();
+      URL.revokeObjectURL(a2.href);
+      toast("已下載完工量 CSV（"+(rows.length-1)+" 筆）");break;}
     case "history":openLegacyHistory();break;
     case "ot":openModal({t:"ot",date:UI.date});break;
     case "open":if(canCalendar())toggleOpen(UI.date);break;
@@ -1781,6 +1817,7 @@ auto(){
 export(){
   return {title:"Excel 匯出／匯入",body:
    '<button class="btn primary" data-act="x-xlsx" style="height:60px;justify-content:flex-start">'+IC.down+'下載 '+mdw(UI.date)+' 彩色排程 Excel（.xlsx）</button>'+
+   '<button class="btn" data-act="erp-export" style="height:60px;justify-content:flex-start">匯出完工量 CSV（會計用）</button>'+
    '<button class="btn" data-act="x-print-day" style="height:60px;justify-content:flex-start">列印 '+mdw(UI.date)+' 現場班表</button>'+
    '<button class="btn" data-act="x-template" style="height:60px;justify-content:flex-start">'+IC.down+'下載批次匯入範本（.xlsx）</button>'+
    (canArchive()?'<button class="btn" data-act="x-import" style="height:60px;justify-content:flex-start">選擇 Excel 檔案，檢查並預覽</button><input id="xlsx-import" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>':'')+
@@ -2795,6 +2832,39 @@ MODALS['line-notify']=()=>{
   const settings=S.lineNotify||{};
   return {title:'LINE 通知',body:notifySettingsHTML(settings),
   foot:'<button class="btn" data-act="close">取消</button><button class="btn primary" data-act="ln-save">儲存</button>'};
+};
+/* ---------- 排程比對 ---------- */
+function computeScheduleDiff(d1,d2){
+  const b1=S.blocks.filter(b=>b.date===d1),b2=S.blocks.filter(b=>b.date===d2);
+  const key=b=>b.oid+"|"+b.step+"|"+b.m+"|"+b.emp+"|"+b.s+"-"+b.e;
+  const k1=new Set(b1.map(key)),k2=new Set(b2.map(key));
+  const only1=b1.filter(b=>!k2.has(key(b)));
+  const only2=b2.filter(b=>!k1.has(key(b)));
+  const common=b1.filter(b=>k2.has(key(b)));
+  const machs1=new Set(b1.map(b=>b.m)),machs2=new Set(b2.map(b=>b.m));
+  const emps1=new Set(b1.map(b=>b.emp).filter(Boolean)),emps2=new Set(b2.map(b=>b.emp).filter(Boolean));
+  return {d1,d2,only1,only2,common:common.length,
+    summary:{
+      total1:b1.length,total2:b2.length,
+      machines1:machs1.size,machines2:machs2.size,
+      employees1:emps1.size,employees2:emps2.size,
+    }};
+}
+MODALS['schedule-diff']=m=>{
+  const r=m.result;
+  const item=b=>{const o=order(b.oid),E=emp(b.emp);
+    return '<div class="rline"><span class="k">'+esc(o?o.code:"")+' '+esc(stepName(b))+'</span><span class="num">'+hm(b.s)+'-'+hm(b.e)+' '+esc(b.m)+(E?' '+esc(E.name):'')+'</span></div>';};
+  if(!r)return {title:'排程比對',body:
+    '<div class="hint">選兩個日期，比較排程差異。</div>'+
+    '<div class="row2"><div class="field"><label for="diff-date1">日期 A</label><input class="inp" type="date" id="diff-date1" value="'+addDays(UI.date,-7)+'"></div>'+
+    '<div class="field"><label for="diff-date2">日期 B</label><input class="inp" type="date" id="diff-date2" value="'+UI.date+'"></div></div>',
+    foot:'<button class="btn" data-act="close">取消</button><button class="btn primary" data-act="diff-run">比較</button>'};
+  const st=r.summary;
+  return {title:'排程比對：'+md(r.d1)+' vs '+md(r.d2),body:
+    '<div class="hint">'+st.total1+' 段 vs '+st.total2+' 段 · 共同 '+r.common+' 段 · '+st.machines1+' 台 vs '+st.machines2+' 台 · '+st.employees1+' 人 vs '+st.employees2+' 人</div>'+
+    '<div class="field"><span class="lab">只在 '+md(r.d1)+'（被移除或改時間）</span><div class="result">'+(r.only1.map(item).join("")||'<div class="okbox">無</div>')+'</div></div>'+
+    '<div class="field"><span class="lab">只在 '+md(r.d2)+'（新增或改時間）</span><div class="result">'+(r.only2.map(item).join("")||'<div class="okbox">無</div>')+'</div></div>',
+    foot:'<button class="btn" data-act="close">關閉</button><button class="btn" data-act="schedule-diff">重選日期</button>'};
 };
 /* ---------- 意見反饋 ---------- */
 const FEEDBACK_CATS=[['bug','問題／錯誤'],['feature','希望新增的功能'],['ux','操作不方便'],['other','其他']];
