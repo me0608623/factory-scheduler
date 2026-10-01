@@ -48,8 +48,8 @@ jobs:
             docker exec drill-pg pg_isready -U postgres && break
             sleep 2
           done
-          # 還原
-          docker run --rm --network drill-net -v "$PWD/restored:/backup" postgres:17 \
+          # 還原（PGPASSWORD 環境變數傳入容器）
+          docker run --rm --network drill-net -v "$PWD/restored:/backup" -e PGPASSWORD=drill postgres:17 \
             sh -c "pg_restore --no-owner --no-privileges -h drill-pg -U postgres -d postgres /backup/$DUMP_BASE" 2>&1 | tail -5
           # 驗證
           COUNT=$(docker exec drill-pg psql -U postgres -d postgres -t -c \
