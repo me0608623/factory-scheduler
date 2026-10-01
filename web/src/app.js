@@ -105,7 +105,8 @@ function dayInfo(ds){
   const open=isOpen(ds), ot=open&&!!S.dayOT[ds];
   const special=type!=="work";          // 假日出勤：工資另計，不能加班的人不排
   let win=[];
-  if(open){win=[{s:DAY0,e:LUNCH_S,ot:special},{s:LUNCH_E,e:REG_END,ot:special}];if(ot)win.push({s:REG_END,e:DAY1,ot:true});}
+  const otEnd=ot?(S.dayOT[ds]===true?DAY1:S.dayOT[ds]||DAY1):DAY1;
+  if(open){win=[{s:DAY0,e:LUNCH_S,ot:special},{s:LUNCH_E,e:REG_END,ot:special}];if(ot)win.push({s:REG_END,e:otEnd,ot:true});}
   return {type,hol,ot,win,w,open,special};
 }
 function dayLabel(ds){const i=dayInfo(ds);return (i.type==="hol"?i.hol:i.type==="sat"?"週六":i.type==="sun"?"週日":"平日")+(i.open?" · 上班":" · 停工");}
@@ -481,13 +482,13 @@ function buildPlans(applyEvent,strategies,kind){
 const STRAT_EVENT=[
   {id:"A",name:"少動為主",desc:"先換人、換機台，不行才找最近的空檔",run:ev=>repair(ev.aff,ev.mode)},
   {id:"B",name:"原機台順延",desc:"等機台修好，後面的工作依序往後推",when:ev=>!!ev.mid,run:ev=>{const l=[];reflow(ev.mid,ev.fromAbs,l);cascade(l);lateCheck(l);return l;}},
-  {id:"C",name:"開加班補回",desc:ev=>mdw(ev.date)+" 開加班到 20:00，再少動調整",when:ev=>isOpen(ev.date)&&!S.dayOT[ev.date],run:ev=>{S.dayOT[ev.date]=true;return repair(ev.aff,ev.mode);}},
+  {id:"C",name:"開加班補回",desc:ev=>mdw(ev.date)+" 開加班，再少動調整",when:ev=>isOpen(ev.date)&&!S.dayOT[ev.date],run:ev=>{S.dayOT[ev.date]=DAY1;return repair(ev.aff,ev.mode);}},
   {id:"D",name:"最佳化重排",desc:"派工規則＋模擬退火重排全部（固定的不動）",run:()=>optLines(optimizePlan(nowAbs()))}
 ];
 const STRAT_ORDER=[
   {id:"A",name:"排進空檔",desc:"不動別人，找最早的空檔",run:ev=>{const l=planOrder(ev.oid,nowAbs()).map(t=>({k:"fail",t}));lateCheck(l);return l;}},
   {id:"B",name:"插單優先",desc:"這張先做，擋到的較不急工作往後推",run:ev=>insertOrder(ev.oid)},
-  {id:"C",name:"插單＋加班",desc:"插單，並在期限前的上班日開加班",run:ev=>{const o=order(ev.oid);for(let d=todayStr();d<=o.due;d=addDays(d,1))if(isOpen(d))S.dayOT[d]=true;return insertOrder(ev.oid);}},
+  {id:"C",name:"插單＋加班",desc:"插單，並在期限前的上班日開加班",run:ev=>{const o=order(ev.oid);for(let d=todayStr();d<=o.due;d=addDays(d,1))if(isOpen(d))S.dayOT[d]=DAY1;return insertOrder(ev.oid);}},
   {id:"D",name:"最佳化重排",desc:"把新工單放進去，全部重新找最好的順序",run:()=>optLines(optimizePlan(nowAbs()))}
 ];
 /* ----- 機台恢復：怎麼把它加回排程 ----- */
@@ -696,7 +697,7 @@ function bannerHTML(){
   const openBtn=!canCalendar()?"":'<button class="btn admin '+(di.open?"ghost":"primary")+'" data-act="open">'+(di.open?"改為停工":"改為上班")+'</button>';
   if(!di.open)out.push('<div class="banner wk"><span class="grow">'+(name?esc(name)+"　":"")+'本日停工，不排工作</span>'+openBtn+'</div>');
   else if(di.special)out.push('<div class="banner hol"><span class="grow">'+esc(name)+'　有上班 · '+payNote(di)+'</span>'+openBtn+'</div>');
-  if(di.ot)out.push('<div class="banner ot"><span class="grow">今天加班到 20:00 · '+shownEmployees().filter(e=>overtimeAllowed(e,d)&&!e.leaves.includes(d)).length+' 人可加班</span>'+(!canCalendar()?"":'<button class="btn ghost admin" data-act="ot">調整加班人員</button>')+'</div>');
+  if(di.ot)out.push('<div class="banner ot"><span class="grow">今天加班到 '+hm(dayInfo(d).win[2]?dayInfo(d).win[2].e:DAY1)+' · '+shownEmployees().filter(e=>overtimeAllowed(e,d)&&!e.leaves.includes(d)).length+' 人可加班</span>'+(!canCalendar()?"":'<button class="btn ghost admin" data-act="ot">調整加班人員</button>')+'</div>');
   return out.join("");
 }
 function staffGroupFilterHTML(){
@@ -876,7 +877,7 @@ function dayHTML(ctx={}){
     if(!di.open)z+='<div class="zone off" style="top:0;height:'+px(DAY1)+'px">停工</div>';
     else{
       z+='<div class="zone lunch" style="top:'+px(LUNCH_S)+'px;height:'+(H)+'px">午休</div>';
-      z+='<div class="zone ot'+(di.ot?"":" closed")+'" style="top:'+px(REG_END)+'px;height:'+(px(DAY1)-px(REG_END))+'px">'+(di.ot?"加班":"未開加班")+'</div>';
+      z+='<div class="zone ot'+(di.ot?"":" closed")+'" style="top:'+px(REG_END)+'px;height:'+(px(DAY1)-px(REG_END))+'px">'+(di.ot?"加班到 "+hm(otEnd):"未開加班")+'</div>';
     }
     for(const f of M.faults.filter(f=>f.date===d))z+='<div class="zone fault" style="top:'+px(f.s)+'px;height:'+(px(f.e)-px(f.s))+'px">故障 '+hm(f.s)+'–'+hm(f.e)+(f.fixed?"（已修復）":"")+(f.note?" "+esc(f.note):"")+'</div>';
     for(const f of (ctx.extraFaults||[]).filter(f=>f.m===M.id&&f.date===d))z+='<div class="zone fault" style="top:'+px(f.s)+'px;height:'+(px(f.e)-px(f.s))+'px;opacity:.75">將故障 '+hm(f.s)+'–'+hm(f.e)+'</div>';
@@ -890,7 +891,7 @@ function dayHTML(ctx={}){
     return '<button class="colhead'+(down?" down":"")+'" data-act="mach" data-id="'+M.id+'"><span class="L">'+esc(M.id)+'</span><span class="N">'+esc(M.label)+'<small>'+esc(M.proc)+'</small></span><span class="st tag '+(M.reviewStatus==='pending'?"warn":down?"bad":"ok")+'">'+(M.reviewStatus==='pending'?"待確認":down?"故障":"正常")+'</span></button>';}).join("");
   let times="";for(let m=DAY0;m<DAY1;m+=30)times+='<div class="'+(m%60?"half":"")+'">'+hm(m)+'</div>';
   const leave=shownEmployees().filter(e=>e.leaves.includes(d));
-  const otBtn=!canCalendar()?"":(di.open?'<button class="btn admin" data-act="ot">'+(di.ot?'調整加班人員':'開加班到 20:00')+'</button>':"")+'<button class="btn admin" data-act="cal">上班日設定</button>';
+  const otBtn=!canCalendar()?"":(di.open?'<button class="btn admin" data-act="ot">'+(di.ot?'調整加班':'開加班')+'</button>':"")+'<button class="btn admin" data-act="cal">上班日設定</button>';
   return '<section class="board" aria-label="排程表"><div class="board-h"><h2>'+esc(UI.factory==="all"?"跨廠":factoryName(UI.factory))+' · '+mdw(d)+(ctx.pv?(PV.mode==="orig"?" 原本的排程":PV.mode==="new"?" 調整後":" 對照"):" 排程")+'</h2>'+
     (leave.length?'<span class="tag bad" style="font-size:15px;padding:4px 10px">請假：'+esc(leave.map(e=>e.name).join("、"))+'</span>':"")+
     (nBad?'<button class="btn danger" data-act="issues">'+nBad+' 個問題</button>':(blocks.length?'<span class="tag ok" style="font-size:15px;padding:4px 10px">沒有衝突</span>':""))+
@@ -1391,7 +1392,7 @@ function saveDailyOT(m){
     toast("這天已有加班排程；縮短加班並順延工作還需要「調整與自動排程」權限");return;
   }
   pushUndo();
-  if(m.open)S.dayOT[d]=true;else delete S.dayOT[d];
+  if(m.open){const sel=$("#ot-end");m.otEnd=sel?+sel.value:m.otEnd||DAY1;S.dayOT[d]=m.otEnd;}else delete S.dayOT[d];
   for(const e of S.employees){
     e.otOverrides ||= {};
     if(m.overrides[e.id]===null)delete e.otOverrides[d];else e.otOverrides[d]=m.overrides[e.id];
@@ -1587,7 +1588,7 @@ const MODALS={
 ot(m){
   const d=m.date;
   if(m.open===undefined){
-    m.open=!!S.dayOT[d];
+    m.open=!!S.dayOT[d];m.otEnd=typeof S.dayOT[d]==='number'?S.dayOT[d]:DAY1;
     m.overrides=Object.fromEntries(S.employees.map(e=>[e.id,Object.prototype.hasOwnProperty.call(e.otOverrides||{},d)?!!e.otOverrides[d]:null]));
   }
   const available=shownEmployees().filter(e=>!e.leaves.includes(d)&&(m.overrides[e.id]===null?overtimeDefault(e,d):m.overrides[e.id])).length;
@@ -1599,7 +1600,8 @@ ot(m){
       (value===null?'':'<button class="btn" data-act="ot-reset" data-id="'+esc(e.id)+'" aria-label="'+esc(e.name)+' 恢復固定設定">恢復固定設定</button>')+'</div></div>';
   }).join("");
   return {title:mdw(d)+" 加班設定",body:
-    '<div class="field"><span class="lab">今天是否開放 17:00–20:00 加班</span><div class="toggles">'+tg("ot-day","1",m.open,"開放加班")+tg("ot-day","0",!m.open,"不開放")+'</div></div>'+
+    '<div class="field"><span class="lab">今天是否開放加班</span><div class="toggles">'+tg("ot-day","1",m.open,"開放加班")+tg("ot-day","0",!m.open,"不開放")+'</div></div>'+
+    (m.open?'<div class="field"><label for="ot-end">加班到幾點</label><select class="inp" id="ot-end">'+[1050,1080,1110,1140,1170,1200].map(t=>'<option value="'+t+'"'+(m.otEnd===t?" selected":"")+'>'+hm(t)+'</option>').join("")+'</select></div>':"")+
     '<div class="hint">依員工的固定星期預先顯示。下面只調整今天，不會改到其他同星期的日期；請假者仍不排工作。</div>'+
     '<div class="field"><span class="lab">今天可加班 '+available+' 人</span><div class="ot-people">'+people+'</div></div>',
     foot:'<button class="btn" data-act="close">取消</button><button class="btn primary" data-act="ot-save">確認並套用到排程</button>'};
@@ -2292,7 +2294,7 @@ const HELP=[
  ["上班日與加班",[
   "國定假日、週六、週日只是<b>標示</b>，有沒有上班看「上班日設定」。預設週一到週六上班、週日停工。",
   "某一天要停工或加開：切到那天，按上方的 <b>改為停工／改為上班</b>。",
-  "要加班：按排程表上方的 <b>開加班到 20:00</b>，先看每位員工今天的預設意願，也可臨時改成可加班或不加班。",
+  "要加班：按排程表上方的 <b>開加班</b>，選加班到幾點，再看每位員工今天的預設意願，也可臨時改成可加班或不加班。",
   "固定星期與今天的臨時意願會一起影響排程；當天不可加班的人也不會排國定假日或週末出勤。"],
   "國定假日出勤工資加倍，畫面會用紅色提示。"],
  ["儲存、分享、Excel",[

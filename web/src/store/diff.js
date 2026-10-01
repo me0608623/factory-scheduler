@@ -56,7 +56,7 @@ export function rowsOf(S) {
   S.cal.week.forEach((v, i) => put("calendar_weekly", String(i), { weekday: i, is_open: !!v }));
   const over = S.cal.over || {}, ot = S.dayOT || {};
   for (const d of new Set([...Object.keys(over), ...Object.keys(ot).filter((x) => ot[x])])) {
-    put("calendar_days", d, { date: d, is_open: over[d] ? over[d] === "work" : null, overtime: !!ot[d] });
+    put("calendar_days", d, { date: d, is_open: over[d] ? over[d] === "work" : null, overtime: !!ot[d], overtime_end: typeof ot[d]==="number"?ot[d]:(!!ot[d]?1200:null) });
   }
   return t;
 }
