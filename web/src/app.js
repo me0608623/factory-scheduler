@@ -2849,7 +2849,8 @@ function getPath(obj,path){return path.split(".").reduce((v,k)=>v?.[k],obj);}
 function numSelOptions(cur,max,step){let out='<option value=""></option>';for(let i=0;i<=max;i+=step||1){const v=String(i);out+='<option value="'+v+'"'+(String(cur??"")===v?" selected":"")+'>'+String(i).padStart(2,"0")+'</option>';}return out;}
 function editCellHTML(table,id,key,type,value,ro){
   const mute='<span class="mute">—</span>';
-  const shown=(value===null||value===undefined||value==="")?mute:esc(type==="date"?md(String(value)):String(value));
+  const isISO=v=>typeof v==="string"&&/^d{4}-d{2}-d{2}$/.test(v);
+  const shown=(value===null||value===undefined||value==="")?mute:esc(type==="date"?(isISO(value)?md(value):String(value)):String(value));
   if(ro)return shown;
   const editing=UI.editCell&&UI.editCell.table===table&&UI.editCell.id===id&&UI.editCell.key===key;
   if(editing){
@@ -2858,7 +2859,8 @@ function editCellHTML(table,id,key,type,value,ro){
       return '<select class="inp cellinp" data-cell="'+table+'" data-id="'+esc(id)+'" data-key="'+key+'" data-type="number">'+numSelOptions(value,max,type==="minute"?1:1)+'</select>';
     }
     const attr=type==="date"?'type="date"':type==="number"?'type="number" min="0" step="1"':'maxlength="200" autocomplete="off"';
-    return '<input class="inp cellinp" data-cell="'+table+'" data-id="'+esc(id)+'" data-key="'+esc(key)+'" data-type="'+type+'" '+attr+' value="'+esc(value??"")+'">';
+    const iv=(type==="date"&&!isISO(value))?"":(value??"");
+    return '<input class="inp cellinp" data-cell="'+table+'" data-id="'+esc(id)+'" data-key="'+esc(key)+'" data-type="'+type+'" '+attr+' value="'+esc(iv)+'">';
   }
   return '<button class="cellbtn" data-act="cell-edit" data-cell="'+table+'" data-id="'+esc(id)+'" data-key="'+esc(key)+'" data-type="'+type+'">'+shown+'</button>';
 }

@@ -42,8 +42,8 @@ for (let r = 4; r <= wsR.rowCount; r++) {
   const notes = [looksItem ? '' : rawItem, desc1, note1].filter(Boolean).join('；');
   const row = {
     id: uuid5('rush:' + r),
-    f1: { shipDate: g(1), vendor: txt(g(2)), desc: looksItem ? rawItem : '', shortQty: num(g(5)), note: notes },
-    f2: { startDate: g(7), dueDate: g(8), itemProcess: txt(g(9)), desc: txt(g(10)), qty: num(g(11)), note: txt(g(12)) },
+    f1: (()=>{ const sd=g(1); const iso=v=>typeof v==="string"&&/^d{4}-d{2}-d{2}$/.test(v); return { shipDate: iso(sd)?sd:null, vendor: txt(g(2)), desc: looksItem ? rawItem : "", shortQty: num(g(5)), note: [notes, iso(sd)?null:String(sd??"").trim()].filter(Boolean).join("；") }; })(),
+    f2: (()=>{ const sd=g(7), dd=g(8); const iso=v=>typeof v==="string"&&/^d{4}-d{2}-d{2}$/.test(v); const extra=[iso(sd)?null:String(sd??"").trim(), iso(dd)?null:String(dd??"").trim()].filter(Boolean); return { startDate: iso(sd)?sd:null, dueDate: iso(dd)?dd:null, itemProcess: txt(g(9)), desc: txt(g(10)), qty: num(g(11)), note: [...new Set([txt(g(12)), ...extra].filter(Boolean))].join("；") }; })(),
     imported: true,
   };
   const any = [row.f1.shipDate, row.f1.vendor, row.f1.desc, row.f1.shortQty, row.f1.note, row.f2.startDate, row.f2.dueDate, row.f2.itemProcess, row.f2.desc, row.f2.qty, row.f2.note].some(v => v !== null && v !== '' && v !== undefined);
