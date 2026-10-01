@@ -8,14 +8,6 @@ on:
 jobs:
   drill:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_PASSWORD: drill
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - name: 下載最新備份
         run: |
@@ -27,21 +19,46 @@ jobs:
             "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACTS/zip" -o backup.zip
           unzip -o backup.zip -d restored/
           echo "Backup downloaded: $(ls -lh restored/)"
-      - name: 驗證備份完整性（pg_restore --list）
+
+      - name: 驗證備份完整性（用 postgres:17 容器跑 pg_restore）
         run: |
           DUMP=$(ls restored/*.dump | head -1)
           if [ -z "$DUMP" ]; then echo "No .dump file found"; exit 1; fi
+          DUMP_BASE=$(basename "$DUMP")
           echo "Verifying: $DUMP ($(stat -c%s "$DUMP") bytes)"
-          sudo apt-get install -y postgresql-client > /dev/null 2>&1 || true
-          pg_restore --list "$DUMP" > /dev/null && echo "✓ pg_restore --list OK" || { echo "✗ pg_restore failed"; exit 1; }
-          TABLES=$(pg_restore --list "$DUMP" | grep -c "TABLE DATA" || true)
+          # 備份由 PG17 pg_dump 產生（format 1.16），必須用 PG17 的 pg_restore
+          docker run --rm -v "$PWD/restored:/backup" postgres:17 \
+            sh -c "pg_restore --list /backup/$DUMP_BASE > /dev/null && echo '✓ pg_restore --list OK' || { echo '✗ pg_restore failed'; exit 1; }"
+          TABLES=$(docker run --rm -v "$PWD/restored:/backup" postgres:17 \
+            sh -c "pg_restore --list /backup/$DUMP_BASE | grep -c 'TABLE DATA'" || true)
           echo "Tables in backup: $TABLES"
           if [ "$TABLES" -lt 10 ]; then echo "⚠ Backup has fewer than 10 tables — may be incomplete"; fi
-      - name: 還原到暫存 PostgreSQL
+
+      - name: 還原到暫存 PostgreSQL 17 容器
         run: |
           DUMP=$(ls restored/*.dump | head -1)
-          PGPASSWORD=drill pg_restore --no-owner --no-privileges -h localhost -U postgres -d postgres "$DUMP" 2>&1 | tail -5
-          COUNT=$(PGPASSWORD=drill psql -h localhost -U postgres -d postgres -t -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'" 2>/dev/null | tr -d ' ')
+          DUMP_BASE=$(basename "$DUMP")
+          # 啟動暫存 PG17、還原、驗證
+          docker network create drill-net || true
+          docker run -d --name drill-pg --network drill-net \
+            -e POSTGRES_PASSWORD=drill -p 15432:5432 postgres:17
+          sleep 5
+          # 等待就緒
+          for i in $(seq 1 15); do
+            docker exec drill-pg pg_isready -U postgres && break
+            sleep 2
+          done
+          # 還原
+          docker run --rm --network drill-net -v "$PWD/restored:/backup" postgres:17 \
+            sh -c "pg_restore --no-owner --no-privileges -h drill-pg -U postgres -d postgres /backup/$DUMP_BASE" 2>&1 | tail -5
+          # 驗證
+          COUNT=$(docker exec drill-pg psql -U postgres -d postgres -t -c \
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'" 2>/dev/null | tr -d ' ')
           echo "Restored tables in public schema: $COUNT"
-          if [ "$COUNT" -lt 10 ]; then echo "✗ Restore incomplete"; exit 1; fi
+          if [ "$COUNT" -lt 10 ]; then echo "✗ Restore incomplete"; docker rm -f drill-pg; exit 1; fi
+          # 抽查關鍵表有資料
+          EMP=$(docker exec drill-pg psql -U postgres -d postgres -t -c "SELECT count(*) FROM employees" 2>/dev/null | tr -d ' ')
+          echo "employees rows: $EMP"
           echo "✓ Backup restore drill PASSED"
+          docker rm -f drill-pg
+          docker network rm drill-net || true
