@@ -779,3 +779,23 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
 .late-txt{color:var(--pg-bad)}
 .raw-txt{color:var(--pg-bad)}
 .pending-tag{color:var(--pg-bad);border-color:var(--pg-bad)}
+/* 產能分析儀表板 */
+.ana-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+.ana-card{background:var(--surface);border:1px solid var(--pg-line);border-radius:12px;padding:14px}
+.ana-card h3{font-size:16px;font-weight:800;margin-bottom:12px}
+.ana-list{display:flex;flex-direction:column;gap:6px}
+.ana-row{display:flex;align-items:center;gap:8px}
+.ana-lab{flex:0 0 140px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ana-bar{flex:1;height:18px;background:var(--surface2);border-radius:4px;overflow:hidden}
+.ana-fill{height:100%;border-radius:4px;transition:width .3s}
+.ana-val{flex:0 0 50px;text-align:right;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums}
+.ana-val.ot{color:#e57d28}
+.ana-stats{display:flex;gap:10px;flex-wrap:wrap}
+.ana-stat{flex:1;min-width:80px;text-align:center;padding:10px 6px;background:var(--surface2);border-radius:10px}
+.ana-stat b{display:block;font-size:24px;font-weight:900}
+.ana-stat span{font-size:12px;color:var(--muted)}
+.ana-stat.ok b{color:#1e8e3e}.ana-stat.warn b{color:#b06000}.ana-stat.bad b{color:#c62828}.ana-stat.mute b{color:var(--muted)}
+.ana-chart{display:flex;align-items:flex-end;gap:4px;height:100px;padding:4px 0}
+.ana-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
+.ana-bar2{width:100%;max-width:28px;background:var(--accent,#3CA2F4);border-radius:3px 3px 0 0;min-height:2px}
+.ana-dlabel{font-size:9px;color:var(--muted);white-space:nowrap}

@@ -18,6 +18,7 @@ import {transferOrders,materialWarning,transferPlanWarnings,batchOf,validateTran
 import {transferUI} from './transfer-ui.js';
 import {validateRush,shortageRowFlags} from './rush.js';
 import {validateWorkLog} from './worklog.js';
+import {notifySettingsHTML,sendLineNotify} from './line-notify.js';
 import {rosterUI} from './roster-ui.js';
 import {installScheduleChat} from './chat-ui.js';
 import {PERMISSIONS,effectivePermission} from './permissions.js';
@@ -639,7 +640,7 @@ function render(){
     try{html=withState(o.A,()=>topHTML()+'<main class="wrap">'+pvPanelHTML(o))+withState(st,()=>bannerHTML()+(UI.view==="day"?dayHTML(ctx):weekHTML(ctx))+generalBoardHTML())+"</main>";}
     finally{readOnly=ro;}
   }else html=topHTML()+appNavHTML()+'<main class="wrap">'+
-    (UI.page==='shortage'?shortagePageHTML():UI.page==='transferflow'?transferFlowPageHTML():UI.page==='worklog'?workLogPageHTML():UI.page==='review'?reviewPageHTML():
+    (UI.page==='shortage'?shortagePageHTML():UI.page==='transferflow'?transferFlowPageHTML():UI.page==='worklog'?workLogPageHTML():UI.page==='review'?reviewPageHTML():UI.page==='analytics'?analyticsPageHTML():
       bannerHTML()+(UI.view==="day"?(UI.layout==='work'?workViewHTML():dayHTML()+generalBoardHTML()):weekHTML()+generalBoardHTML()))+'</main>'+drawerHTML();
   $("#app").innerHTML=html;
   const sc2=$(".scroller");if(sc2)sc2.scrollLeft=sl;
@@ -853,7 +854,7 @@ function moreDrawerHTML(){
   const schedGate=S.setupPending?"":btn('manual-add','＋手動排班',readOnly?'disabled':'')+btn('auto','⚡ 自動排班',readOnly?'disabled':'')+btn('incident','故障／請假',!canIncidents()?'disabled':'');
   return '<section class="more-group"><h3>班表</h3><div class="more-grid"><div class="seg" role="group" aria-label="檢視"><button data-act="view" data-v="day" aria-pressed="'+(UI.view==='day')+'">日班表</button><button data-act="view" data-v="week" aria-pressed="'+(UI.view==='week')+'">週班表</button></div><div class="seg" role="group" aria-label="查看方式"><button data-act="layout" data-v="resource" aria-pressed="'+(UI.layout==='resource')+'">按設備</button><button data-act="layout" data-v="work" aria-pressed="'+(UI.layout==='work')+'">按工作</button></div>'+schedGate+btn('undo','復原上一步',readOnly||!undoStack.length?'disabled':'')+'</div></section>'+
     '<section class="more-group"><h3>工作與人員</h3><div class="more-grid">'+btn('work-queue','未排工作')+btn('execution','現場回報')+btn('resource-load','當日負荷')+btn('rosters','輪班表')+btn('work-contents','工作內容')+btn('transfers','跨廠加工')+btn('rush','欠缺品項')+btn('groups','員工分組')+(STORE.role==='boss'?btn('access','權限管理'):'')+(canScenarios()?btn('scenarios','試排情境'):'')+'</div></section>'+
-    '<section class="more-group"><h3>資料與設定</h3><div class="more-grid">'+btn('settings','⚙ 設定')+btn('catalog','員工、設備與工單')+(canArchive()?btn('history','歷史班表'):'')+btn('export','匯出／匯入 Excel')+btn('log','全部紀錄')+btn('tv',UI.tv?'管理模式':'大螢幕')+btn('help','操作說明')+btn('feedback','意見反饋')+(STORE.role==='boss'?btn('feedback-list','查看反饋'):'')+'</div></section>';
+    '<section class="more-group"><h3>資料與設定</h3><div class="more-grid">'+btn('settings','⚙ 設定')+btn('catalog','員工、設備與工單')+(canArchive()?btn('history','歷史班表'):'')+btn('export','匯出／匯入 Excel')+btn('log','全部紀錄')+btn('tv',UI.tv?'管理模式':'大螢幕')+btn('help','操作說明')+btn('feedback','意見反饋')+btn('analytics','產能分析')+btn('line-notify','LINE 通知')+(STORE.role==='boss'?btn('feedback-list','查看反饋'):'')+'</div></section>';
 }
 function statusTag(o){
   const st=orderStatus(o);
@@ -1157,7 +1158,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "resource-load":if(!PV)openModal({t:'resource-load'});break;
     case 'work-queue':openModal({t:'work-queue'});break;
     case 'rush':UI.page='shortage';UI.drawer=null;render();window.scrollTo(0,0);break;
-    case "page":{if(PV){toast("預覽中：先按「用這套」或「取消」");break;}const map={board:null,shortage:"shortage",transfer:"transferflow",worklog:"worklog",review:"review"};UI.page=map[a.dataset.v]??null;UI.drawer=null;UI.focus=null;UI.editCell=null;UI.confirmRow=null;try{history.replaceState(null,"",UI.page?"?view="+(UI.page==="transferflow"?"transfer":UI.page):location.pathname);}catch{}if(UI.page==="transferflow"&&canPermission("transfers.manage")){const n=tfAutoArchive();if(n)UI.tfArchivedNote="本月已歸檔 "+n+" 筆";}
+    case "page":{if(PV){toast("預覽中：先按「用這套」或「取消」");break;}const map={board:null,shortage:"shortage",transfer:"transferflow",worklog:"worklog",review:"review",analytics:"analytics"};UI.page=map[a.dataset.v]??null;UI.drawer=null;UI.focus=null;UI.editCell=null;UI.confirmRow=null;try{history.replaceState(null,"",UI.page?"?view="+(UI.page==="transferflow"?"transfer":UI.page):location.pathname);}catch{}if(UI.page==="transferflow"&&canPermission("transfers.manage")){const n=tfAutoArchive();if(n)UI.tfArchivedNote="本月已歸檔 "+n+" 筆";}
       render();window.scrollTo(0,0);if(UI.page)flashReturnRow();break;}
     case "page-return":{const p=UI.returnTo?.page||null;UI.returnTo=null;UI.page=p;try{history.replaceState(null,"",p?"?view="+(p==="transferflow"?"transfer":p):location.pathname);}catch{}render();window.scrollTo(0,0);if(p)flashReturnRow();break;}
     case "worklog":UI.page="worklog";UI.drawer=null;try{history.replaceState(null,"","?view=worklog");}catch{}render();window.scrollTo(0,0);flashReturnRow();break;
@@ -1304,6 +1305,9 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "incident":if(canIncidents())openModal({t:"incident"});break;
     case "help":openModal({t:"help",sec:0});break;
     case "feedback":openModal({t:"feedback"});break;
+    case "analytics":UI.page="analytics";
+    case "line-notify":openModal({t:"line-notify"});break;
+    case "ln-save":async a=>{a.disabled=true;try{const enabled=$("#ln-enabled")?.checked||false;const userId=$("#ln-user")?.value.trim()||"";const groupId=$("#ln-group")?.value.trim()||"";const events={};for(const el of document.querySelectorAll("[data-ln-event]"))events[el.dataset.lnEvent]=el.checked;await STORE.sb.from("line_notify_settings").upsert({user_id:STORE.session?.user?.id,enabled,line_user_id:userId,line_group_id:groupId,events},{onConflict:"user_id"});closeModal();toast("LINE 通知設定已儲存");}catch(e){a.disabled=false;toast(e.message);}};break;UI.drawer=null;try{history.replaceState(null,"","?view=analytics");}catch{}render();window.scrollTo(0,0);break;
     case "feedback-send":async a=>{const msg=$("#fb-msg")?.value.trim()||"",cat=$("#fb-cat")?.value||"other";if(!msg){toast("請寫一些內容");return;}a.disabled=true;try{const {error}=await STORE.sb.from("feedback").insert({author_name:STORE.userName||"未命名",category:cat,message:msg,page_url:location.href,user_id:STORE.session?.user?.id});if(error)throw error;closeModal();toast("感謝！意見已送出，我們會盡快處理。"+(STORE.role==="boss"?" 到「更多功能→查看反饋」看全部。":""));}catch(e){a.disabled=false;toast(e.message);}};break;
     case "feedback-list":{if(STORE.role!=="boss"){toast("只有老闆可以查看全部反饋");break;}openModal({t:"feedback-list",loading:true,items:[]});(async()=>{try{const {data}=await STORE.sb.rpc("list_feedback",{p_limit:50});if(UI.modal?.t==="feedback-list"){UI.modal.loading=false;UI.modal.items=data||[];renderModal();}}catch(e){toast(e.message);closeModal();}})();break;}
     case "undo":undo();break;
@@ -2525,7 +2529,7 @@ Object.assign(MODAL_ACT,{
   "auto-run":()=>runAuto(),
   "m-undo":()=>{undo();closeModal();},
   "x-copy-day":()=>copyText(dayTSV()),
-  "x-print-day":()=>{closeModal();requestAnimationFrame(()=>window.print());},
+  "x-print-day":()=>{closeModal();printDaySchedule();},
   "x-copy-all":()=>copyText(allRows().map(r=>r.join("\t")).join("\n")),
   "x-dl":()=>downloadCSV(),
   "x-xlsx":async()=>{
@@ -2778,6 +2782,12 @@ Object.assign(MODAL_ACT,{
 MODALS['catalog-review']=()=>({title:S.setupPending?'初次核對資料':'員工、設備與工單',body:
   (S.setupPending?'<div class="catalog-step"><b>核對完成前</b><span>今天仍可查看空班表；自動排班與故障重排維持關閉。</span></div>':'')+cardsHTML()+latestHTML(),
   foot:'<button class="btn primary" data-act="close">返回班表</button>'});
+/* ---------- LINE 通知設定 ---------- */
+MODALS['line-notify']=()=>{
+  const settings=S.lineNotify||{};
+  return {title:'LINE 通知',body:notifySettingsHTML(settings),
+  foot:'<button class="btn" data-act="close">取消</button><button class="btn primary" data-act="ln-save">儲存</button>'};
+};
 /* ---------- 意見反饋 ---------- */
 const FEEDBACK_CATS=[['bug','問題／錯誤'],['feature','希望新增的功能'],['ux','操作不方便'],['other','其他']];
 MODALS['feedback']=()=>({title:'意見反饋',body:
@@ -3050,6 +3060,157 @@ function transferFlowPageHTML(){
     '</tbody></table></div>';
   return pageShell("給二廠／回一廠","料送二廠加工，何時要回一廠。與欠缺品項分開。",bar+table,ro,"tf-addrow");
 }
+/* ---------- 日班表列印（A4 公佈欄格式） ---------- */
+function printDaySchedule(){
+  const d=UI.date, f=UI.factory;
+  const machs=shownMachines();
+  const emps=shownEmployees();
+  const leave=emps.filter(e=>e.leaves.includes(d));
+  const blocks=S.blocks.filter(b=>b.date===d&&machs.some(m=>m.id===b.m));
+  const byMach={};
+  for(const m of machs) byMach[m.id]=[];
+  for(const b of blocks){ if(byMach[b.m]) byMach[b.m].push(b); }
+  const title=f==='all'?'跨廠':f+' 廠';
+  const otEnd=typeof S.dayOT[d]==='number'?S.dayOT[d]:1200;
+
+  let rows='';
+  for(const m of machs){
+    const bs=(byMach[m.id]||[]).sort((a,b)=>a.s-b.s);
+    if(!bs.length){
+      rows+='<tr><td><b>'+esc(m.label)+'</b><br><small>'+esc(m.id)+'</small></td><td colspan="5" style="color:#999;text-align:center">—</td></tr>';
+      continue;
+    }
+    for(let i=0;i<bs.length;i++){
+      const b=bs[i], o=order(b.oid), E=emp(b.emp);
+      const machTd=i===0?'<td rowspan="'+bs.length+'"><b>'+esc(m.label)+'</b><br><small>'+esc(m.id)+(m.reviewStatus==='pending'?' · 待確認':'')+'</small></td>':'';
+      rows+='<tr>'+machTd+
+        '<td>'+(E?'<b>'+esc(E.name)+'</b>':'—')+'</td>'+
+        '<td>'+hm(b.s)+'–'+hm(b.e)+(b.pin?' ◆':'')+'</td>'+
+        '<td>'+(o?esc(o.code)+' '+(prod(o.pid)?.name||''):'')+' '+stepName(b)+'</td>'+
+        '<td>'+b.qty+'</td><td></td></tr>';
+    }
+  }
+
+  const leaveHtml=leave.length?'<div class="leave-box"><h3>今日請假（'+leave.length+' 人）</h3>'+leave.map(e=>'<span>'+esc(e.name)+'</span>').join('')+'</div>':'';
+  const setupNote=S.setupPending?'<div class="warn-box">⚠ 名冊與工時尚待確認，此表僅供參考</div>':'';
+
+  const html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+title+' 日班表 '+d+'</title><style>'+
+  '*{box-sizing:border-box;margin:0;padding:0}'+
+  'body{font-family:"Microsoft JhengHei","Noto Sans TC",sans-serif;color:#1a1a1a;padding:20px;font-size:13px}'+
+  'h1{font-size:22px;text-align:center;margin-bottom:4px}'+
+  '.sub{text-align:center;color:#555;font-size:14px;margin-bottom:14px}'+
+  'table{width:100%;border-collapse:collapse;table-layout:fixed}'+
+  'th,td{border:1px solid #444;padding:4px 5px;text-align:left;font-size:11.5px;overflow:hidden}'+
+  'th{background:#e8e8e8;font-weight:bold}'+
+  '.leave-box{margin-top:14px;border:2px solid #c62828;border-radius:8px;padding:8px 12px}'+
+  '.leave-box h3{font-size:14px;color:#c62828;margin-bottom:4px}'+
+  '.leave-box span{display:inline-block;background:#fce8e6;color:#c62828;border-radius:4px;padding:2px 8px;margin:2px;font-size:13px;font-weight:bold}'+
+  '.warn-box{margin-top:10px;padding:6px 12px;border:1px solid #c62828;border-radius:6px;font-size:13px;color:#c62828}'+
+  '.footer{margin-top:14px;text-align:right;font-size:10px;color:#999}'+
+  '@media print{body{padding:10mm}@page{size:A4 portrait;margin:8mm}}'+
+  '</style></head><body>'+
+  '<h1>'+title+' 日班表</h1>'+
+  '<div class="sub">'+d+'（'+WD[parseD(d).getUTCDay()]+'） · '+(dayInfo(d).open?'上班日':'停工日')+(dayInfo(d).ot?' · 加班到 '+hm(otEnd):'')+'</div>'+
+  '<table><thead><tr><th style="width:14%">機台／工位</th><th style="width:10%">員工</th><th style="width:12%">時間</th><th style="width:20%">工單／工作</th><th style="width:8%">件數</th><th style="width:12%">備註</th></tr></thead><tbody>'+
+  rows+'</tbody></table>'+leaveHtml+setupNote+
+  '<div class="footer">列印時間：'+new Date().toLocaleString('zh-TW')+' · 產線排程系統</div>'+
+  '<scr'+'ipt>window.print()</scr'+'ipt></body></html>';
+
+  const w=window.open('','_blank','width=900,height=700');
+  w.document.write(html);
+  w.document.close();
+}
+
+/* ---------- 產能分析儀表板 ---------- */
+function analyticsPageHTML(){
+  const today=todayStr();
+  const monthStart=today.slice(0,7)+'-01';
+  // 本月的排程方塊
+  const mBlocks=S.blocks.filter(b=>b.date>=monthStart&&b.date<=today);
+  const mMachs=shownMachines();
+  const mEmps=shownEmployees();
+  const mOrders=shownOrders();
+
+  // 1. 機台稼動率：本月排程分鐘 / 可用分鐘（工作日 × 8.5h）
+  const workDays=new Set(mBlocks.map(b=>b.date)).size||1;
+  const availMin=workDays*510; // 8.5h = 510 min
+  const machUtil=mMachs.map(m=>{
+    const mins=mBlocks.filter(b=>b.m===m.id).reduce((t,b)=>t+(b.e-b.s),0);
+    return {id:m.id,label:m.label,mins,pct:availMin?Math.round(mins/availMin*100):0};
+  }).sort((a,b)=>b.pct-a.pct);
+
+  // 2. 員工加班時數（本月）
+  const otEndOf=d=>typeof S.dayOT?.[d]==='number'?S.dayOT[d]:1200;
+  const empOT=mEmps.map(e=>{
+    let ot=0;
+    for(const b of mBlocks){
+      if(b.emp!==e.id)continue;
+      const otEnd=otEndOf(b.date);
+      if(b.e>1020) ot+=Math.max(0,Math.min(b.e,otEnd)-Math.max(b.s,1020));
+    }
+    return {name:e.name,otH:Math.round(ot/6)/10};
+  }).filter(x=>x.otH>0).sort((a,b)=>b.otH-a.otH);
+
+  // 3. 工單狀態分佈
+  const ordStats={late:0,ok:0,part:0,done:0,unplaced:0};
+  for(const o of mOrders){
+    const bl=mBlocks.filter(b=>b.oid===o.id);
+    if(!bl.length){ordStats.unplaced++;continue;}
+    const totalDone=bl.reduce((t,b)=>t+effectiveBlockQty(S,b),0);
+    if(totalDone>=o.qty)ordStats.done++;
+    else if(o.due<today)ordStats.late++;
+    else if(totalDone>0)ordStats.part++;
+    else ordStats.ok++;
+  }
+
+  // 4. 每日排程量（最近 14 天）
+  const daily=[];
+  for(let i=13;i>=0;i--){
+    const d=addDays(today,-i);
+    const cnt=S.blocks.filter(b=>b.date===d).length;
+    daily.push({date:d,cnt});
+  }
+  const maxDaily=Math.max(...daily.map(x=>x.cnt),1);
+
+  // 5. 請假統計（本月）
+  const leaves=mEmps.filter(e=>e.leaves.some(l=>l>=monthStart&&l<=today));
+  const leaveDays=mEmps.reduce((t,e)=>t+e.leaves.filter(l=>l>=monthStart&&l<=today).length,0);
+
+  const head='<div class="page-top"><div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">← 回今天班表</button><div class="page-title"><h1>產能分析</h1></div></div>'+
+    '<p class="page-sub">'+today.slice(0,7).replace('-',' 年 ')+' 月（至 '+md(today)+'） · '+workDays+' 個工作天 · '+mEmps.length+' 位員工 · '+mMachs.length+' 台設備</p></div>';
+
+  const bar=(label,pct,color)=>{
+    return '<div class="ana-row"><span class="ana-lab">'+esc(label)+'</span><div class="ana-bar"><div class="ana-fill" style="width:'+Math.min(100,pct)+'%;background:'+color+'"></div></div><span class="ana-val">'+pct+'%</span></div>';
+  };
+
+  const body='<div class="ana-grid">'+
+    '<div class="ana-card"><h3>機台稼動率（本月）</h3><div class="ana-list">'+
+      (machUtil.slice(0,10).map(m=>bar(m.label+' ('+m.id+')',m.pct,m.pct>70?'#39d353':m.pct>40?'#ffe14a':'#c62828')).join('')||'<div class="hint">尚無排程資料</div>')+
+    '</div></div>'+
+    '<div class="ana-card"><h3>員工加班時數（本月）</h3><div class="ana-list">'+
+      (empOT.slice(0,10).map(e=>'<div class="ana-row"><span class="ana-lab">'+esc(e.name)+'</span><span class="ana-val ot">'+e.otH+' 小時</span></div>').join('')||'<div class="hint">本月無加班</div>')+
+    '</div></div>'+
+    '<div class="ana-card"><h3>工單狀態</h3><div class="ana-stats">'+
+      '<div class="ana-stat"><b>'+ordStats.done+'</b><span>已完成</span></div>'+
+      '<div class="ana-stat ok"><b>'+ordStats.ok+'</b><span>進行中</span></div>'+
+      '<div class="ana-stat warn"><b>'+ordStats.part+'</b><span>部分完成</span></div>'+
+      '<div class="ana-stat bad"><b>'+ordStats.late+'</b><span>逾期</span></div>'+
+      '<div class="ana-stat mute"><b>'+ordStats.unplaced+'</b><span>未排</span></div>'+
+    '</div></div>'+
+    '<div class="ana-card"><h3>近 14 天排程量</h3><div class="ana-chart">'+
+      daily.map(function(x){var h=Math.round(x.cnt/maxDaily*80);var t=md(x.date);return "<div class=\"ana-col\" title=\""+x.date+": "+x.cnt+"\"><div class=\"ana-bar2\" style=\"height:"+h+"px\"></div><span class=\"ana-dlabel\">"+t+"</span></div>";}).join("")+
+    '</div></div>'+
+    '<div class="ana-card"><h3>人力概況</h3><div class="ana-stats">'+
+      '<div class="ana-stat"><b>'+mEmps.length+'</b><span>在職員工</span></div>'+
+      '<div class="ana-stat bad"><b>'+leaves.length+'</b><span>本月有請假</span></div>'+
+      '<div class="ana-stat mute"><b>'+leaveDays+'</b><span>請假天數合計</span></div>'+
+      '<div class="ana-stat"><b>'+mBlocks.length+'</b><span>本月排程段</span></div>'+
+    '</div></div>'+
+  '</div>';
+
+  return '<div class="fullpage">'+head+body+'</div>';
+}
+
 function reviewPageHTML(){
   const step=UI.reviewStep||1;
   const ro=!canMaster();

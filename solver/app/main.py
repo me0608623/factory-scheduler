@@ -207,3 +207,41 @@ async def plans_db(req: DbPlanRequest, authorization: str = Header(...)):
         return plan
     except SupabaseError as e:
         raise HTTPException(502, str(e))
+
+# ---------- LINE 通知轉發 ----------
+class LineNotifyRequest(BaseModel):
+    event: str
+    message: str
+
+
+@app.post("/notify/line")
+async def notify_line(req: LineNotifyRequest, authorization: str = Header(...)):
+    """轉發 LINE 推播（channel token 存在環境變數，不經過前端）"""
+    token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN")
+    if not token:
+        raise HTTPException(503, "LINE 通知尚未設定：需要在 Render 環境變數加入 LINE_CHANNEL_ACCESS_TOKEN")
+    jwt = authorization.removeprefix("Bearer ").strip()
+    try:
+        uid = await supa.user_id(jwt)
+    except Exception:
+        raise HTTPException(401, "無效的登入狀態")
+    # 取得使用者設定的 LINE ID
+    rows = await supa._post("rest/v1/rpc/exec_sql", json={
+        "query": f"select line_user_id, line_group_id from line_notify_settings where user_id='{uid}' and enabled limit 1"
+    })
+    targets = []
+    if rows:
+        if rows[0].get("line_user_id"): targets.append(rows[0]["line_user_id"])
+        if rows[0].get("line_group_id"): targets.append(rows[0]["line_group_id"])
+    if not targets:
+        return {"ok": True, "sent": 0, "reason": "no targets"}
+    import httpx
+    async with httpx.AsyncClient() as client:
+        for target in targets:
+            try:
+                r = await client.post("https://api.line.me/v2/bot/message/push", headers={
+                    "Authorization": f"Bearer {token}", "Content-Type": "application/json"
+                }, json={"to": target, "messages": [{"type": "text", "text": f"[排程系統] {req.message}"}]})
+            except Exception:
+                pass
+    return {"ok": True, "sent": len(targets)}
