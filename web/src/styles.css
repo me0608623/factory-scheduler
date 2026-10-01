@@ -706,3 +706,38 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
 .cal-brush{margin-top:8px}
 .cal-brush .tg[aria-pressed="true"]{font-weight:900}
 .raw-txt{color:var(--pg-bad);font-weight:700;margin-right:6px}
+/* 加一列在標題列（捲動可見）＋歸檔列＋核對精靈 */
+.page-top{position:sticky;top:0;z-index:6;box-shadow:0 1px 0 var(--pg-line)}
+.page-top-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;flex:1}
+.addrow-head{min-height:44px;font-weight:800;white-space:nowrap}
+.addrow{display:none}
+.archive-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--pg-line);border-radius:12px;padding:8px 12px}
+.archive-bar .btn{min-height:44px}
+.archive-bar .hint{color:var(--muted);font-size:13.5px}
+.archived-n{font-size:14px;color:#1e8e3e;font-weight:700}
+.sheettable tr.archived td{opacity:.6;background:#f0f2f4}
+@media (max-width:760px){
+  .page-top-row{gap:8px}
+  .addrow-head{flex:1 1 auto;max-width:60%}
+  .archive-bar .hint{display:none}
+}
+/* 核對精靈 */
+.wiz{max-width:720px;margin:0 auto}
+.wiz-steps{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.wiz-step{min-height:44px;border:2px solid var(--pg-line);border-radius:10px;background:var(--surface);padding:8px 14px;font-weight:700;font-size:15px}
+.wiz-step.on{border-color:#0b57d0;color:#0b57d0}
+.wiz-step.done{border-color:#1e8e3e;color:#1e8e3e}
+.wiz-filter{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.wiz-filter .btn{min-height:44px}
+.wiz-cards{display:flex;flex-direction:column;gap:16px}
+.wiz-card{display:flex;justify-content:space-between;align-items:center;gap:16px;background:var(--surface);border:1px solid var(--pg-line);border-radius:12px;padding:16px;min-height:88px;flex-wrap:wrap}
+.wiz-card.skills{display:block}
+.wiz-name{display:block;font-size:22px;font-weight:800;line-height:1.2;margin-bottom:8px}
+.wiz-meta{display:flex;flex-direction:column;gap:8px;color:var(--muted);font-size:15px}
+.wiz-pending{display:inline-block;background:#fef7e0;color:#b06000;border-radius:6px;padding:2px 10px;font-weight:800;font-size:13.5px;margin-top:8px}
+.wiz-ok{display:inline-block;background:#e6f4ea;color:#1e8e3e;border-radius:6px;padding:2px 10px;font-weight:800;font-size:13.5px;margin-top:8px}
+.wiz-acts{display:flex;gap:8px}
+.wiz-big{min-height:44px;min-width:88px;font-size:16px;font-weight:800}
+.wiz-foot{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;gap:12px;padding:12px 16px;background:rgba(244,245,247,.96);border-top:1px solid var(--pg-line);z-index:6}
+.wiz .fullpage{padding-bottom:96px}
+@media (max-width:760px){.wiz-card{flex-direction:column;align-items:stretch}.wiz-acts{width:100%}.wiz-acts .wiz-big{flex:1}}

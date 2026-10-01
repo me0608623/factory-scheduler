@@ -14,6 +14,7 @@ await wb.xlsx.readFile('C:/Users/me060/Downloads/排程1023.xlsx');
 const cellVal = (ws, r, c) => {
   const v = ws.getRow(r).getCell(c).value;
   if (v === null || v === undefined) return null;
+  if (typeof v === "number" && v > 40000 && v < 60000) { const d = new Date(Date.UTC(1899, 11, 30) + v * 86400000); return d.toISOString().slice(0, 10); }  // Excel 序號 → 日期
   if (v instanceof Date) return v.toISOString().slice(0, 10);
   if (typeof v === 'object') return v.text ?? (v.result !== undefined ? { formula: v.result } : v.text) ?? null;
   return v;
@@ -35,9 +36,13 @@ const rush = [];
 for (let r = 4; r <= wsR.rowCount; r++) {
   const g = c => cellVal(wsR, r, c);
   const note1 = txt(g(6)), desc1 = txt(g(4));
+  // 品號欄只收零件碼（英數為主、20 字內）；備註句、描述都歸備註
+  const rawItem = txt(g(3));
+  const looksItem = /^[A-Za-z0-9][A-Za-z0-9 ./+-]{2,19}$/.test(rawItem);
+  const notes = [looksItem ? '' : rawItem, desc1, note1].filter(Boolean).join('；');
   const row = {
     id: uuid5('rush:' + r),
-    f1: { shipDate: g(1), vendor: txt(g(2)), desc: txt(g(3)), shortQty: num(g(5)), note: desc1 ? (note1 ? desc1 + '；' + note1 : desc1) : note1 },
+    f1: { shipDate: g(1), vendor: txt(g(2)), desc: looksItem ? rawItem : '', shortQty: num(g(5)), note: notes },
     f2: { startDate: g(7), dueDate: g(8), itemProcess: txt(g(9)), desc: txt(g(10)), qty: num(g(11)), note: txt(g(12)) },
     imported: true,
   };
