@@ -845,3 +845,7 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
 .tf-toggle input[type="checkbox"]:checked{accent-color:#1e8e3e}
 .tf-toggle:has(input:checked){color:var(--ink)}
 .tf-toggle:has(input:checked)::after{content:" ✓";color:#1e8e3e;font-weight:900}
+/* 關閉按鈕（文字版，至少 44px） */
+.drawer-close-btn{min-height:44px;min-width:72px;font-weight:700;font-size:15px}
+.ops-drawer-h{display:flex;align-items:center;gap:10px}
+.ops-drawer-h h2{margin:0;flex:1}

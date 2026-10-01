@@ -686,7 +686,7 @@ function appNavHTML(){
   const role=ROLE_NAME[STORE?.role]||'本機管理者';
   const sync=SYNC.state==='busy'?'同步中':SYNC.state==='error'?'同步失敗':STORE?.kind==='supabase'?'雲端已同步':'存在這台電腦';
   return '<nav class="app-nav" aria-label="主要功能">'+
-    '<div class="side-chrome" aria-hidden="true"><i></i><i></i><i></i><span>'+NAV_IC.more+'</span></div>'+
+    
     '<div class="side-brand"><span class="brand-mark"><span></span></span><span><b>產線排程</b><small>工廠工作台</small></span></div>'+
     '<button class="side-profile" data-act="settings" aria-pressed="'+(UI.drawer==='settings')+'"><span class="side-avatar">'+esc(account.slice(0,1).toUpperCase())+'</span><span><b>'+esc(account)+'</b><small>'+esc(role)+'</small></span><i>›</i></button>'+
     '<span class="side-section">排程</span>'+
@@ -742,7 +742,7 @@ function drawerHTML(){
   if(!UI.drawer)return '';
   const body=UI.drawer==='orders'?ordersDrawerHTML():UI.drawer==='people'?peopleDrawerHTML():UI.drawer==='output'?outputDrawerHTML():UI.drawer==='notes'?notesDrawerHTML():UI.drawer==='settings'?settingsDrawerHTML():moreDrawerHTML();
   const title=drawerTitle(UI.drawer);
-  return '<aside class="ops-drawer" aria-label="'+esc(title)+'" tabindex="-1"><div class="ops-drawer-h"><span class="drawer-grip"></span><h2>'+esc(title)+'</h2><button class="iconbtn" data-act="drawer-close" aria-label="關閉">×</button></div><div class="ops-drawer-b">'+body+'</div></aside>';
+  return '<aside class="ops-drawer" aria-label="'+esc(title)+'" tabindex="-1"><div class="ops-drawer-h"><h2>'+esc(title)+'</h2><button class="iconbtn" data-act="drawer-close" aria-label="關閉">×</button></div><div class="ops-drawer-b">'+body+'</div></aside>';
 }
 
 function ordersDrawerHTML(){
@@ -2051,7 +2051,7 @@ function pvPanelHTML(o){
    '<div class="pv-dates"><span class="hint">影響的日期</span>'+(dates.map(ds=>'<button class="pv-date" data-act="pv-date" data-v="'+ds+'" aria-pressed="'+(ds===UI.date)+'"><b class="num">'+md(ds)+'</b><small>'+WD[parseD(ds).getUTCDay()]+' · '+d.dates[ds]+' 處</small></button>').join("")||'<span class="hint">無</span>')+'</div></div>'+
    '</section>';
   const drawer='<aside class="pv-drawer'+(PV.sheetCollapsed?' collapsed':'')+'" aria-label="方案比較">'+
-   '<div class="pv-drawer-h"><span class="drawer-grip" data-act="pv-sheet" aria-hidden="true"></span><h3>方案比較　'+PV.opts.length+' 套</h3><button class="iconbtn" data-act="pv-sheet" aria-label="'+(PV.sheetCollapsed?'展開':'收合')+'">'+(PV.sheetCollapsed?'▴':'▾')+'</button></div>'+
+   '<div class="pv-drawer-h"><h3>方案比較　'+PV.opts.length+' 套</h3><button class="iconbtn" data-act="pv-sheet" aria-label="'+(PV.sheetCollapsed?'展開':'收合')+'">'+(PV.sheetCollapsed?'▴':'▾')+'</button></div>'+
    '<div class="pv-drawer-b">'+
    '<div class="pv-opts">'+cards+'</div>'+
    (o.applicable===false?'<div class="pv-sum"><b>目前不能套用：</b>'+o.diagnostics.map(esc).join('；')+'</div>':'')+
