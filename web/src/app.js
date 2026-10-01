@@ -3080,7 +3080,7 @@ function workLogPageHTML(){
         return '<button class="cellbtn" data-act="cell-edit" data-cell="wl" data-id="'+esc(r.id)+'" data-key="'+base+'H" data-type="hour">'+esc(txt)+'</button>';
       };
       return '<tr data-rowid="'+esc(r.id)+'">'+
-        rowActCell("wldel","wl-del",r.id)+
+        '<td class="rowact">'+(ro?"":(UI.confirmRow==="wldel:"+r.id?'<button class="btn danger" data-act="wl-del" data-id="'+esc(r.id)+'">再按一次刪除</button>':'<button class="rowdel" data-act="wl-del" data-id="'+esc(r.id)+'">刪除</button>'))+'</td>'+
         cell("date","date")+cell("code","text")+cell("goodQty","number")+cell("badQty","number")+
         '<td class="hmcell">'+hm(r.startH,r.startM,"start")+'</td>'+
         '<td class="hmcell">'+hm(r.endH,r.endM,"end")+'</td>'+
