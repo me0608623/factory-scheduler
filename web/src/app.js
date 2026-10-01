@@ -1080,6 +1080,17 @@ document.addEventListener("pointerup",()=>{
   openModal({t:"drag-preview",proposal:dragPreview(d.b,d.target.m,d.target.s)});
 });
 document.addEventListener("pointercancel",()=>{endDrag();drag=null;});
+// 切格競態修復：mousedown 階段就先存目前格並切到新格，阻止 blur→render→click 消失的競態
+document.addEventListener("mousedown",e=>{
+  const btn=e.target.closest('[data-act="cell-edit"]');
+  if(!btn)return;
+  // 阻止預設的 focus 移轉（否則 input blur → saveCellEdit → render() 把 DOM 全換掉、click 永遠不會觸發）
+  e.preventDefault();
+  const cur=document.querySelector(".cellinp");
+  if(cur&&cur!==btn){saveCellEdit(cur);}
+  UI.editCell={table:btn.dataset.cell,id:btn.dataset.id,key:btn.dataset.key};
+  render();
+});
 document.addEventListener("keydown",e=>{
   if(e.key==="Enter"&&e.target.dataset?.cell){e.preventDefault();e.target.blur();return;}
   if(e.key==="Escape"&&UI.editCell){UI.editCell=null;render();return;}
