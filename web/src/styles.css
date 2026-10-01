@@ -626,50 +626,83 @@ body:has(#ov:not([hidden])) #schedule-chat{z-index:15}
 .chat-tts.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .chat-speak{font-size:13px;margin:6px 0 0}
 .chat-notice{color:var(--muted);font-size:13px;margin:2px 0}
-/* ---------- 整頁表格：欠缺品項 ／ 給二廠－回一廠 ---------- */
-.page-links{display:flex;gap:8px}
-.pagelink{font-weight:800}
-.fullpage{display:flex;flex-direction:column;gap:10px;padding-bottom:40px}
-.page-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.page-top h1{font-size:22px;margin:0;flex:1}
-.savestate{border-radius:999px;padding:4px 14px;font-weight:800;font-size:14px;background:var(--surface2);color:var(--muted)}
-.savestate.ok{background:#e6f4ea;color:#1e8e3e}
-.savestate.error{background:#fce8e6;color:#d93025}
-.perm{color:var(--muted);font-size:13.5px}
-.hintbar{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px;color:var(--muted);font-size:13.5px}
-.legendrow{display:flex;gap:18px;align-items:center;font-size:13px;color:var(--muted);flex-wrap:wrap}
-.legendrow .sw{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:5px}
-.legendrow .sw.ok{background:#e6f4ea;border:1px solid #1e8e3e}
-.tf-toggle{display:flex;align-items:center;gap:6px;font-size:13px}
-.pagetable{overflow-x:auto;border:1px solid var(--line2);border-radius:12px;background:var(--surface)}
-.pagetable table{border-collapse:collapse;width:100%;min-width:900px;font-size:14.5px}
-.pagetable th,.pagetable td{border-bottom:1px solid var(--line);padding:7px 10px;text-align:left;white-space:nowrap;vertical-align:middle}
-.pagetable th{background:var(--surface2);font-weight:800;position:sticky;top:0;z-index:1}
-.pagetable th.pg-f1{background:rgba(79,227,238,.16)}
-.pagetable th.pg-f2{background:rgba(255,166,77,.16)}
-.pagetable tr.matched td{background:#e6f4ea}
-.pagetable tr.cancelled td{opacity:.55;text-decoration:line-through}
-.pagetable tr.cancelled td .rowdel,.pagetable tr.cancelled td .codelink{text-decoration:none}
-.pagetable .tag{display:inline-block;border-radius:8px;padding:1px 8px;font-size:12.5px;font-weight:800;margin-left:4px}
-.pagetable .tag.late{background:#fce8e6;color:#d93025}
-.pagetable .tag.urgent{background:#fce8e6;color:#d93025}
-.pagetable .tag.ok{background:#ceead6;color:#1e8e3e}
-.pagetable .tag.mute{background:var(--surface2);color:var(--muted)}
-.cellbtn{border:0;background:none;font:inherit;padding:6px 8px;border-radius:8px;min-height:34px;cursor:text;text-align:left}
-.cellbtn:hover{background:var(--surface2);outline:1.5px dashed var(--line)}
-.cellinp{min-height:36px;min-width:110px;padding:4px 8px}
-.rowact{width:86px}
-.rowdel{border:0;background:none;color:#d93025;font-weight:800;cursor:pointer;font-size:13.5px;padding:6px 8px;border-radius:8px}
-.rowdel:hover{background:#fce8e6}
+/* ---------- 整頁三張表：欠缺品項 ／ 給二廠－回一廠 ／ 工作紀錄 ---------- */
+:root{--pg-f1-head:#ffe14a;--pg-f1-cell:#fff4a8;--pg-f2-head:#39d353;--pg-f2-cell:#b6f5bf;--pg-bad:#c62828;--pg-line:#d7dbe2;--pg-bg:#f4f5f7;}
+body.pvmode ~ *{}
+.page-links{display:flex;gap:8px;margin-left:auto}
+.pagelink{min-height:44px;font-weight:800}
+.pagelink.shortage{background:var(--pg-f1-head);border-color:#d9c900}
+.pagelink.transfer{background:var(--pg-f2-head);border-color:#1fa33a;color:#06340f}
+.return-chip{background:#fff;border:2px solid var(--ink)}
+.fullpage{display:flex;flex-direction:column;gap:10px;padding:0 0 90px}
+.page-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--pg-line);border-radius:12px;padding:10px 12px}
+.pageback{min-height:44px;font-weight:800}
+.page-title{display:flex;align-items:center;gap:12px;flex:1;min-width:0}
+.page-title h1{font-size:20px;margin:0}
+.page-sub{margin:0;color:var(--muted);font-size:15px;flex-basis:100%}
+.savestate{font-size:15px;font-weight:700}
+.savestate.ok{color:#1e8e3e}
+.savestate.error{color:var(--pg-bad)}
+.savestate.busy{color:var(--muted)}
+.perm{color:var(--muted);font-size:14px}
+.statstrip{display:flex;gap:10px}
+.stat{flex:1;background:var(--surface);border:1px solid var(--pg-line);border-radius:12px;padding:10px 14px;display:flex;flex-direction:column}
+.stat b{font-size:28px;line-height:1.1}
+.stat span{font-size:15px;color:var(--muted)}
+.stat.ok b{color:#1e8e3e}
+.stat.bad b{color:var(--pg-bad)}
+.sheettable{overflow-x:auto;border:1px solid var(--pg-line);border-radius:12px;background:var(--surface)}
+.sheettable table{border-collapse:collapse;width:100%;min-width:980px;font-size:16px}
+.sheettable th,.sheettable td{border-bottom:1px solid var(--pg-line);border-right:1px solid var(--pg-line);padding:6px 12px;text-align:left;white-space:nowrap;vertical-align:middle;height:44px}
+.sheettable th:last-child,.sheettable td:last-child{border-right:0}
+.sheettable thead th{position:sticky;top:0;z-index:1;font-size:15px;font-weight:700;background:#e9ecf1}
+.sheettable th.h-f1{background:var(--pg-f1-head)}
+.sheettable th.h-f2{background:var(--pg-f2-head)}
+.sheettable tbody tr{border-left:none}
+td.c-f1{background:var(--pg-f1-cell)}
+td.c-f2{background:var(--pg-f2-cell)}
+td.c-f2-empty{background:#ffffff}
+.sheettable td.c-f1:first-of-type,.sheettable .sep-l{border-left:2px solid #37474f}
+.sheettable .late-txt{color:var(--pg-bad);font-weight:800;margin-left:4px}
+.sheettable td:has(.late-txt) .cellbtn{color:var(--pg-bad)}
+.urgent-tag{display:inline-block;background:var(--pg-bad);color:#fff;border-radius:6px;padding:0 6px;font-size:13px;font-weight:800;margin-left:4px}
+.pending-tag{display:inline-block;border:1px solid var(--pg-bad);color:var(--pg-bad);border-radius:6px;padding:0 6px;font-size:12.5px;margin-left:4px}
+.sheettable tr.returned td{background:#eef7ef}
+.sheettable tr.cancelled td{opacity:.55;text-decoration:line-through}
+.sheettable tr.cancelled td .rowdel,.sheettable tr.cancelled td .codelink{text-decoration:none}
+.cellbtn{border:0;background:none;font:inherit;padding:8px 10px;border-radius:8px;min-height:36px;cursor:text;text-align:left;min-width:64px}
+.cellbtn:hover{outline:1.5px dashed var(--pg-line)}
+.cellinp{min-height:38px;min-width:110px;padding:4px 8px;font-size:16px}
+.hmcell .cellinp{min-width:70px;width:74px}
+.hmcell{white-space:nowrap}
+.rowact{width:96px}
+.rowdel{border:0;background:none;color:var(--pg-bad);font-weight:700;cursor:pointer;font-size:15px;padding:8px;min-height:36px}
+.rowdel:hover{text-decoration:underline}
 .rowdel.restore{color:var(--muted)}
-.codelink{border:0;background:none;color:var(--accent);font-weight:800;cursor:pointer;text-decoration:underline dotted;padding:6px 4px}
-.addrow{margin-top:10px;width:100%;height:56px;font-size:17px;font-weight:800;border:2px dashed var(--line);background:var(--surface);border-radius:12px;cursor:pointer;color:var(--ink)}
-.addrow:hover{border-color:var(--accent);color:var(--accent)}
-.custom-cols{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.custom-cols .inp{max-width:220px}
-.custom-cols .hint{color:var(--muted);font-size:13px}
+.chk input{width:22px;height:22px;accent-color:#1e8e3e}
+.codelink{border:0;background:none;color:#0b57d0;font-weight:700;cursor:pointer;text-decoration:underline;padding:8px 6px;font-size:16px}
+.addrow{margin-top:12px;width:100%;height:48px;font-size:17px;font-weight:800;border:2px dashed var(--pg-line);background:var(--surface);cursor:pointer}
+.addrow:hover{border-color:#0b57d0;color:#0b57d0}
+.empty{padding:18px;color:var(--muted);font-size:16px}
+.wl-filter{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--pg-line);border-radius:12px;padding:8px 12px}
+.wl-filter label{font-size:15px;font-weight:700}
+.wl-filter input[type=date]{min-height:38px}
+.tf-urgent .cellbtn,.tf-urgent .cellinp{display:inline-block;width:auto;min-width:76px}
 .mute{color:var(--muted)}
-.tf-urgent .cellbtn,.tf-urgent .cellinp{display:inline-block;width:auto;min-width:80px}
+body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.flash-row td{outline:3px solid #0b57d0;outline-offset:-3px}
+@media (max-width:760px){
+  .page-links{width:100%;margin-left:0}
+  .page-links .pagelink{flex:1 1 50%}
+  .pageback{position:sticky;top:0;z-index:5}
+  .addrow{position:fixed;left:12px;right:12px;bottom:12px;z-index:5;width:auto;margin:0}
+  .fullpage{padding-bottom:110px}
+  .statstrip{flex-direction:row}
+  .stat b{font-size:22px}
+  .sheettable table{min-width:820px}
+}
+
 /* 員工月曆：上班／休假筆刷 */
 .cal-brush{margin-top:8px}
 .cal-brush .tg[aria-pressed="true"]{font-weight:900}
+.raw-txt{color:var(--pg-bad);font-weight:700;margin-right:6px}

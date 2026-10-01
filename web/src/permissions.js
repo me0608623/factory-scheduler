@@ -8,6 +8,7 @@ export const PERMISSIONS = [
   ['work_contents.manage','工作內容定義','設定純人工或需設備的工作資格'],
   ['transfers.manage','跨廠加工','加工單、批次、流轉與點收'],
   ['rush.manage','特別趕貨','一廠欠貨品項與二廠加工趕貨紀錄'],
+  ['worklog.manage','工作紀錄','二廠加工的工作紀錄表'],
   ['rosters.manage','輪班草稿','固定班與變形工時草稿'],
   ['scenarios.manage','試排情境','儲存與查看個人試排情境'],
   ['execution.manage','全部現場回報','可替任何員工開始、報量與完成'],
@@ -17,7 +18,7 @@ export const PERMISSIONS = [
 
 const LEAD_DEFAULT = new Set([
   'schedule.manage','incidents.manage','orders.manage','calendar.manage',
-  'transfers.manage','rush.manage','rosters.manage','scenarios.manage','execution.manage','archives.manage',
+  'transfers.manage','rush.manage','worklog.manage','rosters.manage','scenarios.manage','execution.manage','archives.manage',
   'notes.manage',
 ]);
 

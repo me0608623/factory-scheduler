@@ -57,10 +57,15 @@ test('欠缺品項列旗標：二廠未排與「晚」判定', () => {
   assert.equal(shortageRowFlags(row({ f1: { shipDate: '2026-10-01', vendor: '', desc: '', shortQty: null, note: '' } })).late, false);   // 沒出貨日不標晚
 });
 
-test('欠缺品項自訂欄位：合法可存、超長拒絕、也能滿足非空條件', () => {
-  validateRush([row({ custom: { 模具號: 'M-07', 運費: '對方付' } })]);
-  assert.throws(() => validateRush([row({ custom: { 模具號: 'x'.repeat(201) } })]), /200 字/);
-  const emptyBoth = { id: 'r9', f1: { shipDate: '', vendor: '', desc: '', shortQty: null, note: '' }, f2: { startDate: '', dueDate: '', itemProcess: '', desc: '', qty: null, note: '' } };
-  assert.throws(() => validateRush([emptyBoth]), /至少要填/);
-  validateRush([{ ...emptyBoth, custom: { 註記: '先佔位' } }]);
+import { validateWorkLog } from '../src/worklog.js';
+const wl = (more = {}) => ({ id: 'w1', date: '2026-10-01', code: '52AR00232', goodQty: 350, badQty: 2, startH: 8, startM: 30, endH: 17, endM: 0, reworkMin: 15, worker: '阿明', note: '', ...more });
+
+test('工作紀錄：合法列通過、時分範圍與數字規則', () => {
+  validateWorkLog([wl()]);
+  assert.throws(() => validateWorkLog([wl({ startH: 24 })]), /0–23/);
+  assert.throws(() => validateWorkLog([wl({ endM: 60 })]), /0–59/);
+  assert.throws(() => validateWorkLog([wl({ goodQty: -1 })]), /整數/);
+  assert.throws(() => validateWorkLog([wl({ date: '2026/10/01' })]), /YYYY-MM-DD/);
+  assert.throws(() => validateWorkLog([wl({ date: '', code: '', worker: '', note: '', goodQty: null, badQty: null, reworkMin: null, startH: null, startM: null, endH: null, endM: null })]), /至少要填/);
+  assert.throws(() => validateWorkLog([wl(), wl()]), /id 重複/);
 });

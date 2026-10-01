@@ -17,6 +17,7 @@ import { legacyFieldMap } from './legacy-field-map.js';
 import {transferOrders,materialWarning,transferPlanWarnings,batchOf,validateTransfers,transferSummary} from './transfers.js';
 import {transferUI} from './transfer-ui.js';
 import {validateRush,shortageRowFlags} from './rush.js';
+import {validateWorkLog} from './worklog.js';
 import {rosterUI} from './roster-ui.js';
 import {installScheduleChat} from './chat-ui.js';
 import {PERMISSIONS,effectivePermission} from './permissions.js';
@@ -57,7 +58,7 @@ function mergeIv(iv){iv.sort((a,b)=>a[0]-b[0]);const o=[];for(const x of iv){if(
 let S=null;            // 目前排程（全部資料）
 let readOnly=false, undoStack=[];
 let recentManualMove=null;
-const UI={date:null,view:"day",layout:'resource',factory:1,group:'all',modal:null,zoom:1,theme:"light",drawer:null,focus:null,prefs:structuredClone(DEFAULT_PREFERENCES),page:null,returnTo:null,leaveBrush:null,editCell:null,confirmRow:null};
+const UI={date:null,view:"day",layout:'resource',factory:1,group:'all',modal:null,zoom:1,theme:"light",drawer:null,focus:null,prefs:structuredClone(DEFAULT_PREFERENCES),page:null,returnTo:null,leaveBrush:null,editCell:null,confirmRow:null,workLogDate:null};
 function loadFactory(){try{UI.factory=factoryPreference(localStorage.getItem("fsched-factory"));}catch(e){}}
 function setFactory(n){UI.factory=FACTORIES.includes(n)?n:"all";try{localStorage.setItem("fsched-factory",String(UI.factory));}catch(e){}}
 const shownEmployees=()=>groupedEmployees(S,S.employees.filter(e=>inFactory(e,UI.factory)),UI.group);
@@ -626,6 +627,7 @@ function render(){
   document.body.classList.toggle("tv",!!UI.tv);
   document.body.classList.toggle("pvmode",!!PV);
   document.body.classList.toggle("pv-sheet-collapsed",!!(PV&&PV.sheetCollapsed));
+  document.body.classList.toggle("pagemode",!!UI.page);
   document.body.classList.toggle("has-app-nav",!PV);
   document.body.classList.toggle("drawer-open",!!UI.drawer&&!PV);
   let html;
@@ -636,7 +638,7 @@ function render(){
     try{html=withState(o.A,()=>topHTML()+'<main class="wrap">'+pvPanelHTML(o))+withState(st,()=>bannerHTML()+(UI.view==="day"?dayHTML(ctx):weekHTML(ctx))+generalBoardHTML())+"</main>";}
     finally{readOnly=ro;}
   }else html=topHTML()+appNavHTML()+'<main class="wrap">'+
-    (UI.page==='shortage'?shortagePageHTML():UI.page==='transferflow'?transferFlowPageHTML():
+    (UI.page==='shortage'?shortagePageHTML():UI.page==='transferflow'?transferFlowPageHTML():UI.page==='worklog'?workLogPageHTML():
       bannerHTML()+(UI.view==="day"?(UI.layout==='work'?workViewHTML():dayHTML()+generalBoardHTML()):weekHTML()+generalBoardHTML()))+'</main>'+drawerHTML();
   $("#app").innerHTML=html;
   const sc2=$(".scroller");if(sc2)sc2.scrollLeft=sl;
@@ -657,15 +659,15 @@ function topHTML(){
   '<div class="seg factory-switch" role="group" aria-label="排程廠別">'+
   [[1,'1 廠'],[2,'2 廠'],['all','跨廠']].map(([v,t])=>'<button data-act="factory" data-v="'+v+'" aria-pressed="'+(UI.factory===v)+'">'+t+'</button>').join('')+'</div>'+
   '<div class="page-links">'+
-  '<button class="btn pagelink" data-act="page" data-v="shortage">欠缺品項</button>'+
-  '<button class="btn pagelink" data-act="page" data-v="transferflow">給二廠／回一廠</button></div>'+
+  '<button class="btn pagelink shortage" data-act="page" data-v="shortage">欠缺品項</button>'+
+  '<button class="btn pagelink transfer" data-act="page" data-v="transfer">給二廠／回一廠</button></div>'+
   '<div class="datenav"><button class="iconbtn" data-act="prev" aria-label="往前">‹</button>'+
   '<button class="datebox'+(!wk&&di.type!=="work"?" hol":"")+'" data-act="pick"><b class="num">'+esc(title)+'</b><small>'+esc(sub)+'</small></button>'+
   '<input type="date" id="datepick" value="'+d+'" style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none" tabindex="-1" aria-hidden="true">'+
   '<button class="iconbtn" data-act="next" aria-label="往後">›</button></div>'+
   (S.demo?'<span class="demo-chip">示範資料</span>':'')+(readOnly&&!PV?'<span class="ro-chip">排程唯讀</span>':'')+
   (S.setupPending?'<button class="btn primary verify-entry" data-act="catalog">初次核對資料</button>':'')+
-  (UI.returnTo?'<button class="btn pagelink return-chip" data-act="page-return">↩ 返回'+(UI.returnTo==='shortage'?'欠缺品項':'給二廠／回一廠')+'</button>':'')+
+  (UI.returnTo?'<button class="btn pagelink return-chip" data-act="page-return">↩ 返回'+(UI.returnTo.page==='shortage'?'欠缺品項':UI.returnTo.page==='worklog'?'工作紀錄':'給二廠／回一廠')+'</button>':'')+
   '<div class="top-status">'+syncChipHTML()+
   '<button class="btn" data-act="settings" title="'+esc(tx('settings'))+'">'+IC.user+'<span class="lbl">'+esc(STORE&&STORE.kind==="supabase"?(STORE.userName||"帳號"):"本機")+'</span></button></div></div></div></header>';
 }
@@ -681,7 +683,7 @@ function appNavHTML(){
     '<button class="side-profile" data-act="settings" aria-pressed="'+(UI.drawer==='settings')+'"><span class="side-avatar">'+esc(account.slice(0,1).toUpperCase())+'</span><span><b>'+esc(account)+'</b><small>'+esc(role)+'</small></span><i>›</i></button>'+
     '<span class="side-section">排程</span>'+
     '<button class="app-nav-item nav-today" data-act="today" aria-pressed="'+(!UI.drawer)+'"><b>'+NAV_IC.today+'</b><span>'+tx('today')+'</span></button>'+item('orders',tx('orders'))+
-    '<span class="side-section">現場</span>'+item('people',tx('people'))+item('output',tx('output'))+item('notes',tx('notes'))+
+    '<span class="side-section">現場</span>'+item('people',tx('people'))+item('output',tx('output'))+item('worklog','工作紀錄')+item('notes',tx('notes'))+
     '<span class="side-section">系統</span>'+item('more',tx('more'))+
     '<div class="side-footer"><button class="side-health '+SYNC.state+'" data-act="sync"><i></i><span><b>系統連線</b><small>'+esc(sync)+'</small></span></button></div></nav>';
 }
@@ -1142,8 +1144,9 @@ document.addEventListener("click",e=>{
     case "resource-load":if(!PV)openModal({t:'resource-load'});break;
     case 'work-queue':openModal({t:'work-queue'});break;
     case 'rush':UI.page='shortage';UI.drawer=null;render();window.scrollTo(0,0);break;
-    case "page":{if(PV){toast("預覽中：先按「用這套」或「取消」");break;}const v=a.dataset.v;UI.page=(v==="board"||!v)?null:v;UI.drawer=null;UI.focus=null;UI.editCell=null;UI.confirmRow=null;render();window.scrollTo(0,0);break;}
-    case "page-return":{const p=UI.returnTo;UI.returnTo=null;UI.page=p||null;render();window.scrollTo(0,0);break;}
+    case "page":{if(PV){toast("預覽中：先按「用這套」或「取消」");break;}const map={board:null,shortage:"shortage",transfer:"transferflow",worklog:"worklog"};UI.page=map[a.dataset.v]??null;UI.drawer=null;UI.focus=null;UI.editCell=null;UI.confirmRow=null;try{history.replaceState(null,"",UI.page?"?view="+(UI.page==="transferflow"?"transfer":UI.page):location.pathname);}catch{}render();window.scrollTo(0,0);if(UI.page)flashReturnRow();break;}
+    case "page-return":{const p=UI.returnTo?.page||null;UI.returnTo=null;UI.page=p;render();window.scrollTo(0,0);if(p)flashReturnRow();break;}
+    case "worklog":UI.page="worklog";UI.drawer=null;try{history.replaceState(null,"","?view=worklog");}catch{}render();window.scrollTo(0,0);flashReturnRow();break;
     case "cell-edit":{UI.editCell={table:a.dataset.cell,id:a.dataset.id,key:a.dataset.key};render();break;}
     case "col-add":customColAdd(a.dataset.v);break;
     case "rush-addrow":{
@@ -1163,16 +1166,17 @@ document.addEventListener("click",e=>{
       commit({kind:"edit",title:"刪除欠缺品項一列",lines:[]},"rush.manage");
       toast("已刪除");break;}
     case "rush-goto":{
-      const code=(a.dataset.v||"").trim();
+      const row=(S.rushOrders||[]).find(r=>r.id===a.dataset.id);
+      const code=String(row?.f1?.desc||"").trim();
       const o=S.orders.find(x=>x.code===code);
-      if(o){UI.returnTo="shortage";UI.page=null;UI.focus={type:"order",id:o.id};render();window.scrollTo(0,0);toast("已高亮工單 "+code+"；要回去按上方「返回欠缺品項」");}
+      if(o){UI.returnTo={page:"shortage",rowId:row.id};UI.page=null;UI.focus={type:"order",id:o.id};try{history.replaceState(null,"",location.pathname);}catch{}render();window.scrollTo(0,0);toast("已高亮工單 "+code+"；要回去按上方「返回」");}
       else toast("找不到工單號 "+code+"；先在「工單」用這個品號建單，就能互跳");
       break;}
     case "tf-addrow":{
       if(!canPermission("transfers.manage"))break;
       let n=transferOrders(S).length+1,code="XF-"+String(n).padStart(3,"0");
       while(transferOrders(S).some(x=>x.code===code)){n++;code="XF-"+String(n).padStart(3,"0");}
-      const row={id:uid(),code,itemCode:"（待填品號）",fromFactory:1,toFactory:2,returnFactory:1,totalQty:null,urgentQty:0,notified:todayStr(),expectedSend:null,due:null,urgentDue:null,workIds:[],status:"active",note:"",batches:[],events:[]};
+      const row={id:uid(),code,itemCode:"（待填品號）",fromFactory:1,toFactory:2,returnFactory:1,totalQty:null,urgentQty:0,notified:todayStr(),expectedSend:null,due:null,urgentDue:null,seq:null,floor1:null,floor3:null,returned:false,workIds:[],status:"active",note:"",batches:[],events:[]};
       S.transferOrders.push(row);
       try{validateTransfers(S,{before:S});}catch(e){S.transferOrders.pop();toast(e.message);break;}
       commit({kind:"edit",title:"加工表加一列 "+code,lines:[]},"transfers.manage");
@@ -1194,9 +1198,26 @@ document.addEventListener("click",e=>{
       commit({kind:"edit",title:"還原加工單 "+o.code,lines:[]},"transfers.manage");
       toast("已還原");break;}
     case "tf-showcancelled":{UI.tfShowCancelled=!UI.tfShowCancelled;render();break;}
+    case "wl-addrow":{
+      if(!canPermission("worklog.manage"))break;
+      const row={id:uid(),date:todayStr(),code:"",goodQty:null,badQty:null,startH:null,startM:null,endH:null,endM:null,reworkMin:null,worker:"",note:""};
+      S.workLog.push(row);
+      try{validateWorkLog(S.workLog);}catch(e){S.workLog.pop();toast(e.message);break;}
+      commit({kind:"edit",title:"工作紀錄加一列",lines:[]},"worklog.manage");
+      UI.editCell={table:"wl",id:row.id,key:"code"};render();
+      setTimeout(()=>{const el=$(".cellinp");el?.focus();},60);
+      break;}
+    case "wl-del":{
+      if(!canPermission("worklog.manage"))break;
+      if(UI.confirmRow!=="wldel:"+a.dataset.id){UI.confirmRow="wldel:"+a.dataset.id;render();break;}
+      UI.confirmRow=null;
+      S.workLog=S.workLog.filter(r=>r.id!==a.dataset.id);
+      commit({kind:"edit",title:"刪除工作紀錄一列",lines:[]},"worklog.manage");
+      toast("已刪除");break;}
+    case "wl-clearfilter":{UI.workLogDate="";render();break;}
     case "tf-goto":{
       const o=transferOrders(S).find(x=>x.id===a.dataset.id);if(!o)break;
-      UI.returnTo="transferflow";UI.page=null;
+      UI.returnTo={page:"transferflow",rowId:o.id};UI.page=null;try{history.replaceState(null,"",location.pathname);}catch{}
       const linked=(S.workAssignments||[]).filter(x=>x.transferBatchId&&o.batches.some(b=>b.id===x.transferBatchId));
       if(linked.length){
         const A=linked[0];
@@ -1254,6 +1275,14 @@ document.addEventListener("click",e=>{
 document.addEventListener("change",e=>{
   if(e.target.dataset?.cell){saveCellEdit(e.target);return;}
   if(e.target.dataset?.actChange==="tf-showcancelled"){UI.tfShowCancelled=e.target.checked;render();return;}
+  if(e.target.dataset?.actChange==="tf-returned"){
+    if(!canPermission("transfers.manage")){render();return;}
+    const o=transferOrders(S).find(x=>x.id===e.target.dataset.id);
+    if(o){o.returned=!!e.target.checked;
+      try{validateTransfers(S,{before:S});}catch(err){o.returned=!o.returned;render();return;}
+      commit({kind:"edit",title:(o.returned?"勾選":"取消")+"已回一廠 "+o.code,lines:[]},"transfers.manage");}
+    return;}
+  if(e.target.dataset?.actChange==="wl-filter"){UI.workLogDate=e.target.value;render();return;}
   if(e.target.id==='tf-toFactory'&&UI.modal?.t==='transfer-edit'){syncInputs();UI.modal.draft.workIds=UI.modal.draft.workIds.filter(id=>workCatalog(S).some(w=>w.id===id&&w.factory===Number(e.target.value)));renderModal();return;}
   if(e.target.id?.startsWith('gw-')){generalChange(e.target);return;}
   if(e.target.id==='staff-group-filter'){UI.group=e.target.value;render();return;}
@@ -2603,6 +2632,7 @@ function queueSync(entry){
 function normalizeState(){
   S.transferOrders ||= [];
   S.rushOrders ||= [];
+  S.workLog ||= [];
   S.workContents ||= [];S.workAssignments ||= [];
   S.execution ||= [];
   S.leaveRequests ||= [];S.memos ||= [];
@@ -2769,27 +2799,24 @@ function applyPersonDay(eid,d,want){
   openPlans(E.name+" "+mdw(d)+" 臨時休假，"+n+" 段工作要調整",E.name+" "+md(d)+" 休假","leave",ev,STRAT_EVENT,{event:{type:"leave",employee:eid,date:d}});
 }
 
-/* ---------- 整頁表格：欠缺品項 ／ 給二廠－回一廠（Excel 式可編輯） ---------- */
-function pageSaveState(){return SYNC.state==="busy"?"儲存中…":SYNC.state==="error"?"沒存到，點右上重試":"已儲存";}
-function customCols(key){try{return JSON.parse(localStorage.getItem("fsched-cols-"+key)||"[]");}catch{return[];}}
-function customColAdd(key){
-  const inp=$("#custom-col-name"),name=(inp?.value||"").trim(),cols=customCols(key);
-  if(!name||name.length>20){toast("欄位名稱請填 1–20 字");return;}
-  if(cols.includes(name)){toast("已有這個欄位");return;}
-  cols.push(name);
-  try{localStorage.setItem("fsched-cols-"+key,JSON.stringify(cols));}catch{}
-  render();
-}
+/* ---------- 整頁三張表：欠缺品項 ／ 給二廠－回一廠 ／ 工作紀錄（Excel 式、欄位固定、雲端儲存） ---------- */
+const PAGE_KEYS={shortage:"shortage",transfer:"transferflow",worklog:"worklog"};
+function pageSaveState(){return SYNC.state==="busy"?"儲存中…":SYNC.state==="error"?"沒存到，再試一次":"已儲存";}
 function getPath(obj,path){return path.split(".").reduce((v,k)=>v?.[k],obj);}
+function numSelOptions(cur,max,step){let out='<option value=""></option>';for(let i=0;i<=max;i+=step||1){const v=String(i);out+='<option value="'+v+'"'+(String(cur??"")===v?" selected":"")+'>'+String(i).padStart(2,"0")+'</option>';}return out;}
 function editCellHTML(table,id,key,type,value,ro){
   const mute='<span class="mute">—</span>';
-  if(ro)return (value===null||value===undefined||value==="")?mute:esc(type==="date"?md(String(value)):String(value));
+  const shown=(value===null||value===undefined||value==="")?mute:esc(type==="date"?md(String(value)):String(value));
+  if(ro)return shown;
   const editing=UI.editCell&&UI.editCell.table===table&&UI.editCell.id===id&&UI.editCell.key===key;
   if(editing){
+    if(type==="hour"||type==="minute"){
+      const max=type==="hour"?23:59;
+      return '<select class="inp cellinp" data-cell="'+table+'" data-id="'+esc(id)+'" data-key="'+key+'" data-type="number">'+numSelOptions(value,max,type==="minute"?1:1)+'</select>';
+    }
     const attr=type==="date"?'type="date"':type==="number"?'type="number" min="0" step="1"':'maxlength="200" autocomplete="off"';
     return '<input class="inp cellinp" data-cell="'+table+'" data-id="'+esc(id)+'" data-key="'+esc(key)+'" data-type="'+type+'" '+attr+' value="'+esc(value??"")+'">';
   }
-  const shown=(value===null||value===undefined||value==="")?mute:esc(type==="date"?md(String(value)):String(value));
   return '<button class="cellbtn" data-act="cell-edit" data-cell="'+table+'" data-id="'+esc(id)+'" data-key="'+esc(key)+'" data-type="'+type+'">'+shown+'</button>';
 }
 function saveCellEdit(input){
@@ -2799,94 +2826,133 @@ function saveCellEdit(input){
     if(v==="")v=null;else{v=Math.round(+v);if(!Number.isFinite(v)||v<0){toast("數量請填 0 以上的整數");UI.editCell=null;render();return;}}
   }else{
     v=String(v??"").trim();
-    if(type==="date"&&v!==""&&!/^\d{4}-\d{2}-\d{2}$/.test(v)){toast("日期請用選擇器選，格式 YYYY-MM-DD");UI.editCell=null;render();return;}
+    if(type==="date"&&v!==""&&!/^\d{4}-\d{2}-\d{2}$/.test(v)){toast("日期請用選擇器選");UI.editCell=null;render();return;}
     v=v===""?null:v;
   }
   UI.editCell=null;
-  if(table==="rush"){
-    const row=(S.rushOrders||[]).find(r=>r.id===id);if(!row)return;
-    const before=getPath(row,key);
-    if(before===v){render();return;}
-    if(key.startsWith("custom."))row.custom??={};
-    if(key.startsWith("f1."))row.f1??={};
-    if(key.startsWith("f2."))row.f2??={};
-    setPath(row,key,v);
-    try{validateRush(S.rushOrders);}catch(e){setPath(row,key,before);toast(e.message+"；這格沒有儲存");render();return;}
-    commit({kind:"edit",title:"更新欠缺品項的一個欄位",lines:[]},"rush.manage");
-  }else if(table==="tf"){
-    const o=transferOrders(S).find(x=>x.id===id);if(!o)return;
-    const before=getPath(o,key);
-    if(before===v){render();return;}
-    if(key.startsWith("custom."))o.custom??={};
-    setPath(o,key,v);
-    if(key==="code"&&v&&transferOrders(S).some(x=>x.id!==id&&x.code===v)){setPath(o,key,before);toast("加工編號重複；這格沒有儲存");render();return;}
-    try{validateTransfers(S,{before:S});}catch(e){setPath(o,key,before);toast(e.message+"；這格沒有儲存");render();return;}
-    commit({kind:"edit",title:"更新跨廠加工的一個欄位",lines:[]},"transfers.manage");
-  }
+  let list,find,validate,permission,title;
+  if(table==="rush"){list=S.rushOrders;validate=()=>validateRush(S.rushOrders);permission="rush.manage";title="更新欠缺品項的一個欄位";}
+  else if(table==="tf"){list=S.transferOrders;validate=()=>validateTransfers(S,{before:S});permission="transfers.manage";title="更新跨廠加工的一個欄位";}
+  else if(table==="wl"){list=S.workLog;validate=()=>validateWorkLog(S.workLog);permission="worklog.manage";title="更新工作紀錄的一個欄位";}
+  else return;
+  const row=list.find(r=>r.id===id);if(!row)return;
+  const before=getPath(row,key);
+  if(before===v){render();return;}
+  if(key.startsWith("f1."))row.f1??={};
+  if(key.startsWith("f2."))row.f2??={};
+  setPath(row,key,v);
+  if(table==="tf"&&key==="expectedSend"&&v)delete row.expectedSendRaw;
+  if(table==="tf"&&key==="urgentDue"&&v)delete row.urgentRaw;
+  if(table==="tf"&&key==="code"&&v&&list.some(x=>x.id!==id&&x.code===v)){setPath(row,key,before);toast("加工編號重複；這格沒有儲存");render();return;}
+  try{validate();}catch(e){setPath(row,key,before);toast(e.message+"；這格沒有儲存");render();return;}
+  commit({kind:"edit",title,lines:[]},permission);
 }
-function pageShell(title,backKey,bodyHtml,ro,colsKey){
+function flashReturnRow(){
+  if(!UI.returnTo?.rowId)return;
+  const el=document.querySelector('[data-rowid="'+CSS.escape(UI.returnTo.rowId)+'"]');
+  if(el){el.scrollIntoView({block:"center"});el.classList.add("flash-row");setTimeout(()=>el.classList.remove("flash-row"),2600);}
+  UI.returnTo={page:UI.returnTo.page};
+}
+function pageShell(title,subtitle,bodyHtml,ro,addAct){
   return '<div class="fullpage">'+
-    '<div class="page-top"><button class="btn pagelink" data-act="page" data-v="board">← 回今天班表</button><h1>'+esc(title)+'</h1>'+
-    '<span class="savestate '+SYNC.state+'">'+pageSaveState()+'</span>'+
-    '<span class="perm">'+(ro?"員工與唯讀：只能看":"老闆／組長：點格子即可修改，改完即存")+'</span></div>'+
+    '<div class="page-top"><button class="btn pageback" data-act="page" data-v="board">← 回今天班表</button>'+
+    '<div class="page-title"><h1>'+esc(title)+'</h1><span class="savestate '+SYNC.state+'">'+pageSaveState()+'</span></div>'+
+    (subtitle?'<p class="page-sub">'+esc(subtitle)+'</p>':"")+
+    '<span class="perm">'+(ro?"只可查看":"老闆／組長：點格子即可修改")+'</span></div>'+
     bodyHtml+
-    (ro?'':'<button class="addrow" data-act="'+(colsKey==="shortage"?"rush-addrow":"tf-addrow")+'">＋ 加一列</button>'+
-     '<div class="custom-cols"><input class="inp" id="custom-col-name" maxlength="20" placeholder="新欄位名稱（例：模具號）"><button class="btn" data-act="col-add" data-v="'+colsKey+'">＋自訂欄位</button><span class="hint">自訂欄位只存在這台裝置的表格設定；公式欄（#VALUE!）不搬上來。</span></div>')+
+    (ro?'':'<button class="addrow" data-act="'+addAct+'">＋加一列</button>')+
     '</div>';
+}
+function rowActCell(table,delAct,id,extraRestore){
+  return '<td class="rowact">'+extraRestore+'<button class="rowdel" data-act="'+delAct+'" data-id="'+esc(id)+'">'+(UI.confirmRow===table+":"+id?"再按一次刪除":"刪除")+'</button></td>';
 }
 function shortagePageHTML(){
   const ro=!canPermission("rush.manage");
-  const cols=customCols("shortage");
   const rows=[...(S.rushOrders||[])].sort((a,b)=>String(a.f1?.shipDate||"9999").localeCompare(String(b.f1?.shipDate||"9999")));
-  const head='<div class="hintbar">左邊＝一廠欠貨品項；右邊＝二廠何時補。同一列同一張單。右欄空白＝二廠未排；預計完成晚於出貨日會標「晚」。點品號跳到排程表高亮該單，再按上方「返回欠缺品項」回來。'+(S.setupPending?' 資料待確認中：可看可改這張表，但不會打開自動排班。':'')+'</div>';
-  const table='<div class="pagetable"><table><thead>'+
-    '<tr><th class="rowact"></th><th class="pg-f1" colspan="5">一廠（欠貨品項）</th><th class="pg-f2" colspan="'+(6+cols.length)+'">二廠（加工回覆）</th></tr>'+
-    '<tr><th class="rowact"></th><th>出貨日期</th><th>廠商</th><th>品號</th><th>欠貨數量</th><th>備註</th><th>開工</th><th>預計完成</th><th>品號／製程</th><th>描述</th><th>數量</th><th>備註</th>'+cols.map(c=>'<th>'+esc(c)+'</th>').join("")+'</tr></thead><tbody>'+
-    (rows.map(r=>{
-      const flags=shortageRowFlags(r);
-      const cell=(k,t)=>'<td>'+editCellHTML("rush",r.id,k,t,getPath(r,k),ro)+'</td>';
+  const flags=rows.map(r=>shortageRowFlags(r));
+  const backed=flags.filter(f=>!f.f2Empty).length;
+  const late=flags.filter(f=>f.late).length;
+  const head='<div class="statstrip">'+
+    '<div class="stat"><b>'+rows.length+'</b><span>還缺幾筆</span></div>'+
+    '<div class="stat ok"><b>'+backed+'</b><span>二廠已回幾筆</span></div>'+
+    '<div class="stat bad"><b>'+late+'</b><span>會晚幾筆</span></div></div>';
+  const table='<div class="sheettable"><table><thead>'+
+    '<tr><th class="rowact"></th><th class="h-f1" colspan="5">一廠</th><th class="h-f2" colspan="6">二廠</th></tr>'+
+    '<tr><th class="rowact"></th><th class="h-f1">出貨日期</th><th class="h-f1">廠商</th><th class="h-f1">品號</th><th class="h-f1">欠貨數量</th><th class="h-f1">備註</th>'+
+    '<th class="h-f2">開工</th><th class="h-f2">預計完成</th><th class="h-f2">品號／製程</th><th class="h-f2">描述</th><th class="h-f2">數量</th><th class="h-f2">備註</th></tr></thead><tbody>'+
+    (rows.map((r,i)=>{
+      const f=flags[i];
+      const cell=(k,t)=>'<td class="'+(k.startsWith("f1.")?"c-f1":(f.f2Empty?"c-f2-empty":"c-f2"))+'">'+editCellHTML("rush",r.id,k,t,getPath(r,k),ro)+'</td>';
       const item=String(r.f1?.desc||"").trim();
-      return '<tr>'+
-        '<td class="rowact">'+(ro?"":(UI.confirmRow==="del:"+r.id?'<button class="btn danger" data-act="rush-del" data-id="'+esc(r.id)+'">再按一次刪除</button>':'<button class="rowdel" data-act="rush-del" data-id="'+esc(r.id)+'">刪除</button>'))+'</td>'+
+      const lateCell=f.late?'<span class="late-txt">晚</span>':"";
+      return '<tr data-rowid="'+esc(r.id)+'">'+
+        rowActCell("del","rush-del",r.id)+
         cell("f1.shipDate","date")+cell("f1.vendor","text")+
-        '<td>'+(item?'<button class="codelink" data-act="rush-goto" data-v="'+esc(item)+'">'+esc(item)+'</button>':'<span class="mute">—</span>')+'</td>'+
+        '<td class="c-f1">'+(item?'<button class="codelink" data-act="rush-goto" data-id="'+esc(r.id)+'">'+esc(item)+'</button>':'<span class="mute">—</span>')+'</td>'+
         cell("f1.shortQty","number")+cell("f1.note","text")+
-        '<td>'+editCellHTML("rush",r.id,"f2.startDate","date",r.f2?.startDate,ro)+(flags.f2Empty?'<span class="tag mute">二廠未排</span>':'')+'</td>'+
-        '<td>'+editCellHTML("rush",r.id,"f2.dueDate","date",r.f2?.dueDate,ro)+(flags.late?'<span class="tag late">晚</span>':'')+'</td>'+
+        cell("f2.startDate","date")+
+        '<td class="'+(f.f2Empty?"c-f2-empty":"c-f2")+'">'+editCellHTML("rush",r.id,"f2.dueDate","date",r.f2?.dueDate,ro)+(f.late?lateCell:"")+'</td>'+
         cell("f2.itemProcess","text")+cell("f2.desc","text")+cell("f2.qty","number")+cell("f2.note","text")+
-        cols.map(c=>'<td>'+editCellHTML("rush",r.id,"custom."+c,"text",r.custom?.[c],ro)+'</td>').join("")+
         '</tr>';
-    }).join("")||'<tr><td colspan="'+(12+cols.length)+'"><div class="empty">還沒有欠缺品項；按下方「＋加一列」開始記。</div></td></tr>')+
+    }).join("")||'<tr><td colspan="12"><div class="empty">還沒有資料，按下方加一列</div></td></tr>')+
     '</tbody></table></div>';
-  return pageShell("欠缺品項","shortage",head+table,ro,"shortage");
+  return pageShell("欠缺品項","左邊一廠欠貨，右邊二廠何時補。同一列同一張單。",head+table,ro,"rush-addrow");
 }
+const pendingDate=v=>v&&!/^\d{4}-\d{2}-\d{2}$/.test(String(v));
 function transferFlowPageHTML(){
   const ro=!canPermission("transfers.manage");
-  const cols=customCols("transferflow");
-  const list=transferOrders(S).slice().filter(o=>o.status!=="cancelled"||UI.tfShowCancelled).sort((a,b)=>String(a.notified||a.due||"9999").localeCompare(String(b.notified||b.due||"9999")));
-  const head='<div class="hintbar">一列一筆加工：料送二廠加工、要求何時回一廠（與「欠缺品項」分開管理）。整列綠＝這筆已對上（全數點收完成）；急用有填日期會另外標「急」。點加工編號回到排程表看該單的排程位置。'+(S.setupPending?' 資料待確認中：可看可改欄位，但不會打開自動排班。':'')+'</div>'+
-    '<div class="legendrow"><span><span class="sw ok"></span>整列綠＝已對上</span><span><span class="tag urgent">急</span>急用有日期＝另外標急</span><label class="tf-toggle"><input type="checkbox" data-act-change="tf-showcancelled"'+(UI.tfShowCancelled?" checked":"")+'> 顯示已取消</label></div>';
-  const table='<div class="pagetable"><table><thead><tr><th class="rowact"></th><th>通知日期</th><th>加工編號</th><th>品號</th><th>全部可給數</th><th>可給二廠時間</th><th>急用（數量／日期）</th><th>要求回一廠時間</th><th>備註</th>'+cols.map(c=>'<th>'+esc(c)+'</th>').join("")+'</tr></thead><tbody>'+
+  const list=transferOrders(S).slice().sort((a,b)=>String(a.notified||a.due||"9999").localeCompare(String(b.notified||b.due||"9999")));
+  const table='<div class="sheettable"><table><thead><tr>'+
+    '<th class="rowact"></th><th>通知日期</th><th>加工編號</th><th>加工序</th><th>全部可給數</th><th>可給二廠時間</th><th>急用</th><th>要求回一廠時間</th><th>現在貨在1樓</th><th>現在貨在3樓</th><th>已回一廠</th><th>備註</th></tr></thead><tbody>'+
     (list.map(o=>{
-      const t=transferSummary(o,todayStr());
-      const green=o.totalQty!=null&&t.accept>=o.totalQty;
-      const urgent=(o.urgentQty||0)>0&&!!o.urgentDue;
-      const cell=(k,ty)=>'<td>'+editCellHTML("tf",o.id,k,ty,getPath(o,k),ro)+'</td>';
-      return '<tr class="'+(green?"matched":"")+(o.status==="cancelled"?" cancelled":"")+'">'+
-        '<td class="rowact">'+(o.status==="cancelled"
-          ?(ro?"":'<button class="rowdel restore" data-act="tf-restore" data-id="'+esc(o.id)+'">還原</button>')
-          :(ro?"":(UI.confirmRow==="tfdel:"+o.id?'<button class="btn danger" data-act="tf-del" data-id="'+esc(o.id)+'">再按一次刪除</button>':'<button class="rowdel" data-act="tf-del" data-id="'+esc(o.id)+'">刪除</button>')))+'</td>'+
-        '<td>'+editCellHTML("tf",o.id,"notified","date",o.notified,ro)+(green?'<span class="tag ok">已對上</span>':'')+(o.status==="cancelled"?'<span class="tag mute">已取消</span>':'')+'</td>'+
+      const urgent=(o.urgentQty||0)>0||!!o.urgentDue;
+      const cell=(k,ty,cls="")=>'<td class="'+cls+'">'+editCellHTML("tf",o.id,k,ty,getPath(o,k),ro)+'</td>';
+      const pend=k=>pendingDate(getPath(o,k))?'<span class="pending-tag">待確認格式</span>':"";
+      return '<tr data-rowid="'+esc(o.id)+'" class="'+(o.returned?"returned":"")+(o.status==="cancelled"?" cancelled":"")+'">'+
+        rowActCell("tfdel","tf-del",o.id,o.status==="cancelled"&&!ro?'<button class="rowdel restore" data-act="tf-restore" data-id="'+esc(o.id)+'">還原</button>':"")+
+        '<td>'+editCellHTML("tf",o.id,"notified","date",o.notified,ro)+pend("notified")+(o.status==="cancelled"?'<span class="pending-tag">已取消</span>':"")+'</td>'+
         '<td><button class="codelink" data-act="tf-goto" data-id="'+esc(o.id)+'">'+esc(o.code)+'</button></td>'+
-        cell("itemCode","text")+cell("totalQty","number")+cell("expectedSend","date")+
-        '<td class="tf-urgent">'+editCellHTML("tf",o.id,"urgentQty","number",o.urgentQty,ro)+(urgent?editCellHTML("tf",o.id,"urgentDue","date",o.urgentDue,ro)+'<span class="tag urgent">急</span>':'')+'</td>'+
-        cell("due","date")+cell("note","text")+
-        cols.map(c=>'<td>'+editCellHTML("tf",o.id,"custom."+c,"text",o.custom?.[c],ro)+'</td>').join("")+
+        cell("seq","number")+cell("totalQty","number")+
+        '<td>'+(o.expectedSendRaw?'<span class="raw-txt">'+esc(o.expectedSendRaw)+'</span>':"")+editCellHTML("tf",o.id,"expectedSend","date",o.expectedSend,ro)+pend("expectedSend")+'</td>'+
+        '<td class="tf-urgent">'+(o.urgentRaw?'<span class="raw-txt">'+esc(o.urgentRaw)+'</span>':"")+editCellHTML("tf",o.id,"urgentQty","number",o.urgentQty,ro)+(urgent?editCellHTML("tf",o.id,"urgentDue","date",o.urgentDue,ro)+'<span class="urgent-tag">急</span>':"")+(urgent?pend("urgentDue"):"")+'</td>'+
+        '<td>'+editCellHTML("tf",o.id,"due","date",o.due,ro)+pend("due")+'</td>'+
+        cell("floor1","number")+cell("floor3","number")+
+        '<td class="chk"><input type="checkbox" data-act-change="tf-returned" data-id="'+esc(o.id)+'"'+(o.returned?" checked":"")+(ro?" disabled":"")+' aria-label="已回一廠"></td>'+
+        cell("note","text")+
         '</tr>';
-    }).join("")||'<tr><td colspan="'+(9+cols.length)+'"><div class="empty">還沒有加工單；按下方「＋加一列」記第一筆。</div></td></tr>')+
+    }).join("")||'<tr><td colspan="12"><div class="empty">還沒有資料，按下方加一列</div></td></tr>')+
     '</tbody></table></div>';
-  return pageShell("給二廠／回一廠","transferflow",head+table,ro,"transferflow");
+  return pageShell("給二廠／回一廠","料送二廠加工，何時要回一廠。與欠缺品項分開。",table,ro,"tf-addrow");
 }
+function workLogPageHTML(){
+  const ro=!canPermission("worklog.manage");
+  const filter=UI.workLogDate||"";
+  const all=[...(S.workLog||[])].sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+  const rows=filter?all.filter(r=>r.date===filter):all;
+  const table='<div class="sheettable"><table><thead><tr>'+
+    '<th class="rowact"></th><th>日期</th><th>加工編號</th><th>合格數</th><th>不良</th><th>開工（時：分）</th><th>完工（時：分）</th><th>修模時間</th><th>加工者</th><th>備註</th></tr></thead><tbody>'+
+    (rows.map(r=>{
+      const cell=(k,ty)=>'<td>'+editCellHTML("wl",r.id,k,ty,getPath(r,k),ro)+'</td>';
+      const hm=(h,m,base)=>{
+        if(ro)return (r[base+"H"]??"" )===""?"<span class='mute'>—</span>":esc(pad(r[base+"H"])+":"+pad(r[base+"M"]??"0"));
+        const editing=UI.editCell&&UI.editCell.table==="wl"&&UI.editCell.id===r.id&&(UI.editCell.key===base+"H"||UI.editCell.key===base+"M");
+        if(editing)return editCellHTML("wl",r.id,base+"H","hour",r[base+"H"],false)+editCellHTML("wl",r.id,base+"M","minute",r[base+"M"],false);
+        const txt=(r[base+"H"]??"" )===""?"—":pad(r[base+"H"])+":"+(r[base+"M"]??"0");
+        return '<button class="cellbtn" data-act="cell-edit" data-cell="wl" data-id="'+esc(r.id)+'" data-key="'+base+'H" data-type="hour">'+esc(txt)+'</button>';
+      };
+      return '<tr data-rowid="'+esc(r.id)+'">'+
+        rowActCell("wldel","wl-del",r.id)+
+        cell("date","date")+cell("code","text")+cell("goodQty","number")+cell("badQty","number")+
+        '<td class="hmcell">'+hm(r.startH,r.startM,"start")+'</td>'+
+        '<td class="hmcell">'+hm(r.endH,r.endM,"end")+'</td>'+
+        cell("reworkMin","number")+cell("worker","text")+cell("note","text")+
+        '</tr>';
+    }).join("")||'<tr><td colspan="10"><div class="empty">還沒有資料，按下方加一列</div></td></tr>')+
+    '</tbody></table></div>';
+  const filterBar='<div class="wl-filter"><label for="wl-date">依日期篩</label><input type="date" id="wl-date" value="'+esc(filter)+'" data-act-change="wl-filter"><button class="btn" data-act="wl-clearfilter">清除</button></div>';
+  return pageShell("工作紀錄","",filterBar+table,ro,"wl-addrow");
+}
+
 MODALS['memo-edit']=m=>({title:'新增備忘',body:
   '<div class="hint">備忘只提醒現場，不會直接修改排程。</div>'+
   '<div class="row2"><div class="field"><label for="memo-machine">機台（可不選）</label><select class="inp" id="memo-machine"><option value="">不指定</option>'+shownMachines().map(x=>'<option value="'+x.id+'">'+esc(x.id+' '+x.label)+'</option>').join('')+'</select></div>'+
@@ -3217,7 +3283,10 @@ async function start(){
   if(madeDemo&&STORE.kind==="local")queueSync(null);
   loadPreferencesForDevice();loadFactory();
   if(!UI.date)UI.date=todayStr();
+  // ?view=shortage|transfer|worklog：重新整理仍停在該頁
+  try{const v=new URLSearchParams(location.search).get("view");UI.page={shortage:"shortage",transfer:"transferflow",worklog:"worklog"}[v]||null;}catch{}
   render();
+  if(UI.page)flashReturnRow();
   STORE.subscribe(onRemoteChange);
   scheduleChat?.destroy();scheduleChat=installScheduleChat({snapshot:()=>({...toSnapshot(S,HOLI),work_execution:structuredClone(S.execution||[])}),view:()=>({date:UI.date,factory:UI.factory}),store:()=>STORE,enabled:()=>!UI.tv&&canPermission('schedule.manage'),stamp:()=>scenarioKey(S)+'|'+UI.date+'|'+UI.factory});
   SOLVER.check().then(up=>{updateSyncChip();scheduleChat?.refresh();if(up)toast("已連上 OR-Tools 排程服務");});

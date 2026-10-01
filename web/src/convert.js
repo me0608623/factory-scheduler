@@ -71,6 +71,7 @@ export function fromSnapshot(snap) {
     workContents: snap.work_contents||[],workAssignments:snap.work_assignments||[],workReferenceOrders:snap.work_reference_orders||[],
     transferOrders:snap.transfer_orders||[],
     rushOrders:snap.rush_orders||[],
+    workLog:snap.work_log||[],
     staffRosters:snap.staff_rosters||[],
     leaveRequests:(snap.leave_requests||[]).map(x=>({id:x.id,employeeId:x.employee_id??x.employeeId,date:x.date,status:x.status,note:x.note||'',createdAt:(x.created_at??x.createdAt)||null,createdBy:(x.created_by??x.createdBy)||null,resolvedAt:(x.resolved_at??x.resolvedAt)||null})),
     memos:(snap.schedule_memos||[]).map(x=>({id:x.id,text:x.text,machineId:(x.machine_id??x.machineId)||null,employeeId:(x.employee_id??x.employeeId)||null,pinned:!!x.pinned,author:x.author||'',createdAt:(x.created_at??x.createdAt)||null})),
