@@ -33,17 +33,38 @@ const uuid5 = s => {
 // ---- A. 欠缺品項 ← B-特別趕貨（資料從 r4 起；表頭 r3）----
 const wsR = wb.worksheets.find(w => w.name === 'B-特別趕貨');
 const rush = [];
+// 日期合理性：必須是 ISO 且 2000–2100；否則不當日期（年份異常 → 匯入錯誤註記）
+const saneDate = v => {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+  const y = +v.slice(0, 4);
+  return y >= 2000 && y <= 2100 ? v : null;
+};
+// 品號／品號製程：只收零件碼（英數為主、20 字內）
+const looksItem = t => /^[A-Za-z0-9][A-Za-z0-9 ./+-]{2,19}$/.test(t);
+// 描述：短、不含疑問／指示語；否則視為備註句
+const looksDesc = t => t.length <= 12 && !/[?？請查明]/.test(t);
 for (let r = 4; r <= wsR.rowCount; r++) {
   const g = c => cellVal(wsR, r, c);
-  const note1 = txt(g(6)), desc1 = txt(g(4));
-  // 品號欄只收零件碼（英數為主、20 字內）；備註句、描述都歸備註
+  // 一廠
+  const sdRaw = g(1);
+  const sd = saneDate(sdRaw);
+  const sdNote = sd ? null : (sdRaw === null || sdRaw === undefined || String(sdRaw).trim() === '' ? null
+    : (typeof sdRaw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(sdRaw) ? `匯入錯誤日期(原 ${sdRaw})` : String(sdRaw).trim()));
   const rawItem = txt(g(3));
-  const looksItem = /^[A-Za-z0-9][A-Za-z0-9 ./+-]{2,19}$/.test(rawItem);
-  const notes = [looksItem ? '' : rawItem, desc1, note1].filter(Boolean).join('；');
+  const itemOk = looksItem(rawItem);
+  const notes1 = [...new Set([(itemOk ? '' : rawItem), txt(g(4)), txt(g(6)), sdNote].filter(Boolean))].join('；');
+  // 二廠
+  const s2 = saneDate(g(7)), d2 = saneDate(g(8));
+  const extra2 = [s2 ? null : (g(7) === null || g(7) === undefined || String(g(7)).trim() === '' ? null : (typeof g(7) === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(g(7)) ? `匯入錯誤日期(原 ${g(7)})` : String(g(7)).trim())),
+                  d2 ? null : (g(8) === null || g(8) === undefined || String(g(8)).trim() === '' ? null : (typeof g(8) === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(g(8)) ? `匯入錯誤日期(原 ${g(8)})` : String(g(8)).trim()))].filter(Boolean);
+  const rawProc = txt(g(9)), rawDesc = txt(g(10));
+  const procOk = looksItem(rawProc);
+  const descOk = looksDesc(rawDesc);
+  const notes2 = [...new Set([txt(g(12)), procOk ? '' : rawProc, descOk ? '' : rawDesc, ...extra2].filter(Boolean))].join('；');
   const row = {
     id: uuid5('rush:' + r),
-    f1: (()=>{ const sd=g(1); const iso=v=>typeof v==="string"&&/^d{4}-d{2}-d{2}$/.test(v); return { shipDate: iso(sd)?sd:null, vendor: txt(g(2)), desc: looksItem ? rawItem : "", shortQty: num(g(5)), note: [notes, iso(sd)?null:String(sd??"").trim()].filter(Boolean).join("；") }; })(),
-    f2: (()=>{ const sd=g(7), dd=g(8); const iso=v=>typeof v==="string"&&/^d{4}-d{2}-d{2}$/.test(v); const extra=[iso(sd)?null:String(sd??"").trim(), iso(dd)?null:String(dd??"").trim()].filter(Boolean); return { startDate: iso(sd)?sd:null, dueDate: iso(dd)?dd:null, itemProcess: txt(g(9)), desc: txt(g(10)), qty: num(g(11)), note: [...new Set([txt(g(12)), ...extra].filter(Boolean))].join("；") }; })(),
+    f1: { shipDate: sd, vendor: txt(g(2)), desc: itemOk ? rawItem : '', shortQty: num(g(5)), note: notes1 },
+    f2: { startDate: s2, dueDate: d2, itemProcess: procOk ? rawProc : '', desc: descOk ? rawDesc : '', qty: num(g(11)), note: notes2 },
     imported: true,
   };
   const any = [row.f1.shipDate, row.f1.vendor, row.f1.desc, row.f1.shortQty, row.f1.note, row.f2.startDate, row.f2.dueDate, row.f2.itemProcess, row.f2.desc, row.f2.qty, row.f2.note].some(v => v !== null && v !== '' && v !== undefined);
@@ -59,7 +80,13 @@ const aMap = {};
 for (let r = 2; r <= wsA.rowCount; r++) {
   const code = txt(cellVal(wsA, r, 3));
   if (!code) continue;
-  aMap[code] = { seq: num(cellVal(wsA, r, 2)), floor1: num(cellVal(wsA, r, 7)), floor3: num(cellVal(wsA, r, 8)) };
+  // A col5「2廠時間」＝急用日期（Date→ISO；08\16 這類文字 → urgentRaw）
+  const ud = cellVal(wsA, r, 5);
+  aMap[code] = {
+    seq: num(cellVal(wsA, r, 2)), floor1: num(cellVal(wsA, r, 7)), floor3: num(cellVal(wsA, r, 8)),
+    urgentDate: saneDate(typeof ud === 'string' ? ud : null),
+    urgentDateRaw: (ud !== null && ud !== undefined && String(ud).trim() !== '' && !saneDate(typeof ud === 'string' ? ud : null)) ? String(ud) : null,
+  };
 }
 const transfers = [];
 const codeCount = {};
@@ -75,22 +102,35 @@ for (let r = 2; r <= wsB.rowCount; r++) {
   const uv = g(5);
   if (uv !== null && uv !== '') {
     if (/^\d+(\.\d+)?$/.test(String(uv))) urgentQty = Math.round(+uv);
-    else if (/^\d{4}-\d{2}-\d{2}$/.test(String(uv))) urgentDue = String(uv);
+    else if (saneDate(String(uv))) urgentDue = String(uv);          // 急用欄的日期 → 急用日期
     else urgentRaw = String(uv);
   }
-  const sendRaw = g(4) !== null && g(4) !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(String(g(4))) ? String(g(4)) : null;
+  const noteBits = [];
+  // 日期合理性：不合理年份（如 1902-10-10）不當真日期，原值註記為匯入錯誤
+  const dateOr = v => { const d = saneDate(typeof v === 'string' ? v : null); if (d) return [d, null]; if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return [null, `匯入錯誤日期(原 ${v})`]; return [null, null]; };
+  const [nOk, nErr] = dateOr(g(1));
+  const [sOk, sErr] = dateOr(g(4));
+  const [dOk, dErr] = dateOr(g(6));
+  if (nErr) noteBits.push(nErr);
+  if (sErr) noteBits.push(sErr);
+  if (dErr) noteBits.push(dErr);
+  if (urgentRaw) noteBits.push(`急用原值 ${urgentRaw}`);
   const extra = aMap[code] || {};
+  // 急用日期：A 表「2廠時間」（B 表急用欄只是數量）；文字值 → urgentRaw 標待確認格式
+  const aUrgentDue = extra.urgentDate || null;
+  if (extra.urgentDateRaw) urgentRaw = extra.urgentDateRaw;
+  const sendRaw = g(4) !== null && g(4) !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(String(g(4))) ? String(g(4)) : null;
   transfers.push({
     id: uuid5('tf:' + code + ':' + r),
     code: uniq, itemCode: code,
     fromFactory: 1, toFactory: 2, returnFactory: 1,
     totalQty: num(g(3)), urgentQty,
-    notified: /^\d{4}-\d{2}-\d{2}$/.test(String(g(1) ?? '')) ? g(1) : null,
-    expectedSend: /^\d{4}-\d{2}-\d{2}$/.test(String(g(4) ?? '')) ? g(4) : null, expectedSendRaw: sendRaw,
-    due: /^\d{4}-\d{2}-\d{2}$/.test(String(g(6) ?? '')) ? g(6) : null,
-    urgentDue, urgentRaw,
+    notified: nOk,
+    expectedSend: sOk, expectedSendRaw: sendRaw,
+    due: dOk,
+    urgentDue: aUrgentDue, urgentRaw,
     seq: extra.seq ?? null, floor1: extra.floor1 ?? null, floor3: extra.floor3 ?? null,
-    returned: false, workIds: [], status: 'active', note: '', batches: [], events: [],
+    returned: false, workIds: [], status: 'active', note: noteBits.join('；'), batches: [], events: [],
     imported: true,
   });
 }
@@ -114,6 +154,33 @@ for (let r = 4; r <= wsW.rowCount; r++) {
 }
 
 console.log(`parsed: rush=${rush.length} transfers=${transfers.length} worklog=${worklog.length}`);
+
+// ---- DRY-RUN 對照：對原 Excel 抽查關鍵列，通過才可寫入（--apply 才會寫 DB）----
+const DRY = !process.argv.includes('--apply');
+{
+  const checks = [];
+  // 1) JUMBO 5252S0115：出貨 10/2、欠貨 240、二廠空白
+  const j = rush.find(x => x.f1.vendor === 'JUMBO' && x.f1.desc === '5252S0115');
+  checks.push(['JUMBO 5252S0115', j ? { ship: j.f1.shipDate, qty: j.f1.shortQty, f2empty: shortageRowFlagsLike(j) } : 'NOT FOUND']);
+  // 2) 出貨日期欄位有值率（非範例列）
+  const withShip = rush.filter(x => x.f1.shipDate).length;
+  checks.push(['shipDate 有值', `${withShip}/${rush.length}`]);
+  // 3) 會晚筆數（預計完成 > 出貨日）
+  const late = rush.filter(x => x.f1.shipDate && x.f2.dueDate && x.f2.dueDate > x.f1.shipDate).length;
+  checks.push(['會晚筆數', late]);
+  // 4) 備註句不得在品號/製程/描述
+  const leak = rush.filter(x => /[?？請查明]/.test(x.f1.desc + x.f2.itemProcess + x.f2.desc)).length;
+  checks.push(['備註句外漏到代碼欄', leak]);
+  // 5) 1902 之類異常年份不得存在任何日期欄
+  const badYears = [...rush.flatMap(x => [x.f1.shipDate, x.f2.startDate, x.f2.dueDate]), ...transfers.flatMap(x => [x.notified, x.expectedSend, x.due, x.urgentDue])]
+    .filter(v => v && (+String(v).slice(0, 4) < 2000)).length;
+  checks.push(['異常年份日期', badYears]);
+  // 6) 急用有日期的筆數
+  checks.push(['急用日期有值', transfers.filter(x => x.urgentDue).length]);
+  for (const [k, v] of checks) console.log('CHECK', k, '=', JSON.stringify(v));
+  function shortageRowFlagsLike(x) { return !(x.f2.startDate || x.f2.dueDate || x.f2.itemProcess || x.f2.desc || x.f2.qty || x.f2.note); }
+}
+if (DRY) { console.log('DRY-RUN（未寫入）。確認 CHECK 全部符合原 Excel 後，加 --apply 重新執行。'); process.exit(0); }
 
 // ---- 寫入正式資料庫（先清掉上一次匯入）----
 const c = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 15000 });
