@@ -2995,7 +2995,7 @@ function transferFlowPageHTML(){
     (UI.tfArchivedNote?'<span class="archived-n">'+esc(UI.tfArchivedNote)+'</span>':"")+
     '<span class="hint">完成只認「已回一廠」已勾；每月一日自動歸檔逾期已完成。</span></div>';
   const table='<div class="sheettable"><table><thead><tr>'+
-    '<th class="rowact"></th><th>通知日期</th><th>加工編號</th><th>加工序</th><th>全部可給數</th><th>可給二廠時間</th><th>急用數量</th><th>急用日期</th><th>要求回一廠時間</th><th>現在貨在1樓</th><th>現在貨在3樓</th><th>已回一廠</th><th>備註</th></tr></thead><tbody>'+
+    '<th class="rowact"></th><th>通知日期</th><th>加工編號</th><th>加工序</th><th>全部可給數</th><th>可給二廠時間</th><th>急用</th><th>要求回一廠時間</th><th>現在貨在1樓</th><th>現在貨在3樓</th><th>已回一廠</th><th>備註</th></tr></thead><tbody>'+
     (list.map(o=>{
       const urgent=(o.urgentQty||0)>0||!!o.urgentDue;
       const cell=(k,ty,cls="")=>'<td class="'+cls+'">'+editCellHTML("tf",o.id,k,ty,getPath(o,k),ro)+'</td>';
@@ -3010,14 +3010,13 @@ function transferFlowPageHTML(){
         '<td><button class="codelink" data-act="tf-goto" data-id="'+esc(o.id)+'">'+esc(o.code)+'</button></td>'+
         cell("seq","number")+cell("totalQty","number")+
         '<td>'+rawCell("tf",o.id,"expectedSend",o.expectedSend,o.expectedSendRaw,ro)+pend("expectedSend")+'</td>'+
-        '<td class="tf-urgent">'+editCellHTML("tf",o.id,"urgentQty","number",o.urgentQty,ro)+'</td>'+
-        '<td class="tf-urgent">'+((o.urgentQty||0)>0&&(o.urgentDue||o.urgentRaw)?'<span class="urgent-tag">急</span>':"")+rawCell("tf",o.id,"urgentDue",o.urgentDue,o.urgentRaw,ro,true)+pend("urgentDue")+'</td>'+
+        '<td class="tf-urgent blank">'+(((o.urgentQty||0)>0)?editCellHTML("tf",o.id,"urgentQty","number",o.urgentQty,ro):"")+'</td>'+
         '<td>'+editCellHTML("tf",o.id,"due","date",o.due,ro)+pend("due")+'</td>'+
         cell("floor1","number")+cell("floor3","number")+
         '<td class="chk"><input type="checkbox" data-act-change="tf-returned" data-id="'+esc(o.id)+'"'+(o.returned?" checked":"")+(ro?" disabled":"")+' aria-label="已回一廠"></td>'+
         cell("note","text")+
         '</tr>';
-    }).join("")||'<tr><td colspan="13"><div class="empty">還沒有資料，按「＋加一列」開始記</div></td></tr>')+
+    }).join("")||'<tr><td colspan="12"><div class="empty">還沒有資料，按「＋加一列」開始記</div></td></tr>')+
     '</tbody></table></div>';
   return pageShell("給二廠／回一廠","料送二廠加工，何時要回一廠。與欠缺品項分開。",bar+table,ro,"tf-addrow");
 }

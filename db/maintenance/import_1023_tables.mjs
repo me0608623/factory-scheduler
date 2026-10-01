@@ -98,28 +98,22 @@ for (let r = 2; r <= wsB.rowCount; r++) {
   // 同一加工編號會多筆出貨紀錄；DB 要求唯一 → 重複的加 -2/-3 後綴，原始編號保留在 itemCode（品號欄）
   codeCount[code] = (codeCount[code] || 0) + 1;
   const uniq = codeCount[code] === 1 ? code : `${code}-${codeCount[code]}`;
-  let urgentQty = 0, urgentDue = null, urgentRaw = null;
+  let urgentQty = 0;  // 急用＝B 表單一數字格；沒有日期欄（分頁 B 沒有急用日期）
   const uv = g(5);
-  if (uv !== null && uv !== '') {
-    if (/^\d+(\.\d+)?$/.test(String(uv))) urgentQty = Math.round(+uv);
-    else if (saneDate(String(uv))) urgentDue = String(uv);          // 急用欄的日期 → 急用日期
-    else urgentRaw = String(uv);
-  }
+  if (uv !== null && uv !== '' && /^\d+(\.\d+)?$/.test(String(uv))) urgentQty = Math.round(+uv);
   const noteBits = [];
   // 日期合理性：不合理年份（如 1902-10-10）不當真日期，原值註記為匯入錯誤
   const dateOr = v => { const d = saneDate(typeof v === 'string' ? v : null); if (d) return [d, null]; if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return [null, `匯入錯誤日期(原 ${v})`]; return [null, null]; };
   const [nOk, nErr] = dateOr(g(1));
-  const [sOk, sErr] = dateOr(g(4));
+  let [sOk, sErr] = dateOr(g(4));
   const [dOk, dErr] = dateOr(g(6));
   if (nErr) noteBits.push(nErr);
   if (sErr) noteBits.push(sErr);
   if (dErr) noteBits.push(dErr);
-  if (urgentRaw) noteBits.push(`急用原值 ${urgentRaw}`);
   const extra = aMap[code] || {};
-  // 急用日期：A 表「2廠時間」的「日期值」（B 表急用欄只是數量）
-  const aUrgentDue = extra.urgentDate || null;
+  // A 表「2廠時間」→ 何時給2廠時間：B 表為空時用 A 表補（日期或 08\16 文字都屬於這一格）
+  if (!sOk && extra.urgentDate) sOk = extra.urgentDate;
   const sendRaw = g(4) !== null && g(4) !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(String(g(4))) ? String(g(4)) : null;
-  // A 表「2廠時間」的文字值（08\16 等）屬於「可給二廠時間」原格：只在 B 表該欄沒有值時補上，不進急用
   const finalSendRaw = sendRaw || (extra.urgentDateRaw && !sOk ? extra.urgentDateRaw : null);
   transfers.push({
     id: uuid5('tf:' + code + ':' + r),
@@ -129,7 +123,6 @@ for (let r = 2; r <= wsB.rowCount; r++) {
     notified: nOk,
     expectedSend: sOk, expectedSendRaw: finalSendRaw,
     due: dOk,
-    urgentDue: aUrgentDue, urgentRaw,
     seq: extra.seq ?? null, floor1: extra.floor1 ?? null, floor3: extra.floor3 ?? null,
     returned: false, workIds: [], status: 'active', note: noteBits.join('；'), batches: [], events: [],
     imported: true,
@@ -173,11 +166,11 @@ const DRY = !process.argv.includes('--apply');
   const leak = rush.filter(x => /[?？請查明]/.test(x.f1.desc + x.f2.itemProcess + x.f2.desc)).length;
   checks.push(['備註句外漏到代碼欄', leak]);
   // 5) 1902 之類異常年份不得存在任何日期欄
-  const badYears = [...rush.flatMap(x => [x.f1.shipDate, x.f2.startDate, x.f2.dueDate]), ...transfers.flatMap(x => [x.notified, x.expectedSend, x.due, x.urgentDue])]
+  const badYears = [...rush.flatMap(x => [x.f1.shipDate, x.f2.startDate, x.f2.dueDate]), ...transfers.flatMap(x => [x.notified, x.expectedSend, x.due])]
     .filter(v => v && (+String(v).slice(0, 4) < 2000)).length;
   checks.push(['異常年份日期', badYears]);
   // 6) 急用有日期的筆數
-  checks.push(['急用日期有值', transfers.filter(x => x.urgentDue).length]);
+  checks.push(['急用為純數字欄(非0筆數)', transfers.filter(x => x.urgentQty>0).length]);
   for (const [k, v] of checks) console.log('CHECK', k, '=', JSON.stringify(v));
   function shortageRowFlagsLike(x) { return !(x.f2.startDate || x.f2.dueDate || x.f2.itemProcess || x.f2.desc || x.f2.qty || x.f2.note); }
 }
