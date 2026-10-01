@@ -1108,7 +1108,7 @@ document.addEventListener("click",e=>{
     case "prev":UI.date=addDays(UI.date,-step);render();break;
     case "next":UI.date=addDays(UI.date,step);render();break;
     case "today":UI.date=todayStr();UI.view='day';UI.drawer=null;UI.page=null;UI.focus=null;render();break;
-    case "drawer":UI.drawer=UI.drawer===a.dataset.v?null:a.dataset.v;UI.page=null;UI.focus=null;render();requestAnimationFrame(()=>$('.ops-drawer')?.focus());break;
+    case "drawer":if(a.dataset.v==="worklog"){UI.page="worklog";UI.drawer=null;try{history.replaceState(null,"","?view=worklog");}catch{}render();window.scrollTo(0,0);flashReturnRow();break;}UI.drawer=UI.drawer===a.dataset.v?null:a.dataset.v;UI.page=null;UI.focus=null;render();requestAnimationFrame(()=>$('.ops-drawer')?.focus());break;
     case "settings":UI.drawer='settings';UI.page=null;UI.focus=null;render();requestAnimationFrame(()=>$('.ops-drawer')?.focus());break;
     case "drawer-close":UI.drawer=null;UI.focus=null;render();break;
     case "setting-set":updateDeviceSetting(a.dataset.key,a.dataset.v);break;
@@ -1145,7 +1145,7 @@ document.addEventListener("click",e=>{
     case 'work-queue':openModal({t:'work-queue'});break;
     case 'rush':UI.page='shortage';UI.drawer=null;render();window.scrollTo(0,0);break;
     case "page":{if(PV){toast("預覽中：先按「用這套」或「取消」");break;}const map={board:null,shortage:"shortage",transfer:"transferflow",worklog:"worklog"};UI.page=map[a.dataset.v]??null;UI.drawer=null;UI.focus=null;UI.editCell=null;UI.confirmRow=null;try{history.replaceState(null,"",UI.page?"?view="+(UI.page==="transferflow"?"transfer":UI.page):location.pathname);}catch{}render();window.scrollTo(0,0);if(UI.page)flashReturnRow();break;}
-    case "page-return":{const p=UI.returnTo?.page||null;UI.returnTo=null;UI.page=p;render();window.scrollTo(0,0);if(p)flashReturnRow();break;}
+    case "page-return":{const p=UI.returnTo?.page||null;UI.returnTo=null;UI.page=p;try{history.replaceState(null,"",p?"?view="+(p==="transferflow"?"transfer":p):location.pathname);}catch{}render();window.scrollTo(0,0);if(p)flashReturnRow();break;}
     case "worklog":UI.page="worklog";UI.drawer=null;try{history.replaceState(null,"","?view=worklog");}catch{}render();window.scrollTo(0,0);flashReturnRow();break;
     case "cell-edit":{UI.editCell={table:a.dataset.cell,id:a.dataset.id,key:a.dataset.key};render();break;}
     case "col-add":customColAdd(a.dataset.v);break;
