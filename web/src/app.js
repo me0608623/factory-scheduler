@@ -2971,6 +2971,14 @@ function shortagePageHTML(){
   return pageShell("欠缺品項","左邊一廠欠貨，右邊二廠何時補。同一列同一張單。",head+bar+table,ro,"rush-addrow");
 }
 const pendingDate=v=>v&&!/^\d{4}-\d{2}-\d{2}$/.test(String(v));
+// 有原始文字（08\16 這類）的日期格：只顯示該文字、不再多一個「—」；點它仍可改選真日期
+function rawCell(table,id,key,dateVal,rawVal,ro){
+  if(rawVal&&(dateVal===null||dateVal===undefined)){
+    if(ro)return '<span class="raw-txt">'+esc(rawVal)+'</span>';
+    return '<button class="cellbtn raw" data-act="cell-edit" data-cell="'+table+'" data-id="'+esc(id)+'" data-key="'+esc(key)+'" data-type="date">'+esc(rawVal)+'</button>';
+  }
+  return editCellHTML(table,id,key,"date",dateVal,ro);
+}
 function transferFlowPageHTML(){
   const ro=!canPermission("transfers.manage");
   const showArch=!!UI.tfShowArchived;
@@ -3000,9 +3008,9 @@ function transferFlowPageHTML(){
         '<td>'+editCellHTML("tf",o.id,"notified","date",o.notified,ro)+pend("notified")+(o.status==="cancelled"?'<span class="pending-tag">已取消</span>':"")+'</td>'+
         '<td><button class="codelink" data-act="tf-goto" data-id="'+esc(o.id)+'">'+esc(o.code)+'</button></td>'+
         cell("seq","number")+cell("totalQty","number")+
-        '<td>'+(o.expectedSendRaw?'<span class="raw-txt">'+esc(o.expectedSendRaw)+'</span>':"")+editCellHTML("tf",o.id,"expectedSend","date",o.expectedSend,ro)+pend("expectedSend")+'</td>'+
-        '<td class="tf-urgent">'+editCellHTML("tf",o.id,"urgentQty","number",o.urgentQty,ro)+(urgent?'<span class="urgent-tag">急</span>':"")+'</td>'+
-        '<td>'+(o.urgentRaw?'<span class="raw-txt">'+esc(o.urgentRaw)+'</span>':"")+editCellHTML("tf",o.id,"urgentDue","date",o.urgentDue,ro)+(urgent?pend("urgentDue"):"")+'</td>'+
+        '<td>'+rawCell("tf",o.id,"expectedSend",o.expectedSend,o.expectedSendRaw,ro)+pend("expectedSend")+'</td>'+
+        '<td class="tf-urgent">'+editCellHTML("tf",o.id,"urgentQty","number",o.urgentQty,ro)+'</td>'+
+        '<td class="tf-urgent">'+((o.urgentQty||0)>0?'<span class="urgent-tag">急</span>':"")+rawCell("tf",o.id,"urgentDue",o.urgentDue,o.urgentRaw,ro)+pend("urgentDue")+'</td>'+
         '<td>'+editCellHTML("tf",o.id,"due","date",o.due,ro)+pend("due")+'</td>'+
         cell("floor1","number")+cell("floor3","number")+
         '<td class="chk"><input type="checkbox" data-act-change="tf-returned" data-id="'+esc(o.id)+'"'+(o.returned?" checked":"")+(ro?" disabled":"")+' aria-label="已回一廠"></td>'+
