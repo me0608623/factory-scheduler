@@ -152,6 +152,12 @@ function pushUndo(){undoStack.push(JSON.stringify(S));if(undoStack.length>40)und
 function commit(entry,permission="schedule.manage"){
   if(entry){entry.id=uid();entry.t=Date.now();S.log.unshift(entry);if(S.log.length>200)S.log.length=200;}
   render();
+  // LINE 通知：排程相關事件推播（不阻塞主流程、失敗不影響操作）
+  if(entry&&STORE&&STORE.kind==="supabase"&&entry.kind!=="edit"&&SOLVER?.url){
+    const nm={ot:"schedule_change",leave:"leave_request",fault:"fault",order:"rush_order",auto:"schedule_change",move:"schedule_change",recover:"fault"};
+    const ev=nm[entry.kind];
+    if(ev)sendLineNotify(SOLVER.url,STORE.jwt(),ev,entry.title||"排程有變更").catch(()=>{});
+  }
   return canPermission(permission)?queueSync(entry):Promise.resolve(false);
 }
 function undo(){
@@ -1170,6 +1176,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
       S.rushOrders.push(row);
       try{validateRush(S.rushOrders);}catch(e){S.rushOrders.pop();toast(e.message);break;}
       commit({kind:"edit",title:"欠缺品項加一列",lines:[]},"rush.manage");
+      if(STORE.kind==="supabase"&&SOLVER?.url)sendLineNotify(SOLVER.url,STORE.jwt(),"rush_order","趕貨新增："+(row.f1?.vendor||"")+(row.f1?.desc?" "+row.f1.desc:"")).catch(()=>{});
       UI.editCell={table:"rush",id:row.id,key:"f1.vendor"};render();
       setTimeout(()=>{const el=$(".cellinp");el?.focus();},60);
       break;}
@@ -2401,6 +2408,7 @@ Object.assign(MODAL_ACT,{
     const title=mid+" 機台故障 "+mdw(d)+" "+hm(s)+"–"+hm(e);
     const n=S.blocks.filter(b=>b.m===mid&&b.date===d&&b.e>s&&b.s<e).length;
     if(!n){pushUndo();ev();commit({kind:"fault",title:title+"（這段時間沒有排工作）",lines:[]},"incidents.manage");closeModal();toast("已記錄故障，這段時間沒有工作受影響");return;}
+    if(STORE&&STORE.kind==="supabase"&&SOLVER?.url)sendLineNotify(SOLVER.url,STORE.jwt(),"fault",mid+" 機台故障 "+mdw(d)+" "+hm(s)+"–"+hm(e)).catch(()=>{});
     openPlans(title+"，"+n+" 段工作受影響",title,"fault",ev,STRAT_EVENT,{fid,event:{type:"fault",machine:mid,date:d,start:s,end:e,note}});
   },
   // 機台修好了 → 進入預覽，比較幾種「把機台加回排程」的方法
@@ -3302,7 +3310,9 @@ async function toggleMemoPin(button){
   catch(e){button.disabled=false;toast(e.message);}
 }
 Object.assign(MODAL_ACT,{
-  'leave-request-save':async button=>{if(!canIncidents())return;const employeeId=$('#leave-request-employee')?.value,date=$('#leave-request-date')?.value,note=$('#leave-request-note')?.value.trim();if(!employeeId||!date){toast('請選擇人員與日期');return;}button.disabled=true;try{await STORE.createLeaveRequest({id:uid(),employeeId,date,note,status:'pending'});closeModal();await reloadFromStore();UI.drawer='people';render();toast('已送出請假詢問，尚未成為正式請假');}catch(e){button.disabled=false;toast(e.message);}},
+  'leave-request-save':async button=>{if(!canIncidents())return;const employeeId=$('#leave-request-employee')?.value,date=$('#leave-request-date')?.value,note=$('#leave-request-note')?.value.trim();if(!employeeId||!date){toast('請選擇人員與日期');return;}button.disabled=true;try{await STORE.createLeaveRequest({id:uid(),employeeId,date,note,status:'pending'});
+  if(STORE.kind==='supabase'&&SOLVER?.url){const en=emp(employeeId);sendLineNotify(SOLVER.url,STORE.jwt(),'leave_request','請假待批：'+(en?en.name:'有人')+' '+md(date)).catch(()=>{});}
+  closeModal();await reloadFromStore();UI.drawer='people';render();toast('已送出請假詢問，尚未成為正式請假');}catch(e){button.disabled=false;toast(e.message);}},
   'memo-save':async button=>{if(!canPermission('notes.manage'))return;const text=$('#memo-text')?.value.trim(),machineId=$('#memo-machine')?.value||null,employeeId=$('#memo-employee')?.value||null;if(!text){toast('請填寫一句備忘');return;}if(!machineId&&!employeeId){toast('請至少指定一台機台或一位人員');return;}button.disabled=true;try{await STORE.saveMemo({id:uid(),text,machineId,employeeId,pinned:!!$('#memo-pinned')?.checked,author:STORE.userName||'本機',createdAt:new Date().toISOString()});closeModal();await reloadFromStore();UI.drawer='notes';render();toast('備忘已保存');}catch(e){button.disabled=false;toast(e.message);}}
 });
 
