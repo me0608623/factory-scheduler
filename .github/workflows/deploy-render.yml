@@ -1,0 +1,33 @@
+# 自動部署：push 到 main 時用 Render Deploy Hook 觸發 web + solver 部署
+# （Render Auto-Deploy 設定為 On Commit，但倉庫缺少 Render 的 GitHub webhook，
+#   因此改由這裡代為觸發；兩個服務都會部署同一份最新 main 提交。）
+# 需要 Settings → Secrets 設定 RENDER_WEB_DEPLOY_HOOK 與 RENDER_SOLVER_DEPLOY_HOOK
+name: 部署 Render 正式環境
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - '.github/workflows/nightly-backup.yml'
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 觸發 web 部署
+        env:
+          HOOK: ${{ secrets.RENDER_WEB_DEPLOY_HOOK }}
+        run: |
+          code=$(curl -s -o /tmp/web.json -w '%{http_code}' -X POST "$HOOK")
+          echo "HTTP $code $(cat /tmp/web.json)"
+          case "$code" in 200|201|202) echo "web deploy triggered";; *) echo "::error::web hook failed"; exit 1;; esac
+      - name: 觸發 solver 部署
+        env:
+          HOOK: ${{ secrets.RENDER_SOLVER_DEPLOY_HOOK }}
+        run: |
+          code=$(curl -s -o /tmp/solver.json -w '%{http_code}' -X POST "$HOOK")
+          echo "HTTP $code $(cat /tmp/solver.json)"
+          case "$code" in 200|201|202) echo "solver deploy triggered";; *) echo "::error::solver hook failed"; exit 1;; esac
