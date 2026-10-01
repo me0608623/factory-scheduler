@@ -1148,26 +1148,28 @@ document.addEventListener("click",e=>{
           const isInLeave=E.leaves.includes(d);
           const pend=(S.leaveRequests||[]).find(x=>x.employeeId===eid&&x.date===d&&x.status==="pending");
           const isUnc=!!pend;
-          // 目標狀態
           const wantLeave=brush==="leave";
           const wantUnc=brush==="uncertain";
           const wantWork=brush==="work";
-          // 已在目標狀態 → 取消（回到上班）
+          // 已在目標狀態 → toggle off（回上班）
           if((wantLeave&&isInLeave&&!isUnc)||(wantUnc&&isUnc&&!isInLeave)||(wantWork&&!isInLeave&&!isUnc)){
-            // toggle off：全部清回上班
-            if(isInLeave){E.leaves=E.leaves.filter(x=>x!==d);}
-            if(pend){pend.status="rejected";pend.resolvedAt=new Date().toISOString();}
+            if(isInLeave)E.leaves=E.leaves.filter(x=>x!==d);
+            if(pend)pend.status="rejected";
+            if(pend&&STORE.kind==="supabase"){try{await STORE.resolveLeaveRequest(pend.id,"rejected");}catch(e){}}
             return -1;
           }
-          // 覆蓋：先清其他狀態，再套目標
-          if(isInLeave&&(!wantLeave))E.leaves=E.leaves.filter(x=>x!==d);
-          if(pend&&(!wantUnc)){pend.status="rejected";pend.resolvedAt=new Date().toISOString();}
-          if(wantLeave&&!isInLeave)E.leaves.push(d);
+          let changed=false;
+          if(isInLeave&&!wantLeave){E.leaves=E.leaves.filter(x=>x!==d);changed=true;}
+          if(pend&&!wantUnc){pend.status="rejected";changed=true;
+            if(STORE.kind==="supabase"){try{await STORE.resolveLeaveRequest(pend.id,"rejected");}catch(e){}}
+          }
+          if(wantLeave&&!isInLeave){E.leaves.push(d);changed=true;}
           if(wantUnc&&!pend){
             const req={id:uid(),employeeId:eid,date:d,note:"未確定",status:"pending"};
-            (S.leaveRequests||=[]).push(req);
+            (S.leaveRequests||=[]).push(req);changed=true;
+            if(STORE.kind==="supabase"){try{await STORE.createLeaveRequest(req);}catch(e){toast("沒存到："+e.message);return 0;}}
           }
-          return 1;
+          return changed?1:0;
         };
         // 範圍框選
         if(!UI.brushStart){
@@ -1179,20 +1181,21 @@ document.addEventListener("click",e=>{
         const st=UI.brushStart.d;UI.brushStart=null;
         const [lo,hi]=st<=dd?[st,dd]:[dd,st];
         const E=emp(eid);
-        let cnt=0;
-        for(let x=lo;x<=hi&&cnt<62;x=addDays(x,1)){
-          // 有排工作的天不強制休假（保護）
-          if(UI.leaveBrush==="leave"&&S.blocks.some(b=>b.emp===eid&&b.date===x&&futureOf(b)))continue;
-          const r=applyBrush(eid,x);if(r!==0)cnt++;
-        }
-        if(cnt>0){
-          pushUndo();
-          commit({kind:"leave",title:E.name+" 筆刷 "+md(lo)+"～"+md(hi)+"（"+cnt+" 天）",lines:[]},"incidents.manage");
-          toast("已套用 "+md(lo)+"～"+md(hi)+"（"+cnt+" 天）");
-        }else{
-          render();
-          toast("範圍內沒有需要變更的日期");
-        }
+        const brushName={leave:"休假",work:"上班",uncertain:"未確定"}[UI.leaveBrush]||UI.leaveBrush;
+        (async()=>{
+          try{
+            let cnt=0;
+            for(let x=lo;x<=hi&&cnt<62;x=addDays(x,1)){
+              if(UI.leaveBrush==="leave"&&S.blocks.some(b=>b.emp===eid&&b.date===x&&futureOf(b)))continue;
+              const r=await applyBrush(eid,x);if(r!==0)cnt++;
+            }
+            pushUndo();
+            commit({kind:"leave",title:E.name+" "+brushName+" "+md(lo)+"～"+md(hi)+"（"+cnt+" 天）",lines:[]},"incidents.manage");
+            await reloadFromStore();
+            UI.drawer="people";
+            toast("已套用"+brushName+" "+md(lo)+"～"+md(hi)+"（"+cnt+" 天）");
+          }catch(e){toast("沒存到："+e.message);}
+        })();
         break;
       }
       openModal({t:'person-day',id,d:a.dataset.d});break;}
