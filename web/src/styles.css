@@ -859,3 +859,16 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
 .people-calendar .calendar-day.brush-start{outline:3px solid #1565C0;outline-offset:-3px}
 /* 筆刷選中時日期 hover 效果 */
 .cal-brush-active .calendar-day:not(.blank):hover{filter:brightness(.9);cursor:pointer}
+/* unconfirmed 天也顯示上班日顏色（藍）——員工待確認不影響日期顏色 */
+.people-calendar .calendar-day.unconfirmed{background:#E3F2FD !important}
+.people-calendar .calendar-day.unconfirmed b{color:#1565C0;font-weight:900}
+.people-calendar .calendar-day.unconfirmed i{background:#1E88E5;width:14px;height:14px}
+/* 深色模式 */
+:root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.working,
+:root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.unconfirmed{background:#12263A !important}
+:root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.working b,
+:root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.unconfirmed b{color:#64B5F6}
+:root[data-theme="dark"] .people-calendar .calendar-day.working,
+:root[data-theme="dark"] .people-calendar .calendar-day.unconfirmed{background:#12263A !important}
+:root[data-theme="dark"] .people-calendar .calendar-day.working b,
+:root[data-theme="dark"] .people-calendar .calendar-day.unconfirmed b{color:#64B5F6}
