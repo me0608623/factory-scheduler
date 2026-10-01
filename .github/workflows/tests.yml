@@ -24,12 +24,19 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: db/tests/package-lock.json
+      # 跨層整合測試會 spawn `uv run python -m scripts.plan_stdio`，需要 Python＋uv
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install uv
       - run: npm ci
         working-directory: db/tests
       - run: npm test
         working-directory: db/tests
       - run: npm run test:integration:all
         working-directory: db/tests
+        env:
+          UV_FROZEN: "1"
 
   frontend:
     runs-on: ubuntu-latest
