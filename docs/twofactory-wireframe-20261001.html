@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<title>線框：給二廠／回一廠（桌面）</title>
+<style>
+  :root{--ink:#1a1c1e;--muted:#5f6368;--line:#dadce0;--surface:#fff;--bg:#f3f5f7;--ok:#1e8e3e;--okbg:#e6f4ea;--bad:#d93025;--badbg:#fce8e6;--warn:#b06000;--warnbg:#fef7e0;--accent:#1a73e8}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:15px}
+  .top{background:#fff;border-bottom:1px solid var(--line);padding:10px 18px;display:flex;align-items:center;gap:14px;position:sticky;top:0}
+  .back{border:2px solid var(--line);background:#fff;border-radius:10px;padding:10px 16px;font-size:16px;font-weight:700;cursor:pointer}
+  .back:hover{border-color:var(--ink)}
+  h1{font-size:20px;margin:0;flex:1}
+  .savestate{background:var(--okbg);color:var(--ok);border-radius:999px;padding:4px 14px;font-weight:700;font-size:14px}
+  .perm{color:var(--muted);font-size:13px}
+  .wrap{max-width:1280px;margin:14px auto;padding:0 16px}
+  .hintbar{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 14px;color:var(--muted);font-size:13.5px;margin-bottom:10px}
+  table{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{border-bottom:1px solid var(--line);padding:9px 12px;text-align:left;white-space:nowrap}
+  th{background:#eef1f4;font-size:13.5px;font-weight:800;position:sticky;top:56px}
+  td{font-variant-numeric:tabular-nums}
+  tr.matched td{background:var(--okbg)}
+  .tag{display:inline-block;border-radius:8px;padding:1px 8px;font-size:12.5px;font-weight:800}
+  .tag.urgent{background:var(--badbg);color:var(--bad)}
+  .code{font-weight:800;color:var(--accent);cursor:pointer;text-decoration:underline dotted}
+  .muted{color:var(--muted)}
+  .rowdel{color:var(--bad);font-weight:700;cursor:pointer}
+  .addrow{margin-top:12px;width:100%;height:56px;font-size:17px;font-weight:800;border:2px dashed var(--line);background:#fff;border-radius:12px;cursor:pointer;color:var(--ink)}
+  .addrow:hover{border-color:var(--accent);color:var(--accent)}
+  .custom{margin-top:10px;color:var(--muted);font-size:13.5px}
+  .legendrow{display:flex;gap:18px;margin:10px 2px;font-size:13px;color:var(--muted);align-items:center}
+  .sw{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:5px}
+</style>
+</head>
+<body>
+<div class="top">
+  <button class="back">← 回今天班表</button>
+  <h1>給二廠／回一廠</h1>
+  <span class="savestate">✓ 已儲存</span>
+  <span class="perm">老闆／組長可加列與修改；員工與唯讀只能看</span>
+</div>
+<div class="wrap">
+  <div class="hintbar">一列一筆加工：料送二廠加工、要求何時回到一廠。與「欠缺品項」分開管理。點格子即可修改（日期用選擇器、數量只接受數字）；點加工編號回到排程表高亮該單。綠色整列＝這筆已對上；急用有填日期另外標急。</div>
+  <div class="legendrow">
+    <span><span class="sw" style="background:var(--okbg);border:1px solid var(--ok)"></span>整列綠＝這筆已對上</span>
+    <span><span class="tag urgent">急</span>急用有日期＝另外標急（不只靠綠色）</span>
+    <span>右欄空白＝二廠未排／待補</span>
+    <span>資料未核對完成前：可看可改，不可由此觸發自動排班</span>
+  </div>
+  <table>
+    <thead><tr>
+      <th>通知日期</th><th>加工編號</th><th>品號</th><th>全部可給數</th><th>可給二廠時間</th><th>急用（數量／日期）</th><th>要求回一廠時間</th><th>備註</th><th></th>
+    </tr></thead>
+    <tbody>
+      <tr class="matched">
+        <td>8/21</td><td><span class="code">XF-001</span></td><td>52AR00232</td><td>350</td><td>8/23</td><td><span class="muted">—</span></td><td>8/19 <span class="tag urgent">急</span></td><td></td><td class="rowdel">刪除</td>
+      </tr>
+      <tr>
+        <td>8/28</td><td><span class="code">XF-002</span></td><td>521F001</td><td>450</td><td>9/2</td><td>150／9/5</td><td>9/20</td><td><span class="muted">MARTEX 先出急用</span></td><td class="rowdel">刪除</td>
+      </tr>
+      <tr>
+        <td>9/4</td><td><span class="code">XF-003</span></td><td>26IR001</td><td><span class="muted">待補</span></td><td class="muted">—</td><td><span class="muted">—</span></td><td class="muted">—</td><td></td><td class="rowdel">刪除</td>
+      </tr>
+      <tr class="matched">
+        <td>9/7</td><td><span class="code">XF-004</span></td><td>529R001</td><td>1032</td><td>9/10</td><td>200／9/12 <span class="tag urgent">急</span></td><td>10/1</td><td></td><td class="rowdel">刪除</td>
+      </tr>
+    </tbody>
+  </table>
+  <button class="addrow">＋ 加一列（新增空白列，焦點停在第一格）</button>
+  <div class="custom">自訂欄位：＋新增欄位（例如「模具號」「運費」） · Excel 的公式欄（#VALUE!、單獨數字）不搬上來</div>
+</div>
+</body>
+</html>

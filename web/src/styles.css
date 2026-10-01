@@ -626,3 +626,50 @@ body:has(#ov:not([hidden])) #schedule-chat{z-index:15}
 .chat-tts.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .chat-speak{font-size:13px;margin:6px 0 0}
 .chat-notice{color:var(--muted);font-size:13px;margin:2px 0}
+/* ---------- 整頁表格：欠缺品項 ／ 給二廠－回一廠 ---------- */
+.page-links{display:flex;gap:8px}
+.pagelink{font-weight:800}
+.fullpage{display:flex;flex-direction:column;gap:10px;padding-bottom:40px}
+.page-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.page-top h1{font-size:22px;margin:0;flex:1}
+.savestate{border-radius:999px;padding:4px 14px;font-weight:800;font-size:14px;background:var(--surface2);color:var(--muted)}
+.savestate.ok{background:#e6f4ea;color:#1e8e3e}
+.savestate.error{background:#fce8e6;color:#d93025}
+.perm{color:var(--muted);font-size:13.5px}
+.hintbar{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px;color:var(--muted);font-size:13.5px}
+.legendrow{display:flex;gap:18px;align-items:center;font-size:13px;color:var(--muted);flex-wrap:wrap}
+.legendrow .sw{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:5px}
+.legendrow .sw.ok{background:#e6f4ea;border:1px solid #1e8e3e}
+.tf-toggle{display:flex;align-items:center;gap:6px;font-size:13px}
+.pagetable{overflow-x:auto;border:1px solid var(--line2);border-radius:12px;background:var(--surface)}
+.pagetable table{border-collapse:collapse;width:100%;min-width:900px;font-size:14.5px}
+.pagetable th,.pagetable td{border-bottom:1px solid var(--line);padding:7px 10px;text-align:left;white-space:nowrap;vertical-align:middle}
+.pagetable th{background:var(--surface2);font-weight:800;position:sticky;top:0;z-index:1}
+.pagetable th.pg-f1{background:rgba(79,227,238,.16)}
+.pagetable th.pg-f2{background:rgba(255,166,77,.16)}
+.pagetable tr.matched td{background:#e6f4ea}
+.pagetable tr.cancelled td{opacity:.55;text-decoration:line-through}
+.pagetable tr.cancelled td .rowdel,.pagetable tr.cancelled td .codelink{text-decoration:none}
+.pagetable .tag{display:inline-block;border-radius:8px;padding:1px 8px;font-size:12.5px;font-weight:800;margin-left:4px}
+.pagetable .tag.late{background:#fce8e6;color:#d93025}
+.pagetable .tag.urgent{background:#fce8e6;color:#d93025}
+.pagetable .tag.ok{background:#ceead6;color:#1e8e3e}
+.pagetable .tag.mute{background:var(--surface2);color:var(--muted)}
+.cellbtn{border:0;background:none;font:inherit;padding:6px 8px;border-radius:8px;min-height:34px;cursor:text;text-align:left}
+.cellbtn:hover{background:var(--surface2);outline:1.5px dashed var(--line)}
+.cellinp{min-height:36px;min-width:110px;padding:4px 8px}
+.rowact{width:86px}
+.rowdel{border:0;background:none;color:#d93025;font-weight:800;cursor:pointer;font-size:13.5px;padding:6px 8px;border-radius:8px}
+.rowdel:hover{background:#fce8e6}
+.rowdel.restore{color:var(--muted)}
+.codelink{border:0;background:none;color:var(--accent);font-weight:800;cursor:pointer;text-decoration:underline dotted;padding:6px 4px}
+.addrow{margin-top:10px;width:100%;height:56px;font-size:17px;font-weight:800;border:2px dashed var(--line);background:var(--surface);border-radius:12px;cursor:pointer;color:var(--ink)}
+.addrow:hover{border-color:var(--accent);color:var(--accent)}
+.custom-cols{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.custom-cols .inp{max-width:220px}
+.custom-cols .hint{color:var(--muted);font-size:13px}
+.mute{color:var(--muted)}
+.tf-urgent .cellbtn,.tf-urgent .cellinp{display:inline-block;width:auto;min-width:80px}
+/* 員工月曆：上班／休假筆刷 */
+.cal-brush{margin-top:8px}
+.cal-brush .tg[aria-pressed="true"]{font-weight:900}

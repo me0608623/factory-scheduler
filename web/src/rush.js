@@ -46,8 +46,24 @@ export function validateRush(orders) {
     }
     if (validQty(f1.shortQty) === false) throw new Error("欠貨數量需為 0 以上的整數");
     if (validQty(f2.qty) === false) throw new Error("二廠數量需為 0 以上的整數");
+    // 自訂欄位：名稱 1–20 字、內容 0–200 字（存在 row.custom）
+    const custom = r.custom || {};
+    if (custom !== null && typeof custom !== "object" && !Array.isArray(custom)) throw new Error("自訂欄位格式不正確");
+    for (const [k, v] of Object.entries(custom)) {
+      if (!k || k.length > 20) throw new Error("自訂欄位名稱需 1–20 字");
+      if (v !== null && v !== undefined && String(v).length > 200) throw new Error(`自訂欄位「${k}」超過 200 字`);
+    }
     const hasF1 = [f1.shipDate, f1.vendor, f1.desc, f1.shortQty, f1.note].some(nonEmptyText);
     const hasF2 = [f2.startDate, f2.dueDate, f2.itemProcess, f2.desc, f2.qty, f2.note].some(nonEmptyText);
-    if (!hasF1 && !hasF2) throw new Error("每一列至少要填一廠欠貨或二廠加工的內容");
+    if (!hasF1 && !hasF2 && !Object.values(custom).some(nonEmptyText)) throw new Error("每一列至少要填一廠欠貨或二廠加工的內容");
   }
+}
+
+// 整頁「欠缺品項」用的列旗標（純邏輯，供畫面與測試共用）
+export function shortageRowFlags(row) {
+  const f1 = row?.f1 || {}, f2 = row?.f2 || {};
+  const f2Empty = ![f2.startDate, f2.dueDate, f2.itemProcess, f2.desc, f2.qty, f2.note]
+    .some(v => v !== null && v !== undefined && String(v).trim() !== "");
+  const late = !!(f1.shipDate && f2.dueDate && f2.dueDate > f1.shipDate);
+  return { f2Empty, late };
 }
