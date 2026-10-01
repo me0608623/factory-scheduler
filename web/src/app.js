@@ -697,7 +697,7 @@ function appNavHTML(){
 }
 function isoWeek(ds){const d=parseD(ds);d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));const y=new Date(Date.UTC(d.getUTCFullYear(),0,1));return Math.ceil(((d-y)/864e5+1)/7);}
 function bannerHTML(){
-  const pending=S.setupPending?'<div class="banner pending"><span class="grow"><b>目前先核對資料，暫不排班。</b> 排程1023的員工與設備已匯入；技能、工作時間與工序尚待確認。可按「核對員工與設備」或查看「歷史班表」。</span></div>':"";
+  const pending=S.setupPending?'<div class="banner pending"><span class="grow"><b>資料待確認，暫不排班。</b> <button class="btn primary" data-act="catalog" style="min-height:36px;font-size:14px;margin-left:10px">核對資料</button></span></div>':"";
   if(UI.view!=="day")return pending;
   const d=UI.date,di=dayInfo(d),out=[pending];
   const name=di.type==="hol"?"國定假日："+di.hol:di.type==="sat"?"週六休息日":di.type==="sun"?"週日例假日":"";
