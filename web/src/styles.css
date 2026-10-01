@@ -872,3 +872,14 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
 :root[data-theme="dark"] .people-calendar .calendar-day.unconfirmed{background:#1E5799 !important}
 :root[data-theme="dark"] .people-calendar .calendar-day.working b,
 :root[data-theme="dark"] .people-calendar .calendar-day.unconfirmed b{color:#90CAF9}
+/* 未確定筆刷按鈕（黃色） */
+.cal-brush .tg.brush-uncertain[aria-pressed="true"]{background:#FFC342;border-color:#B8860B;color:#3D2800;font-weight:900}
+/* 未確定日曆格：黃色底 */
+.people-calendar .calendar-day.asking{background:#FFF9C4 !important}
+.people-calendar .calendar-day.asking b{color:#B8860B;font-weight:900}
+.people-calendar .calendar-day.asking i{background:#FFC107;width:14px;height:14px}
+/* 深色模式未確定 */
+:root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.asking,
+:root[data-theme="dark"] .people-calendar .calendar-day.asking{background:#3D3313 !important}
+:root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.asking b,
+:root[data-theme="dark"] .people-calendar .calendar-day.asking b{color:#FFE082}
