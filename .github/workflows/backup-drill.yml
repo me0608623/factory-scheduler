@@ -8,6 +8,14 @@ on:
 jobs:
   drill:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: drill
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - name: 下載最新備份
         run: |
@@ -30,14 +38,6 @@ jobs:
           echo "Tables in backup: $TABLES"
           if [ "$TABLES" -lt 10 ]; then echo "⚠ Backup has fewer than 10 tables — may be incomplete"; fi
       - name: 還原到暫存 PostgreSQL
-        services:
-          postgres:
-            image: postgres:17
-            env:
-              POSTGRES_PASSWORD: drill
-            ports: ["5432:5432"]
-            options: >-
-              --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
         run: |
           DUMP=$(ls restored/*.dump | head -1)
           PGPASSWORD=drill pg_restore --no-owner --no-privileges -h localhost -U postgres -d postgres "$DUMP" 2>&1 | tail -5
