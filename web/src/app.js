@@ -765,7 +765,7 @@ function peopleDrawerHTML(){
   return '<section class="absence-box"><b>今日缺席　'+absent.length+' 人</b><span>'+esc(absent.map(x=>x.name).join('、')||'無')+'</span></section>'+
     '<div class="people-pills">'+people.map(e=>'<button data-act="focus-person" data-id="'+e.id+'" aria-pressed="'+(selected?.id===e.id)+'">'+esc(e.name)+'</button>').join('')+'</div>'+
     '<div class="traffic-legend"><span><i class="green"></i>在班</span><span><i class="red"></i>請假</span><span><i class="yellow"></i>詢問中</span><span><i class="gray"></i>待確認</span></div>'+
-    (selected?'<section class="people-calendar"><header><b>'+esc(selected.name)+'</b><span>'+UI.date.slice(0,7).replace('-',' 年 ')+' 月</span>'+(canIncidents()?'<button class="btn" data-act="person-month" data-id="'+esc(selected.id)+'">整月設定</button>':'')+'</header><div class="calendar-week">'+weekdays+'</div><div class="calendar-grid">'+days+'</div>'+(canIncidents()?'<div class="toggles cal-brush">'+tg("cal-brush","leave",UI.leaveBrush==="leave","休假")+tg("cal-brush","work",UI.leaveBrush==="work","上班")+'</div><div class="drawer-hint">'+(UI.leaveBrush?('已選「'+(UI.leaveBrush==="leave"?"休假":"上班")+'」：點日期直接套用'):'先選「上班」或「休假」，再點日期套用（或不選，點日期開小視窗）')+'</div>':'')+'</section>':'<div class="drawer-empty">此廠尚未設定人員</div>')+
+    (selected?'<section class="people-calendar"><header><b>'+esc(selected.name)+'</b><span>'+UI.date.slice(0,7).replace('-',' 年 ')+' 月</span>'+(canIncidents()?'<button class="btn" data-act="person-month" data-id="'+esc(selected.id)+'">整月設定</button>':'')+'</header><div class="calendar-week">'+weekdays+'</div><div class="calendar-grid">'+days+'</div>'+(canIncidents()?'<div class="toggles cal-brush">'+'<button class="tg brush-leave'+(UI.leaveBrush==="leave"?" on":"")+'" data-act="cal-brush" data-v="leave" aria-pressed="'+(UI.leaveBrush==="leave")+'">休假</button><button class="tg brush-work'+(UI.leaveBrush==="work"?" on":"")+'" data-act="cal-brush" data-v="work" aria-pressed="'+(UI.leaveBrush==="work")+'">上班</button>'+'</div><div class="drawer-hint">'+(UI.leaveBrush?('已選「'+(UI.leaveBrush==="leave"?"休假":"上班")+'」：點日期直接套用'):'先選「上班」或「休假」，再點日期套用（或不選，點日期開小視窗）')+'</div>':'')+'</section>':'<div class="drawer-empty">此廠尚未設定人員</div>')+
     '<div class="drawer-section-title"><b>等待決定</b>'+(canIncidents()?'<button data-act="leave-request-new">＋新增詢問</button>':'')+'</div>'+(requests||'<div class="drawer-empty">沒有等待決定的請假</div>');
 }
 
@@ -1122,8 +1122,8 @@ document.addEventListener("click",e=>{
       if(!canIncidents()){toast('設定休假需要「故障與請假」權限；員工可從下方「＋新增詢問」提出');break;}
       if(UI.leaveBrush){applyPersonDay(a.dataset.id,a.dataset.d,UI.leaveBrush==="leave");break;}
       openModal({t:'person-day',id,d:a.dataset.d});break;}
-    case "cal-brush":{if(!canIncidents())break;const v=a.dataset.v;UI.leaveBrush=UI.leaveBrush===v?null:v;render();break;}
-    case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
+    case "cal-brush":{if(!canIncidents())break;const v=a.dataset.v;UI.leaveBrush=UI.leaveBrush===v?null:v;render();if(UI.leaveBrush)toast("已選「"+(UI.leaveBrush==="leave"?"休假":"上班")+"」：可以直接連續點日曆上這個月要"+(UI.leaveBrush==="leave"?"休假":"上班")+"的日期，點完即存。再按一次按鈕結束。");break;}
+case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "focus-machine":UI.focus={type:'machine',id};render();break;
     case "focus-memo":{const memo=(S.memos||[]).find(x=>x.id===id);UI.focus=memo?.machineId?{type:'machine',id:memo.machineId}:memo?.employeeId?{type:'employee',id:memo.employeeId}:null;render();break;}
     case "leave-request-new":if(canIncidents())openModal({t:'leave-request'});break;

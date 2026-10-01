@@ -743,3 +743,7 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
 @media (max-width:760px){.wiz-card{flex-direction:column;align-items:stretch}.wiz-acts{width:100%}.wiz-acts .wiz-big{flex:1}}
 .tf-urgent .urgent-tag{vertical-align:middle}
 .cellbtn.raw{color:var(--pg-bad);font-weight:700}
+/* 筆刷模式下日曆格子底色加強：上班＝淡綠底、休假＝淡紅底 */
+.people-calendar .calendar-day.working{background:#e9f9ee}
+.people-calendar .calendar-day.leave{background:#fce8e6}
+.people-calendar .calendar-day.leave b{color:#c62828}
