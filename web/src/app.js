@@ -1168,18 +1168,9 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
       render();window.scrollTo(0,0);if(UI.page)flashReturnRow();break;}
     case "page-return":{const p=UI.returnTo?.page||null;UI.returnTo=null;UI.page=p;try{history.replaceState(null,"",p?"?view="+(p==="transferflow"?"transfer":p):location.pathname);}catch{}render();window.scrollTo(0,0);if(p)flashReturnRow();break;}
     case "worklog":UI.page="worklog";UI.drawer=null;try{history.replaceState(null,"","?view=worklog");}catch{}render();window.scrollTo(0,0);flashReturnRow();break;
-    case "cell-edit":{UI.editCell={table:a.dataset.cell,id:a.dataset.id,key:a.dataset.key};render();break;}
+    case "row-edit":{openTableForm(a.dataset.table,a.dataset.id);break;}
     case "col-add":customColAdd(a.dataset.v);break;
-    case "rush-addrow":{
-      if(!canPermission("rush.manage"))break;
-      const row={id:uid(),f1:{shipDate:todayStr(),vendor:"",desc:"",shortQty:null,note:""},f2:{startDate:"",dueDate:"",itemProcess:"",desc:"",qty:null,note:""}};
-      S.rushOrders.push(row);
-      try{validateRush(S.rushOrders);}catch(e){S.rushOrders.pop();toast(e.message);break;}
-      commit({kind:"edit",title:"欠缺品項加一列",lines:[]},"rush.manage");
-      if(STORE.kind==="supabase"&&SOLVER?.url)sendLineNotify(SOLVER.url,STORE.jwt(),"rush_order","趕貨新增："+(row.f1?.vendor||"")+(row.f1?.desc?" "+row.f1.desc:"")).catch(()=>{});
-      UI.editCell={table:"rush",id:row.id,key:"f1.vendor"};render();
-      setTimeout(()=>{const el=$(".cellinp");el?.focus();},60);
-      break;}
+    case "rush-addrow":{openTableForm("rush");break;}
     case "rush-del":{
       if(!canPermission("rush.manage"))break;
       if(UI.confirmRow!=="del:"+a.dataset.id){UI.confirmRow="del:"+a.dataset.id;render();break;}
@@ -1194,17 +1185,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
       if(o){UI.returnTo={page:"shortage",rowId:row.id};UI.page=null;UI.focus={type:"order",id:o.id};try{history.replaceState(null,"",location.pathname);}catch{}render();window.scrollTo(0,0);toast("已高亮工單 "+code+"；要回去按上方「返回」");}
       else toast("找不到工單號 "+code+"；先在「工單」用這個品號建單，就能互跳");
       break;}
-    case "tf-addrow":{
-      if(!canPermission("transfers.manage"))break;
-      let n=transferOrders(S).length+1,code="XF-"+String(n).padStart(3,"0");
-      while(transferOrders(S).some(x=>x.code===code)){n++;code="XF-"+String(n).padStart(3,"0");}
-      const row={id:uid(),code,itemCode:"（待填品號）",fromFactory:1,toFactory:2,returnFactory:1,totalQty:null,urgentQty:0,notified:todayStr(),expectedSend:null,due:null,urgentDue:null,seq:null,floor1:null,floor3:null,returned:false,workIds:[],status:"active",note:"",batches:[],events:[]};
-      S.transferOrders.push(row);
-      try{validateTransfers(S,{before:S});}catch(e){S.transferOrders.pop();toast(e.message);break;}
-      commit({kind:"edit",title:"加工表加一列 "+code,lines:[]},"transfers.manage");
-      UI.editCell={table:"tf",id:row.id,key:"itemCode"};render();
-      setTimeout(()=>{const el=$(".cellinp");el?.focus();},60);
-      break;}
+    case "tf-addrow":{openTableForm("tf");break;}
     case "tf-del":{
       if(!canPermission("transfers.manage"))break;
       const o=transferOrders(S).find(x=>x.id===a.dataset.id);if(!o)break;
@@ -1260,15 +1241,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
       if(pendE||pendM){toast("還有 "+(pendE+pendM)+" 項未標「對」，不能完成核對");break;}
       closeModal();toast("核對結果已記錄；自動排班鎖定的解除需另行確認，此頁不會自動打開");
       UI.page=null;render();break;}
-    case "wl-addrow":{
-      if(!canPermission("worklog.manage"))break;
-      const row={id:uid(),date:todayStr(),code:"",goodQty:null,badQty:null,startH:null,startM:null,endH:null,endM:null,reworkMin:null,worker:"",note:""};
-      S.workLog.push(row);
-      try{validateWorkLog(S.workLog);}catch(e){S.workLog.pop();toast(e.message);break;}
-      commit({kind:"edit",title:"工作紀錄加一列",lines:[]},"worklog.manage");
-      UI.editCell={table:"wl",id:row.id,key:"code"};render();
-      setTimeout(()=>{const el=$(".cellinp");el?.focus();},60);
-      break;}
+    case "wl-addrow":{openTableForm("wl");break;}
     case "wl-del":{
       if(!canPermission("worklog.manage"))break;
       if(UI.confirmRow!=="wldel:"+a.dataset.id){UI.confirmRow="wldel:"+a.dataset.id;render();break;}
@@ -1277,6 +1250,22 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
       commit({kind:"edit",title:"刪除工作紀錄一列",lines:[]},"worklog.manage");
       toast("已刪除");break;}
     case "wl-clearfilter":{UI.workLogDate="";render();break;}
+    case "tbl-save":{saveTableForm(a);break;}
+    case "tbl-del":{
+      const m=UI.modal;if(m?.t!=="tbl-form")break;
+      if(!m.confirmDel){m.confirmDel=true;renderModal();break;}
+      const table=m.table;
+      const list=table==="rush"?(S.rushOrders||[]):table==="tf"?transferOrders(S):(S.workLog||[]);
+      const idx=list.findIndex(r=>r.id===m.id);
+      if(table==="tf"&&idx>=0){
+        const o=list[idx];
+        if(o.batches?.length||o.events?.length){toast("這筆已有批次或流轉紀錄，改為取消");o.status="cancelled";}
+        else list.splice(idx,1);
+      }else if(idx>=0)list.splice(idx,1);
+      closeModal();
+      const perm=table==="rush"?"rush.manage":table==="tf"?"transfers.manage":"worklog.manage";
+      commit({kind:"edit",title:"刪除"+TABLE_TITLES[table]+"一列",lines:[]},perm);
+      toast("已刪除");break;}
     case "tf-goto":{
       const o=transferOrders(S).find(x=>x.id===a.dataset.id);if(!o)break;
       UI.returnTo={page:"transferflow",rowId:o.id};UI.page=null;try{history.replaceState(null,"",location.pathname);}catch{}
@@ -2980,7 +2969,7 @@ function editCellHTML(table,id,key,type,value,ro){
     const iv=(type==="date"&&!isISO(value))?"":(value??"");
     return '<input class="inp cellinp" data-cell="'+table+'" data-id="'+esc(id)+'" data-key="'+esc(key)+'" data-type="'+type+'" '+attr+' value="'+esc(iv)+'">';
   }
-  return '<button class="cellbtn" data-act="cell-edit" data-cell="'+table+'" data-id="'+esc(id)+'" data-key="'+esc(key)+'" data-type="'+type+'">'+shown+'</button>';
+  return '<span class="cellval">'+shown+'</span>';
 }
 function saveCellEdit(input){
   const table=input.dataset.cell,id=input.dataset.id,key=input.dataset.key,type=input.dataset.type;
@@ -3287,6 +3276,101 @@ function analyticsPageHTML(){
   '</div>';
 
   return '<div class="fullpage">'+head+body+'</div>';
+}
+
+
+/* ---------- 三表共用填寫窗 ---------- */
+const TABLE_FORM_FIELDS={
+  tf:[["notified","通知日期","date"],["code","加工編號","text",true],["seq","加工序","number"],
+    ["totalQty","全部可給數","number"],["expectedSend","可給二廠時間","text"],
+    ["urgentQty","急用","number"],["due","要求回一廠時間","date"],
+    ["floor1","現在貨在1樓","number"],["floor3","現在貨在3樓","number"],
+    ["returned","已回一廠","check"],["note","備註","text"]],
+  rush:[["f1.shipDate","出貨日期","date"],["f1.vendor","廠商","text"],["f1.desc","品號","text"],
+    ["f1.shortQty","欠貨數量","number"],["f1.note","備註","text"],
+    ["f2.startDate","開工","date"],["f2.dueDate","預計完成","date"],
+    ["f2.itemProcess","品號／製程","text"],["f2.desc","描述","text"],
+    ["f2.qty","數量","number"],["f2.note","備註","text"]],
+  wl:[["date","日期","date"],["code","加工編號","text"],["goodQty","合格數","number"],
+    ["badQty","不良","number"],["startH","開工時","hour"],["startM","開工分","minute"],
+    ["endH","完工時","hour"],["endM","完工分","minute"],
+    ["reworkMin","修模時間","number"],["worker","加工者","text"],["note","備註","text"]]
+};
+const TABLE_TITLES={tf:"給二廠／回一廠",rush:"欠缺品項",wl:"工作紀錄"};
+function tableFormModal(m){
+  const table=m.table,fields=TABLE_FORM_FIELDS[table]||[];
+  const isNew=!m.id,D=m.draft||{};
+  const body='<div class="hint">'+(isNew?"填完按儲存才會新增。":"修改完按儲存。")+'</div>'+
+    fields.map(([key,label,type,req])=>{
+      const id="tf-f-"+key.replace(/\./g,"-");
+      const val=getPath(D,key)??"";""
+      if(type==="check")return '<label class="permission-row"><input type="checkbox" id="'+id+'" data-fk="'+key+'"'+(val?" checked":"")+'><span><b>'+label+'</b></span></label>';
+      if(type==="hour"||type==="minute"){
+        const max=type==="hour"?23:59;
+        return '<div class="field"><label for="'+id+'">'+label+'</label><select class="inp" id="'+id+'" data-fk="'+key+'">'+numSelOptions(val,max,1)+'</select></div>';
+      }
+      const t=type==="date"?"date":type==="number"?"number":"text";
+      return '<div class="field"><label for="'+id+'">'+label+(req?" *":"")+'</label><input class="inp" id="'+id+'" data-fk="'+key+'" type="'+t+'" value="'+esc(val)+'"></div>';
+    }).join("");
+  const foot='<button class="btn" data-act="close">取消</button>'+
+    (!isNew?'<button class="btn danger" data-act="tbl-del" data-table="'+table+'" data-id="'+esc(m.id||"")+'">'+(m.confirmDel?"再按一次刪除":"刪除")+'</button>':'')+
+    '<div class="spacer"></div><button class="btn primary" data-act="tbl-save" data-table="'+table+'"'+(m.saving?" disabled":"")+'>'+(m.saving?"儲存中…":"儲存")+'</button>';
+  return {title:(isNew?"新增":"編輯")+" — "+TABLE_TITLES[table],body,foot};
+}
+MODALS['tbl-form']=tableFormModal;
+function openTableForm(table,id){
+  const list=table==="rush"?(S.rushOrders||[]):table==="tf"?transferOrders(S):(S.workLog||[]);
+  const row=id?list.find(r=>r.id===id):null;
+  const perm=table==="rush"?"rush.manage":table==="tf"?"transfers.manage":"worklog.manage";
+  if(!canPermission(perm)){toast("只有老闆／組長可以"+(id?"修改":"新增"));return;}
+  openModal({t:"tbl-form",table,id:id||null,draft:row?structuredClone(row):null,saving:false});
+}
+function saveTableForm(button){
+  const m=UI.modal;if(m?.t!=="tbl-form"||m.saving)return;
+  const table=m.table,D=m.draft||{};
+  for(const el of document.querySelectorAll("[data-fk]")){
+    const key=el.dataset.fk;
+    if(el.type==="checkbox")setPath(D,key,el.checked);
+    else if(el.tagName==="SELECT"||el.type==="number"){const v=el.value.trim();setPath(D,key,v===""?null:Math.round(+v));}
+    else setPath(D,key,el.value.trim()||null);
+  }
+  const list=table==="rush"?(S.rushOrders||[]):table==="tf"?transferOrders(S):(S.workLog||[]);
+  const perm=table==="rush"?"rush.manage":table==="tf"?"transfers.manage":"worklog.manage";
+  m.saving=true;renderModal();
+  try{
+    if(table==="tf"){
+      if(!D.code||!String(D.code).trim())throw new Error("加工編號必填");
+      if(!m.id){
+        if(!D.id)D.id=uid();
+        D.itemCode=D.itemCode||D.code;D.fromFactory=D.fromFactory||1;D.toFactory=D.toFactory||2;D.returnFactory=D.returnFactory||1;
+        D.urgentQty=D.urgentQty||0;D.returned=!!D.returned;D.workIds=D.workIds||[];D.status=D.status||"active";
+        D.batches=D.batches||[];D.events=D.events||[];
+        list.unshift(D);
+      }else{const idx=list.findIndex(r=>r.id===m.id);if(idx>=0)list[idx]=D;}
+      validateTransfers(S,{before:S});
+    }else if(table==="rush"){
+      if(!D.id)D.id=uid();
+      if(!D.f1)D.f1={};if(!D.f2)D.f2={};
+      if(m.id){const idx=list.findIndex(r=>r.id===m.id);if(idx>=0)list[idx]=D;}
+      else list.unshift(D);
+      validateRush(S.rushOrders);
+    }else{
+      if(!D.id)D.id=uid();
+      if(m.id){const idx=list.findIndex(r=>r.id===m.id);if(idx>=0)list[idx]=D;}
+      else list.unshift(D);
+      validateWorkLog(S.workLog);
+    }
+    closeModal();
+    commit({kind:"edit",title:(m.id?"更新":"新增")+TABLE_TITLES[table]+"一列",lines:[]},perm);
+    UI.flashNewRow=D.id;
+    toast("已儲存");
+  }catch(e){
+    m.saving=false;
+    if(!m.id&&list[0]===D)list.shift();
+    else if(m.id){const idx=list.findIndex(r=>r.id===m.id);if(idx>=0&&m.draft)list[idx]=m.draft;}
+    renderModal();
+    toast(e.message+"；沒存到");
+  }
 }
 
 function reviewPageHTML(){
