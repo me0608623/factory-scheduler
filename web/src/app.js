@@ -1138,10 +1138,25 @@ document.addEventListener("click",e=>{
     case "focus-order":UI.focus={type:'order',id};UI.drawer=null;render();requestAnimationFrame(()=>$('.board')?.scrollIntoView({behavior:'smooth',block:'start'}));break;
     case "focus-person":UI.focus={type:'employee',id};render();break;
     case "person-day":{
-      if(!canIncidents()){toast('設定休假需要「故障與請假」權限；員工可從下方「＋新增詢問」提出');break;}
+      if(!canIncidents()){toast('設定需要「故障與請假」權限；員工可從下方「＋新增詢問」提出');break;}
+      if(UI.leaveBrush==="uncertain"){
+        const eid=a.dataset.id,dd=a.dataset.d;
+        const toggleUnc=async d=>{
+          const pend=(S.leaveRequests||[]).find(x=>x.employeeId===eid&&x.date===d&&x.status==="pending");
+          if(pend){if(STORE.kind==="local"){pend.status="rejected";pend.resolvedAt=new Date().toISOString();await STORE.sync(S);}else await STORE.resolveLeaveRequest(pend.id,"rejected");return -1;}
+          const req={id:uid(),employeeId:eid,date:d,note:"未確定",status:"pending"};
+          if(STORE.kind==="local"){(S.leaveRequests||=[]).push(req);await STORE.sync(S);}else await STORE.createLeaveRequest(req);return 1;
+        };
+        if(!UI.brushStart){UI.brushStart={eid,d:dd};render();toast("起點 "+md(dd)+"；再點最後一天框選範圍");break;}
+        const st=UI.brushStart.d;UI.brushStart=null;
+        const [lo,hi]=st<=dd?[st,dd]:[dd,st];
+        (async()=>{try{let c=0;for(let x=lo;x<=hi&&c<62;x=addDays(x,1)){const r=await toggleUnc(x);if(r!==0)c++;}
+        await reloadFromStore();UI.drawer="people";toast("未確定 "+md(lo)+"～"+md(hi)+"（"+c+" 天）");}catch(e){toast("沒存到："+e.message);}})();
+        break;
+      }
       if(UI.leaveBrush){
         const eid=a.dataset.id,dd=a.dataset.d;
-        // 範圍框選：第一次點＝起點（亮待選），第二次點＝終點（一次套用整段）
+        // 範圍框選：第一次點＝起點，第二次點＝終點
         if(!UI.brushStart){
           UI.brushStart={eid,d:dd};
           render();
@@ -1175,7 +1190,7 @@ document.addEventListener("click",e=>{
         break;
       }
       openModal({t:'person-day',id,d:a.dataset.d});break;}
-    case "cal-brush":{if(!canIncidents())break;const v=a.dataset.v;UI.leaveBrush=UI.leaveBrush===v?null:v;render();if(UI.leaveBrush)toast("已選「"+(UI.leaveBrush==="leave"?"休假":"上班")+"」：可以直接連續點日曆上這個月要"+(UI.leaveBrush==="leave"?"休假":"上班")+"的日期，點完即存。再按一次按鈕結束。");break;}
+    case "cal-brush":{if(!canIncidents())break;const v=a.dataset.v;UI.leaveBrush=UI.leaveBrush===v?null:v;UI.brushStart=null;render();if(UI.leaveBrush){const nm={leave:"休假",work:"上班",uncertain:"未確定"};toast("已選「"+(nm[UI.leaveBrush]||UI.leaveBrush)+"」：連點日期套用，或點第一天再點最後一天框選範圍。再按一次結束。");}break;}
 case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "focus-machine":UI.focus={type:'machine',id};render();break;
     case "focus-memo":{const memo=(S.memos||[]).find(x=>x.id===id);UI.focus=memo?.machineId?{type:'machine',id:memo.machineId}:memo?.employeeId?{type:'employee',id:memo.employeeId}:null;render();break;}
