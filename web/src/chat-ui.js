@@ -3,8 +3,8 @@ import {SOLVER} from './solver.js';
 
 export function installScheduleChat({snapshot,view,store,enabled,stamp}){
   const root=document.createElement('aside');root.id='schedule-chat';root.setAttribute('aria-label','排程聊天室');document.body.append(root);
-  root.innerHTML='<button class="chat-launch" aria-label="開啟排程 AI 聊天室" aria-expanded="false" aria-controls="schedule-chat-panel">✦ 排程助理</button><section id="schedule-chat-panel" class="chat-panel" hidden aria-label="排程 AI 聊天室"><header><strong>排程 AI 聊天室</strong><button class="btn chat-tts" aria-pressed="false" title="新回答自動唸出來">🔊 播報</button><button class="btn chat-clear">清除對話</button><button class="btn chat-close" aria-label="關閉聊天室">×</button></header><p class="chat-scope"></p><p class="chat-disclosure">預設為資料查詢，非生成式 AI；不外傳模型、不修改排程。自然語言 AI 需管理員設定與資料授權。</p><label class="chat-mode"><input type="checkbox"> 使用已設定的雲端 AI</label><div class="chat-quick"><button class="btn">目前排程有哪些問題？</button><button class="btn">誰請假？</button><button class="btn">哪些機台故障？</button></div><div class="chat-log" role="log" aria-live="polite" aria-label="排程對話"></div><form><label for="schedule-chat-question">詢問目前日期／廠別的排程</label><textarea id="schedule-chat-question" maxlength="1000" rows="2" placeholder="例如：張三目前有哪些工作？"></textarea><button class="btn primary" type="submit">送出</button></form></section>';
-  const launch=root.querySelector('.chat-launch'),panel=root.querySelector('.chat-panel'),log=root.querySelector('.chat-log'),input=root.querySelector('textarea'),mode=root.querySelector('input'),submit=root.querySelector('[type="submit"]'),ttsBtn=root.querySelector('.chat-tts');
+  root.innerHTML='<button class="chat-launch" aria-label="開啟排程 AI 聊天室" aria-expanded="false" aria-controls="schedule-chat-panel">✦ 排程助理</button><section id="schedule-chat-panel" class="chat-panel" hidden aria-label="排程 AI 聊天室"><header><strong>排程助理</strong><button class="btn chat-tts" aria-pressed="false" title="新回答自動唸出來">🔊</button><button class="btn chat-clear">清除</button><button class="btn chat-close" aria-label="關閉聊天室">×</button></header><div class="chat-log" role="log" aria-live="polite" aria-label="排程對話"></div><form><textarea id="schedule-chat-question" maxlength="1000" rows="2" placeholder="問我排程、請假、趕貨…"></textarea><button class="btn primary" type="submit">送出</button></form><div class="chat-quick"><button class="btn">目前排程有哪些問題？</button><button class="btn">誰請假？</button><button class="btn">哪些機台故障？</button><button class="btn">輪班人力缺口</button><button class="btn">跨廠流轉進度</button><button class="btn">特別趕貨欠什麼？</button></div></section>';
+  const launch=root.querySelector('.chat-launch'),panel=root.querySelector('.chat-panel'),log=root.querySelector('.chat-log'),input=root.querySelector('textarea'),submit=root.querySelector('[type="submit"]'),ttsBtn=root.querySelector('.chat-tts');
   // 語音播報：用瀏覽器內建語音（zh-TW 優先），不把回答送到任何服務
   let ttsAuto=false;try{ttsAuto=localStorage.getItem('fsched-chat-tts')==='1';}catch{}
   const synthOK=typeof window!=='undefined'&&'speechSynthesis' in window;
@@ -16,21 +16,13 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
   ttsBtn.onclick=()=>{ttsAuto=!ttsAuto;try{localStorage.setItem('fsched-chat-tts',ttsAuto?'1':'0');}catch{}ttsBtn.setAttribute('aria-pressed',String(ttsAuto));ttsBtn.classList.toggle('on',ttsAuto);if(!ttsAuto)stopSpeak();else toastMini('開啟播報：新的回答會唸出來');};
   const toastMini=t=>{const p=document.createElement('p');p.className='chat-notice';p.textContent=t;log.append(p);setTimeout(()=>p.remove(),4000);};
   const attachSpeak=(el,text)=>{if(!synthOK)return;const b=document.createElement('button');b.className='btn chat-speak';b.textContent='🔊 播報';b.onclick=()=>{if(b.dataset.on){stopSpeak();b.textContent='🔊 播報';b.dataset.on='';}else{speak(text);b.dataset.on='1';b.textContent='■ 停止';}};el.append(b);};
-  mode.checked=false;mode.disabled=true;root.querySelector('.chat-mode').hidden=true;
-  const range=document.createElement('div');range.className='chat-range';range.innerHTML='<label>查詢起日<input type="date" aria-label="聊天室查詢起日"></label><label>查詢迄日<input type="date" aria-label="聊天室查詢迄日"></label><small>最多 31 日；未啟用自然語言日期推算，請直接選日期。</small>';
-  root.querySelector('.chat-quick').before(range);const [from,to]=range.querySelectorAll('input');let lastViewDate='';
-  for(const text of ['輪班人力缺口','跨廠流轉進度','目前完成進度','特別趕貨欠什麼？']){const b=document.createElement('button');b.className='btn';b.textContent=text;root.querySelector('.chat-quick').append(b);}
-  // Scroll query controls separately so short screens retain the composer/log.
-  const controls=document.createElement('div');controls.className='chat-controls';
-  panel.querySelector('header').after(controls);
-  for(const el of panel.querySelectorAll('.chat-scope,.chat-disclosure,.chat-mode,.chat-range,.chat-quick'))controls.append(el);
+  const from={value:view().date},to={value:view().date};let lastViewDate='';
   let busy=false,generation=0,lastStamp='',messages=[];
   const add=(who,text)=>{const el=document.createElement('div');el.className='chat-message '+who;el.textContent=text;log.append(el);while(log.children.length>30)log.firstElementChild.remove();log.scrollTop=log.scrollHeight;return el;};
   const hide=()=>{panel.hidden=true;launch.setAttribute('aria-expanded','false');launch.focus();};
   const scopeStamp=()=>stamp()+'|'+from.value+'|'+to.value;
-  const refresh=()=>{const v=view(),ai=store().kind==='supabase'&&SOLVER.capabilities.includes('schedule_chat_ai_v1');root.hidden=!enabled();mode.disabled=!ai;root.querySelector('.chat-mode').hidden=!ai;if(!ai)mode.checked=false;if(v.date!==lastViewDate){from.value=to.value=v.date;lastViewDate=v.date;}root.querySelector('.chat-scope').textContent=from.value+'～'+to.value+' · '+(v.factory==='all'?'跨廠':v.factory+' 廠')+' · '+(store().kind==='local'?'本機已保存資料':'登入權限的雲端資料')+'；不含試排預覽';};
-  from.onchange=to.onchange=()=>refresh();
-  launch.onclick=()=>{refresh();panel.hidden=!panel.hidden;launch.setAttribute('aria-expanded',String(!panel.hidden));if(!panel.hidden)input.focus();};
+  const refresh=()=>{const v=view();root.hidden=!enabled();if(v.date!==lastViewDate){from.value=to.value=v.date;lastViewDate=v.date;}};
+  from.onchange=to.onchange=()=>refresh();  launch.onclick=()=>{refresh();panel.hidden=!panel.hidden;launch.setAttribute('aria-expanded',String(!panel.hidden));if(!panel.hidden)input.focus();};
   root.querySelector('.chat-close').onclick=hide;
   panel.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();hide();}});
   root.querySelector('.chat-clear').onclick=()=>{generation++;log.replaceChildren();messages=[];lastStamp='';busy=false;submit.disabled=false;input.value='';input.focus();};
@@ -41,8 +33,8 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
     lastStamp=base;add('user',q);input.value='';const pending=add('assistant','正在讀取排程…');
     try{
       let result;
-      if(store().kind==='local'&&!mode.checked){const context=chatContext(snapshot(),v);result={...answerFromFacts(q,context),context};}
-      else result=await SOLVER.chat({question:q,date:v.date,end_date:v.end_date,factory:v.factory,generate:mode.checked,history:mode.checked?messages:[],...(store().kind==='local'?{snapshot:snapshot()}: {})},store().jwt());
+      if(store().kind==='local'){const context=chatContext(snapshot(),v);result={...answerFromFacts(q,context),context};}
+      else result=await SOLVER.chat({question:q,date:v.date,end_date:v.end_date,factory:v.factory,generate:false,history:[],...(store().kind==='local'?{snapshot:snapshot()}: {})},store().jwt());
       if(token!==generation)return;
       if(base!==scopeStamp()){pending.textContent='回答期間排程或日期／廠別已改變。這份結果已捨棄，請重新提問。';return;}
       pending.textContent=result.engine+'\n'+result.answer;
