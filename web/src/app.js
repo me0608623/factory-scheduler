@@ -852,7 +852,7 @@ function moreDrawerHTML(){
   // 名冊與工作資料待確認時，整段排程入口不出現（不只是停用）
   const schedGate=S.setupPending?"":btn('manual-add','＋手動排班',readOnly?'disabled':'')+btn('auto','⚡ 自動排班',readOnly?'disabled':'')+btn('incident','故障／請假',!canIncidents()?'disabled':'');
   return '<section class="more-group"><h3>班表</h3><div class="more-grid"><div class="seg" role="group" aria-label="檢視"><button data-act="view" data-v="day" aria-pressed="'+(UI.view==='day')+'">日班表</button><button data-act="view" data-v="week" aria-pressed="'+(UI.view==='week')+'">週班表</button></div><div class="seg" role="group" aria-label="查看方式"><button data-act="layout" data-v="resource" aria-pressed="'+(UI.layout==='resource')+'">按設備</button><button data-act="layout" data-v="work" aria-pressed="'+(UI.layout==='work')+'">按工作</button></div>'+schedGate+btn('undo','復原上一步',readOnly||!undoStack.length?'disabled':'')+'</div></section>'+
-    '<section class="more-group"><h3>工作與人員</h3><div class="more-grid">'+btn('work-queue','未排工作')+btn('execution','現場回報')+btn('resource-load','當日負荷')+btn('rosters','輪班表')+btn('work-contents','工作內容')+btn('transfers','跨廠加工')+btn('rush','欠缺品項')+btn('groups','員工分組')+(canScenarios()?btn('scenarios','試排情境'):'')+'</div></section>'+
+    '<section class="more-group"><h3>工作與人員</h3><div class="more-grid">'+btn('work-queue','未排工作')+btn('execution','現場回報')+btn('resource-load','當日負荷')+btn('rosters','輪班表')+btn('work-contents','工作內容')+btn('transfers','跨廠加工')+btn('rush','欠缺品項')+btn('groups','員工分組')+(STORE.role==='boss'?btn('access','權限管理'):'')+(canScenarios()?btn('scenarios','試排情境'):'')+'</div></section>'+
     '<section class="more-group"><h3>資料與設定</h3><div class="more-grid">'+btn('settings','⚙ 設定')+btn('catalog','員工、設備與工單')+(canArchive()?btn('history','歷史班表'):'')+btn('export','匯出／匯入 Excel')+btn('log','全部紀錄')+btn('tv',UI.tv?'管理模式':'大螢幕')+btn('help','操作說明')+'</div></section>';
 }
 function statusTag(o){
@@ -1147,6 +1147,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "view":UI.view=a.dataset.v;render();break;
     case "factory":{const v=a.dataset.v==="all"?"all":Number(a.dataset.v);setFactory(v);render();if(v==="all")openModal({t:'transfer-board'});break;}
     case "groups":openModal({t:'groups'});break;
+    case "access":{if(STORE.role!=='boss'){toast("只有老闆可以管理權限");break;}openModal({t:'access-accounts',loading:true,accounts:[]});try{const accounts=await STORE.listAccessAccounts();if(UI.modal?.t==='access-accounts'){UI.modal.loading=false;UI.modal.accounts=accounts;renderModal();}}catch(e){toast(e.message);closeModal();}break;}
     case 'layout':UI.layout=a.dataset.v;render();break;
     case 'work-contents':openModal({t:'work-contents'});break;
     case 'work-content-new':if(canWorkContents())openModal({t:'work-content-edit'});break;
@@ -2754,10 +2755,12 @@ Object.assign(MODAL_ACT,{
   "solver-check":async()=>{await SOLVER.check();renderModal();toast(SOLVER.up?"已連上 OR-Tools 排程服務":"排程服務沒有回應："+SOLVER.url);}
 });
 
-MODALS['access-accounts']=m=>({title:'帳號權限',body:m.loading?'<div class="hint">讀取帳號中…</div>':
-  '<div class="hint">職位只決定預設值；老闆可逐一調整實際功能。這不會授予 Supabase Organization 或資料庫管理權。</div>'+m.accounts.map(x=>
-    '<button class="btn" data-act="access-account" data-id="'+esc(x.userId)+'" style="width:100%;height:auto;min-height:54px;justify-content:space-between;margin:8px 0"><span>'+esc(x.displayName||'未命名帳號')+'</span><span>'+esc(ROLE_NAME[x.role]||x.role)+'</span></button>').join(''),
-  foot:'<button class="btn" data-act="account">返回</button><button class="btn primary" data-act="close">關閉</button>'});
+MODALS['access-accounts']=m=>({title:'權限管理',body:m.loading?'<div class="hint">讀取帳號中…</div>':
+  '<div class="hint">點帳號設定職位與系統權限。職位決定預設值，可逐一開關實際功能。</div>'+m.accounts.map(x=>{
+    const emp=S.employees.find(e=>e.id===x.employeeId);
+    const gs=emp?employeeGroups(S,emp.id).map(g=>g.group.name).join('、'):'';
+    return '<button class="btn" data-act="access-account" data-id="'+esc(x.userId)+'" style="width:100%;height:auto;min-height:64px;justify-content:space-between;margin:8px 0;display:flex;flex-direction:column;align-items:flex-start;gap:4px"><span style="display:flex;justify-content:space-between;width:100%"><b>'+esc(x.displayName||'未命名帳號')+'</b><span class="tag">'+esc(ROLE_NAME[x.role]||x.role)+'</span></span><small style="color:var(--muted)">'+esc(x.email||'')+(emp?' · 員工：'+esc(emp.name):' · 未關聯員工')+(gs?' · 分組：'+esc(gs):'')+'</small></button>';}).join(''),
+  foot:'<button class="btn primary" data-act="close">關閉</button>'});
 MODALS['access-account']=m=>{const x=m.account,isBoss=x.role==='boss';return {title:'設定 '+esc(x.displayName||'帳號')+' 的權限',body:
   '<div class="hint">職位：'+esc(ROLE_NAME[x.role]||x.role)+'。'+(isBoss?'老闆永遠擁有全部功能，避免失去管理入口。':'以下開關會決定實際可用功能；日後可再次調整。'+(x.customized?'目前使用自訂權限。':'目前使用職位預設。'))+'</div>'+PERMISSIONS.map(([key,name,desc])=>
     '<label class="permission-row"><input type="checkbox" data-permission="'+key+'" '+(x.permissions?.[key]?'checked ':'')+(isBoss?'disabled ':'')+'><span><b>'+esc(name)+'</b><small>'+esc(desc)+'</small></span></label>').join(''),
