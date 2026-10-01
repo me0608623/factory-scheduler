@@ -3694,7 +3694,7 @@ async function start(){
   loadPreferencesForDevice();loadFactory();
   if(!UI.date)UI.date=todayStr();
   // ?view=shortage|transfer|worklog：重新整理仍停在該頁
-  try{const v=new URLSearchParams(location.search).get("view");UI.page={shortage:"shortage",transfer:"transferflow",worklog:"worklog",review:"review"}[v]||null;if(UI.page==="review")UI.reviewStep ??= 1;}catch{}
+  try{const v=new URLSearchParams(location.search).get("view");UI.page={shortage:"shortage",transfer:"transferflow",worklog:"worklog",review:"review",analytics:"analytics"}[v]||null;if(UI.page==="review")UI.reviewStep ??= 1;}catch{}
   render();
   if(UI.page)flashReturnRow();
   STORE.subscribe(onRemoteChange);
