@@ -1365,7 +1365,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     default:if(MODAL_ACT[act])MODAL_ACT[act](a,e);
   }
 });
-document.addEventListener("click",e=>{if(e.target.dataset?.actChange){const act=e.target.dataset.actChange;if(act==="rush-showarchived"){UI.shortageShowArchived=e.target.checked;render();return;}if(act==="tf-showarchived"){UI.tfShowArchived=e.target.checked;render();return;}}}
+document.addEventListener("click",e=>{if(e.target.dataset?.actChange){const act=e.target.dataset.actChange;if(act==="rush-showarchived"){UI.shortageShowArchived=e.target.checked;render();return;}if(act==="tf-showarchived"){UI.tfShowArchived=e.target.checked;render();return;}}});
 document.addEventListener("change",e=>{
   if(e.target.dataset?.cell){saveCellEdit(e.target);return;}
   if(e.target.dataset?.actChange==="tf-showcancelled"){UI.tfShowCancelled=e.target.checked;render();return;}
