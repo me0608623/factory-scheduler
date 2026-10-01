@@ -839,3 +839,9 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
   .addrow-mobile{display:flex!important;position:fixed;right:16px;bottom:80px;z-index:20;width:56px;height:56px;min-width:56px;border-radius:50%;font-size:28px;font-weight:900;justify-content:center;align-items:center;padding:0;box-shadow:0 4px 12px rgba(0,0,0,.3);background:#1a73e8;color:#fff;border:none;line-height:1}
   .addrow-mobile:active{transform:scale(.92)}
 }
+/* 已歸檔切換 checkbox：自訂外觀，勾選時變色 */
+.tf-toggle{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;font-size:14px;font-weight:600;color:var(--muted)}
+.tf-toggle input[type="checkbox"]{width:22px;height:22px;accent-color:#1a73e8;cursor:pointer}
+.tf-toggle input[type="checkbox"]:checked{accent-color:#1e8e3e}
+.tf-toggle:has(input:checked){color:var(--ink)}
+.tf-toggle:has(input:checked)::after{content:" ✓";color:#1e8e3e;font-weight:900}

@@ -1376,8 +1376,8 @@ document.addEventListener("change",e=>{
       commit({kind:"edit",title:(o.returned?"勾選":"取消")+"已回一廠 "+o.code,lines:[]},"transfers.manage");}
     return;}
   if(e.target.dataset?.actChange==="wl-filter"){UI.workLogDate=e.target.value;render();return;}
-  if(e.target.dataset?.actChange==="tf-showarchived"){UI.tfShowArchived=e.target.checked;render();return;}
-  if(e.target.dataset?.actChange==="rush-showarchived"){UI.shortageShowArchived=e.target.checked;render();return;}
+  if(e.target.dataset?.actChange==="tf-showarchived"){UI.tfShowArchived=e.target.checked;setTimeout(render,0);return;}
+  if(e.target.dataset?.actChange==="rush-showarchived"){UI.shortageShowArchived=e.target.checked;setTimeout(render,0);return;}
   if(e.target.id==='tf-toFactory'&&UI.modal?.t==='transfer-edit'){syncInputs();UI.modal.draft.workIds=UI.modal.draft.workIds.filter(id=>workCatalog(S).some(w=>w.id===id&&w.factory===Number(e.target.value)));renderModal();return;}
   if(e.target.id?.startsWith('gw-')){generalChange(e.target);return;}
   if(e.target.id==='staff-group-filter'){UI.group=e.target.value;render();return;}
