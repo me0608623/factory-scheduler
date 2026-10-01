@@ -2972,11 +2972,12 @@ function shortagePageHTML(){
 }
 const pendingDate=v=>v&&!/^\d{4}-\d{2}-\d{2}$/.test(String(v));
 // 有原始文字（08\16 這類）的日期格：只顯示該文字、不再多一個「—」；點它仍可改選真日期
-function rawCell(table,id,key,dateVal,rawVal,ro){
+function rawCell(table,id,key,dateVal,rawVal,ro,blank){
   if(rawVal&&(dateVal===null||dateVal===undefined)){
     if(ro)return '<span class="raw-txt">'+esc(rawVal)+'</span>';
     return '<button class="cellbtn raw" data-act="cell-edit" data-cell="'+table+'" data-id="'+esc(id)+'" data-key="'+esc(key)+'" data-type="date">'+esc(rawVal)+'</button>';
   }
+  if(blank&&(dateVal===null||dateVal===undefined))return "";   // 沒日期也沒文字：整格空白，連「—」都不顯示
   return editCellHTML(table,id,key,"date",dateVal,ro);
 }
 function transferFlowPageHTML(){
@@ -3010,7 +3011,7 @@ function transferFlowPageHTML(){
         cell("seq","number")+cell("totalQty","number")+
         '<td>'+rawCell("tf",o.id,"expectedSend",o.expectedSend,o.expectedSendRaw,ro)+pend("expectedSend")+'</td>'+
         '<td class="tf-urgent">'+editCellHTML("tf",o.id,"urgentQty","number",o.urgentQty,ro)+'</td>'+
-        '<td class="tf-urgent">'+((o.urgentQty||0)>0?'<span class="urgent-tag">急</span>':"")+rawCell("tf",o.id,"urgentDue",o.urgentDue,o.urgentRaw,ro)+pend("urgentDue")+'</td>'+
+        '<td class="tf-urgent">'+((o.urgentQty||0)>0&&(o.urgentDue||o.urgentRaw)?'<span class="urgent-tag">急</span>':"")+rawCell("tf",o.id,"urgentDue",o.urgentDue,o.urgentRaw,ro,true)+pend("urgentDue")+'</td>'+
         '<td>'+editCellHTML("tf",o.id,"due","date",o.due,ro)+pend("due")+'</td>'+
         cell("floor1","number")+cell("floor3","number")+
         '<td class="chk"><input type="checkbox" data-act-change="tf-returned" data-id="'+esc(o.id)+'"'+(o.returned?" checked":"")+(ro?" disabled":"")+' aria-label="已回一廠"></td>'+

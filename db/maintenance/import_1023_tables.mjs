@@ -116,17 +116,18 @@ for (let r = 2; r <= wsB.rowCount; r++) {
   if (dErr) noteBits.push(dErr);
   if (urgentRaw) noteBits.push(`急用原值 ${urgentRaw}`);
   const extra = aMap[code] || {};
-  // 急用日期：A 表「2廠時間」（B 表急用欄只是數量）；文字值 → urgentRaw 標待確認格式
+  // 急用日期：A 表「2廠時間」的「日期值」（B 表急用欄只是數量）
   const aUrgentDue = extra.urgentDate || null;
-  if (extra.urgentDateRaw) urgentRaw = extra.urgentDateRaw;
   const sendRaw = g(4) !== null && g(4) !== '' && !/^\d{4}-\d{2}-\d{2}$/.test(String(g(4))) ? String(g(4)) : null;
+  // A 表「2廠時間」的文字值（08\16 等）屬於「可給二廠時間」原格：只在 B 表該欄沒有值時補上，不進急用
+  const finalSendRaw = sendRaw || (extra.urgentDateRaw && !sOk ? extra.urgentDateRaw : null);
   transfers.push({
     id: uuid5('tf:' + code + ':' + r),
     code: uniq, itemCode: code,
     fromFactory: 1, toFactory: 2, returnFactory: 1,
     totalQty: num(g(3)), urgentQty,
     notified: nOk,
-    expectedSend: sOk, expectedSendRaw: sendRaw,
+    expectedSend: sOk, expectedSendRaw: finalSendRaw,
     due: dOk,
     urgentDue: aUrgentDue, urgentRaw,
     seq: extra.seq ?? null, floor1: extra.floor1 ?? null, floor3: extra.floor3 ?? null,
