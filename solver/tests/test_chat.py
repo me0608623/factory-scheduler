@@ -5,7 +5,7 @@ from copy import deepcopy
 import pytest
 from fastapi.testclient import TestClient
 import app.main as api
-from app.chat import ChatQuery, ChatUnavailable, build_context, respond
+from app.chat import ChatQuery, ChatUnavailable, build_context, query_kinds, respond
 
 
 def query(**kw):
@@ -269,3 +269,27 @@ def test_zai_errors_are_actionable_without_echoing_provider_body(monkeypatch,dem
     with pytest.raises(ChatUnavailable,match=message) as exc:
         asyncio.run(respond(q,build_context(demo[0].model_dump(mode='json'),q)))
     assert 'SENSITIVE' not in str(exc.value) and 'fake-zai-key' not in str(exc.value)
+
+
+def test_rush_facts_and_order_note_in_context(demo):
+    """特別趕貨與工單備註會成為可引用的事實；趕貨關鍵字會路由到 rush。"""
+    raw=demo[0].model_dump(mode='json')
+    raw['orders'][0]['note']='客戶指定第一批先出'
+    raw['orders'][0]['due']='2026-09-26'
+    raw['rush_orders']=[
+        {'id':'r1','f1':{'shipDate':'2026-09-26','vendor':'AVK-5','desc':'521F00137','shortQty':100,'note':''},
+         'f2':{'startDate':'2026-09-27','dueDate':'','itemProcess':'521F00137','desc':'進貨布輪擦拭','qty':240,'note':''}},
+        {'id':'r2','f1':{'shipDate':'2026-09-28','vendor':'JUMBO','desc':'5252S0115','shortQty':240,'note':''},
+         'f2':{'startDate':'','dueDate':'','itemProcess':'','desc':'','qty':None,'note':''}},
+    ]
+    ctx=build_context(raw,query(question='特別趕貨欠什麼？'))
+    kinds=query_kinds('特別趕貨欠什麼？')
+    assert 'rush' in kinds
+    rush=[f for f in ctx['facts'] if f['kind']=='rush']
+    assert len(rush)==1 and 'AVK-5' in rush[0]['text'] and '欠 100' in rush[0]['text'] and '不代表可排' in rush[0]['text']
+    ctx_all=build_context(raw,query(question='今天狀況總覽'))
+    note=[f for f in ctx_all['facts'] if f['kind']=='order' and '備註' in f['text']]
+    assert note and '客戶指定第一批先出' in note[0]['text']
+    # 二廠開工日照樣會被挑出來
+    ctx2=build_context(raw,query(question='趕貨',date='2026-09-27'))
+    assert any(f['kind']=='rush' and '二廠開工' in f['text'] for f in ctx2['facts'])

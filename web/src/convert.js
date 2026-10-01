@@ -29,6 +29,7 @@ export function toSnapshot(S, holidays = {}) {
     work_assignments: structuredClone(S.workAssignments||[]),
     work_reference_orders: structuredClone(S.workReferenceOrders||[]),
     transfer_orders: structuredClone(S.transferOrders||[]),
+    rush_orders: structuredClone(S.rushOrders||[]),
     staff_rosters: structuredClone(S.staffRosters||[]),
     leave_requests: structuredClone(S.leaveRequests||[]),
     schedule_memos: structuredClone(S.memos||[]),

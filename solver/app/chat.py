@@ -45,7 +45,7 @@ def hm(n):
 def build_context(raw, query):
     if len(json.dumps(raw,ensure_ascii=False)) > 3000000:
         raise ValueError('排程快照超過查詢容量，請縮小範圍')
-    if any(len(raw.get(k,[])) > cap for k,cap in [('employees',500),('machines',1000),('orders',5000),('blocks',10000),('work_assignments',10000),('work_execution',10000),('staff_rosters',24),('transfer_orders',1000)]):
+    if any(len(raw.get(k,[])) > cap for k,cap in [('employees',500),('machines',1000),('orders',5000),('blocks',10000),('work_assignments',10000),('work_execution',10000),('staff_rosters',24),('transfer_orders',1000),('rush_orders',2000)]):
         raise ValueError('排程資料過大，請縮小範圍')
     snap=Snapshot(**raw)  # validate dates/references before treating data as evidence
     all_facts=[];end=query.end_date or query.date;day=query.date
@@ -103,6 +103,24 @@ def daily_context(raw,query,snap):
     for o in snap.orders:
         if o.due<day and any(a['text'].startswith(o.code+' · ') for a in activities):
             add('deadline',f'{o.code} 交期 {o.due} 已過；仍有當日預排，實際是否完工需現場回報',o.id)
+        note=getattr(o,'note',None)
+        if note and (o.due==day or any(a['text'].startswith(o.code+' · ') for a in activities)):
+            add('order',f'{o.code} 備註：{note}（內部說明，不影響排程計算）',o.id)
+    # 特別趕貨：以一廠出貨日／二廠開工日落在當天為準；只是紀錄，不代表可排或可交
+    for r in raw.get('rush_orders',[]):
+        if not isinstance(r,dict):continue
+        f1=r.get('f1') or {};f2=r.get('f2') or {}
+        hits=[k for k,v in (('出貨',f1.get('shipDate')),('二廠開工',f2.get('startDate')),('二廠預計完成',f2.get('dueDate'))) if v==day]
+        if not hits:continue
+        q1=f1.get('shortQty');q2=f2.get('qty')
+        parts=[]
+        if f1.get('vendor') or f1.get('desc') or q1 is not None:
+            parts.append(f"一廠欠貨：{f1.get('vendor') or '未填廠商'} {f1.get('desc') or ''} 欠 {q1 if q1 is not None else '未填'} 件"
+                         +(f"（備註 {f1['note']}）" if f1.get('note') else ''))
+        if f2.get('itemProcess') or f2.get('desc') or q2 is not None:
+            parts.append(f"二廠加工：{f2.get('itemProcess') or ''} {f2.get('desc') or ''} {q2 if q2 is not None else '未填'} 件"
+                         +(f"（備註 {f2['note']}）" if f2.get('note') else ''))
+        add('rush',f"特別趕貨（{'、'.join(hits)}）：{'；'.join(parts) or '僅有日期，內容未填'}；紀錄不代表可排或可交",r.get('id'))
     # Use the same conservative material-readiness formula as the production UI.
     # All assignments are included by schedule_snapshot, allowing earlier reservations.
     linked={b['id']:(o,b) for o in raw.get('transfer_orders',[]) for b in o.get('batches',[])}
@@ -147,6 +165,7 @@ def query_kinds(question):
     for words,kinds in [(['故障','修復','修好'],['fault']),(['請假'],['leave','alert']),
                         (['輪班','班別','崗位','人力'],['roster','alert']),
                         (['跨廠','流轉','送回','交料'],['transfer','material','deadline']),
+                        (['趕貨','欠貨','缺貨','急貨'],['rush','material']),
                         (['缺料','待料','物料','點收'],['material','transfer']),
                         (['衝突','重疊','問題'],['alert','execution_alert','fault','deadline','material']),
                         (['交期','逾期'],['deadline','material']),

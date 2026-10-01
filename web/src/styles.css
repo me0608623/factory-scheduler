@@ -621,3 +621,8 @@ body:has(#ov:not([hidden])) #schedule-chat{z-index:15}
   .grid{min-width:100%!important;transform:none!important;color:#000!important}
   .blk{print-color-adjust:exact;-webkit-print-color-adjust:exact}
 }
+/* 排程助理語音播報 */
+.chat-tts{font-size:13px;padding:4px 10px}
+.chat-tts.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.chat-speak{font-size:13px;margin:6px 0 0}
+.chat-notice{color:var(--muted);font-size:13px;margin:2px 0}
