@@ -1155,7 +1155,7 @@ document.addEventListener("click",e=>{
           // 已在目標狀態 → 取消（回到上班）
           if((wantLeave&&isInLeave&&!isUnc)||(wantUnc&&isUnc&&!isInLeave)||(wantWork&&!isInLeave&&!isUnc)){
             // toggle off：全部清回上班
-            if(isInLeave){E.leaves=E.leaves.filter(x=>x!==d;}
+            if(isInLeave){E.leaves=E.leaves.filter(x=>x!==d);}
             if(pend){pend.status="rejected";pend.resolvedAt=new Date().toISOString();}
             return -1;
           }
