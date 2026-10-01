@@ -2970,6 +2970,7 @@ function shortagePageHTML(){
     '</tbody></table></div>';
   return pageShell("欠缺品項","左邊一廠欠貨，右邊二廠何時補。同一列同一張單。",head+bar+table,ro,"rush-addrow");
 }
+const pendingDate=v=>v&&!/^d{4}-d{2}-d{2}$/.test(String(v));
 function transferFlowPageHTML(){
   const ro=!canPermission("transfers.manage");
   const showArch=!!UI.tfShowArchived;
