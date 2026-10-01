@@ -747,3 +747,35 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
 .people-calendar .calendar-day.working{background:#e9f9ee}
 .people-calendar .calendar-day.leave{background:#fce8e6}
 .people-calendar .calendar-day.leave b{color:#c62828}
+/* 深色模式：三張表的表頭與儲存格改為深色版 */
+:root:not([data-theme="light"]):not([data-app-theme="light"]){
+  --pg-f1-head:#5a4a05;--pg-f1-cell:#2d2503;--pg-f2-head:#1a5c2e;--pg-f2-cell:#0d2e17;
+  --pg-bad:#FF6F6F;--pg-line:#34424F;--pg-bg:#0E141A;
+}
+:root[data-theme="dark"]:not([data-app-theme="light"]),:root[data-app-theme="dark"]{
+  --pg-f1-head:#5a4a05;--pg-f1-cell:#2d2503;--pg-f2-head:#1a5c2e;--pg-f2-cell:#0d2e17;
+  --pg-bad:#FF6F6F;--pg-line:#34424F;--pg-bg:#0E141A;
+}
+.sheettable thead th{background:var(--surface2)}
+.sheettable tr.matched td{background:#123020}
+.sheettable tr.archived td{background:#1a1e24}
+.sheettable tr.returned td{background:#123020}
+.sheettable td.c-f2-empty{background:var(--surface)}
+.cellbtn{color:inherit}
+.rowdel{color:var(--bad)}
+.codelink{color:var(--accent)}
+.statstrip .stat{color:var(--ink)}
+.archive-bar .hint{color:var(--muted)}
+.archived-n{color:var(--ok)}
+.addrow{color:var(--ink);border-color:var(--line)}
+.addrow:hover{border-color:var(--accent);color:var(--accent)}
+.wiz-card{color:var(--ink)}
+.wiz-name{color:var(--ink)}
+.wiz-meta{color:var(--muted)}
+.wiz-steps .wiz-step{color:var(--ink)}
+.wiz-pending{background:#382A0D;color:#F2B64A}
+.wiz-ok{background:#123020;color:#4DD08B}
+.wiz-foot{background:rgba(14,20,26,.96)}
+.late-txt{color:var(--pg-bad)}
+.raw-txt{color:var(--pg-bad)}
+.pending-tag{color:var(--pg-bad);border-color:var(--pg-bad)}
