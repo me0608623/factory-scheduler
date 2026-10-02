@@ -109,7 +109,70 @@ try {
       (preferredOption === "C" && effects.overtime_days < 1)) {
     throw new Error(JSON.stringify({ version, counts, effects, outcomes }));
   }
-  console.log(JSON.stringify({ version, second_factory_blocks: counts.second_factory, earlyTransfers, effects, outcomes }));
+
+  // ---------- 現場流程：worker 回報 → 組長確認完工 → 快照一致性（模擬重新整理） ----------
+  // 完工回報不可提前：只挑今天（台北）或以前的排程段。
+  const reportable = (await db.query(`select b.id, b.employee_id, b.qty from schedule_blocks b
+    join orders o on o.id=b.order_id
+    where b.employee_id is not null and o.status='open'
+      and b.date <= (clock_timestamp() at time zone 'Asia/Taipei')::date
+    order by b.date limit 2`)).rows;
+  if (reportable.length < 1) throw new Error("沒有可回報的排程段，無法驗收現場流程");
+  const mine = reportable[0];
+  const notMine = reportable[1] && reportable[1].employee_id !== mine.employee_id ? reportable[1] : null;
+  const workerUid = "22222222-2222-4222-8222-222222222222";
+  await db.query("insert into auth.users (id,email) values ($1,'worker@example.test')", [workerUid]);
+  // on_auth_user_created 觸發器已自動建立 viewer profile；改為指派角色，模擬老闆設定的現場帳號
+  await db.query("update profiles set role='worker', employee_id=$2, display_name='drill-worker' where user_id=$1", [workerUid, mine.employee_id]);
+  await db.query("select set_config('request.jwt.claim.sub',$1,false)", [workerUid]);
+  const report = async (block, action, qty, rev) =>
+    (await db.query("select (report_work_execution(gen_random_uuid(),$1,$2,$3,$4)) as r", [block, action, qty, rev])).rows[0].r;
+  if (notMine) {
+    let denied = false;
+    try { await report(notMine.id, "start", 0, 0); } catch (e) { denied = /綁定給自己/.test(e.message); }
+    if (!denied) throw new Error("worker 竟可回報綁給別人的工作");
+  }
+  let s1 = await report(mine.id, "start", 0, 0);
+  if (s1.status !== "running") throw new Error(`start 後狀態應為 running：${JSON.stringify(s1)}`);
+  const half = Math.max(1, Math.floor(mine.qty / 2));
+  let s2 = await report(mine.id, "quantity", half, s1.revision);
+  if (s2.qtyDone !== half) throw new Error(`回報件數不一致：${JSON.stringify(s2)}`);
+  let s3 = await report(mine.id, "finish", mine.qty, s2.revision);
+  if (s3.status !== "done" || s3.qtyDone !== mine.qty) throw new Error(`完工回報不一致：${JSON.stringify(s3)}`);
+  let doneBlocked = false;
+  try { await report(mine.id, "quantity", mine.qty, s3.revision); } catch (e) { doneBlocked = /不可再修改/.test(e.message); }
+  if (!doneBlocked) throw new Error("已完成的回報竟可再修改");
+
+  // 切回組長確認完工；worker 不行。
+  await db.query("select set_config('request.jwt.claim.sub',$1,false)", [uid]);
+  const workerDenied = await (async () => {
+    await db.query("select set_config('request.jwt.claim.sub',$1,false)", [workerUid]);
+    try { await db.query("select confirm_work_execution($1,true)", [mine.id]); return false; }
+    catch (e) { return /只有老闆或組長/.test(e.message); }
+    finally { await db.query("select set_config('request.jwt.claim.sub',$1,false)", [uid]); }
+  })();
+  if (!workerDenied) throw new Error("worker 竟可確認完工");
+  const confirmed = (await db.query("select (confirm_work_execution($1,true)) as r", [mine.id])).rows[0].r;
+  if (confirmed.confirmed !== true) throw new Error(`確認完工失敗：${JSON.stringify(confirmed)}`);
+
+  // 模擬畫面重新整理：重新讀兩次快照，完工量與確認狀態必須一致（ERP CSV 即讀這些欄位）。
+  const execEntry = async () => {
+    const snap = await readSnapshot();
+    return snap.work_execution.find(x => x.blockId === mine.id) || null;
+  };
+  const e1 = await execEntry(), e2 = await execEntry();
+  if (!e1 || e1.status !== "done" || e1.qtyDone !== mine.qty || e1.confirmed !== true)
+    throw new Error(`快照中的回報不一致（ERP 來源）：${JSON.stringify(e1)}`);
+  if (JSON.stringify(e1) !== JSON.stringify(e2))
+    throw new Error(`兩次快照不一致（模擬重新整理）：${JSON.stringify(e1)} vs ${JSON.stringify(e2)}`);
+  const erpRow = (await db.query(`select o.code, b.date, x.qty_done, x.confirmed from work_execution x
+    join schedule_blocks b on b.id=x.block_id join orders o on o.id=b.order_id
+    where x.block_id=$1`, [mine.id])).rows[0];
+  if (!erpRow.code || erpRow.qty_done !== mine.qty || erpRow.confirmed !== true)
+    throw new Error(`ERP CSV 資料來源不一致：${JSON.stringify(erpRow)}`);
+
+  console.log(JSON.stringify({ version, second_factory_blocks: counts.second_factory, earlyTransfers, effects, outcomes,
+    execution: { block: mine.id, qtyDone: e1.qtyDone, confirmed: e1.confirmed, erpOrder: erpRow.code } }));
 } finally {
   await db.close();
 }

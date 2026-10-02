@@ -12,6 +12,8 @@ on:
       - '**.md'
       - '.github/workflows/nightly-backup.yml'
       - '.github/workflows/backup-drill.yml'
+      - '.github/workflows/permissions-drill.yml'
+      - '.github/workflows/apply-migration.yml'
   workflow_dispatch: {}
 
 jobs:

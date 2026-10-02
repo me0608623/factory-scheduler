@@ -153,6 +153,10 @@ export class SupabaseStore {
     if(error){if(error.code==='40001')throw new ConflictError('進度已被更新，請重新載入');throw Object.assign(new Error(error.message),{rejected:!!error.code});}
     return data;
   }
+  async confirmExecution(blockId, confirmed) {
+    const {error}=await this.sb.rpc('confirm_work_execution',{p_block:blockId,p_confirmed:confirmed});
+    if(error)throw new Error(error.message);
+  }
 
   // 舊版 Excel 作為獨立歷史資料儲存，絕不更動目前排程快照。
   async listLegacyArchives() {

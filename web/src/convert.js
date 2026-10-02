@@ -56,7 +56,7 @@ export function toSnapshot(S, holidays = {}) {
     orders: S.orders.map((o) => ({ id: o.id, code: o.code, product: o.pid, qty: o.qty, due: o.due, priority: o.pri, note: o.note ?? null })),
     blocks: S.blocks.map((b) => ({ id: b.id, order: b.oid, step: b.step, machine: b.m, employee: b.emp ?? null,
       date: b.date, start: b.s, end: b.e, qty: b.qty, pinned: !!b.pin })),
-    work_execution: (S.execution || []).map((r) => ({ blockId: r.blockId, status: r.status, qtyDone: Number(r.qtyDone) || 0 })),
+    work_execution: (S.execution || []).map((r) => ({ blockId: r.blockId, status: r.status, qtyDone: Number(r.qtyDone) || 0, confirmed: !!r.confirmed })),
   };
 }
 

@@ -12,6 +12,9 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
+      - name: 取得程式碼（補齊備份之後的 migration 用）
+        uses: actions/checkout@v4
+
       - name: 下載最新備份
         run: |
           ARTIFACTS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
@@ -83,6 +86,16 @@ jobs:
                END LOOP; \
              END \$\$;"
           echo "✓ Restore done: $(docker exec drill-pg psql -U postgres -d postgres -t -A -q -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'") tables"
+          # 備份可能早於 repo 最新的 migration（例如 0035 確認完工）；缺的話補上，
+          # 讓演練驗證的永遠是目前程式碼對應的資料庫結構
+          if ! docker exec drill-pg psql -U postgres -d postgres -t -A -q -c "SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname='confirm_work_execution'" | grep -q 1; then
+            echo "（備份缺少 0035：套用 db/migrations/0035_execution_confirm.sql）"
+            MIG=0
+            docker exec -i drill-pg psql -U postgres -d postgres -q -v ON_ERROR_STOP=1 < db/migrations/0035_execution_confirm.sql || MIG=$?
+            [ "$MIG" = "0" ] || { echo "✗ 套用 0035 失敗"; exit 1; }
+          else
+            echo "（備份已含 0035 結構）"
+          fi
 
       - name: 準備測試帳號（找出 boss、建立合成 lead/viewer）
         run: |
@@ -314,12 +327,66 @@ jobs:
           echo "H 小計：PASS=$PASS FAIL=$FAIL"
           [ "$FAIL" -eq 0 ] || echo "H_FAILED=$FAIL" >> "$GITHUB_ENV"
 
+      - name: I. worker 角色（只能回報綁定給自己的工作；確認完工權限）
+        run: |
+          PASS=0; FAIL=0
+          perm() { docker exec drill-pg psql -U postgres -d postgres -q -t -A -c \
+            "BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.sub='$1'; SELECT has_permission('$2'); ROLLBACK;" 2>/dev/null || true; }
+          f() { docker exec drill-pg psql -U postgres -d postgres -q -t -A -c \
+            "BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.sub='$1'; SELECT $2; ROLLBACK;" 2>/dev/null || true; }
+          err_as() { OUT=$(docker exec drill-pg psql -U postgres -d postgres -q -t -A -c \
+            "BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.sub='$1'; $2 ROLLBACK;" 2>&1) && { echo "NO-ERROR(輸出:$OUT)"; return; }
+            case "$OUT" in *"$3"*) echo MATCHED;; *) echo "WRONG-ERROR: $(echo "$OUT" | head -2)";; esac; }
+          call_commit() { docker exec drill-pg psql -U postgres -d postgres -q -t -A -c \
+            "SET ROLE authenticated; SET request.jwt.claim.sub='$1'; $2" 2>/dev/null || true; }
+          expect() { if [ "$2" = "$3" ]; then PASS=$((PASS+1)); echo "PASS: $1"; else FAIL=$((FAIL+1)); echo "FAIL: $1 — expected [$2] got [$3]"; fi; }
+          # 預備（拋棄式副本）：open 工單、核定員工/機台、worker 帳號綁定真實員工、兩段測試排程
+          docker exec drill-pg psql -U postgres -d postgres -q -c "
+            UPDATE orders SET status='open' WHERE id IN (SELECT id FROM orders LIMIT 1);
+            UPDATE employees SET active=true, review_status='confirmed' WHERE NOT active OR review_status<>'confirmed';
+            UPDATE machines SET active=true, review_status='confirmed' WHERE NOT active OR review_status<>'confirmed';
+            WITH u AS (INSERT INTO auth.users (id) VALUES (gen_random_uuid()) RETURNING id)
+            INSERT INTO profiles (user_id, display_name, role, employee_id)
+            SELECT id, 'drill-worker', 'worker', (SELECT id FROM employees ORDER BY code LIMIT 1) FROM u;
+            INSERT INTO schedule_blocks (order_id,step_seq,machine_id,employee_id,date,start_min,end_min,qty)
+            SELECT (SELECT id FROM orders WHERE status='open' LIMIT 1),0,
+                   (SELECT id FROM machines ORDER BY id LIMIT 1),
+                   (SELECT employee_id FROM profiles WHERE display_name='drill-worker'),
+                   current_date,480,540,10;
+            INSERT INTO schedule_blocks (order_id,step_seq,machine_id,employee_id,date,start_min,end_min,qty)
+            SELECT (SELECT id FROM orders WHERE status='open' LIMIT 1),1,
+                   (SELECT id FROM machines ORDER BY id LIMIT 1),
+                   (SELECT id FROM employees WHERE id<>(SELECT employee_id FROM profiles WHERE display_name='drill-worker') ORDER BY code LIMIT 1),
+                   current_date,480,540,10;"
+          WORKER=$(docker exec drill-pg psql -U postgres -d postgres -t -A -q -c "SELECT user_id FROM profiles WHERE display_name='drill-worker'")
+          MYBLK=$(docker exec drill-pg psql -U postgres -d postgres -t -A -q -c "SELECT id FROM schedule_blocks WHERE employee_id=(SELECT employee_id FROM profiles WHERE display_name='drill-worker') ORDER BY created_at DESC LIMIT 1")
+          OTHERBLK=$(docker exec drill-pg psql -U postgres -d postgres -t -A -q -c "SELECT id FROM schedule_blocks WHERE step_seq=1 AND employee_id<>(SELECT employee_id FROM profiles WHERE display_name='drill-worker') ORDER BY created_at DESC LIMIT 1")
+          echo "worker=$WORKER myblk=$MYBLK otherblk=$OTHERBLK"
+          expect "worker 沒有任何管理權限" f "$(perm "$WORKER" orders.manage)"
+          expect "worker is_editor=f" f "$(f "$WORKER" "is_editor()")"
+          expect "worker 回報綁給別人的工作被拒" MATCHED "$(err_as "$WORKER" "SELECT report_work_execution(gen_random_uuid(),'$OTHERBLK','start',0,0);" '只能回報綁定給自己的工作')"
+          expect "viewer 沒有現場回報權限" MATCHED "$(err_as "$VIEWER" "SELECT report_work_execution(gen_random_uuid(),'$MYBLK','start',0,0);" '沒有現場回報權限')"
+          expect "worker 開工（自己的工作）" running "$(call_commit "$WORKER" "SELECT (report_work_execution(gen_random_uuid(),'$MYBLK','start',0,0))->>'status';")"
+          expect "worker 回報累計 5 件" 5 "$(call_commit "$WORKER" "SELECT (report_work_execution(gen_random_uuid(),'$MYBLK','quantity',5,1))->>'qtyDone';")"
+          expect "worker 回報件數倒退被拒" MATCHED "$(err_as "$WORKER" "SELECT report_work_execution(gen_random_uuid(),'$MYBLK','quantity',3,2);" '累計件數不可倒退')"
+          expect "舊 revision 重送被拒（40001）" MATCHED "$(err_as "$WORKER" "SELECT report_work_execution(gen_random_uuid(),'$MYBLK','quantity',7,1);" '進度已被更新')"
+          expect "worker 完工回報 10 件" done "$(call_commit "$WORKER" "SELECT (report_work_execution(gen_random_uuid(),'$MYBLK','finish',10,2))->>'status';")"
+          expect "已完成的工作不可再修改" MATCHED "$(err_as "$WORKER" "SELECT report_work_execution(gen_random_uuid(),'$MYBLK','quantity',10,3);" '已完成的回報不可再修改')"
+          expect "worker 不能確認完工" MATCHED "$(err_as "$WORKER" "SELECT confirm_work_execution('$MYBLK',true);" '只有老闆或組長可以確認完工')"
+          expect "boss 可替員工回報（execution.manage）" running "$(call_commit "$BOSS" "SELECT (report_work_execution(gen_random_uuid(),'$OTHERBLK','start',0,0))->>'status';")"
+          expect "未報完工不能確認" MATCHED "$(err_as "$BOSS" "SELECT confirm_work_execution('$OTHERBLK',true);" '這項工作還未報完工')"
+          expect "boss 確認完工" true "$(call_commit "$BOSS" "SELECT (confirm_work_execution('$MYBLK',true))->>'confirmed';")"
+          expect "快照帶 confirmed=true（重新整理後仍已確認，ERP CSV 讀這個欄位）" 1 "$(f "$VIEWER" "SELECT count(*) FROM jsonb_array_elements(schedule_snapshot()->'work_execution') x WHERE x->>'blockId'='$MYBLK' AND x->>'confirmed'='true';")"
+          expect "取消確認後快照變待確認" 0 "$(call_commit "$BOSS" "SELECT (confirm_work_execution('$MYBLK',false))->>'confirmed';" >/dev/null; f "$VIEWER" "SELECT count(*) FROM jsonb_array_elements(schedule_snapshot()->'work_execution') x WHERE x->>'blockId'='$MYBLK' AND x->>'confirmed'='true';")"
+          echo "I 小計：PASS=$PASS FAIL=$FAIL"
+          [ "$FAIL" -eq 0 ] || echo "I_FAILED=$FAIL" >> "$GITHUB_ENV"
+
       - name: 總結
         run: |
           docker rm -f drill-pg >/dev/null 2>&1 || true
           docker network rm drill-net >/dev/null 2>&1 || true
           TOTAL_FAIL=0
-          for v in A_FAILED B_FAILED C_FAILED D_FAILED E_FAILED F_FAILED G_FAILED H_FAILED; do
+          for v in A_FAILED B_FAILED C_FAILED D_FAILED E_FAILED F_FAILED G_FAILED H_FAILED I_FAILED; do
             VAL="${!v}"
             if [ -n "$VAL" ]; then echo "✗ $v=$VAL"; TOTAL_FAIL=$((TOTAL_FAIL+VAL)); fi
           done

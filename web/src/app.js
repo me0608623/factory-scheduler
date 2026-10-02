@@ -1350,16 +1350,33 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
       if(!canPermission('execution.manage')){toast('只有老闆或組長可以確認完工');break;}
       const r=(S.execution||[]).find(x=>x.blockId===a.dataset.id);
       if(!r||r.status!=='done'){toast('這項工作還未報完工');break;}
-      r.confirmed=true;
-      commit({kind:"edit",title:"確認完工 "+(order(S.blocks.find(b=>b.id===r.blockId)?.oid)?.code||""),lines:[]},"execution.manage");
-      toast('已確認完工');break;}
+      a.disabled=true;
+      STORE.confirmExecution(a.dataset.id,true).then(async()=>{
+        await reloadFromStore();toast('已確認完工（已存到資料庫）');
+      }).catch(async e=>{
+        a.disabled=false;
+        if(/不存在|not exist|PGRST202|Could not find/.test(e.message||'')){
+          // 資料庫還沒有 0035 migration：退回舊行為（僅本次畫面有效，重新整理後會還原）
+          r.confirmed=true;commit({kind:"edit",title:"確認完工（資料庫待更新，僅本機生效）",lines:[]},"execution.manage");
+          toast('已確認完工（提示：資料庫尚未更新，重新整理後會還原）');
+        } else toast('沒存到：'+e.message);
+      });
+      break;}
     case 'exec-unconfirm':{
       if(!canPermission('execution.manage'))break;
       const r=(S.execution||[]).find(x=>x.blockId===a.dataset.id);
       if(!r)break;
-      delete r.confirmed;
-      commit({kind:"edit",title:"取消確認完工",lines:[]},"execution.manage");
-      toast('已取消確認，回報仍保留');break;}
+      a.disabled=true;
+      STORE.confirmExecution(a.dataset.id,false).then(async()=>{
+        await reloadFromStore();toast('已取消確認，回報仍保留');
+      }).catch(async e=>{
+        a.disabled=false;
+        if(/不存在|not exist|PGRST202|Could not find/.test(e.message||'')){
+          delete r.confirmed;commit({kind:"edit",title:"取消確認完工（資料庫待更新，僅本機生效）",lines:[]},"execution.manage");
+          toast('已取消確認（提示：資料庫尚未更新）');
+        } else toast('沒存到：'+e.message);
+      });
+      break;}
     case "group-edit":openModal({t:'staff-group',id});break;
     case "group-new":if(canGroups())openModal({t:'staff-group'});break;
     case "goto":UI.date=a.dataset.d;UI.view="day";render();window.scrollTo(0,0);break;

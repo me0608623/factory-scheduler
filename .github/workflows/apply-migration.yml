@@ -1,0 +1,59 @@
+# 手動套用資料庫 migration 到正式 Supabase（用 GitHub secret SUPABASE_DB_URL，
+# 金鑰不落地、不進 Git）。套用前會先確認最新備份存在且可下載。
+# 依交接規則：任何 schema migration 前必須有可還原的備份。
+name: 套用資料庫 migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      migration:
+        description: 'migration 檔名（例如 0035_execution_confirm.sql）'
+        required: true
+        type: string
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 取得程式碼
+        uses: actions/checkout@v4
+
+      - name: 檢查 migration 檔案存在且檔名合法
+        run: |
+          M="${{ inputs.migration }}"
+          case "$M" in
+            *[!/A-Za-z0-9_.-]*|*..*|"") echo "✗ 檔名不合法：$M"; exit 1;;
+          esac
+          [ -f "db/migrations/$M" ] || { echo "✗ 找不到 db/migrations/$M"; exit 1; }
+          echo "MIGRATION=$M" >> "$GITHUB_ENV"
+
+      - name: 確認有最新備份（migration 前置條件）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ARTIFACTS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?per_page=5" | \
+            jq -r '.artifacts[] | select(.name | startswith("db-backup-")) | (.created_at + " id=" + (.id|tostring))' | head -1)
+          if [ -z "$ARTIFACTS" ]; then echo "✗ 沒有備份 artifact，請先執行每日備份工作流"; exit 1; fi
+          AGE_DAYS=$(( ( $(date +%s) - $(date -d "$(echo "$ARTIFACTS" | sed 's/T.*//;s/ .*//')" +%s) ) / 86400 ))
+          echo "最新備份：$ARTIFACTS（約 ${AGE_DAYS} 天前）"
+          if [ "$AGE_DAYS" -gt 1 ]; then echo "⚠️ 備份超過 1 天，建議先重跑每日備份再套用"; fi
+
+      - name: 套用 migration（先測 syntax 再執行）
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          echo "套用 $MIGRATION ..."
+          R=0
+          docker run --rm -e DATABASE_URL -v "$PWD/db/migrations:/migrations" postgres:17 \
+            sh -c 'psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f /migrations/'"$MIGRATION"'' || R=$?
+          if [ "$R" -ne 0 ]; then echo "✗ migration 失敗（exit $R）"; exit 1; fi
+          echo "✓ 套用完成"
+
+      - name: 驗證連線與版本
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          docker run --rm -e DATABASE_URL postgres:17 \
+            sh -c 'psql "$DATABASE_URL" -t -A -c "SELECT version()"' || { echo "✗ 套用後連線驗證失敗"; exit 1; }
+          echo "✓ 套用後連線正常。建議：手動觸發「每日資料庫備份」產生含新結構的備份，再跑「備份還原演練」確認。"

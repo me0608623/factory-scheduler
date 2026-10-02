@@ -189,6 +189,28 @@ Render 已提供 HTTPS 網址並完成服務建立與環境變數設定；Supaba
 pg_restore --clean --if-exists --no-owner -d "$DATABASE_URL" factory-YYYYMMDD-HHMM.dump
 ```
 
+### 還原演練與驗證（CI）
+
+- `backup-drill.yml`（每月 1 日自動＋可手動）：下載最新備份 artifact，還原到拋棄式 PostgreSQL 17 容器，
+  驗證表數、關鍵函式、RLS 政策與資料筆數。Supabase 專屬相依（`auth` schema、`auth.users`、
+  `anon`／`authenticated` role）會在演練容器內建立 stub 或從備份資料回填，備份本體不受影響。
+- `permissions-drill.yml`（手動）：同樣還原後模擬 boss／lead／worker／viewer 帳號，
+  驗證權限矩陣、RLS、`setup_pending` 防護與排程寫入流程（版本衝突、現場回報、確認完工）。
+
+### 復原範圍邊界（重要）
+
+`--schema=public` 備份**只涵蓋 public schema**（排程、工單、權限覆寫、稽核紀錄）。以下項目**不在備份與演練範圍內**，
+災難復原時要另外處理：
+
+| 項目 | 說明 | 復原方式 |
+|---|---|---|
+| 登入帳號（`auth.users`） | Supabase Auth 服務管理，不在 public schema | 重新邀請建立；員工→帳號綁定靠 `profiles.employee_id` 重建 |
+| 驗證服務設定 | Supabase 託管的 Auth（密碼、session） | 依 Supabase 儀表板設定；無法從本備份還原 |
+| 儲存檔案（Storage） | 目前未使用；日後若上傳檔案需另訂備份 | — |
+| 正式服務環境變數 | Render 的 `VITE_*`、solver 金鑰、`SUPABASE_DB_URL` secret | 依 Runbook 重新設定（密鑰不進 Git） |
+
+演練中的 `auth.users` stub 只驗證外鍵結構完整，**不代表**登入帳號可從備份還原。
+
 ## 注意
 
 - 在某些 Windows 電腦上，「應用程式控制」會擋住 pandas 的 DLL。OR-Tools 只是順帶載入 pandas，沒有真的用到，所以 `solver/app/__init__.py` 在這種情況下會換成空殼，排程服務照常運作。Linux 伺服器上不受影響。

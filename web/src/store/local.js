@@ -74,6 +74,14 @@ export class LocalStore {
     let next;try{next=transitionExecution(S,request,{today});}catch(e){e.rejected=true;throw e;}
     try{localStorage.setItem(KEY,JSON.stringify(next));}catch{throw new Error('儲存空間不足，進度未存入');}
   }
+  async confirmExecution(blockId, confirmed) {
+    const S=await this.load();if(!S)throw new Error('請先儲存排程');
+    const r=(S.execution||[]).find(x=>x.blockId===blockId);
+    if(!r)throw new Error('找不到這段工作的回報');
+    if(confirmed&&r.status!=='done')throw new Error('這項工作還未報完工');
+    r.confirmed=confirmed;
+    try{localStorage.setItem(KEY,JSON.stringify(S));}catch{throw new Error('儲存空間不足，確認狀態未存入');}
+  }
 
   async listLegacyArchives() {
     try { return JSON.parse(localStorage.getItem(ARCHIVE_INDEX) || "[]"); }
