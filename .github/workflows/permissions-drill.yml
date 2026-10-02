@@ -92,6 +92,28 @@ jobs:
           echo "boss=$BOSS lead=$LEAD viewer=$VIEWER"
           echo "orders=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c 'SELECT count(*) FROM orders') blocks=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c 'SELECT count(*) FROM schedule_blocks') previews=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c 'SELECT count(*) FROM plan_previews') setup_pending=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c 'SELECT setup_pending FROM schedule_state')"
 
+      - name: DEBUG 解析度檢查（函式可見性 / search_path）
+        run: |
+          echo "== 1. 函式是否存在（postgres 視角）=="
+          docker exec drill-pg psql -U postgres -d postgres -t -A -q -c \
+            "SELECT n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')' FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE p.proname IN ('has_permission','set_account_permissions','is_boss','is_editor');"
+          echo "== 2. authenticated 的 search_path =="
+          docker exec drill-pg psql -U postgres -d postgres -t -A -q -c \
+            "BEGIN; SET LOCAL ROLE authenticated; SHOW search_path; ROLLBACK;" 2>&1 || true
+          echo "== 3. schema 清單 =="
+          docker exec drill-pg psql -U postgres -d postgres -t -A -q -c "SELECT nspname FROM pg_namespace ORDER BY 1;"
+          echo "== 4. qualified 呼叫（authenticated+boss）=="
+          docker exec drill-pg psql -U postgres -d postgres -t -A -q -c \
+            "BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.sub='$BOSS'; SELECT public.has_permission('schedule.manage'); ROLLBACK;" 2>&1 || true
+          echo "== 5. unqualified 呼叫（authenticated+boss）=="
+          docker exec drill-pg psql -U postgres -d postgres -t -A -q -c \
+            "BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.sub='$BOSS'; SELECT has_permission('schedule.manage'); ROLLBACK;" 2>&1 || true
+          echo "== 6. postgres 直接呼叫（帶 GUC）=="
+          docker exec drill-pg psql -U postgres -d postgres -t -A -q -c \
+            "BEGIN; SET LOCAL request.jwt.claim.sub='$BOSS'; SELECT has_permission('schedule.manage'); ROLLBACK;" 2>&1 || true
+          echo "== 7. public schema ACL =="
+          docker exec drill-pg psql -U postgres -d postgres -t -A -q -c "SELECT nspname||' '||coalesce(nspacl::text,'NULL') FROM pg_namespace WHERE nspname IN ('public','auth');"
+
       - name: A. 角色預設權限矩陣（has_permission）
         run: |
           PASS=0; FAIL=0
