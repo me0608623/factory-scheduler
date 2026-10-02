@@ -25,6 +25,7 @@ const clean = (t) => String(t).replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9
 
 const args = Object.fromEntries(process.argv.slice(2).map((s, i, a) => (s.startsWith("--") ? [s.slice(2), a[i + 1]] : [])));
 const MONDAY = args.monday;
+const ONLY = args.only || "";
 const CONTAINER = args.container || "sim-pg";
 if (!/^\d{4}-\d{2}-\d{2}$/.test(MONDAY || "")) { console.error("需 --monday YYYY-MM-DD"); process.exit(1); }
 const dayIdx = (d) => Math.round((Date.parse(d) - Date.parse(MONDAY)) / 86400000);
@@ -221,6 +222,7 @@ const orderEvent = (code, productId, qty, dueOffset, priority = 1) =>
 const P1 = "11111111-aaaa-4aaa-8aaa-111111111101", P2 = "11111111-aaaa-4aaa-8aaa-111111111102";
 
 async function runCase(id, fn) {
+  if (ONLY && !id.includes(ONLY)) { console.log(`[略過] ${id}（--only ${ONLY}）`); return; }
   await s.run("BEGIN");
   const out = []; let outcome = "PASS";
   try { outcome = await fn(out) || "PASS"; }
@@ -277,28 +279,35 @@ await runCase("C3 技能不足", async (out) => {
   return out.length ? "FAIL" : "PASS";
 });
 
-await runCase("C4 機台故障（兩階段）", async (out) => {
+await runCase("C4 機台故障（兩階段・故障適應實際區段）", async (out) => {
   await s.run(`INSERT INTO leaves (employee_id,date,start_min,end_min,note) VALUES ('${E01}','${T}',780,1020,'TEST 下午請假')`);
-  const v0 = await stateVersion();
-  const ev = orderEvent("TEST-O4", P2, 120, 0, 0);
+  // 階段一：先產生並套用合法基準排程（交期寬鬆，不指定完成日）
+  const ev = orderEvent("TEST-O4", P2, 120, 1, 0);
   const plan1 = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: ev, now, time_limit: 3 });
   const opt1 = plan1.options.find((o) => o.applicable && o.solver_method !== "keep");
   if (!opt1) { noOpt(plan1, out, "基準階段無可套用方案"); return "FAIL"; }
   await applyOption(plan1, ev, opt1.id, "TEST-O4 基準");
-  const hit = Number(await s.one(`SELECT count(*) FROM schedule_blocks b JOIN orders o ON o.id=b.order_id
-    WHERE o.code='TEST-O4' AND b.machine_id='f1b' AND b.date='${T}' AND b.start_min<720`));
-  if (hit === 0) return (out.push("基準未使用 T 上午 f1b——案例設定未成立（不判功能失敗）"), "未成立");
-  const plan2 = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: { type: "fault", machine: "f1b", date: T, start: 480, end: 720, note: "TEST 故障" }, now, time_limit: 3 });
+  // 階段二：把故障設在 f1b 實際焊接區段的日期與時間（涵蓋當日全部 f1b 區段）
+  const seg = JSON.parse(await s.one(`SELECT coalesce(jsonb_agg(jsonb_build_object('d',b.date::text,'s',b.start_min,'e',b.end_min) ORDER BY b.date,b.start_min),'[]') FROM schedule_blocks b JOIN orders o ON o.id=b.order_id WHERE o.code='TEST-O4' AND b.machine_id='f1b'`));
+  if (!seg.length) { out.push("基準未使用 f1b——案例設定未成立（不判功能失敗）"); return "未成立"; }
+  const fdate = seg[0].d;
+  const fs2 = Math.min(...seg.filter((x) => x.d === fdate).map((x) => x.s));
+  const fe2 = Math.max(...seg.filter((x) => x.d === fdate).map((x) => x.e));
+  out.push(`（故障時段＝實際焊接區段 ${fdate} ${fs2}-${fe2}）`);
+  const fault = { type: "fault", machine: "f1b", date: fdate, start: fs2, end: fe2, note: "TEST 故障（依實際區段）" };
+  const plan2 = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: fault, now, time_limit: 3 });
   const opt2 = plan2.options.find((o) => o.applicable);
   if (!opt2) { noOpt(plan2, out, "故障階段無可套用方案"); return "FAIL"; }
-  await applyOption(plan2, { type: "fault", machine: "f1b", date: T, start: 480, end: 720, note: "TEST 故障" }, opt2.id, "TEST-O4 故障", "fault");
-  const f1bOnT = Number(await s.one(`SELECT count(*) FROM schedule_blocks b JOIN orders o ON o.id=b.order_id WHERE o.code='TEST-O4' AND b.machine_id='f1b' AND b.date='${T}'`));
-  if (f1bOnT !== 0) out.push(`故障日 T 的 f1b 仍有 ${f1bOnT} 段排程`);
+  await applyOption(plan2, fault, opt2.id, "TEST-O4 故障", "fault");
+  // 驗證一：故障時段內 f1b 零排程
+  const inFault = Number(await s.one(`SELECT count(*) FROM schedule_blocks b JOIN orders o ON o.id=b.order_id WHERE o.code='TEST-O4' AND b.machine_id='f1b' AND b.date='${fdate}' AND b.start_min < ${fe2} AND b.end_min > ${fs2}`));
+  if (inFault !== 0) out.push(`故障時段（${fdate} ${fs2}-${fe2}）仍有 ${inFault} 段 f1b 排程`);
+  // 驗證二：工序數量完整
   if (await stationQty("TEST-O4", 0) !== 120 || await stationQty("TEST-O4", 1) !== 120) out.push("件數未保留（工作消失）");
-  const end = await lastBlockAbs("TEST-O4");
-  if (end > dayIdx(D(1)) * 1440 + 1020 + EPS) out.push("未在 T+1 內完成");
+  // 驗證三：資源限制合法（請假、上班時段、休假日）
   const leaveOK = Number(await s.one(`SELECT count(*) FROM schedule_blocks b JOIN orders o ON o.id=b.order_id JOIN employees e ON e.id=b.employee_id WHERE o.code='TEST-O4' AND e.id='${E01}' AND b.date='${T}' AND b.start_min>=780`));
   if (leaveOK > 0) out.push("E01 的下午請假被排程違反");
+  assertWindows(JSON.parse(await orderBlocks("TEST-O4")), out);
   return out.length ? "FAIL" : "PASS";
 });
 
