@@ -122,7 +122,7 @@ const noOpt = (plan, out, label) => {
 const orderBlocks = (code) => s.one(
   `SELECT coalesce(jsonb_agg(jsonb_build_object('step',b.step_seq,'date',b.date::text,'start',b.start_min,'end',b.end_min,'qty',b.qty,'machine',b.machine_id) ORDER BY b.date,b.start_min),'[]')
    FROM schedule_blocks b JOIN orders o ON o.id=b.order_id WHERE o.code='${code}'`);
-const stateVersion = () => Number(s.one("SELECT version FROM schedule_state"));
+const stateVersion = async () => Number(await s.one("SELECT version FROM schedule_state"));
 const blocksOn = (dates) => s.one(
   `SELECT count(*) FROM schedule_blocks b JOIN orders o ON o.id=b.order_id
    WHERE o.code LIKE 'TEST-%' AND b.date IN (${dates.map((d) => `'${d}'`).join(",")})`);
@@ -137,7 +137,7 @@ const lastBlockAbs = async (code) => {
 const j = (v) => JSON.stringify(v).replace(/'/g, "''");
 async function applyOption(plan, event, optionId, title, kind = "order") {
   const pv = await s.one(`INSERT INTO plan_previews (kind,title,event,base_version,options)
-    VALUES ('${kind}','${title}','${j(event)}'::jsonb,${stateVersion()},'${j(plan.options)}'::jsonb) RETURNING id`);
+    VALUES ('${kind}','${title}','${j(event)}'::jsonb,${await stateVersion()},'${j(plan.options)}'::jsonb) RETURNING id`);
   return s.one(`SELECT apply_plan('${pv}','${optionId}')`);
 }
 
@@ -277,7 +277,7 @@ await runCase("C3 技能不足", async (out) => {
 
 await runCase("C4 機台故障（兩階段）", async (out) => {
   await s.run(`INSERT INTO leaves (employee_id,date,start_min,end_min,note) VALUES ('${E01}','${T}',780,1020,'TEST 下午請假')`);
-  const v0 = stateVersion();
+  const v0 = await stateVersion();
   const ev = orderEvent("TEST-O4", P2, 120, 1, 0);
   const plan1 = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: ev, now, time_limit: 3 });
   const opt1 = plan1.options.find((o) => o.applicable && o.solver_method !== "keep");
