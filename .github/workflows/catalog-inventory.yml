@@ -18,6 +18,8 @@ jobs:
           curl -s -L -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACTS/zip" -o backup.zip
           unzip -o backup.zip -d restored/
+          echo "BACKUP_FILE=$(ls restored/*.dump | xargs basename)" >> "$GITHUB_ENV"
+          echo "ARTIFACT_ID=$ARTIFACTS" >> "$GITHUB_ENV"
 
       - name: 還原到拋棄式 PostgreSQL 17（兩階段 + Supabase stub）
         run: |
@@ -69,27 +71,26 @@ jobs:
           Q() { docker exec inv-pg psql -U postgres -d postgres -q -t -A -c "$1"; }
           R=/tmp/inventory.md
           {
-            echo "# 匯入資料盤點報告（$(date -u +%Y-%m-%d)，來源：最新備份）"
+            echo "# 匯入資料盤點報告（$(date -u +%Y-%m-%d)）"
+            echo "- 來源備份：\`$BACKUP_FILE\`（artifact $ARTIFACT_ID）——比對版本時以此為準"
             echo ""
-            echo "## A. 員工名冊"
-            echo "- 現有值：$(Q "SELECT '總數 '||count(*)||'（一廠 '||count(*) FILTER (WHERE factory=1)||'、二廠 '||count(*) FILTER (WHERE factory=2)||'）；待確認 '||count(*) FILTER (WHERE review_status='pending')||'；停用 '||count(*) FILTER (WHERE NOT active) FROM employees")"
-            echo "- 現有值：$(Q "SELECT '不加班 '||count(*) FILTER (WHERE no_overtime)||' 人；可同時顧機 >1 台 '||count(*) FILTER (WHERE max_concurrent_machines>1)||' 人' FROM employees")"
-            D=$(Q "SELECT string_agg(name||'（x'||c||'）','、') FROM (SELECT name,count(*) c FROM employees GROUP BY name HAVING count(*)>1) d")
-            [ -n "$D" ] && echo "- 問題：同名重複 → $D"
-            D=$(Q "SELECT string_agg(name||'（'||coalesce(code,'無編號')||'，'||factory_tag||'）','、') FROM (SELECT e.name,e.code,'F'||e.factory factory_tag FROM employees e WHERE NOT EXISTS (SELECT 1 FROM employee_skills s WHERE s.employee_id=e.id)) z")
-            [ -n "$D" ] && echo "- 問題：沒有任何機台技能 → $D"
-            D=$(Q "SELECT count(*) FROM employees WHERE code IS NULL OR code=''")
-            [ "$D" != "0" ] && echo "- 問題：員工編號空白 → $D 人"
+            echo "## A. 員工名冊（只輸出統計，不含姓名與編號）"
+            echo "- 現有值：$(Q "SELECT '名冊 '||count(*)||'（一廠 '||count(*) FILTER (WHERE factory=1)||'、二廠 '||count(*) FILTER (WHERE factory=2)||'）；啟用 '||count(*) FILTER (WHERE active)||'；停用 '||count(*) FILTER (WHERE NOT active)||'；啟用中待確認 '||count(*) FILTER (WHERE active AND review_status='pending') FROM employees")"
+            echo "- 現有值：$(Q "SELECT '不加班：啟用中 '||count(*) FILTER (WHERE no_overtime AND active)||' 人／名冊含停用合計 '||count(*) FILTER (WHERE no_overtime)||' 人；可同時顧機 >1 台 '||count(*) FILTER (WHERE max_concurrent_machines>1)||' 人' FROM employees")"
+            D=$(Q "SELECT count(*) FROM (SELECT name FROM employees GROUP BY name HAVING count(*)>1) d")
+            [ "$D" != "0" ] && echo "- 問題：同名重複 → $D 組"
+            D=$(Q "SELECT '一廠 '||count(*) FILTER (WHERE factory=1)||' 人、二廠 '||count(*) FILTER (WHERE factory=2)||' 人' FROM employees e WHERE e.active AND NOT EXISTS (SELECT 1 FROM employee_skills s WHERE s.employee_id=e.id)")
+            [ -n "$D" ] && echo "- 問題：啟用中卻沒有任何機台技能 → $D"
             echo "- 需要誰確認：老闆＋組長（名冊與技能對應現場核對）"
             echo ""
             echo "## B. 員工技能"
             echo "- 現有值：技能列共 $(Q "SELECT count(*) FROM employee_skills") 筆"
             D=$(Q "SELECT string_agg(id||' '||label||'（'||process||'，F'||factory||'）','、') FROM machines WHERE NOT EXISTS (SELECT 1 FROM employee_skills s JOIN employees e ON e.id=s.employee_id WHERE s.machine_id=machines.id AND e.active)")
             [ -n "$D" ] && echo "- 問題：沒有在職員工會操作 → $D"
-            D=$(Q "SELECT string_agg(x,'、') FROM (SELECT e.name||'→機台'||s.machine_id x FROM employee_skills s JOIN employees e ON e.id=s.employee_id JOIN machines m ON m.id=s.machine_id WHERE m.factory<>e.factory) z")
-            [ -n "$D" ] && echo "- 問題：技能指向另一廠的機台 → $D"
-            D=$(Q "SELECT string_agg(x,'、') FROM (SELECT e.name||'→機台'||s.machine_id||'（停用）' x FROM employee_skills s JOIN employees e ON e.id=s.employee_id JOIN machines m ON m.id=s.machine_id WHERE NOT m.active) z")
-            [ -n "$D" ] && echo "- 問題：技能指向停用機台 → $D"
+            D=$(Q "SELECT count(*) FROM employee_skills s JOIN employees e ON e.id=s.employee_id JOIN machines m ON m.id=s.machine_id WHERE m.factory<>e.factory")
+            [ "$D" != "0" ] && echo "- 問題：技能指向另一廠的機台 → $D 筆"
+            D=$(Q "SELECT count(*) FROM employee_skills s JOIN employees e ON e.id=s.employee_id JOIN machines m ON m.id=s.machine_id WHERE NOT m.active")
+            [ "$D" != "0" ] && echo "- 問題：技能指向停用機台 → $D 筆（多為示範資料殘留）"
             echo "- 需要誰確認：組長（誰實際會操作哪些機台）"
             echo ""
             echo "## C. 班別／工時"

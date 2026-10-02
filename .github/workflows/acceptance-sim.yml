@@ -1,0 +1,129 @@
+# 模擬驗收（C1–C7）：還原最新備份到拋棄式 PostgreSQL 17，
+# 由 db/tests/acceptance_sim.mjs 在單一 psql 連線內以交易隔離執行案例。
+# 輸出只有 TEST_ 代號；正式環境零接觸；不讀取憑證與通知設定。
+name: 模擬驗收（隔離副本）
+on:
+  workflow_dispatch:
+    inputs:
+      monday:
+        description: '基準週一（YYYY-MM-DD，會驗證真的是週一）'
+        required: true
+        type: string
+      artifact_id:
+        description: '（選填）指定備份 artifact ID；預設用最新'
+        required: false
+        type: string
+
+jobs:
+  simulate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 取得程式碼
+        uses: actions/checkout@v4
+
+      - name: 驗證基準日是週一
+        run: |
+          M="${{ inputs.monday }}"
+          if ! date -d "$M" +%u 2>/dev/null | grep -q '^1$'; then
+            echo "::error::$M 不是週一（date +%u 應為 1）"; exit 1
+          fi
+          echo "T=$M（週一）✓"
+
+      - name: 下載備份（記錄檔名供版本比對）
+        run: |
+          if [ -n "${{ inputs.artifact_id }}" ]; then
+            ID="${{ inputs.artifact_id }}"
+          else
+            ID=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?per_page=20" | \
+              jq -r '.artifacts[] | select(.name | startswith("db-backup-")) | .id' | head -1)
+          fi
+          [ -n "$ID" ] || { echo "找不到備份 artifact"; exit 1; }
+          echo "ARTIFACT_ID=$ID" >> "$GITHUB_ENV"
+          curl -s -L -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ID/zip" -o backup.zip
+          unzip -o backup.zip -d restored/
+          echo "使用備份：$(ls restored/*.dump)"
+
+      - name: 還原到拋棄式 PostgreSQL 17（兩階段 + Supabase stub + 授權模型）
+        run: |
+          DUMP=$(ls restored/*.dump | head -1)
+          DUMP_BASE=$(basename "$DUMP")
+          echo "BACKUP_FILE=$DUMP_BASE" >> "$GITHUB_ENV"
+          docker network create sim-net 2>/dev/null || true
+          docker run -d --name sim-pg --network sim-net -e POSTGRES_PASSWORD=sim postgres:17
+          READY=0
+          for i in $(seq 1 20); do
+            if docker exec sim-pg pg_isready -U postgres >/dev/null 2>&1; then READY=1; break; fi
+            sleep 2
+          done
+          [ "$READY" = "1" ] || { echo "postgres not ready"; exit 1; }
+          docker exec sim-pg psql -U postgres -d postgres -q -c "DROP SCHEMA IF EXISTS public CASCADE;"
+          docker exec sim-pg psql -U postgres -d postgres -q -c \
+            "CREATE SCHEMA IF NOT EXISTS auth; \
+             CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS \$\$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid \$\$; \
+             CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY); \
+             DO \$\$ BEGIN CREATE ROLE anon NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END \$\$; \
+             DO \$\$ BEGIN CREATE ROLE authenticated NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END \$\$; \
+             DO \$\$ BEGIN CREATE ROLE service_role NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END \$\$;"
+          P1=0
+          docker run --rm --network sim-net -v "$PWD/restored:/backup" -e PGPASSWORD=sim postgres:17 \
+            sh -c "pg_restore --no-owner --no-privileges --exit-on-error --disable-triggers --section=pre-data --section=data -h sim-pg -U postgres -d postgres /backup/$DUMP_BASE" \
+            > /tmp/p1.out 2> /tmp/p1.err || P1=$?
+          [ "$P1" = "0" ] || { echo "Phase1 failed"; tail -30 /tmp/p1.err; exit 1; }
+          docker run --rm -v "$PWD/restored:/backup" postgres:17 \
+            sh -c "pg_restore -f /dev/stdout --section=post-data /backup/$DUMP_BASE" > /tmp/post-data.sql 2>/dev/null || true
+          FK_PAIRS=$(awk '
+            /ALTER TABLE ONLY public\.[a-zA-Z_0-9]+/ { tbl = $4; sub(/public\./, "", tbl); next }
+            /^ *ADD CONSTRAINT / && /FOREIGN KEY/ && /REFERENCES auth\.users/ {
+              if (match($0, /FOREIGN KEY \([a-zA-Z_0-9]+\)/))
+                print tbl, substr($0, RSTART + 13, RLENGTH - 14)
+            }' /tmp/post-data.sql | sort -u)
+          echo "$FK_PAIRS" | while read -r t c; do
+            [ -z "$t" ] && continue
+            docker exec sim-pg psql -U postgres -d postgres -q -c \
+              "INSERT INTO auth.users (id) SELECT DISTINCT $c FROM $t WHERE $c IS NOT NULL ON CONFLICT (id) DO NOTHING;" || true
+          done
+          P3=0
+          docker run --rm --network sim-net -v "$PWD/restored:/backup" -e PGPASSWORD=sim postgres:17 \
+            sh -c "pg_restore --no-owner --no-privileges --exit-on-error --section=post-data -h sim-pg -U postgres -d postgres /backup/$DUMP_BASE" \
+            > /tmp/p3.out 2> /tmp/p3.err || P3=$?
+          [ "$P3" = "0" ] || { echo "Phase3 failed"; tail -30 /tmp/p3.err; exit 1; }
+          # 複製 Supabase 授權模型（廣泛 GRANT＋RLS；內部函式收回）
+          docker exec sim-pg psql -U postgres -d postgres -q -c \
+            "GRANT USAGE ON SCHEMA public, auth TO PUBLIC; \
+             GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated; \
+             GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated; \
+             GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated; \
+             DO \$\$ DECLARE r record; BEGIN \
+               FOR r IN SELECT p.oid::regprocedure AS sig FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace \
+                        WHERE n.nspname='public' AND p.proname LIKE '\_%' LOOP \
+                 EXECUTE format('REVOKE ALL ON FUNCTION %s FROM authenticated', r.sig); \
+               END LOOP; \
+             END \$\$;"
+          echo "✓ 還原完成（備份檔：$DUMP_BASE，artifact $ARTIFACT_ID）"
+
+      - name: 執行模擬驗收 C1–C7
+        run: |
+          python -m pip install uv
+          cd solver && uv sync --frozen && cd ..
+          node db/tests/acceptance_sim.mjs --monday "${{ inputs.monday }}" --container sim-pg
+          EXIT=$?
+          if [ $EXIT -ne 0 ]; then
+            echo "::error::模擬驗收未全過（exit $EXIT：1=功能失敗、3=有案例設定未成立）"
+            exit $EXIT
+          fi
+
+      - name: 上傳報告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: acceptance-report-${{ inputs.monday }}
+          path: /tmp/acceptance-report.md
+          retention-days: 30
+
+      - name: 清理
+        if: always()
+        run: |
+          docker rm -f sim-pg >/dev/null 2>&1 || true
+          docker network rm sim-net >/dev/null 2>&1 || true

@@ -2,6 +2,8 @@
 # （Render Auto-Deploy 設定為 On Commit，但倉庫缺少 Render 的 GitHub webhook，
 #   因此改由這裡代為觸發；兩個服務都會部署同一份最新 main 提交。）
 # 需要 Settings → Secrets 設定 RENDER_WEB_DEPLOY_HOOK 與 RENDER_SOLVER_DEPLOY_HOOK
+# 保護規則：只有變更包含 db/web/solver 且「同 SHA 的 Tests」通過才會呼叫 hook；
+#           只改工作流/文件的 push 不部署（paths-ignore 防觸發，關卡輸出 skip 再擋一次）。
 name: 部署 Render 正式環境
 
 on:
@@ -15,21 +17,25 @@ on:
       - '.github/workflows/permissions-drill.yml'
       - '.github/workflows/apply-migration.yml'
       - '.github/workflows/catalog-inventory.yml'
+      - '.github/workflows/acceptance-sim.yml'
+      - '.github/workflows/deploy-render.yml'
   workflow_dispatch: {}
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: 測試關卡：等「Tests」（同 SHA）通過才繼續
+      - name: 測試關卡：等「Tests」（同 SHA）通過才允許部署
+        id: gate
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BEFORE_SHA: ${{ github.event.before }}
           AFTER_SHA: ${{ github.sha }}
         run: |
+          set_deploy() { echo "deploy=$1" >> "$GITHUB_OUTPUT"; }
           # 手動 dispatch（無 before SHA）直接放行：人工觸發視為有意部署
           if [ -z "$BEFORE_SHA" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
-            echo "非 push 事件（手動觸發），直接部署"; exit 0
+            echo "非 push 事件（手動觸發），直接部署"; set_deploy go; exit 0
           fi
           # 用 compare API 取變更檔案（push payload 的 added/modified 欄位實測為 null，不可靠）
           CMP=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
@@ -40,10 +46,14 @@ jobs:
             exit 1
           fi
           echo "變更檔案："; echo "$CHANGED"
-          # 這次 push 沒動到 db/web/solver 時 Tests 不會跑，直接放行
-          if ! printf '%s\n' "$CHANGED" | grep -qE '^(db/|web/|solver/)|^\.github/workflows/tests\.yml$'; then
-            echo "無 db/web/solver 變更，不需等待測試"; exit 0
+          # 判定「需要部署」的檔案＝db/web/solver 變更，排除純驗收驅動程式（不影響任何執行期程式）。
+          # 不廣泛排除 db/，真正的資料庫變更（schema/遷移/程式）仍會觸發部署判斷。
+          NEED=$(printf '%s\n' "$CHANGED" | grep -E '^(db/|web/|solver/)|^\.github/workflows/tests\.yml$' | grep -v '^db/tests/acceptance_sim\.mjs$' || true)
+          if [ -z "$NEED" ]; then
+            echo "無需部署的程式變更（僅工作流／文件／純驗收驅動）→ 跳過部署（不呼叫 hook）"
+            set_deploy skip; exit 0
           fi
+          echo "需要部署的變更："; echo "$NEED"
           echo "等待 Tests（SHA=${AFTER_SHA:0:7}）完成…"
           for i in $(seq 1 60); do
             RUNS=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
@@ -52,13 +62,14 @@ jobs:
             CONCL=$(printf '%s' "$RUNS" | jq -r '[.workflow_runs[] | select(.name=="Tests" and .event=="push")][0].conclusion // "none"')
             echo "  [$i] Tests status=$STATUS conclusion=$CONCL"
             if [ "$STATUS" = "completed" ]; then
-              if [ "$CONCL" = "success" ]; then echo "✓ Tests 通過，允許部署"; exit 0; fi
+              if [ "$CONCL" = "success" ]; then echo "✓ Tests 通過，允許部署"; set_deploy go; exit 0; fi
               echo "::error::Tests 結論為 $CONCL，取消部署"; exit 1
             fi
             sleep 30
           done
           echo "::error::等待 Tests 超時（30 分鐘），取消部署"; exit 1
       - name: 觸發 web 部署
+        if: steps.gate.outputs.deploy == 'go'
         env:
           HOOK: ${{ secrets.RENDER_WEB_DEPLOY_HOOK }}
         run: |
@@ -66,6 +77,7 @@ jobs:
           echo "HTTP $code $(cat /tmp/web.json)"
           case "$code" in 200|201|202) echo "web deploy triggered";; *) echo "::error::web hook failed"; exit 1;; esac
       - name: 觸發 solver 部署
+        if: steps.gate.outputs.deploy == 'go'
         env:
           HOOK: ${{ secrets.RENDER_SOLVER_DEPLOY_HOOK }}
         run: |
