@@ -66,10 +66,13 @@ jobs:
           # 乾淨起點：只 DROP，不預先 CREATE（dump 內含 CREATE SCHEMA public，預建會撞 already exists）
           docker exec drill-pg psql -U postgres -d postgres -c \
             "DROP SCHEMA IF EXISTS public CASCADE;"
-          # Supabase 專屬依賴 stub：public 的表與 RLS 政策引用 auth.uid()，
-          # vanilla postgres 沒有 auth schema，先建回傳 NULL 的 stub 讓結構完整還原
+          # Supabase 專屬依賴 stub：public 的表/RLS 引用 auth.uid()，
+          # 且多張表有 FK 參照 auth.users(id)（account_permissions、scenarios、feedback、line_notify）。
+          # vanilla postgres 沒有 auth schema，建 stub 讓結構完整還原（僅存在於演練目標）
           docker exec drill-pg psql -U postgres -d postgres -c \
-            "CREATE SCHEMA IF NOT EXISTS auth; CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS \$\$ SELECT NULL::uuid \$\$;"
+            "CREATE SCHEMA IF NOT EXISTS auth; \
+             CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS \$\$ SELECT NULL::uuid \$\$; \
+             CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY);"
           # 還原：stdout/stderr 各存檔，exit code 用 || 捕捉（bash -e 安全）
           RESTORE_EXIT=0
           docker run --rm --network drill-net \
