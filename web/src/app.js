@@ -83,8 +83,10 @@ function setTheme(t){
 function loadPreferencesForDevice(){UI.prefs=loadPreferences();applyPreferences(UI.prefs);UI.zoom=UI.prefs.scale;UI.theme=UI.prefs.theme;}
 
 const SETTINGS_TEXT={
-  'zh-TW':{settings:'設定',today:'今天',orders:'工單',people:'人',output:'產量',notes:'備忘',more:'更多'},
-  en:{settings:'Settings',today:'Today',orders:'Orders',people:'People',output:'Output',notes:'Notes',more:'More'}
+  'zh-TW':{settings:'設定',today:'今天',orders:'工單',people:'人',output:'產量',notes:'備忘',more:'更多',worklog:'工作紀錄',shortage:'欠缺品項',transfer:'給二廠／回一廠',addrow:'＋加一列',work:'上班',leave:'休假',uncertain:'未確定',backToday:'← 回今天班表',saved:'已儲存',notSaved:'沒存到',close:'關閉',cancel:'取消',save:'儲存',delete:'刪除'},
+  en:{settings:'Settings',today:'Today',orders:'Orders',people:'People',output:'Output',notes:'Notes',more:'More',worklog:'Work Log',shortage:'Shortage',transfer:'Send/Return',addrow:'＋Add Row',work:'Work',leave:'Leave',uncertain:'Uncertain',backToday:'← Back to Today',saved:'Saved',notSaved:'Not saved',close:'Close',cancel:'Cancel',save:'Save',delete:'Delete'},
+  vi:{settings:'Cài đặt',today:'Hôm nay',orders:'Đơn hàng',people:'Người',output:'Sản lượng',notes:'Ghi chú',more:'Thêm',worklog:'Nhật ký',shortage:'Thiếu hàng',transfer:'Giao/Nhận',addrow:'＋Thêm dòng',work:'Đi làm',leave:'Nghỉ',uncertain:'Chưa chắc',backToday:'← Về hôm nay',saved:'Đã lưu',notSaved:'Không lưu được',close:'Đóng',cancel:'Hủy',save:'Lưu',delete:'Xóa'},
+  th:{settings:'ตั้งค่า',today:'วันนี้',orders:'ใบสั่งงาน',people:'คน',output:'ผลผลิต',notes:'บันทึก',more:'เพิ่มเติม',worklog:'บันทึกงาน',shortage:'ของขาด',transfer:'ส่ง/รับคืน',addrow:'＋เพิ่มแถว',work:'ทำงาน',leave:'ลา',uncertain:'ไม่แน่ใจ',backToday:'← กลับวันนี้',saved:'บันทึกแล้ว',notSaved:'บันทึกไม่ได้',close:'ปิด',cancel:'ยกเลิก',save:'บันทึก',delete:'ลบ'}
 };
 const tx=k=>SETTINGS_TEXT[UI.prefs.language]?.[k]||SETTINGS_TEXT['zh-TW'][k]||k;
 
@@ -667,8 +669,8 @@ function topHTML(){
   '<div class="seg factory-switch" role="group" aria-label="排程廠別">'+
   [[1,'1 廠'],[2,'2 廠'],['all','跨廠']].map(([v,t])=>'<button data-act="factory" data-v="'+v+'" aria-pressed="'+(UI.factory===v)+'">'+t+'</button>').join('')+'</div>'+
   '<div class="page-links">'+
-  '<button class="btn pagelink shortage" data-act="page" data-v="shortage">欠缺品項</button>'+
-  '<button class="btn pagelink transfer" data-act="page" data-v="transfer">給二廠／回一廠</button></div>'+
+  '<button class="btn pagelink shortage" data-act="page" data-v="shortage">tx('shortage')</button>'+
+  '<button class="btn pagelink transfer" data-act="page" data-v="transfer">tx('transfer')</button></div>'+
   '<div class="datenav"><button class="iconbtn" data-act="prev" aria-label="往前">‹</button>'+
   '<button class="datebox'+(!wk&&di.type!=="work"?" hol":"")+'" data-act="pick"><b class="num">'+esc(title)+'</b><small>'+esc(sub)+'</small></button>'+
   '<input type="date" id="datepick" value="'+d+'" style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none" tabindex="-1" aria-hidden="true">'+
@@ -691,7 +693,7 @@ function appNavHTML(){
     '<button class="side-profile" data-act="settings" aria-pressed="'+(UI.drawer==='settings')+'"><span class="side-avatar">'+esc(account.slice(0,1).toUpperCase())+'</span><span><b>'+esc(account)+'</b><small>'+esc(role)+'</small></span><i>›</i></button>'+
     '<span class="side-section">排程</span>'+
     '<button class="app-nav-item nav-today" data-act="today" aria-pressed="'+(!UI.drawer)+'"><b>'+NAV_IC.today+'</b><span>'+tx('today')+'</span></button>'+item('orders',tx('orders'))+
-    '<span class="side-section">現場</span>'+item('people',tx('people'))+item('output',tx('output'))+item('worklog','工作紀錄')+item('notes',tx('notes'))+
+    '<span class="side-section">現場</span>'+item('people',tx('people'))+item('output',tx('output'))+item('worklog',tx('worklog'))+item('notes',tx('notes'))+
     '<span class="side-section">系統</span>'+item('more',tx('more'))+
     '<div class="side-footer"><button class="side-health '+SYNC.state+'" data-act="sync"><i></i><span><b>系統連線</b><small>'+esc(sync)+'</small></span></button></div></nav>';
 }
@@ -772,8 +774,8 @@ function peopleDrawerHTML(){
   const requests=pending.map(r=>'<article class="leave-request"><b>'+esc(emp(r.employeeId)?.name||'未設定人員')+'詢問 '+mdw(r.date)+' 請假</b><p>'+esc(r.note||'未填說明')+'</p><small>核准前不列入正式請假，也不會觸發重排。</small>'+(canIncidents()?'<div><button class="approve" data-act="leave-resolve" data-id="'+r.id+'" data-v="approved">准假</button><button class="deny" data-act="leave-resolve" data-id="'+r.id+'" data-v="rejected">駁回</button></div>':'')+'</article>').join('');
   return '<section class="absence-box"><b>今日缺席　'+absent.length+' 人</b><span>'+esc(absent.map(x=>x.name).join('、')||'無')+'</span></section>'+
     '<div class="people-pills">'+people.map(e=>'<button data-act="focus-person" data-id="'+e.id+'" aria-pressed="'+(selected?.id===e.id)+'">'+esc(e.name)+'</button>').join('')+'</div>'+
-    '<div class="traffic-legend"><span><i class="green"></i>在班</span><span><i class="red"></i>請假</span><span><i class="yellow"></i>未確定</span><span><i class="gray"></i>待確認</span></div>'+
-    (selected?'<section class="people-calendar"><header><b>'+esc(selected.name)+'</b><span>'+UI.date.slice(0,7).replace('-',' 年 ')+' 月</span>'+(canIncidents()?'<button class="btn" data-act="person-month" data-id="'+esc(selected.id)+'">整月設定</button>':'')+'</header><div class="calendar-week">'+weekdays+'</div><div class="calendar-grid">'+days+'</div>'+(canIncidents()?'<div class="toggles cal-brush">'+'<button class="tg brush-leave'+(UI.leaveBrush==="leave"?" on":"")+'" data-act="cal-brush" data-v="leave" aria-pressed="'+(UI.leaveBrush==="leave")+'">休假</button><button class="tg brush-work'+(UI.leaveBrush==="work"?" on":"")+'" data-act="cal-brush" data-v="work" aria-pressed="'+(UI.leaveBrush==="work")+'">上班</button><button class="tg brush-uncertain'+(UI.leaveBrush==="uncertain"?" on":"")+'" data-act="cal-brush" data-v="uncertain" aria-pressed="'+(UI.leaveBrush==="uncertain")+'">未確定</button>'+'</div><div class="drawer-hint">'+(UI.leaveBrush?('已選「'+(UI.leaveBrush==="leave"?"休假":UI.leaveBrush==="uncertain"?"未確定":"上班")+'」：連點日期或框選範圍套用'):'先選「上班」「休假」「未確定」，再點日期套用')+'</div>':'')+'</section>':'<div class="drawer-empty">此廠尚未設定人員</div>')+
+    '<div class="traffic-legend"><span><i class="green"></i>在班</span><span><i class="red"></i>請假</span><span><i class="yellow"></i>tx('uncertain')</span><span><i class="gray"></i>待確認</span></div>'+
+    (selected?'<section class="people-calendar"><header><b>'+esc(selected.name)+'</b><span>'+UI.date.slice(0,7).replace('-',' 年 ')+' 月</span>'+(canIncidents()?'<button class="btn" data-act="person-month" data-id="'+esc(selected.id)+'">整月設定</button>':'')+'</header><div class="calendar-week">'+weekdays+'</div><div class="calendar-grid">'+days+'</div>'+(canIncidents()?'<div class="toggles cal-brush">'+'<button class="tg brush-leave'+(UI.leaveBrush==="leave"?" on":"")+'" data-act="cal-brush" data-v="leave" aria-pressed="'+(UI.leaveBrush==="leave")+'">tx('leave')</button><button class="tg brush-work'+(UI.leaveBrush==="work"?" on":"")+'" data-act="cal-brush" data-v="work" aria-pressed="'+(UI.leaveBrush==="work")+'">tx('work')</button><button class="tg brush-uncertain'+(UI.leaveBrush==="uncertain"?" on":"")+'" data-act="cal-brush" data-v="uncertain" aria-pressed="'+(UI.leaveBrush==="uncertain")+'">tx('uncertain')</button>'+'</div><div class="drawer-hint">'+(UI.leaveBrush?('已選「'+(UI.leaveBrush==="leave"?"休假":UI.leaveBrush==="uncertain"?"未確定":"上班")+'」：連點日期或框選範圍套用'):'先選「上班」「休假」「未確定」，再點日期套用')+'</div>':'')+'</section>':'<div class="drawer-empty">此廠尚未設定人員</div>')+
     '<div class="drawer-section-title"><b>等待決定</b>'+(canIncidents()?'<button data-act="leave-request-new">＋新增詢問</button>':'')+'</div>'+(requests||'<div class="drawer-empty">沒有等待決定的請假</div>');
 }
 
@@ -813,7 +815,7 @@ function settingsSectionsHTML({en,name,email,role,permission}){
     settingToggle('notifications.desktop',en?'System notifications':'系統通知',en?'Show an alert when this page is in the background':'頁面在背景時仍顯示通知')+
     '<div class="notification-permission '+permission+'"><span>'+(en?'Browser permission: ':'瀏覽器權限：')+(permission==='granted'?(en?'Allowed':'已允許'):permission==='denied'?(en?'Blocked — change it in browser settings':'已封鎖，需到瀏覽器設定開啟'):permission==='unsupported'?(en?'Not supported':'此瀏覽器不支援'):(en?'Not requested':'尚未詢問'))+'</span>'+(permission==='default'?'<button data-act="notification-permission">'+(en?'Allow':'允許系統通知')+'</button>':'')+'</div></section>';
   const profile='<section class="settings-section"><h3>'+(en?'Profile':'個人資料')+'</h3><div class="profile-card"><span class="profile-avatar">'+esc((name||email||'本').slice(0,1).toUpperCase())+'</span><div><b>'+esc(name||'未設定名稱')+'</b><small>'+esc(email||'本機模式')+' · '+esc(role)+'</small></div></div><label for="profile-display-name">'+(en?'Display name':'顯示名稱')+'</label><div class="setting-save-row"><input class="inp" id="profile-display-name" maxlength="60" value="'+esc(name)+'"><button data-act="profile-save">'+(en?'Save':'儲存')+'</button></div><button class="settings-link" data-act="account">'+(en?'Account, password and connection':'帳號、密碼與連線')+'</button></section>';
-  const language='<section class="settings-section"><h3>'+(en?'Language and operation':'語言與操作')+'</h3><label>'+(en?'Interface language':'介面語言')+'</label>'+settingChoices('language',[["zh-TW","繁體中文",""],["en","English","Beta"],["vi","Tiếng Việt","Beta"]])+
+  const language='<section class="settings-section"><h3>'+(en?'Language and operation':'語言與操作')+'</h3><label>'+(en?'Interface language':'介面語言')+'</label>'+settingChoices('language',[["zh-TW","繁體中文",""],["en","English","Beta"],["vi","Tiếng Việt","Beta"],["th","ภาษาไทย","Beta"]])+
     '<label>'+(en?'Table spacing':'班表間距')+'</label>'+settingChoices('density',en?[["comfortable","Comfortable",""],["compact","Compact",""]]:[["comfortable","舒適",""],["compact","緊密",""]])+
     '<label>'+(en?'Motion':'動畫')+'</label>'+settingChoices('motion',en?[["system","System",""],["reduce","Reduced",""]]:[["system","跟著裝置",""],["reduce","減少動畫",""]])+'</section>';
   const privacy='<section class="settings-section"><h3>'+(en?'Data and privacy':'資料與隱私')+'</h3><dl class="settings-kv"><dt>'+(en?'Schedule data':'排程資料')+'</dt><dd>'+(STORE.kind==='supabase'?(en?'Supabase cloud':'Supabase 雲端'):(en?'This browser':'這台瀏覽器'))+'</dd><dt>'+(en?'Device preferences':'裝置偏好')+'</dt><dd>'+(en?'Stored in this browser only':'只存在這台裝置')+'</dd><dt>'+(en?'Time zone':'時區')+'</dt><dd>Asia/Taipei</dd></dl><button class="settings-link danger-link" data-act="settings-reset">'+(en?'Restore default device settings':'恢復這台裝置的預設值')+'</button></section>';
@@ -2456,7 +2458,7 @@ Object.assign(MODAL_ACT,{
     if(aff.length)title+="，系統調整 "+aff.length+" 段工作";
     commit({kind:addLv.length||delLv.length?"leave":"edit",title,lines},"master.manage");
     if(lines.length)showResult();
-    else{closeModal();delLv.length?toast("已取消請假。要把工作排回來嗎？","重新排程",runAuto):toast("已儲存");}
+    else{closeModal();delLv.length?toast("已取消請假。要把工作排回來嗎？","重新排程",runAuto):toast(tx("saved"));}
   },
   "m-emp-del":a=>{
     if(employeeGroups(S,UI.modal.id).length){toast('請先在「分組／部門」移除此員工的分組，再刪除員工');return;}
@@ -3012,7 +3014,7 @@ function applyPersonDay(eid,d,want){
 
 /* ---------- 整頁三張表：欠缺品項 ／ 給二廠－回一廠 ／ 工作紀錄（Excel 式、欄位固定、雲端儲存） ---------- */
 const PAGE_KEYS={shortage:"shortage",transfer:"transferflow",worklog:"worklog"};
-function pageSaveState(){return SYNC.state==="busy"?"儲存中…":SYNC.state==="error"?"沒存到，再試一次":"已儲存";}
+function pageSaveState(){return SYNC.state==="busy"?"…":SYNC.state==="error"?tx("notSaved"):tx("saved");}
 function getPath(obj,path){return path.split(".").reduce((v,k)=>v?.[k],obj);}
 function numSelOptions(cur,max,step){let out='<option value=""></option>';for(let i=0;i<=max;i+=step||1){const v=String(i);out+='<option value="'+v+'"'+(String(cur??"")===v?" selected":"")+'>'+String(i).padStart(2,"0")+'</option>';}return out;}
 function editCellHTML(table,id,key,type,value,ro){
@@ -3069,12 +3071,12 @@ function flashReturnRow(){
 function pageShell(title,subtitle,bodyHtml,ro,addAct,extraHead){
   return '<div class="fullpage">'+
     '<div class="page-top">'+
-    '<div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">← 回今天班表</button>'+
+    '<div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">tx('backToday')</button>'+
     '<div class="page-title"><h1>'+esc(title)+'</h1><span class="savestate '+SYNC.state+'">'+pageSaveState()+'</span></div>'+
-    (ro?"":(addAct?'<button class="btn addrow-head" data-act="'+addAct+'">＋加一列</button>':""))+'</div>'+
+    (ro?"":(addAct?'<button class="btn addrow-head" data-act="'+addAct+'">＋tx('addrow')</button>':""))+'</div>'+
     (subtitle?'<p class="page-sub">'+esc(subtitle)+'</p>':"")+'</div>'+
     bodyHtml+
-    (ro?"":(addAct?'<button class="btn addrow-mobile" data-act="'+addAct+'">＋加一列</button>':""))+
+    (ro?"":(addAct?'<button class="btn addrow-mobile" data-act="'+addAct+'">＋tx('addrow')</button>':""))+
     '</div>';
 }
 function tfArchiveMonth(){const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");}
@@ -3304,7 +3306,7 @@ function analyticsPageHTML(){
   const leaves=mEmps.filter(e=>e.leaves.some(l=>l>=monthStart&&l<=today));
   const leaveDays=mEmps.reduce((t,e)=>t+e.leaves.filter(l=>l>=monthStart&&l<=today).length,0);
 
-  const head='<div class="page-top"><div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">← 回今天班表</button><div class="page-title"><h1>產能分析</h1></div></div>'+
+  const head='<div class="page-top"><div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">tx('backToday')</button><div class="page-title"><h1>產能分析</h1></div></div>'+
     '<p class="page-sub">'+today.slice(0,7).replace('-',' 年 ')+' 月（至 '+md(today)+'） · '+workDays+' 個工作天 · '+mEmps.length+' 位員工 · '+mMachs.length+' 台設備</p></div>';
 
   const bar=(label,pct,color)=>{
@@ -3442,7 +3444,7 @@ function reviewPageHTML(){
   const ro=!canMaster();
   const pendE=S.employees.filter(e=>e.reviewStatus==='pending').length;
   const pendM=S.machines.filter(m=>m.reviewStatus==='pending').length;
-  const head='<div class="page-top"><div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">← 回今天班表</button><div class="page-title"><h1>初次核對資料</h1><span class="savestate '+SYNC.state+'">'+pageSaveState()+'</span></div></div>'+
+  const head='<div class="page-top"><div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">tx('backToday')</button><div class="page-title"><h1>初次核對資料</h1><span class="savestate '+SYNC.state+'">'+pageSaveState()+'</span></div></div>'+
     '<p class="page-sub">核對完成前，自動排班與故障重排保持關閉。三個步驟逐一確認。</p></div>';
   const steps='<div class="wiz-steps">'+
     [1,2,3].map(n=>'<button class="wiz-step'+(n===step?' on':'')+(n<step?' done':'')+'" data-act="review-step" data-v="'+n+'"'+(ro?' disabled':'')+'>步驟 '+n+'：'+['員工','設備／工位','技能與工時'][n-1]+(n===1&&pendE?'（待確認 '+pendE+'）':'')+(n===2&&pendM?'（待確認 '+pendM+'）':'')+'</button>').join('')+'</div>';
