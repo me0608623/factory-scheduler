@@ -8,7 +8,7 @@ export const DEFAULT_PREFERENCES=Object.freeze({
 const allowed={
   theme:new Set(['auto','light','dark']),accent:new Set(['blue','green','purple','orange']),
   scale:new Set([.6,.7,.75,.8,.85,.9,1,1.1,1.15,1.25,1.3,1.4]),font:new Set(['standard','clear']),
-  density:new Set(['comfortable','compact']),motion:new Set(['system','reduce']),language:new Set(['zh-TW','en'])
+  density:new Set(['comfortable','compact']),motion:new Set(['system','reduce']),language:new Set(['zh-TW','en','vi','th'])
 };
 
 export function normalizePreferences(raw={}){
