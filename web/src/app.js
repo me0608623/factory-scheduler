@@ -3128,7 +3128,7 @@ function shortagePageHTML(){
           :(ro?"":(UI.confirmRow==="del:"+r.id?'<button class="btn danger" data-act="rush-del" data-id="'+esc(r.id)+'">再按一次刪除</button>':'<button class="rowdel" data-act="rush-del" data-id="'+esc(r.id)+'">刪除</button>')))+'</td>'+
         '<td class="c-f1">'+dateTxt(r.f1?.shipDate)+editCellHTML("rush",r.id,"f1.shipDate","date",r.f1?.shipDate,ro)+'</td>'+
         cell("f1.vendor","text")+
-        '<td class="c-f1">'+(item?'<button class="codelink" data-act="rush-goto" data-id="'+esc(r.id)+'">'+esc(item)+'</button>':'<span class="mute">—</span>')+'</td>'+
+        '<td class="c-f1">'+(item?''+esc(item)+'':'<span class="mute">—</span>')+'</td>'+
         cell("f1.shortQty","number")+cell("f1.note","text")+
         '<td class="'+(f.f2Empty?"c-f2-empty":"c-f2")+'">'+dateTxt(r.f2?.startDate)+editCellHTML("rush",r.id,"f2.startDate","date",r.f2?.startDate,ro)+(f.f2Empty?'<span class="pending-tag">未排</span>':'')+'</td>'+
         '<td class="'+(f.f2Empty?"c-f2-empty":"c-f2")+'">'+dateTxt(r.f2?.dueDate)+editCellHTML("rush",r.id,"f2.dueDate","date",r.f2?.dueDate,ro)+(f.late?'<span class="late-txt">晚</span>':'')+'</td>'+
@@ -3175,7 +3175,7 @@ function transferFlowPageHTML(){
             ?(ro?"":'<button class="rowdel restore" data-act="tf-restore" data-id="'+esc(o.id)+'">還原</button>')
             :(ro?"":(UI.confirmRow==="tfdel:"+o.id?'<button class="btn danger" data-act="tf-del" data-id="'+esc(o.id)+'">再按一次刪除</button>':'<button class="rowdel" data-act="tf-del" data-id="'+esc(o.id)+'">刪除</button>'))))+'</td>'+
         '<td>'+editCellHTML("tf",o.id,"notified","date",o.notified,ro)+pend("notified")+(o.status==="cancelled"?'<span class="pending-tag">已取消</span>':"")+'</td>'+
-        '<td><button class="codelink" data-act="tf-goto" data-id="'+esc(o.id)+'">'+esc(o.code)+'</button></td>'+
+        '<td>'+esc(o.code)+'</td>'+
         cell("seq","number")+cell("totalQty","number")+
         '<td>'+rawCell("tf",o.id,"expectedSend",o.expectedSend,o.expectedSendRaw,ro)+pend("expectedSend")+'</td>'+
         '<td class="tf-urgent blank">'+(((o.urgentQty||0)>0)?editCellHTML("tf",o.id,"urgentQty","number",o.urgentQty,ro):"")+'</td>'+
@@ -3364,7 +3364,7 @@ function tableFormModal(m){
   const body='<div class="hint">'+(isNew?"填完按儲存才會新增。":"修改完按儲存。")+'</div>'+
     fields.map(([key,label,type,req])=>{
       const id="tf-f-"+key.replace(/\./g,"-");
-      const val=getPath(D,key)??"";""
+      let val=getPath(D,key)??"";if(key==="expectedSend"&&!val&&D.expectedSendRaw)val=D.expectedSendRaw;""
       if(type==="check")return '<label class="permission-row"><input type="checkbox" id="'+id+'" data-fk="'+key+'"'+(val?" checked":"")+'><span><b>'+label+'</b></span></label>';
       if(type==="hour"||type==="minute"){
         const max=type==="hour"?23:59;
