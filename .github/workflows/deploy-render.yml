@@ -23,24 +23,30 @@ jobs:
       - name: 測試關卡：等「Tests」（同 SHA）通過才繼續
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          COMMITS_JSON: ${{ toJSON(github.event.commits) }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
         run: |
-          # 這次 push 沒動到 db/web/solver 時 Tests 不會跑，直接放行（手動 dispatch 也走這裡）
-          CTYPE=$(printf '%s' "$COMMITS_JSON" | jq -r 'type')
-          echo "commits 型別：$CTYPE"
-          CHANGED=$(printf '%s' "$COMMITS_JSON" | \
-            jq -r 'if type=="array" then [.[] | ((.added // []) + (.modified // []) + (.removed // []))[]] | unique | .[] else empty end')
-          echo "變更檔案："; echo "$CHANGED"
-          if [ "$CTYPE" != "array" ]; then
-            echo "（無法解析 push commits — 手動 dispatch 屬正常；保守起見跳過測試等待）"; exit 0
+          # 手動 dispatch（無 before SHA）直接放行：人工觸發視為有意部署
+          if [ -z "$BEFORE_SHA" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            echo "非 push 事件（手動觸發），直接部署"; exit 0
           fi
+          # 用 compare API 取變更檔案（push payload 的 added/modified 欄位實測為 null，不可靠）
+          CMP=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/compare/$BEFORE_SHA...$AFTER_SHA")
+          CHANGED=$(printf '%s' "$CMP" | jq -r 'if .files then [.files[].filename] | unique | .[] else empty end')
+          if [ -z "$CHANGED" ]; then
+            echo "::error::無法取得變更檔案（compare 回應：$(printf '%s' "$CMP" | jq -r '.message // "非預期格式"')）— 保守取消部署"
+            exit 1
+          fi
+          echo "變更檔案："; echo "$CHANGED"
+          # 這次 push 沒動到 db/web/solver 時 Tests 不會跑，直接放行
           if ! printf '%s\n' "$CHANGED" | grep -qE '^(db/|web/|solver/)|^\.github/workflows/tests\.yml$'; then
             echo "無 db/web/solver 變更，不需等待測試"; exit 0
           fi
-          echo "等待 Tests（SHA=${GITHUB_SHA:0:7}）完成…"
+          echo "等待 Tests（SHA=${AFTER_SHA:0:7}）完成…"
           for i in $(seq 1 60); do
             RUNS=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
-              "https://api.github.com/repos/${{ github.repository }}/actions/runs?head_sha=${{ github.sha }}&event=push&per_page=20")
+              "https://api.github.com/repos/${{ github.repository }}/actions/runs?head_sha=$AFTER_SHA&event=push&per_page=20")
             STATUS=$(printf '%s' "$RUNS" | jq -r '[.workflow_runs[] | select(.name=="Tests" and .event=="push")][0].status // "none"')
             CONCL=$(printf '%s' "$RUNS" | jq -r '[.workflow_runs[] | select(.name=="Tests" and .event=="push")][0].conclusion // "none"')
             echo "  [$i] Tests status=$STATUS conclusion=$CONCL"

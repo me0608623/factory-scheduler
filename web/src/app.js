@@ -89,6 +89,8 @@ const SETTINGS_TEXT={
   th:{settings:'ตั้งค่า',today:'วันนี้',orders:'ใบสั่งงาน',people:'คน',output:'ผลผลิต',notes:'บันทึก',more:'เพิ่มเติม',worklog:'บันทึกงาน',shortage:'ของขาด',transfer:'ส่ง/รับคืน',addrow:'＋เพิ่มแถว',work:'ทำงาน',leave:'ลา',uncertain:'ไม่แน่ใจ',backToday:'← กลับวันนี้',saved:'บันทึกแล้ว',notSaved:'บันทึกไม่ได้',close:'ปิด',cancel:'ยกเลิก',save:'บันทึก',delete:'ลบ'}
 };
 const tx=k=>SETTINGS_TEXT[UI.prefs.language]?.[k]||SETTINGS_TEXT['zh-TW'][k]||k;
+// RPC 不存在（資料庫缺 migration）的錯誤特徵：確認完工等寫入要保持原狀、明確提示
+const DB_MIGRATION_PENDING=/不存在|not exist|PGRST202|Could not find/;
 
 const emp=id=>S.employees.find(e=>e.id===id);
 const mach=id=>S.machines.find(m=>m.id===id);
@@ -1356,7 +1358,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
         await reloadFromStore();toast('已確認完工（已存到資料庫）');
       }).catch(e=>{
         a.disabled=false;
-        const pendingDb=/不存在|not exist|PGRST202|Could not find/.test(e.message||'');
+        const pendingDb=DB_MIGRATION_PENDING.test(e.message||'');
         toast(pendingDb?'沒存到：資料庫尚未更新（缺 0035），確認狀態保持待確認':'沒存到：'+e.message);
       });
       break;}
@@ -1369,7 +1371,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
         await reloadFromStore();toast('已取消確認，回報仍保留');
       }).catch(e=>{
         a.disabled=false;
-        const pendingDb=/不存在|not exist|PGRST202|Could not find/.test(e.message||'');
+        const pendingDb=DB_MIGRATION_PENDING.test(e.message||'');
         toast(pendingDb?'沒存到：資料庫尚未更新（缺 0035），維持原確認狀態':'沒存到：'+e.message);
       });
       break;}
