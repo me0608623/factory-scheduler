@@ -1,4 +1,6 @@
 # 每月一日自動下載最新備份並驗證可完整還原
+# 注意：GitHub Actions step 預設 bash -e，任何指令非零即中止；
+#       所有「允許失敗再判斷」的指令必須用 || VAR=$? 模式捕捉，不能裸跑。
 name: 備份還原演練
 on:
   schedule:
@@ -22,16 +24,14 @@ jobs:
 
       - name: 驗證備份完整性（PG17 Docker 容器跑 pg_restore --list）
         run: |
-          set -o pipefail
           DUMP=$(ls restored/*.dump | head -1)
           if [ -z "$DUMP" ]; then echo "No .dump file found"; exit 1; fi
           DUMP_BASE=$(basename "$DUMP")
           echo "Verifying: $DUMP ($(stat -c%s "$DUMP") bytes)"
-          # 用 PG17 Docker 跑 pg_restore --list，exit code 存檔再判斷
+          TOC_EXIT=0
           docker run --rm -v "$PWD/restored:/backup" postgres:17 \
-            sh -c "pg_restore --list /backup/$DUMP_BASE" > /tmp/toc.txt 2>/tmp/toc_err.txt
-          TOC_EXIT=$?
-          if [ $TOC_EXIT -ne 0 ]; then
+            sh -c "pg_restore --list /backup/$DUMP_BASE" > /tmp/toc.txt 2> /tmp/toc_err.txt || TOC_EXIT=$?
+          if [ "$TOC_EXIT" -ne 0 ]; then
             echo "✗ pg_restore --list FAILED (exit $TOC_EXIT):"
             cat /tmp/toc_err.txt
             exit 1
@@ -40,45 +40,52 @@ jobs:
           TABLES=$(grep -c "TABLE DATA" /tmp/toc.txt || true)
           FUNCS=$(grep -c " FUNCTION " /tmp/toc.txt || true)
           echo "Tables with data: $TABLES | Functions: $FUNCS"
-          if [ "$TABLES" -lt 30 ]; then
-            echo "✗ Expected ≥30 tables, got $TABLES"
+          if [ "${TABLES:-0}" -lt 30 ]; then
+            echo "✗ Expected ≥30 tables with data, got ${TABLES:-0}"
             exit 1
           fi
 
-      - name: 還原到隔離 PostgreSQL 17（exit code 不經 pipe）
+      - name: 還原到隔離 PostgreSQL 17（exit code 不經 pipe、不被 -e 中止）
         run: |
-          set -o pipefail
           DUMP=$(ls restored/*.dump | head -1)
           DUMP_BASE=$(basename "$DUMP")
           docker network create drill-net 2>/dev/null || true
           docker run -d --name drill-pg --network drill-net \
             -e POSTGRES_PASSWORD=drill postgres:17
-          sleep 5
-          for i in $(seq 1 15); do
-            docker exec drill-pg pg_isready -U postgres && break
+          READY=0
+          for i in $(seq 1 20); do
+            if docker exec drill-pg pg_isready -U postgres >/dev/null 2>&1; then READY=1; break; fi
             sleep 2
           done
-          # 還原：stdout/stderr 各存檔，exit code 不被遮蔽
+          if [ "$READY" != "1" ]; then
+            echo "✗ PostgreSQL container never became ready"
+            docker logs drill-pg | tail -20 || true
+            docker rm -f drill-pg; docker network rm drill-net 2>/dev/null || true
+            exit 1
+          fi
+          # 乾淨起點：先清掉 target 的 public schema，避免 already exists 類錯誤
+          docker exec drill-pg psql -U postgres -d postgres -c \
+            "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+          # 還原：stdout/stderr 各存檔，exit code 用 || 捕捉（bash -e 安全）
+          RESTORE_EXIT=0
           docker run --rm --network drill-net \
             -v "$PWD/restored:/backup" \
             -e PGPASSWORD=drill \
             postgres:17 \
             sh -c "pg_restore --no-owner --no-privileges --exit-on-error -h drill-pg -U postgres -d postgres /backup/$DUMP_BASE" \
-            > /tmp/restore_out.txt 2> /tmp/restore_err.txt
-          RESTORE_EXIT=$?
+            > /tmp/restore_out.txt 2> /tmp/restore_err.txt || RESTORE_EXIT=$?
           echo "Restore exit code: $RESTORE_EXIT"
-          if [ $RESTORE_EXIT -ne 0 ]; then
-            echo "✗ Restore FAILED (exit $RESTORE_EXIT). Errors (last 20 lines):"
-            tail -20 /tmp/restore_err.txt
-            echo "Full error count: $(wc -l < /tmp/restore_err.txt)"
-            docker rm -f drill-pg; docker network rm drill-net 2>/dev/null
+          if [ "$RESTORE_EXIT" -ne 0 ]; then
+            echo "✗ Restore FAILED (exit $RESTORE_EXIT). stderr (last 30 lines):"
+            tail -30 /tmp/restore_err.txt
+            echo "stderr total lines: $(wc -l < /tmp/restore_err.txt)"
+            docker rm -f drill-pg; docker network rm drill-net 2>/dev/null || true
             exit 1
           fi
           echo "✓ Restore completed (exit 0)"
 
       - name: 深度驗證（表清單、筆數、函式、RLS）
         run: |
-          set -o pipefail
           # 預期表數量
           TABLES=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c \
             "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
