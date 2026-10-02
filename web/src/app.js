@@ -3364,7 +3364,7 @@ function tableFormModal(m){
   const body='<div class="hint">'+(isNew?"填完按儲存才會新增。":"修改完按儲存。")+'</div>'+
     fields.map(([key,label,type,req])=>{
       const id="tf-f-"+key.replace(/\./g,"-");
-      let val=getPath(D,key)??"";if(key==="expectedSend"&&!val&&D.expectedSendRaw)val=D.expectedSendRaw;""
+      let val=getPath(D,key)??"";if(key==="expectedSend"&&!val&&D.expectedSendRaw)val=D.expectedSendRaw;
       if(type==="check")return '<label class="permission-row"><input type="checkbox" id="'+id+'" data-fk="'+key+'"'+(val?" checked":"")+'><span><b>'+label+'</b></span></label>';
       if(type==="hour"||type==="minute"){
         const max=type==="hour"?23:59;
@@ -3401,6 +3401,9 @@ function saveTableForm(button){
   try{
     if(table==="tf"){
       if(!D.code||!String(D.code).trim())throw new Error("加工編號必填");
+      // expectedSend：非 ISO 日期 → 存到 expectedSendRaw，清空 expectedSend
+      if(D.expectedSend&&!/^\d{4}-\d{2}-\d{2}$/.test(String(D.expectedSend))){D.expectedSendRaw=D.expectedSend;D.expectedSend=null;}
+      else if(D.expectedSend)delete D.expectedSendRaw;
       if(!m.id){
         if(!D.id)D.id=uid();
         D.itemCode=D.itemCode||D.code;D.fromFactory=D.fromFactory||1;D.toFactory=D.toFactory||2;D.returnFactory=D.returnFactory||1;
