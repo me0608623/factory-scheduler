@@ -93,11 +93,15 @@ jobs:
             docker rm -f drill-pg; docker network rm drill-net 2>/dev/null || true
             exit 1
           fi
-          # 逐表填 stub：表存在才填（備份可能早於部分 migration，如 line_notify），
-          # 缺 id 若真有影響，Phase 3 的 ADD CONSTRAINT 驗證會抓到
-          for pair in "account_permissions user_id" "legacy_schedule_archives imported_by" \
-                       "planning_scenarios created_by" "work_execution_events created_by" \
-                       "feedback user_id" "line_notify user_id"; do
+          # 從 dump 的 post-data 區段動態解析所有 REFERENCES auth.users 的 (表,欄位) 配對
+          # （profiles 等表只存在於正式庫、不在 migrations 裡，硬編清單會漏）
+          docker run --rm -v "$PWD/restored:/backup" postgres:17 \
+            sh -c "pg_restore -f /dev/stdout --section=post-data /backup/$DUMP_BASE" > /tmp/post-data.sql 2>/dev/null
+          FK_PAIRS=$(grep -E "FOREIGN KEY .* REFERENCES auth\.users" /tmp/post-data.sql | \
+            sed -E 's/ALTER TABLE ONLY public\.([a-zA-Z_0-9]+) .*FOREIGN KEY \(([a-zA-Z_0-9]+)\) REFERENCES auth\.users.*/\1 \2/' | \
+            grep -E '^[a-zA-Z_0-9]+ [a-zA-Z_0-9]+$' | sort -u)
+          echo "FK pairs referencing auth.users:"; echo "$FK_PAIRS"
+          for pair in $FK_PAIRS; do
             set -- $pair
             docker exec drill-pg psql -U postgres -d postgres -c \
               "INSERT INTO auth.users (id) SELECT DISTINCT $2 FROM $1 WHERE $2 IS NOT NULL ON CONFLICT (id) DO NOTHING;" \
