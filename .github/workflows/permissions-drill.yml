@@ -1,0 +1,280 @@
+# 隔離環境驗收：將最新備份還原到拋棄式 PostgreSQL 17，
+# 模擬 boss / lead / viewer 帳號（auth.uid() 改讀 request.jwt.claim.sub），
+# 驗證資料庫層權限矩陣與完整排程流程。正式環境不受影響。
+# 注意：GitHub Actions step 預設 bash -e；允許失敗的指令一律用 || true 保護。
+name: 隔離驗證（權限與排程）
+on:
+  workflow_dispatch: {}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 下載最新備份
+        run: |
+          ARTIFACTS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?per_page=20" | \
+            jq -r '.artifacts[] | select(.name | startswith("db-backup-")) | .id' | head -1)
+          if [ -z "$ARTIFACTS" ]; then echo "No backup artifact found"; exit 1; fi
+          curl -s -L -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACTS/zip" -o backup.zip
+          unzip -o backup.zip -d restored/
+          echo "Backup: $(ls -lh restored/)"
+
+      - name: 還原到隔離 PostgreSQL 17（兩階段 + Supabase stub）
+        run: |
+          DUMP=$(ls restored/*.dump | head -1)
+          DUMP_BASE=$(basename "$DUMP")
+          docker network create drill-net 2>/dev/null || true
+          docker run -d --name drill-pg --network drill-net -e POSTGRES_PASSWORD=drill postgres:17
+          READY=0
+          for i in $(seq 1 20); do
+            if docker exec drill-pg pg_isready -U postgres >/dev/null 2>&1; then READY=1; break; fi
+            sleep 2
+          done
+          [ "$READY" = "1" ] || { echo "postgres not ready"; docker logs drill-pg | tail -20; exit 1; }
+          docker exec drill-pg psql -U postgres -d postgres -c "DROP SCHEMA IF EXISTS public CASCADE;"
+          # stub：auth schema、auth.uid()（改讀 request.jwt.claim.sub 以便模擬帳號）、auth.users、Supabase roles
+          docker exec drill-pg psql -U postgres -d postgres -c \
+            "CREATE SCHEMA IF NOT EXISTS auth; \
+             CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS \$\$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid \$\$; \
+             CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY); \
+             DO \$\$ BEGIN CREATE ROLE anon NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END \$\$; \
+             DO \$\$ BEGIN CREATE ROLE authenticated NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END \$\$; \
+             DO \$\$ BEGIN CREATE ROLE service_role NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END \$\$;"
+          P1=0
+          docker run --rm --network drill-net -v "$PWD/restored:/backup" -e PGPASSWORD=drill postgres:17 \
+            sh -c "pg_restore --no-owner --no-privileges --exit-on-error --disable-triggers --section=pre-data --section=data -h drill-pg -U postgres -d postgres /backup/$DUMP_BASE" \
+            > /tmp/p1.out 2> /tmp/p1.err || P1=$?
+          [ "$P1" = "0" ] || { echo "Phase1 failed"; tail -30 /tmp/p1.err; exit 1; }
+          docker run --rm -v "$PWD/restored:/backup" postgres:17 \
+            sh -c "pg_restore -f /dev/stdout --section=post-data /backup/$DUMP_BASE" > /tmp/post-data.sql 2>/dev/null || true
+          FK_PAIRS=$(awk '
+            /ALTER TABLE ONLY public\.[a-zA-Z_0-9]+/ { tbl = $4; sub(/public\./, "", tbl); next }
+            /^ *ADD CONSTRAINT / && /FOREIGN KEY/ && /REFERENCES auth\.users/ {
+              if (match($0, /FOREIGN KEY \([a-zA-Z_0-9]+\)/))
+                print tbl, substr($0, RSTART + 13, RLENGTH - 14)
+            }' /tmp/post-data.sql | sort -u)
+          echo "FK pairs: $FK_PAIRS"
+          echo "$FK_PAIRS" | while read -r t c; do
+            [ -z "$t" ] && continue
+            docker exec drill-pg psql -U postgres -d postgres -c \
+              "INSERT INTO auth.users (id) SELECT DISTINCT $c FROM $t WHERE $c IS NOT NULL ON CONFLICT (id) DO NOTHING;" \
+              || echo "  (skipped $t)"
+          done
+          P3=0
+          docker run --rm --network drill-net -v "$PWD/restored:/backup" -e PGPASSWORD=drill postgres:17 \
+            sh -c "pg_restore --no-owner --no-privileges --exit-on-error --section=post-data -h drill-pg -U postgres -d postgres /backup/$DUMP_BASE" \
+            > /tmp/p3.out 2> /tmp/p3.err || P3=$?
+          [ "$P3" = "0" ] || { echo "Phase3 failed"; tail -30 /tmp/p3.err; exit 1; }
+          echo "✓ Restore done: $(docker exec drill-pg psql -U postgres -d postgres -t -A -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'") tables"
+
+      - name: 準備測試帳號（找出 boss、建立合成 lead/viewer）
+        run: |
+          INV=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c "SELECT role||'='||count(*) FROM profiles GROUP BY role ORDER BY role" | tr '\n' ' ')
+          echo "Profiles inventory: $INV"
+          BOSS=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c "SELECT user_id FROM profiles WHERE role='boss' LIMIT 1")
+          if [ -z "$BOSS" ]; then echo "✗ No boss account in backup"; exit 1; fi
+          docker exec drill-pg psql -U postgres -d postgres -c \
+            "WITH u AS (INSERT INTO auth.users (id) VALUES (gen_random_uuid()),(gen_random_uuid()) RETURNING id), \
+             n AS (SELECT id, row_number() OVER () rn FROM u) \
+             INSERT INTO profiles (user_id, display_name, role) \
+             SELECT id, 'drill-' || CASE rn WHEN 1 THEN 'lead' ELSE 'viewer' END, CASE rn WHEN 1 THEN 'lead' ELSE 'viewer' END::app_role FROM n;"
+          LEAD=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c "SELECT user_id FROM profiles WHERE display_name='drill-lead' LIMIT 1")
+          VIEWER=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c "SELECT user_id FROM profiles WHERE display_name='drill-viewer' LIMIT 1")
+          {
+            echo "BOSS=$BOSS"
+            echo "LEAD=$LEAD"
+            echo "VIEWER=$VIEWER"
+          } >> "$GITHUB_ENV"
+          echo "boss=$BOSS lead=$LEAD viewer=$VIEWER"
+          # 資料背景
+          echo "orders=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c 'SELECT count(*) FROM orders') blocks=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c 'SELECT count(*) FROM schedule_blocks') previews=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c 'SELECT count(*) FROM plan_previews') setup_pending=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c 'SELECT setup_pending FROM schedule_state')"
+
+      - name: A. 角色預設權限矩陣（has_permission）
+        run: |
+          PASS=0; FAIL=0
+          perm() { docker exec drill-pg psql -U postgres -d postgres -t -A -c \
+            "BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.sub='$1'; SELECT has_permission('$2'); ROLLBACK;" 2>/dev/null || true; }
+          expect() { if [ "$2" = "$3" ]; then PASS=$((PASS+1)); echo "PASS: $1"; else FAIL=$((FAIL+1)); echo "FAIL: $1 — expected [$2] got [$3]"; fi; }
+          echo "--- boss ---"
+          for p in schedule.manage incidents.manage orders.manage calendar.manage master.manage groups.manage work_contents.manage transfers.manage rosters.manage scenarios.manage execution.manage archives.manage; do
+            expect "boss $p" t "$(perm "$BOSS" "$p")"
+          done
+          echo "--- lead（預設 9 項）---"
+          for p in schedule.manage incidents.manage orders.manage calendar.manage transfers.manage rosters.manage scenarios.manage execution.manage archives.manage; do
+            expect "lead $p" t "$(perm "$LEAD" "$p")"
+          done
+          for p in master.manage groups.manage work_contents.manage; do
+            expect "lead $p（不該有）" f "$(perm "$LEAD" "$p")"
+          done
+          echo "--- viewer（全部不該有）---"
+          for p in schedule.manage incidents.manage orders.manage calendar.manage master.manage groups.manage work_contents.manage transfers.manage rosters.manage scenarios.manage execution.manage archives.manage; do
+            expect "viewer $p（不該有）" f "$(perm "$VIEWER" "$p")"
+          done
+          echo "A 小計：PASS=$PASS FAIL=$FAIL"
+          [ "$FAIL" -eq 0 ] || echo "A_FAILED=$FAIL" >> "$GITHUB_ENV"
+
+      - name: B. is_boss / is_editor
+        run: |
+          PASS=0; FAIL=0
+          f() { docker exec drill-pg psql -U postgres -d postgres -t -A -c \
+            "BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.sub='$1'; SELECT $2(); ROLLBACK;" 2>/dev/null || true; }
+          expect() { if [ "$2" = "$3" ]; then PASS=$((PASS+1)); echo "PASS: $1"; else FAIL=$((FAIL+1)); echo "FAIL: $1 — expected [$2] got [$3]"; fi; }
+          expect "boss is_boss" t "$(f "$BOSS" is_boss)"
+          expect "boss is_editor" t "$(f "$BOSS" is_editor)"
+          expect "lead is_boss" f "$(f "$LEAD" is_boss)"
+          expect "lead is_editor" t "$(f "$LEAD" is_editor)"
+          expect "viewer is_boss" f "$(f "$VIEWER" is_boss)"
+          expect "viewer is_editor" f "$(f "$VIEWER" is_editor)"
+          echo "B 小計：PASS=$PASS FAIL=$FAIL"
+          [ "$FAIL" -eq 0 ] || echo "B_FAILED=$FAIL" >> "$GITHUB_ENV"
+
+      - name: C. 管理介面只有老闆（list_access_accounts / set_account_permissions）
+        run: |
+          PASS=0; FAIL=0
+          run_as() { docker exec drill-pg psql -U postgres -d postgres -t -A -c \
+            "BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.sub='$1'; $2 ROLLBACK;" 2>/dev/null || true; }
+          err_as() { OUT=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c \
+            "BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.sub='$1'; $2 ROLLBACK;" 2>&1) && { echo "NO-ERROR(輸出:$OUT)"; return; }
+            case "$OUT" in *"$3"*) echo MATCHED;; *) echo "WRONG-ERROR: $(echo "$OUT" | head -2)";; esac; }
+          expect() { if [ "$2" = "$3" ]; then PASS=$((PASS+1)); echo "PASS: $1"; else FAIL=$((FAIL+1)); echo "FAIL: $1 — expected [$2] got [$3]"; fi; }
+          expect "lead 呼叫 list_access_accounts 被拒" MATCHED "$(err_as "$LEAD" "SELECT list_access_accounts();" '只有老闆可以管理帳號權限')"
+          expect "boss 呼叫 list_access_accounts 回傳陣列" array "$(run_as "$BOSS" "SELECT jsonb_typeof(list_access_accounts());")"
+          expect "lead 呼叫 set_account_permissions 被拒" MATCHED "$(err_as "$LEAD" "SELECT set_account_permissions('$VIEWER','{\"orders.manage\":true}');" '只有老闆可以管理帳號權限')"
+          echo "C 小計：PASS=$PASS FAIL=$FAIL"
+          [ "$FAIL" -eq 0 ] || echo "C_FAILED=$FAIL" >> "$GITHUB_ENV"
+
+      - name: D. 權限覆寫（老闆單獨開放 orders.manage 給 viewer）
+        run: |
+          PASS=0; FAIL=0
+          perm() { docker exec drill-pg psql -U postgres -d postgres -t -A -c \
+            "BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.sub='$1'; SELECT has_permission('$2'); ROLLBACK;" 2>/dev/null || true; }
+          expect() { if [ "$2" = "$3" ]; then PASS=$((PASS+1)); echo "PASS: $1"; else FAIL=$((FAIL+1)); echo "FAIL: $1 — expected [$2] got [$3]"; fi; }
+          # 覆寫前：viewer 對 orders.manage = f
+          expect "覆寫前 viewer orders.manage=f" f "$(perm "$VIEWER" orders.manage)"
+          # 以 boss 身分呼叫（security definer 驗 is_boss）；不用交易包裹，讓覆寫 commit
+          docker exec drill-pg psql -U postgres -d postgres -c \
+            "SET ROLE authenticated; SET request.jwt.claim.sub='$BOSS'; SELECT set_account_permissions('$VIEWER','{\"orders.manage\":true}');"
+          expect "覆寫後 viewer orders.manage=t" t "$(perm "$VIEWER" orders.manage)"
+          expect "覆寫只影響單項：viewer schedule.manage 仍=f" f "$(perm "$VIEWER" schedule.manage)"
+          expect "覆寫不影響他人：lead schedule.manage 仍=t" t "$(perm "$LEAD" schedule.manage)"
+          echo "D 小計：PASS=$PASS FAIL=$FAIL"
+          [ "$FAIL" -eq 0 ] || echo "D_FAILED=$FAIL" >> "$GITHUB_ENV"
+
+      - name: E. RLS 資料列防護
+        run: |
+          PASS=0; FAIL=0
+          run_as() { docker exec drill-pg psql -U postgres -d postgres -t -A -c \
+            "BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.sub='$1'; $2 ROLLBACK;" 2>/dev/null || true; }
+          expect() { if [ "$2" = "$3" ]; then PASS=$((PASS+1)); echo "PASS: $1"; else FAIL=$((FAIL+1)); echo "FAIL: $1 — expected [$2] got [$3]"; fi; }
+          EMP=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c "SELECT count(*) FROM employees")
+          expect "viewer 可讀 employees（member_read）" t "$([ "$(run_as "$VIEWER" 'SELECT count(*) FROM employees;')" -gt 0 ] 2>/dev/null && echo t || echo f)"
+          expect "viewer 讀不到 audit_log（RLS 隱藏=0 列）" 0 "$(run_as "$VIEWER" 'SELECT count(*) FROM audit_log;')"
+          AUD=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c "SELECT count(*) FROM audit_log")
+          echo "（老闆視角 audit_log 筆數：$AUD；上面 D 的權限變更會產生稽核列）"
+          expect "viewer 只看得到自己的 profile（1 列）" 1 "$(run_as "$VIEWER" 'SELECT count(*) FROM profiles;')"
+          expect "boss 看得到全部 profiles" t "$([ "$(run_as "$BOSS" 'SELECT count(*) FROM profiles;')" -ge 2 ] 2>/dev/null && echo t || echo f)"
+          # 寫入防護：viewer 改基本資料影響 0 列；boss（master.manage）可改 1 列
+          expect "viewer UPDATE employees 影響 0 列" 0 "$(run_as "$VIEWER" 'UPDATE employees SET id=id WHERE id=(SELECT id FROM employees LIMIT 1);' | tail -1)"
+          expect "boss UPDATE employees 影響 1 列" 1 "$(run_as "$BOSS" 'UPDATE employees SET id=id WHERE id=(SELECT id FROM employees LIMIT 1);' | tail -1)"
+          ORD=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c "SELECT count(*) FROM orders")
+          if [ "$ORD" -gt 0 ]; then
+            expect "viewer（無 orders.manage）UPDATE orders 影響 0 列" 0 "$(run_as "$VIEWER" 'UPDATE orders SET id=id WHERE id=(SELECT id FROM orders LIMIT 1);' | tail -1)"
+            expect "viewer（D 已覆寫 orders.manage=true）可 UPDATE" 1 "$(run_as "$VIEWER" 'UPDATE orders SET id=id WHERE id=(SELECT id FROM orders LIMIT 1);' | tail -1)"
+          else
+            echo "SKIP：備份內無 orders 資料，略過 orders 寫入測試"
+          fi
+          echo "E 小計：PASS=$PASS FAIL=$FAIL"
+          [ "$FAIL" -eq 0 ] || echo "E_FAILED=$FAIL" >> "$GITHUB_ENV"
+
+      - name: E2. 還原覆寫（讓後續測試不受 D 影響）
+        run: |
+          docker exec drill-pg psql -U postgres -d postgres -c \
+            "SET ROLE authenticated; SET request.jwt.claim.sub='$BOSS'; SELECT set_account_permissions('$VIEWER','{}');" || true
+
+      - name: F. setup_pending 防護（備份目前狀態）
+        run: |
+          PASS=0; FAIL=0
+          expect() { if [ "$2" = "$3" ]; then PASS=$((PASS+1)); echo "PASS: $1"; else FAIL=$((FAIL+1)); echo "FAIL: $1 — expected [$2] got [$3]"; fi; }
+          SP=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c "SELECT setup_pending FROM schedule_state")
+          expect "schedule_state.setup_pending = t" t "$SP"
+          OUT=$(docker exec drill-pg psql -U postgres -d postgres -c \
+            "INSERT INTO schedule_blocks (id) VALUES (gen_random_uuid());" 2>&1 || true)
+          case "$OUT" in
+            *'尚待確認'*) echo "PASS: setup_pending=true 時寫入排程被擋（觸發器）"; PASS=$((PASS+1));;
+            *) echo "FAIL: setup_pending 未擋住排程寫入：$(echo "$OUT" | head -2)"; FAIL=$((FAIL+1));;
+          esac
+          echo "F 小計：PASS=$PASS FAIL=$FAIL"
+          [ "$FAIL" -eq 0 ] || echo "F_FAILED=$FAIL" >> "$GITHUB_ENV"
+
+      - name: G. 解除 setup_pending 後的完整排程流程（僅在拋棄式容器內）
+        run: |
+          PASS=0; FAIL=0
+          run_as() { docker exec drill-pg psql -U postgres -d postgres -t -A -c \
+            "BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.sub='$1'; $2 ROLLBACK;" 2>/dev/null || true; }
+          err_as() { OUT=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c \
+            "BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.sub='$1'; $2 ROLLBACK;" 2>&1) && { echo "NO-ERROR(輸出:$OUT)"; return; }
+            case "$OUT" in *"$3"*) echo MATCHED;; *) echo "WRONG-ERROR: $(echo "$OUT" | head -2)";; esac; }
+          expect() { if [ "$2" = "$3" ]; then PASS=$((PASS+1)); echo "PASS: $1"; else FAIL=$((FAIL+1)); echo "FAIL: $1 — expected [$2] got [$3]"; fi; }
+          # 模擬老闆在審查精靈解除（只在拋棄式副本）
+          docker exec drill-pg psql -U postgres -d postgres -c "UPDATE schedule_state SET setup_pending=false;"
+          OUT=$(docker exec drill-pg psql -U postgres -d postgres -c \
+            "INSERT INTO schedule_blocks (id) VALUES (gen_random_uuid());" 2>&1 || true)
+          case "$OUT" in
+            *'尚待確認'*) echo "FAIL: 解除後仍被 setup_pending 擋"; FAIL=$((FAIL+1));;
+            *) echo "PASS: 解除後不再出現 setup_pending 錯誤（改為其他約束檢查）"; PASS=$((PASS+1));;
+          esac
+          V1=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c "SELECT version FROM schedule_state")
+          expect "viewer 呼叫 save_blocks 被拒" MATCHED "$(err_as "$VIEWER" "SELECT save_blocks($V1,'[]','drill');" '只有老闆或組長可以調整排程')"
+          CS=$(run_as "$BOSS" "SELECT save_blocks($V1,(SELECT coalesce(jsonb_agg(to_jsonb(sb)),'[]'::jsonb) FROM schedule_blocks sb),'drill-noop');")
+          case "$CS" in
+            [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-*) echo "PASS: boss save_blocks 回傳 change_set uuid"; PASS=$((PASS+1));;
+            *) echo "FAIL: boss save_blocks 異常：$CS"; FAIL=$((FAIL+1));;
+          esac
+          V2=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c "SELECT version FROM schedule_state")
+          expect "save_blocks 後版本 +1（樂觀並行控制）" "$((V1+1))" "$V2"
+          expect "舊版本再存被拒（40001 衝突）" MATCHED "$(err_as "$BOSS" "SELECT save_blocks($V1,'[]','drill-stale');" '排程剛被其他人更新')"
+          PV=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c "SELECT id FROM plan_previews LIMIT 1")
+          if [ -n "$PV" ]; then
+            expect "viewer 套用方案被拒（依方案類型檢查權限）" MATCHED "$(err_as "$VIEWER" "SELECT apply_plan('$PV','a');" '沒有套用這類方案的權限')"
+          else
+            echo "SKIP：備份內無 plan_previews，略過 apply_plan 權限測試"
+          fi
+          expect "viewer 可讀 schedule_snapshot（security invoker + member_read）" t "$(run_as "$VIEWER" "SELECT (schedule_snapshot()) ? 'work_log' AND (schedule_snapshot()) ? 'ot_ends';")"
+          echo "G 小計：PASS=$PASS FAIL=$FAIL"
+          [ "$FAIL" -eq 0 ] || echo "G_FAILED=$FAIL" >> "$GITHUB_ENV"
+
+      - name: H. 特別趕貨與工作紀錄 RPC（不受 setup_pending 影響）
+        run: |
+          PASS=0; FAIL=0
+          err_as() { OUT=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c \
+            "BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.sub='$1'; $2 ROLLBACK;" 2>&1) && { echo "NO-ERROR(輸出:$OUT)"; return; }
+            case "$OUT" in *"$3"*) echo MATCHED;; *) echo "WRONG-ERROR: $(echo "$OUT" | head -2)";; esac; }
+          expect() { if [ "$2" = "$3" ]; then PASS=$((PASS+1)); echo "PASS: $1"; else FAIL=$((FAIL+1)); echo "FAIL: $1 — expected [$2] got [$3]"; fi; }
+          V=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c "SELECT version FROM schedule_state")
+          expect "viewer 存特別趕貨被拒" MATCHED "$(err_as "$VIEWER" "SELECT save_rush_orders($V,'[]');" '只有老闆或組長可修改特別趕貨紀錄')"
+          expect "lead 存特別趕貨（is_editor）" "$((V+1))" "$(docker exec drill-pg psql -U postgres -d postgres -t -A -c \
+            "BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.sub='$LEAD'; SELECT save_rush_orders($V,'[]'); ROLLBACK;" 2>/dev/null || true)"
+          V=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c "SELECT version FROM schedule_state")
+          expect "lead 存工作紀錄" "$((V+1))" "$(docker exec drill-pg psql -U postgres -d postgres -t -A -c \
+            "BEGIN; SET LOCAL ROLE authenticated; SET LOCAL request.jwt.claim.sub='$LEAD'; SELECT save_work_log($V,'[]'); ROLLBACK;" 2>/dev/null || true)"
+          echo "H 小計：PASS=$PASS FAIL=$FAIL"
+          [ "$FAIL" -eq 0 ] || echo "H_FAILED=$FAIL" >> "$GITHUB_ENV"
+
+      - name: 總結
+        run: |
+          docker rm -f drill-pg >/dev/null 2>&1 || true
+          docker network rm drill-net >/dev/null 2>&1 || true
+          TOTAL_FAIL=0
+          for v in A_FAILED B_FAILED C_FAILED D_FAILED E_FAILED F_FAILED G_FAILED H_FAILED; do
+            VAL="${!v}"
+            if [ -n "$VAL" ]; then echo "✗ $v=$VAL"; TOTAL_FAIL=$((TOTAL_FAIL+VAL)); fi
+          done
+          if [ "$TOTAL_FAIL" -eq 0 ]; then
+            echo ""
+            echo "✓✓✓ 隔離驗證全數通過（權限矩陣 + RLS + setup_pending 防護 + 排程流程）✓✓✓"
+          else
+            echo "✗ 共 $TOTAL_FAIL 項失敗"
+            exit 1
+          fi
