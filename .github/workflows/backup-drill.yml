@@ -66,13 +66,15 @@ jobs:
           # 乾淨起點：只 DROP，不預先 CREATE（dump 內含 CREATE SCHEMA public，預建會撞 already exists）
           docker exec drill-pg psql -U postgres -d postgres -c \
             "DROP SCHEMA IF EXISTS public CASCADE;"
-          # Supabase 專屬依賴 stub：public 的表/RLS 引用 auth.uid()，
-          # 且多張表有 FK 參照 auth.users(id)（account_permissions、scenarios、feedback、line_notify）。
-          # vanilla postgres 沒有 auth schema，建 stub 讓結構完整還原（僅存在於演練目標）
+          # Supabase 專屬依賴 stub：public 的表/RLS 引用 auth.uid()、FK 參照 auth.users(id)、
+          # 政策 TO authenticated/anon。vanilla postgres 沒有這些，建 stub 讓結構完整還原（僅存在於演練目標）
           docker exec drill-pg psql -U postgres -d postgres -c \
             "CREATE SCHEMA IF NOT EXISTS auth; \
              CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS \$\$ SELECT NULL::uuid \$\$; \
-             CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY);"
+             CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY); \
+             DO \$\$ BEGIN CREATE ROLE anon NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END \$\$; \
+             DO \$\$ BEGIN CREATE ROLE authenticated NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END \$\$; \
+             DO \$\$ BEGIN CREATE ROLE service_role NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END \$\$;"
           # 還原分兩階段（exit code 用 || 捕捉，bash -e 安全）：
           # 階段 1 pre-data+data：--disable-triggers 以 replica 模式載入資料
           # 階段 2 補 auth.users stub：FK 指向 Supabase 管理的 auth.users（不在備份範圍），
