@@ -376,8 +376,8 @@ jobs:
           expect "boss 可替員工回報（execution.manage）" running "$(call_commit "$BOSS" "SELECT (report_work_execution(gen_random_uuid(),'$OTHERBLK','start',0,0))->>'status';")"
           expect "未報完工不能確認" MATCHED "$(err_as "$BOSS" "SELECT confirm_work_execution('$OTHERBLK',true);" '這項工作還未報完工')"
           expect "boss 確認完工" true "$(call_commit "$BOSS" "SELECT (confirm_work_execution('$MYBLK',true))->>'confirmed';")"
-          expect "快照帶 confirmed=true（重新整理後仍已確認，ERP CSV 讀這個欄位）" 1 "$(f "$VIEWER" "SELECT count(*) FROM jsonb_array_elements(schedule_snapshot()->'work_execution') x WHERE x->>'blockId'='$MYBLK' AND x->>'confirmed'='true';")"
-          expect "取消確認後快照變待確認" 0 "$(call_commit "$BOSS" "SELECT (confirm_work_execution('$MYBLK',false))->>'confirmed';" >/dev/null; f "$VIEWER" "SELECT count(*) FROM jsonb_array_elements(schedule_snapshot()->'work_execution') x WHERE x->>'blockId'='$MYBLK' AND x->>'confirmed'='true';")"
+          expect "快照帶 confirmed=true（重新整理後仍已確認，ERP CSV 讀這個欄位）" 1 "$(f "$VIEWER" "count(*) FROM jsonb_array_elements(schedule_snapshot()->'work_execution') x WHERE x->>'blockId'='$MYBLK' AND x->>'confirmed'='true';")"
+          expect "取消確認後快照變待確認" 0 "$(call_commit "$BOSS" "SELECT (confirm_work_execution('$MYBLK',false))->>'confirmed';" >/dev/null; f "$VIEWER" "count(*) FROM jsonb_array_elements(schedule_snapshot()->'work_execution') x WHERE x->>'blockId'='$MYBLK' AND x->>'confirmed'='true';")"
           echo "I 小計：PASS=$PASS FAIL=$FAIL"
           [ "$FAIL" -eq 0 ] || echo "I_FAILED=$FAIL" >> "$GITHUB_ENV"
 
