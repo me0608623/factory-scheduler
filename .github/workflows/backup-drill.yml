@@ -97,10 +97,24 @@ jobs:
           # （profiles 等表只存在於正式庫、不在 migrations 裡，硬編清單會漏）
           docker run --rm -v "$PWD/restored:/backup" postgres:17 \
             sh -c "pg_restore -f /dev/stdout --section=post-data /backup/$DUMP_BASE" > /tmp/post-data.sql 2>/dev/null
-          FK_PAIRS=$(grep -E "FOREIGN KEY .* REFERENCES auth\.users" /tmp/post-data.sql | \
-            sed -E 's/ALTER TABLE ONLY public\.([a-zA-Z_0-9]+) .*FOREIGN KEY \(([a-zA-Z_0-9]+)\) REFERENCES auth\.users.*/\1 \2/' | \
-            grep -E '^[a-zA-Z_0-9]+ [a-zA-Z_0-9]+$' | sort -u)
+          echo "post-data.sql lines: $(wc -l < /tmp/post-data.sql)"
+          # FK 語句為兩行式（ALTER TABLE ONLY public.<t> 換行 ADD CONSTRAINT ... FOREIGN KEY (<c>) REFERENCES auth.users）
+          FK_PAIRS=$(awk '
+            /ALTER TABLE ONLY public\.[a-zA-Z_0-9]+/ { tbl = $4; sub(/public\./, "", tbl); next }
+            /^ *ADD CONSTRAINT / && /FOREIGN KEY/ && /REFERENCES auth\.users/ {
+              idx = index($0, "FOREIGN KEY (")
+              if (idx > 0) {
+                rest = substr($0, idx + 12)
+                print tbl, substr(rest, 1, index(rest, ")") - 1)
+              }
+            }' /tmp/post-data.sql | sort -u)
           echo "FK pairs referencing auth.users:"; echo "$FK_PAIRS"
+          if [ -z "$FK_PAIRS" ]; then
+            echo "✗ No FK pairs extracted — post-data parsing broken"
+            grep -c "ADD CONSTRAINT" /tmp/post-data.sql || true
+            docker rm -f drill-pg; docker network rm drill-net 2>/dev/null || true
+            exit 1
+          fi
           for pair in $FK_PAIRS; do
             set -- $pair
             docker exec drill-pg psql -U postgres -d postgres -c \
