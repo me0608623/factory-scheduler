@@ -223,13 +223,14 @@ async function runCase(id, fn) {
   await s.run("BEGIN");
   const out = []; let outcome = "PASS";
   try { outcome = await fn(out) || "PASS"; }
-  catch (e) { outcome = "FAIL"; out.push(e.message); }
+  catch (e) { outcome = "FAIL"; out.push(clean(e?.stack || e?.message || String(e)).split("\n").slice(0, 3).join(" ⏎ ")); }
   finally { await s.run("ROLLBACK"); }
   record(id, outcome, out);
 }
 
 await runCase("C1 正常單廠", async (out) => {
   const plan = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: orderEvent("TEST-O1", P2, 120, 14), now, time_limit: 3 });
+  console.error(`[選項] 共${(plan.options||[]).length}個：${(plan.options||[]).map(o=>o.id+(o.applicable?"+":"-")+(o.solver_method==="keep"?"k":"")).join("")}`);
   const opt = plan.options.find((o) => o.applicable && o.solver_method !== "keep");
   if (!opt) noOpt(plan, out); return "FAIL";
   await applyOption(plan, orderEvent("TEST-O1", P2, 120, 14), opt.id, "TEST-O1");
@@ -245,6 +246,7 @@ await runCase("C1 正常單廠", async (out) => {
 await runCase("C2 正常跨廠", async (out) => {
   const ev = orderEvent("TEST-O2", P1, 120, 14);
   const plan = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: ev, now, time_limit: 3 });
+  console.error(`[選項] 共${(plan.options||[]).length}個：${(plan.options||[]).map(o=>o.id+(o.applicable?"+":"-")+(o.solver_method==="keep"?"k":"")).join("")}`);
   const opt = plan.options.find((o) => o.applicable && o.solver_method !== "keep");
   if (!opt) noOpt(plan, out); return "FAIL";
   await applyOption(plan, ev, opt.id, "TEST-O2");
@@ -300,6 +302,7 @@ await runCase("C4 機台故障（兩階段）", async (out) => {
 await runCase("C5 交期不足（軟限制）", async (out) => {
   const ev = orderEvent("TEST-O5", P2, 1200, 1);
   const plan = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: ev, now, time_limit: 3 });
+  console.error(`[選項] 共${(plan.options||[]).length}個：${(plan.options||[]).map(o=>o.id+(o.applicable?"+":"-")+(o.solver_method==="keep"?"k":"")).join("")}`);
   const opt = plan.options.find((o) => o.applicable && o.solver_method !== "keep");
   if (!opt) noOpt(plan, out, "逾期訂單應仍可套用（軟限制）——卻無可套用方案"); return "FAIL";
   const summary = [JSON.stringify(plan.options.map((o) => o.diagnostics || [])), JSON.stringify(plan.summary || plan.options.map((o) => o.lines || []))].join(" ");
@@ -315,6 +318,7 @@ await runCase("C6 週末跨越", async (out) => {
   await s.run(`INSERT INTO leaves (employee_id,date,note) VALUES ('${E03}','${D(0)}','TEST'),('${E03}','${D(1)}','TEST'),('${E03}','${D(2)}','TEST')`);
   const ev = orderEvent("TEST-O6", P1, 1200, 14);
   const plan = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: ev, now, time_limit: 3 });
+  console.error(`[選項] 共${(plan.options||[]).length}個：${(plan.options||[]).map(o=>o.id+(o.applicable?"+":"-")+(o.solver_method==="keep"?"k":"")).join("")}`);
   const opt = plan.options.find((o) => o.applicable && o.solver_method !== "keep");
   if (!opt) noOpt(plan, out); return "FAIL";
   await applyOption(plan, ev, opt.id, "TEST-O6");
@@ -331,6 +335,7 @@ await runCase("C6 週末跨越", async (out) => {
 await runCase("C7 停工日跨越", async (out) => {
   const ev = orderEvent("TEST-O7", P1, 3600, 16);
   const plan = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: ev, now, time_limit: 3 });
+  console.error(`[選項] 共${(plan.options||[]).length}個：${(plan.options||[]).map(o=>o.id+(o.applicable?"+":"-")+(o.solver_method==="keep"?"k":"")).join("")}`);
   const opt = plan.options.find((o) => o.applicable && o.solver_method !== "keep");
   if (!opt) noOpt(plan, out); return "FAIL";
   await applyOption(plan, ev, opt.id, "TEST-O7");
