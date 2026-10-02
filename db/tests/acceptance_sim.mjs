@@ -68,7 +68,14 @@ class Session {
       }, 180000);
     });
   }
-  async one(sql) { const r = await this.run(sql); return r.lines.filter((l) => l && !l.startsWith("STDERR|")).join("\n").trim(); }
+  // psql 的 SQL 錯誤走 stderr（此處帶 STDERR| 前綴）——兩條流都要檢查，
+  // 否則錯誤被吞掉（交易內出錯後 tx 進入 aborted，後續語句全被拒）。
+  async one(sql) {
+    const r = await this.run(sql);
+    const errs = r.lines.filter((l) => l.replace(/^STDERR\|/, "").startsWith("ERROR"));
+    if (errs.length) throw new Error("SQL 錯誤：" + clean(errs.join(" ⏎ ").slice(0, 300)));
+    return r.lines.filter((l) => l && !l.startsWith("STDERR|")).join("\n").trim();
+  }
 }
 
 const s = new Session();
@@ -171,7 +178,7 @@ function assertWindows(blocks, out) {
 // ---------- 基準建立（commit；全部 TEST_ 假設） ----------
 console.log(`基準日 T=${T}（週一）；T+9=${SHUTDOWN}（週三，測試停工日）`);
 const setup = [];
-const must = async (label, sql) => { const r = await s.run(sql); if (r.lines.some((l) => l.startsWith("ERROR"))) throw new Error(`基準失敗 ${label}: ${clean(r.lines.filter((l) => l.startsWith("ERROR")).join(" "))}`); setup.push(label); };
+const must = async (label, sql) => { try { await s.one(sql); } catch (e) { throw new Error(`基準失敗 ${label}：${e.message}`); } setup.push(label); };
 
 await must("週休", `UPDATE calendar_weekly SET is_open=(weekday NOT IN (0,6))`);
 await must("停工日", `INSERT INTO calendar_days (date,is_open,note) VALUES ('${SHUTDOWN}',false,'TEST 停工日（非法定假日）') ON CONFLICT (date) DO UPDATE SET is_open=false,note=EXCLUDED.note`);
@@ -189,7 +196,14 @@ await must("模具", `INSERT INTO machine_products (machine_id,product_id) VALUE
   ('f2k','11111111-aaaa-4aaa-8aaa-111111111101'),
   ('f2ac','11111111-aaaa-4aaa-8aaa-111111111101') ON CONFLICT DO NOTHING`);
 // 員工：取碼序最小的啟用員工（內部記 id，對外只有 TEST-E01/02/03）
-const pick = async (fac, n) => (await s.one(`SELECT string_agg(id::text,',' ORDER BY source_employee_code NULLS LAST, code) FROM (SELECT id FROM employees WHERE active AND factory=${fac} ORDER BY source_employee_code NULLS LAST, code LIMIT ${n}) z`)).split(",");
+// 註：外層 string_agg 不能 ORDER BY 子查詢沒輸出的欄位（先前的錯誤來源）
+const pick = async (fac, n) => {
+  const v = await s.one(`SELECT coalesce(string_agg(id::text,','),'') FROM (SELECT id FROM employees WHERE active AND factory=${fac} ORDER BY source_employee_code NULLS LAST, code LIMIT ${n}) z`);
+  const ids = v ? v.split(",") : [];
+  if (ids.length < n || ids.some((x) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(x)))
+    throw new Error(`無法選出 ${n} 位啟用員工（廠別 ${fac}，取得 ${ids.length} 筆）——案例設定未成立`);
+  return ids;
+};
 const eF1 = await pick(1, 2), eF2 = await pick(2, 1);
 const [E01, E02, E03] = [...eF1, ...eF2];
 await must("技能", `INSERT INTO employee_skills (employee_id,machine_id) VALUES ('${E01}','f1e'),('${E01}','f1b'),('${E02}','f1e'),('${E03}','f2k'),('${E03}','f2ac') ON CONFLICT DO NOTHING`);
