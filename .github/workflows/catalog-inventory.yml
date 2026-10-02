@@ -72,7 +72,7 @@ jobs:
             echo "# 匯入資料盤點報告（$(date -u +%Y-%m-%d)，來源：最新備份）"
             echo ""
             echo "## A. 員工名冊"
-            echo "- 現有值：$(Q "SELECT '總數 '||count(*)||'（一廠 '||count(*) FILTER (WHERE factory=1)||'、二廠 '||count(*) FILTER (WHERE factory=2)||'）；待確認 '||count(*) FILTER (WHERE review_status='pending')||'；停用 '||count(*) FILTER (WHERE NOT active)" FROM employees)"
+            echo "- 現有值：$(Q "SELECT '總數 '||count(*)||'（一廠 '||count(*) FILTER (WHERE factory=1)||'、二廠 '||count(*) FILTER (WHERE factory=2)||'）；待確認 '||count(*) FILTER (WHERE review_status='pending')||'；停用 '||count(*) FILTER (WHERE NOT active) FROM employees")"
             echo "- 現有值：$(Q "SELECT '不加班 '||count(*) FILTER (WHERE no_overtime)||' 人；可同時顧機 >1 台 '||count(*) FILTER (WHERE max_concurrent_machines>1)||' 人' FROM employees")"
             D=$(Q "SELECT string_agg(name||'（x'||c||'）','、') FROM (SELECT name,count(*) c FROM employees GROUP BY name HAVING count(*)>1) d")
             [ -n "$D" ] && echo "- 問題：同名重複 → $D"
@@ -96,7 +96,7 @@ jobs:
             echo "- 現有值：時段 $(Q "SELECT string_agg(id||':'||start_min||'-'||end_min||CASE WHEN is_overtime THEN '（加班）' ELSE '' END,'、' ORDER BY id) FROM work_windows")"
             echo "- 現有值：每週上班日（0=週日）→ $(Q "SELECT string_agg(weekday::text||CASE WHEN is_open THEN '開' ELSE '休' END,' ') FROM (SELECT * FROM calendar_weekly ORDER BY weekday) w")"
             D=$(Q "SELECT count(*) FROM calendar_days WHERE date>=current_date")
-            echo "- 現有值：未來單日調整 $(D) 天"
+            echo "- 現有值：未來單日調整 $D 天"
             [ "$D" != "0" ] && echo "  - $(Q "SELECT string_agg(date||CASE WHEN is_open IS NULL THEN '照每週' WHEN is_open THEN '開' ELSE '休' END||CASE WHEN overtime THEN '＋加班至'||coalesce(overtime_end::text,'1200') ELSE '' END,'、' ORDER BY date) FROM calendar_days WHERE date>=current_date")"
             D=$(Q "SELECT string_agg(h.date||' '||h.name,'、' ORDER BY h.date) FROM holidays h WHERE h.date>=current_date AND NOT EXISTS (SELECT 1 FROM calendar_days c WHERE c.date=h.date)")
             [ -n "$D" ] && echo "- 問題：國定假日但沒有單日調整（會照每週設定排班）→ $D"
@@ -113,7 +113,7 @@ jobs:
             echo "- 現有值：各工序 → $(Q "SELECT string_agg(process||' '||c,'、' ORDER BY c DESC) FROM (SELECT process,count(*) c FROM machines GROUP BY process) z")"
             D=$(Q "SELECT string_agg(id||' '||label,'、') FROM machines WHERE NOT EXISTS (SELECT 1 FROM machine_products p WHERE p.machine_id=machines.id)")
             [ -n "$D" ] && echo "- 問題：沒有任何產品模具 → $D"
-            D=$(Q "SELECT coalesce(string_agg(machine_id||'（'||date||'）','、' ORDER BY date),'無')")
+            D=$(Q "SELECT coalesce(string_agg(machine_id||'（'||date||'）','、' ORDER BY date),'無') FROM machine_faults WHERE fixed_at IS NULL AND date>=current_date-30")
             echo "- 現有值：未修復故障 → $D"
             echo "- 需要誰確認：組長＋設備負責（機台狀態與模具對應）"
             echo ""
