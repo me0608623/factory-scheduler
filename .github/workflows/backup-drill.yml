@@ -102,9 +102,8 @@ jobs:
           FK_PAIRS=$(awk '
             /ALTER TABLE ONLY public\.[a-zA-Z_0-9]+/ { tbl = $4; sub(/public\./, "", tbl); next }
             /^ *ADD CONSTRAINT / && /FOREIGN KEY/ && /REFERENCES auth\.users/ {
-              split($0, a, "FOREIGN KEY (")
-              split(a[2], b, ")")
-              print tbl, b[1]
+              if (match($0, /FOREIGN KEY \([a-zA-Z_0-9]+\)/))
+                print tbl, substr($0, RSTART + 13, RLENGTH - 14)
             }' /tmp/post-data.sql | sort -u)
           echo "FK pairs referencing auth.users:"; echo "$FK_PAIRS"
           if [ -z "$FK_PAIRS" ]; then
