@@ -148,9 +148,9 @@ jobs:
             echo "✗ Expected ≥35 tables, got $TABLES"
             docker rm -f drill-pg; exit 1
           fi
-          # 關鍵函式
+          # 關鍵函式（名稱以 db/migrations 實際定義為準）
           FUNCS=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c \
-            "SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname IN ('schedule_snapshot','apply_plan','save_blocks','save_rush_orders','save_work_log','save_transfer_orders','resolve_leave_request','create_leave_request')")
+            "SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname IN ('schedule_snapshot','apply_plan','save_blocks','save_work_assignments','resolve_leave_request','set_account_permissions','list_access_accounts','update_own_profile')")
           echo "Critical functions: $FUNCS / 8"
           if [ "$FUNCS" -lt 8 ]; then
             echo "✗ Missing critical functions"
