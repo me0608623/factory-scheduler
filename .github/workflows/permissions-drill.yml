@@ -69,6 +69,19 @@ jobs:
             sh -c "pg_restore --no-owner --no-privileges --exit-on-error --section=post-data -h drill-pg -U postgres -d postgres /backup/$DUMP_BASE" \
             > /tmp/p3.out 2> /tmp/p3.err || P3=$?
           [ "$P3" = "0" ] || { echo "Phase3 failed"; tail -30 /tmp/p3.err; exit 1; }
+          # 複製 Supabase 的授權模型：廣泛 GRANT 給 authenticated（RLS 負責資料列層強制）。
+          # --no-privileges 的 dump 不含 GRANT；DROP 後重建的 public schema 也沒有 initdb 的預設 USAGE。
+          docker exec drill-pg psql -U postgres -d postgres -q -c \
+            "GRANT USAGE ON SCHEMA public, auth TO PUBLIC; \
+             GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated; \
+             GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated; \
+             GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated; \
+             DO \$\$ DECLARE r record; BEGIN \
+               FOR r IN SELECT p.oid::regprocedure AS sig FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace \
+                        WHERE n.nspname='public' AND p.proname LIKE '\_%' LOOP \
+                 EXECUTE format('REVOKE ALL ON FUNCTION %s FROM authenticated', r.sig); \
+               END LOOP; \
+             END \$\$;"
           echo "✓ Restore done: $(docker exec drill-pg psql -U postgres -d postgres -t -A -q -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'") tables"
 
       - name: 準備測試帳號（找出 boss、建立合成 lead/viewer）
