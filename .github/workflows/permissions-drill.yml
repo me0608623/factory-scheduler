@@ -193,7 +193,7 @@ jobs:
             "SET ROLE authenticated; SET request.jwt.claim.sub='$BOSS'; SELECT set_account_permissions('$VIEWER'::uuid,'{\"orders.manage\":true}'::jsonb);" 2>&1) || true
           echo "（覆寫呼叫輸出：$OUT）"
           case "$OUT" in
-            *ERROR*|*does not exist*) echo "FAIL: 覆寫呼叫失敗"; FAIL=$((FAIL+1));;
+            *"ERROR"*|*"does not exist"*) echo "FAIL: 覆寫呼叫失敗"; FAIL=$((FAIL+1));;
             *) echo "PASS: 覆寫呼叫執行完成"; PASS=$((PASS+1));;
           esac
           expect "覆寫後 viewer orders.manage=t" t "$(perm "$VIEWER" orders.manage)"
