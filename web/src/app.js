@@ -3122,7 +3122,7 @@ function shortagePageHTML(){
       const cell=(k,t)=>'<td class="'+(k.startsWith("f1.")?"c-f1":(f.f2Empty?"c-f2-empty":"c-f2"))+'">'+editCellHTML("rush",r.id,k,t,getPath(r,k),ro)+'</td>';
       const item=String(r.f1?.desc||"").trim();
       const dateTxt=v=>v&&!/^\d{4}-\d{2}-\d{2}$/.test(String(v))?'<span class="raw-txt">'+esc(String(v))+'</span>':"";
-      return '<tr data-rowid="'+esc(r.id)+'" class="'+(r.archived?"archived":"")+'">'+
+      return '<tr data-rowid="'+esc(r.id)+'" data-act="row-edit" data-table="rush" data-id="'+esc(r.id)+'" class="'+(r.archived?"archived":"")+'">'+
         '<td class="rowact">'+(r.archived
           ?(ro?"":'<button class="rowdel restore" data-act="rush-unarchive" data-id="'+esc(r.id)+'">還原</button>')
           :(ro?"":(UI.confirmRow==="del:"+r.id?'<button class="btn danger" data-act="rush-del" data-id="'+esc(r.id)+'">再按一次刪除</button>':'<button class="rowdel" data-act="rush-del" data-id="'+esc(r.id)+'">刪除</button>')))+'</td>'+
@@ -3168,7 +3168,7 @@ function transferFlowPageHTML(){
       const urgent=(o.urgentQty||0)>0||!!o.urgentDue;
       const cell=(k,ty,cls="")=>'<td class="'+cls+'">'+editCellHTML("tf",o.id,k,ty,getPath(o,k),ro)+'</td>';
       const pend=k=>pendingDate(getPath(o,k))?'<span class="pending-tag">待確認格式</span>':"";
-      return '<tr data-rowid="'+esc(o.id)+'" class="'+(o.returned?"returned":"")+(o.archived?" archived":"")+(o.status==="cancelled"?" cancelled":"")+'">'+
+      return '<tr data-rowid="'+esc(o.id)+'" data-act="row-edit" data-table="tf" data-id="'+esc(o.id)+'" class="'+(o.returned?"returned":"")+(o.archived?" archived":"")+(o.status==="cancelled"?" cancelled":"")+'">'+
         '<td class="rowact">'+(o.archived
           ?(ro?"":'<button class="rowdel restore" data-act="tf-unarchive" data-id="'+esc(o.id)+'">還原</button>')
           :(o.status==="cancelled"
@@ -3371,9 +3371,9 @@ function tableFormModal(m){
         return '<div class="field"><label for="'+id+'">'+label+'</label><select class="inp" id="'+id+'" data-fk="'+key+'">'+numSelOptions(val,max,1)+'</select></div>';
       }
       const t=type==="date"?"date":type==="number"?"number":"text";
-      return '<div class="field"><label for="'+id+'">'+label+(req?" *":"")+'</label><input class="inp" id="'+id+'" data-fk="'+key+'" type="'+t+'" value="'+esc(val)+'"></div>';
+      return '<div class="field"><label for="'+id+'">'+label+(req?" *":"")+'</label><input class="inp" id="'+id+'" data-fk="'+key+'" type="'+t+'" value="'+esc(val)+'"'+(m.ro?' disabled':'')+'></div>';
     }).join("");
-  const foot='<button class="btn" data-act="close">取消</button>'+
+  const foot=m.ro?'<button class="btn" data-act="close">關閉</button>':'<button class="btn" data-act="close">取消</button>'+
     (!isNew?'<button class="btn danger" data-act="tbl-del" data-table="'+table+'" data-id="'+esc(m.id||"")+'">'+(m.confirmDel?"再按一次刪除":"刪除")+'</button>':'')+
     '<div class="spacer"></div><button class="btn primary" data-act="tbl-save" data-table="'+table+'"'+(m.saving?" disabled":"")+'>'+(m.saving?"儲存中…":"儲存")+'</button>';
   return {title:(isNew?"新增":"編輯")+" — "+TABLE_TITLES[table],body,foot};
@@ -3383,8 +3383,8 @@ function openTableForm(table,id){
   const list=table==="rush"?(S.rushOrders||[]):table==="tf"?transferOrders(S):(S.workLog||[]);
   const row=id?list.find(r=>r.id===id):null;
   const perm=table==="rush"?"rush.manage":table==="tf"?"transfers.manage":"worklog.manage";
-  if(!canPermission(perm)){toast("只有老闆／組長可以"+(id?"修改":"新增"));return;}
-  openModal({t:"tbl-form",table,id:id||null,draft:row?structuredClone(row):null,saving:false});
+  const ro=!canPermission(perm);
+  openModal({t:"tbl-form",table,id:id||null,draft:row?structuredClone(row):null,saving:false,ro});
 }
 function saveTableForm(button){
   const m=UI.modal;if(m?.t!=="tbl-form"||m.saving)return;
@@ -3493,7 +3493,7 @@ function workLogPageHTML(){
         const txt=(r[base+"H"]??"" )===""?"—":pad(r[base+"H"])+":"+(r[base+"M"]??"0");
         return '<button class="cellbtn" data-act="cell-edit" data-cell="wl" data-id="'+esc(r.id)+'" data-key="'+base+'H" data-type="hour">'+esc(txt)+'</button>';
       };
-      return '<tr data-rowid="'+esc(r.id)+'">'+
+      return '<tr data-rowid="'+esc(r.id)+'" data-act="row-edit" data-table="wl" data-id="'+esc(r.id)+'">'+
         '<td class="rowact">'+(ro?"":(UI.confirmRow==="wldel:"+r.id?'<button class="btn danger" data-act="wl-del" data-id="'+esc(r.id)+'">再按一次刪除</button>':'<button class="rowdel" data-act="wl-del" data-id="'+esc(r.id)+'">刪除</button>'))+'</td>'+
         cell("date","date")+cell("code","text")+cell("goodQty","number")+cell("badQty","number")+
         '<td class="hmcell">'+hm(r.startH,r.startM,"start")+'</td>'+
