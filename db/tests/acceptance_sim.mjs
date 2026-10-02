@@ -53,10 +53,19 @@ class Session {
   async run(sql) {
     if (this.dead) throw new Error(this.dead);
     const mark = `__SIM${++this.seq}__`;
+    const t0 = Date.now();
+    if (process.env.SIM_DEBUG) console.error(`[sql#${this.seq}] ${clean(String(sql).replace(/\s+/g, " ").slice(0, 140))}`);
     return new Promise((resolve) => {
       this.waiters.push({ mark, lines: [], resolve });
       this.child.stdin.write(sql + `;\nSELECT '${mark}';\n`);
-      setTimeout(() => { const w = this.waiters.find((x) => x.mark === mark); if (w && this.waiters.includes(w)) { this.waiters.splice(this.waiters.indexOf(w), 1); resolve({ lines: [...w.lines, "ERROR: 逾時"] }); } }, 60000);
+      setTimeout(() => {
+        const i = this.waiters.findIndex((x) => x.mark === mark);
+        if (i >= 0) {
+          const w = this.waiters.splice(i, 1)[0];
+          if (process.env.SIM_DEBUG || Date.now() - t0 > 2000) console.error(`[逾時 ${Date.now() - t0}ms] sql#${this.seq}（session dead=${!!this.dead}，waiters=${this.waiters.length}）`);
+          resolve({ lines: [...w.lines, `ERROR: 逾時（session dead=${!!this.dead}）`] });
+        }
+      }, 180000);
     });
   }
   async one(sql) { const r = await this.run(sql); return r.lines.filter((l) => l && !l.startsWith("STDERR|")).join("\n").trim(); }
@@ -95,6 +104,12 @@ function solve(request) {
   if (child.error || child.status !== 0) throw new Error(`solver 失敗：${clean(child.error?.message || child.stderr?.slice(-400) || "exit " + child.status)}`);
   return JSON.parse(child.stdout);
 }
+
+// 選項診斷摘要（找不到可套用方案時列原因）
+const noOpt = (plan, out, label) => {
+  const d = (plan.options || []).map((o) => [o.id, o.status, o.applicable ? "適用" : "不適用", (o.diagnostics || []).join(" "), (o.lines || []).map((l) => l.t).join(" ")].join("|")).join(" ； ");
+  out.push((label || "無可套用方案") + "：" + clean(d).slice(0, 900));
+};
 
 // ---------- 共用查詢 ----------
 const orderBlocks = (code) => s.one(
@@ -202,7 +217,7 @@ async function runCase(id, fn) {
 await runCase("C1 正常單廠", async (out) => {
   const plan = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: orderEvent("TEST-O1", P2, 120, 14), now, time_limit: 3 });
   const opt = plan.options.find((o) => o.applicable && o.solver_method !== "keep");
-  if (!opt) return (out.push("無可套用方案"), "FAIL");
+  if (!opt) noOpt(plan, out); return "FAIL";
   await applyOption(plan, orderEvent("TEST-O1", P2, 120, 14), opt.id, "TEST-O1");
   const blocks = JSON.parse(await orderBlocks("TEST-O1"));
   if (stationQty("TEST-O1", 0) !== 120) out.push("裁切站件數≠120");
@@ -217,7 +232,7 @@ await runCase("C2 正常跨廠", async (out) => {
   const ev = orderEvent("TEST-O2", P1, 120, 14);
   const plan = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: ev, now, time_limit: 3 });
   const opt = plan.options.find((o) => o.applicable && o.solver_method !== "keep");
-  if (!opt) return (out.push("無可套用方案"), "FAIL");
+  if (!opt) noOpt(plan, out); return "FAIL";
   await applyOption(plan, ev, opt.id, "TEST-O2");
   for (const st of [0, 1, 2]) if (stationQty("TEST-O2", st) !== 120) out.push(`站 ${st} 件數≠120`);
   await assertFlow("TEST-O2", 0, 1, 60, out) || out.push("裁切→沖壓 累計流轉檢查未過");
@@ -249,14 +264,14 @@ await runCase("C4 機台故障（兩階段）", async (out) => {
   const ev = orderEvent("TEST-O4", P2, 120, 1, 0);
   const plan1 = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: ev, now, time_limit: 3 });
   const opt1 = plan1.options.find((o) => o.applicable && o.solver_method !== "keep");
-  if (!opt1) return (out.push("基準階段無可套用方案"), "FAIL");
+  if (!opt1) noOpt(plan1, out, "基準階段無可套用方案"); return "FAIL";
   await applyOption(plan1, ev, opt1.id, "TEST-O4 基準");
   const hit = Number(await s.one(`SELECT count(*) FROM schedule_blocks b JOIN orders o ON o.id=b.order_id
     WHERE o.code='TEST-O4' AND b.machine_id='f1b' AND b.date='${T}' AND b.start_min<720`));
   if (hit === 0) return (out.push("基準未使用 T 上午 f1b——案例設定未成立（不判功能失敗）"), "未成立");
   const plan2 = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: { type: "fault", machine: "f1b", date: T, start: 480, end: 720, note: "TEST 故障" }, now, time_limit: 3 });
   const opt2 = plan2.options.find((o) => o.applicable);
-  if (!opt2) return (out.push("故障階段無可套用方案"), "FAIL");
+  if (!opt2) noOpt(plan2, out, "故障階段無可套用方案"); return "FAIL";
   await applyOption(plan2, { type: "fault", machine: "f1b", date: T, start: 480, end: 720, note: "TEST 故障" }, opt2.id, "TEST-O4 故障", "fault");
   const f1bOnT = Number(await s.one(`SELECT count(*) FROM schedule_blocks b JOIN orders o ON o.id=b.order_id WHERE o.code='TEST-O4' AND b.machine_id='f1b' AND b.date='${T}'`));
   if (f1bOnT !== 0) out.push(`故障日 T 的 f1b 仍有 ${f1bOnT} 段排程`);
@@ -272,7 +287,7 @@ await runCase("C5 交期不足（軟限制）", async (out) => {
   const ev = orderEvent("TEST-O5", P2, 1200, 1);
   const plan = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: ev, now, time_limit: 3 });
   const opt = plan.options.find((o) => o.applicable && o.solver_method !== "keep");
-  if (!opt) return (out.push("逾期訂單應仍可套用（軟限制）——卻無可套用方案"), "FAIL");
+  if (!opt) noOpt(plan, out, "逾期訂單應仍可套用（軟限制）——卻無可套用方案"); return "FAIL";
   const summary = [JSON.stringify(plan.options.map((o) => o.diagnostics || [])), JSON.stringify(plan.summary || plan.options.map((o) => o.lines || []))].join(" ");
   if (!/超過期限/.test(summary)) out.push("方案資訊未標示逾期（超過期限）");
   await applyOption(plan, ev, opt.id, "TEST-O5");
@@ -287,7 +302,7 @@ await runCase("C6 週末跨越", async (out) => {
   const ev = orderEvent("TEST-O6", P1, 1200, 14);
   const plan = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: ev, now, time_limit: 3 });
   const opt = plan.options.find((o) => o.applicable && o.solver_method !== "keep");
-  if (!opt) return (out.push("無可套用方案"), "FAIL");
+  if (!opt) noOpt(plan, out); return "FAIL";
   await applyOption(plan, ev, opt.id, "TEST-O6");
   const weekend = Number(await blocksOn([D(5), D(6)]));
   if (weekend !== 0) out.push(`週末 T+5/T+6 有 ${weekend} 段排程`);
@@ -303,7 +318,7 @@ await runCase("C7 停工日跨越", async (out) => {
   const ev = orderEvent("TEST-O7", P1, 3600, 16);
   const plan = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: ev, now, time_limit: 3 });
   const opt = plan.options.find((o) => o.applicable && o.solver_method !== "keep");
-  if (!opt) return (out.push("無可套用方案"), "FAIL");
+  if (!opt) noOpt(plan, out); return "FAIL";
   await applyOption(plan, ev, opt.id, "TEST-O7");
   const shutdownN = Number(await blocksOn([SHUTDOWN]));
   if (shutdownN !== 0) out.push(`停工日 ${SHUTDOWN} 有 ${shutdownN} 段排程`);

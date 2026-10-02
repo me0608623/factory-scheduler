@@ -107,7 +107,7 @@ jobs:
         run: |
           python -m pip install uv
           cd solver && uv sync --frozen && cd ..
-          node db/tests/acceptance_sim.mjs --monday "${{ inputs.monday }}" --container sim-pg
+          SIM_DEBUG=1 node db/tests/acceptance_sim.mjs --monday "${{ inputs.monday }}" --container sim-pg
           EXIT=$?
           if [ $EXIT -ne 0 ]; then
             echo "::error::模擬驗收未全過（exit $EXIT：1=功能失敗、3=有案例設定未成立）"
