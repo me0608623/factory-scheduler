@@ -1,8 +1,8 @@
-# 每月一日自動下載最新備份並驗證可還原
+# 每月一日自動下載最新備份並驗證可完整還原
 name: 備份還原演練
 on:
   schedule:
-    - cron: "0 3 1 * *"  # 每月 1 日 03:00 UTC = 台灣 11:00
+    - cron: "0 18 1 * *"  # 每月 1 日 18:00 UTC
   workflow_dispatch: {}
 
 jobs:
@@ -20,45 +20,105 @@ jobs:
           unzip -o backup.zip -d restored/
           echo "Backup downloaded: $(ls -lh restored/)"
 
-      - name: 驗證備份完整性（用 postgres:17 容器跑 pg_restore）
+      - name: 驗證備份完整性（pg_restore --list，不用 pipe）
         run: |
+          set -o pipefail
           DUMP=$(ls restored/*.dump | head -1)
           if [ -z "$DUMP" ]; then echo "No .dump file found"; exit 1; fi
           DUMP_BASE=$(basename "$DUMP")
           echo "Verifying: $DUMP ($(stat -c%s "$DUMP") bytes)"
-          # 備份由 PG17 pg_dump 產生（format 1.16），必須用 PG17 的 pg_restore
-          docker run --rm -v "$PWD/restored:/backup" postgres:17 \
-            sh -c "pg_restore --list /backup/$DUMP_BASE > /dev/null && echo '✓ pg_restore --list OK' || { echo '✗ pg_restore failed'; exit 1; }"
-          TABLES=$(docker run --rm -v "$PWD/restored:/backup" postgres:17 \
-            sh -c "pg_restore --list /backup/$DUMP_BASE | grep -c 'TABLE DATA'" || true)
-          echo "Tables in backup: $TABLES"
-          if [ "$TABLES" -lt 10 ]; then echo "⚠ Backup has fewer than 10 tables — may be incomplete"; fi
+          # 不接 tail——錯誤碼必須直傳
+          # 不用 docker run——直接抓 PG17 client
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          wget -qO - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_restore --version
+          pg_restore --list "$DUMP" > /tmp/toc.txt 2>/tmp/toc_err.txt
+          TOC_EXIT=$?
+          if [ $TOC_EXIT -ne 0 ]; then
+            echo "✗ pg_restore --list failed (exit $TOC_EXIT):"
+            cat /tmp/toc_err.txt
+            exit 1
+          fi
+          echo "✓ pg_restore --list OK"
+          TABLES=$(grep -c "TABLE DATA" /tmp/toc.txt || true)
+          echo "Tables with data in backup: $TABLES"
+          FUNCTIONS=$(grep -c "FUNCTION" /tmp/toc.txt || true)
+          echo "Functions in backup: $FUNCTIONS"
 
-      - name: 還原到暫存 PostgreSQL 17 容器
+      - name: 還原到隔離 PostgreSQL 17（不接 pipe）
         run: |
+          set -o pipefail
           DUMP=$(ls restored/*.dump | head -1)
           DUMP_BASE=$(basename "$DUMP")
-          # 啟動暫存 PG17、還原、驗證
-          docker network create drill-net || true
+          docker network create drill-net 2>/dev/null || true
           docker run -d --name drill-pg --network drill-net \
-            -e POSTGRES_PASSWORD=drill -p 15432:5432 postgres:17
+            -e POSTGRES_PASSWORD=drill postgres:17
           sleep 5
-          # 等待就緒
           for i in $(seq 1 15); do
             docker exec drill-pg pg_isready -U postgres && break
             sleep 2
           done
-          # 還原（PGPASSWORD 環境變數傳入容器）
-          docker run --rm --network drill-net -v "$PWD/restored:/backup" -e PGPASSWORD=drill postgres:17 \
-            sh -c "pg_restore --no-owner --no-privileges -h drill-pg -U postgres -d postgres /backup/$DUMP_BASE" 2>&1 | tail -5
-          # 驗證
-          COUNT=$(docker exec drill-pg psql -U postgres -d postgres -t -c \
-            "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'" 2>/dev/null | tr -d ' ')
-          echo "Restored tables in public schema: $COUNT"
-          if [ "$COUNT" -lt 10 ]; then echo "✗ Restore incomplete"; docker rm -f drill-pg; exit 1; fi
-          # 抽查關鍵表有資料
-          EMP=$(docker exec drill-pg psql -U postgres -d postgres -t -c "SELECT count(*) FROM employees" 2>/dev/null | tr -d ' ')
-          echo "employees rows: $EMP"
-          echo "✓ Backup restore drill PASSED"
+          # 還原：stdout/stderr 各存檔，exit code 不被遮蔽
+          docker run --rm --network drill-net \
+            -v "$PWD/restored:/backup" \
+            -e PGPASSWORD=drill \
+            postgres:17 \
+            sh -c "pg_restore --no-owner --no-privileges --exit-on-error -h drill-pg -U postgres -d postgres /backup/$DUMP_BASE" \
+            > /tmp/restore_out.txt 2> /tmp/restore_err.txt
+          RESTORE_EXIT=$?
+          echo "Restore exit code: $RESTORE_EXIT"
+          if [ $RESTORE_EXIT -ne 0 ]; then
+            echo "✗ Restore FAILED (exit $RESTORE_EXIT). Errors:"
+            cat /tmp/restore_err.txt
+            docker rm -f drill-pg; docker network rm drill-net 2>/dev/null
+            exit 1
+          fi
+          echo "✓ Restore completed (exit 0)"
+
+      - name: 深度驗證（表清單、筆數、函式、RLS）
+        run: |
+          set -o pipefail
+          # 驗證預期表存在（2026-10-02 時應有 40 張）
+          TABLES=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c \
+            "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
+          echo "Restored tables: $TABLES"
+          if [ "$TABLES" -lt 35 ]; then
+            echo "✗ Expected ≥35 tables, got $TABLES"
+            docker rm -f drill-pg; exit 1
+          fi
+          # 驗證關鍵函式存在
+          FUNCS=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c \
+            "SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname IN ('schedule_snapshot','apply_plan','save_blocks','save_rush_orders','save_work_log','save_transfer_orders','resolve_leave_request','create_leave_request')")
+          echo "Critical functions found: $FUNCS / 8"
+          if [ "$FUNCS" -lt 8 ]; then
+            echo "✗ Missing critical functions (got $FUNCS, expected ≥8)"
+            docker rm -f drill-pg; exit 1
+          fi
+          # 驗證 RLS 政策存在
+          RLS=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c \
+            "SELECT count(*) FROM pg_policies WHERE schemaname='public'")
+          echo "RLS policies: $RLS"
+          if [ "$RLS" -lt 20 ]; then
+            echo "⚠ Low RLS policy count: $RLS (expected ≥20 for 40 tables)"
+          fi
+          # 驗證關鍵表有資料
+          EMP=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c "SELECT count(*) FROM employees" 2>/dev/null || echo "ERR")
+          MACH=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c "SELECT count(*) FROM machines" 2>/dev/null || echo "ERR")
+          echo "employees: $EMP | machines: $MACH"
+          if [ "$EMP" = "ERR" ] || [ "$EMP" -lt 10 ]; then
+            echo "✗ employees table missing or empty"
+            docker rm -f drill-pg; exit 1
+          fi
+          # 驗證 schedule_state
+          SP=$(docker exec drill-pg psql -U postgres -d postgres -t -A -c "SELECT setup_pending FROM schedule_state LIMIT 1" 2>/dev/null || echo "ERR")
+          echo "setup_pending: $SP"
+          if [ "$SP" = "ERR" ]; then
+            echo "✗ schedule_state table missing"
+            docker rm -f drill-pg; exit 1
+          fi
+          echo ""
+          echo "✓✓✓ Backup restore drill FULLY PASSED ✓✓✓"
           docker rm -f drill-pg
-          docker network rm drill-net || true
+          docker network rm drill-net 2>/dev/null || true

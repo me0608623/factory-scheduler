@@ -11,6 +11,7 @@ on:
       - 'docs/**'
       - '**.md'
       - '.github/workflows/nightly-backup.yml'
+      - '.github/workflows/backup-drill.yml'
   workflow_dispatch: {}
 
 jobs:
