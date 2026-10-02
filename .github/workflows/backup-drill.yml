@@ -73,21 +73,47 @@ jobs:
             "CREATE SCHEMA IF NOT EXISTS auth; \
              CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS \$\$ SELECT NULL::uuid \$\$; \
              CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY);"
-          # 還原：stdout/stderr 各存檔，exit code 用 || 捕捉（bash -e 安全）
-          # --disable-triggers：以 replica 模式載入資料，跳過指向 auth.users 的 FK
-          # （Supabase 管理的系統表不在 --schema=public 備份範圍，值本身在正式庫是有效的）
-          RESTORE_EXIT=0
+          # 還原分兩階段（exit code 用 || 捕捉，bash -e 安全）：
+          # 階段 1 pre-data+data：--disable-triggers 以 replica 模式載入資料
+          # 階段 2 補 auth.users stub：FK 指向 Supabase 管理的 auth.users（不在備份範圍），
+          #         從還原後的資料取出所有引用的 user id 填入 stub，讓 post-data 的
+          #         ADD CONSTRAINT 驗證能通過（這些值在正式庫都是有效的 auth user）
+          # 階段 3 post-data：真正執行 FK/索引/觸發器驗證
+          P1_EXIT=0
           docker run --rm --network drill-net \
             -v "$PWD/restored:/backup" \
             -e PGPASSWORD=drill \
             postgres:17 \
-            sh -c "pg_restore --no-owner --no-privileges --exit-on-error --disable-triggers -h drill-pg -U postgres -d postgres /backup/$DUMP_BASE" \
-            > /tmp/restore_out.txt 2> /tmp/restore_err.txt || RESTORE_EXIT=$?
-          echo "Restore exit code: $RESTORE_EXIT"
-          if [ "$RESTORE_EXIT" -ne 0 ]; then
-            echo "✗ Restore FAILED (exit $RESTORE_EXIT). stderr (last 30 lines):"
+            sh -c "pg_restore --no-owner --no-privileges --exit-on-error --disable-triggers --section=pre-data --section=data -h drill-pg -U postgres -d postgres /backup/$DUMP_BASE" \
+            > /tmp/restore_out.txt 2> /tmp/restore_err.txt || P1_EXIT=$?
+          echo "Phase 1 (structure+data) exit code: $P1_EXIT"
+          if [ "$P1_EXIT" -ne 0 ]; then
+            echo "✗ Phase 1 FAILED. stderr (last 30 lines):"
             tail -30 /tmp/restore_err.txt
-            echo "stderr total lines: $(wc -l < /tmp/restore_err.txt)"
+            docker rm -f drill-pg; docker network rm drill-net 2>/dev/null || true
+            exit 1
+          fi
+          docker exec drill-pg psql -U postgres -d postgres -c \
+            "INSERT INTO auth.users (id) \
+             SELECT DISTINCT user_id FROM account_permissions WHERE user_id IS NOT NULL \
+             UNION SELECT DISTINCT imported_by FROM legacy_schedule_archives WHERE imported_by IS NOT NULL \
+             UNION SELECT DISTINCT created_by FROM planning_scenarios WHERE created_by IS NOT NULL \
+             UNION SELECT DISTINCT created_by FROM work_execution_events WHERE created_by IS NOT NULL \
+             UNION SELECT DISTINCT user_id FROM feedback WHERE user_id IS NOT NULL \
+             UNION SELECT DISTINCT user_id FROM line_notify WHERE user_id IS NOT NULL \
+             ON CONFLICT (id) DO NOTHING;"
+          P2_EXIT=0
+          docker run --rm --network drill-net \
+            -v "$PWD/restored:/backup" \
+            -e PGPASSWORD=drill \
+            postgres:17 \
+            sh -c "pg_restore --no-owner --no-privileges --exit-on-error --section=post-data -h drill-pg -U postgres -d postgres /backup/$DUMP_BASE" \
+            > /tmp/restore_out2.txt 2> /tmp/restore_err2.txt || P2_EXIT=$?
+          echo "Phase 3 (post-data constraints) exit code: $P2_EXIT"
+          if [ "$P2_EXIT" -ne 0 ]; then
+            echo "✗ Phase 3 FAILED. stderr (last 30 lines):"
+            tail -30 /tmp/restore_err2.txt
+            echo "stderr total lines: $(wc -l < /tmp/restore_err2.txt)"
             docker rm -f drill-pg; docker network rm drill-net 2>/dev/null || true
             exit 1
           fi
