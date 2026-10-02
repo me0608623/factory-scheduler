@@ -669,8 +669,8 @@ function topHTML(){
   '<div class="seg factory-switch" role="group" aria-label="排程廠別">'+
   [[1,'1 廠'],[2,'2 廠'],['all','跨廠']].map(([v,t])=>'<button data-act="factory" data-v="'+v+'" aria-pressed="'+(UI.factory===v)+'">'+t+'</button>').join('')+'</div>'+
   '<div class="page-links">'+
-  '<button class="btn pagelink shortage" data-act="page" data-v="shortage">tx('shortage')</button>'+
-  '<button class="btn pagelink transfer" data-act="page" data-v="transfer">tx('transfer')</button></div>'+
+  '<button class="btn pagelink shortage" data-act="page" data-v="shortage">'+tx('shortage')+'</button>'+
+  '<button class="btn pagelink transfer" data-act="page" data-v="transfer">'+tx('transfer')+'</button></div>'+
   '<div class="datenav"><button class="iconbtn" data-act="prev" aria-label="往前">‹</button>'+
   '<button class="datebox'+(!wk&&di.type!=="work"?" hol":"")+'" data-act="pick"><b class="num">'+esc(title)+'</b><small>'+esc(sub)+'</small></button>'+
   '<input type="date" id="datepick" value="'+d+'" style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none" tabindex="-1" aria-hidden="true">'+
@@ -774,8 +774,8 @@ function peopleDrawerHTML(){
   const requests=pending.map(r=>'<article class="leave-request"><b>'+esc(emp(r.employeeId)?.name||'未設定人員')+'詢問 '+mdw(r.date)+' 請假</b><p>'+esc(r.note||'未填說明')+'</p><small>核准前不列入正式請假，也不會觸發重排。</small>'+(canIncidents()?'<div><button class="approve" data-act="leave-resolve" data-id="'+r.id+'" data-v="approved">准假</button><button class="deny" data-act="leave-resolve" data-id="'+r.id+'" data-v="rejected">駁回</button></div>':'')+'</article>').join('');
   return '<section class="absence-box"><b>今日缺席　'+absent.length+' 人</b><span>'+esc(absent.map(x=>x.name).join('、')||'無')+'</span></section>'+
     '<div class="people-pills">'+people.map(e=>'<button data-act="focus-person" data-id="'+e.id+'" aria-pressed="'+(selected?.id===e.id)+'">'+esc(e.name)+'</button>').join('')+'</div>'+
-    '<div class="traffic-legend"><span><i class="green"></i>在班</span><span><i class="red"></i>請假</span><span><i class="yellow"></i>tx('uncertain')</span><span><i class="gray"></i>待確認</span></div>'+
-    (selected?'<section class="people-calendar"><header><b>'+esc(selected.name)+'</b><span>'+UI.date.slice(0,7).replace('-',' 年 ')+' 月</span>'+(canIncidents()?'<button class="btn" data-act="person-month" data-id="'+esc(selected.id)+'">整月設定</button>':'')+'</header><div class="calendar-week">'+weekdays+'</div><div class="calendar-grid">'+days+'</div>'+(canIncidents()?'<div class="toggles cal-brush">'+'<button class="tg brush-leave'+(UI.leaveBrush==="leave"?" on":"")+'" data-act="cal-brush" data-v="leave" aria-pressed="'+(UI.leaveBrush==="leave")+'">tx('leave')</button><button class="tg brush-work'+(UI.leaveBrush==="work"?" on":"")+'" data-act="cal-brush" data-v="work" aria-pressed="'+(UI.leaveBrush==="work")+'">tx('work')</button><button class="tg brush-uncertain'+(UI.leaveBrush==="uncertain"?" on":"")+'" data-act="cal-brush" data-v="uncertain" aria-pressed="'+(UI.leaveBrush==="uncertain")+'">tx('uncertain')</button>'+'</div><div class="drawer-hint">'+(UI.leaveBrush?('已選「'+(UI.leaveBrush==="leave"?"休假":UI.leaveBrush==="uncertain"?"未確定":"上班")+'」：連點日期或框選範圍套用'):'先選「上班」「休假」「未確定」，再點日期套用')+'</div>':'')+'</section>':'<div class="drawer-empty">此廠尚未設定人員</div>')+
+    '<div class="traffic-legend"><span><i class="green"></i>在班</span><span><i class="red"></i>請假</span><span><i class="yellow"></i>'+tx('uncertain')+'</span><span><i class="gray"></i>待確認</span></div>'+
+    (selected?'<section class="people-calendar"><header><b>'+esc(selected.name)+'</b><span>'+UI.date.slice(0,7).replace('-',' 年 ')+' 月</span>'+(canIncidents()?'<button class="btn" data-act="person-month" data-id="'+esc(selected.id)+'">整月設定</button>':'')+'</header><div class="calendar-week">'+weekdays+'</div><div class="calendar-grid">'+days+'</div>'+(canIncidents()?'<div class="toggles cal-brush">'+'<button class="tg brush-leave'+(UI.leaveBrush==="leave"?" on":"")+'" data-act="cal-brush" data-v="leave" aria-pressed="'+(UI.leaveBrush==="leave")+'">'+tx('leave')+'</button><button class="tg brush-work'+(UI.leaveBrush==="work"?" on":"")+'" data-act="cal-brush" data-v="work" aria-pressed="'+(UI.leaveBrush==="work")+'">'+tx('work')+'</button><button class="tg brush-uncertain'+(UI.leaveBrush==="uncertain"?" on":"")+'" data-act="cal-brush" data-v="uncertain" aria-pressed="'+(UI.leaveBrush==="uncertain")+'">'+tx('uncertain')+'</button>'+'</div><div class="drawer-hint">'+(UI.leaveBrush?('已選「'+(UI.leaveBrush==="leave"?"休假":UI.leaveBrush==="uncertain"?"未確定":"上班")+'」：連點日期或框選範圍套用'):'先選「上班」「休假」「未確定」，再點日期套用')+'</div>':'')+'</section>':'<div class="drawer-empty">此廠尚未設定人員</div>')+
     '<div class="drawer-section-title"><b>等待決定</b>'+(canIncidents()?'<button data-act="leave-request-new">＋新增詢問</button>':'')+'</div>'+(requests||'<div class="drawer-empty">沒有等待決定的請假</div>');
 }
 
@@ -3071,12 +3071,12 @@ function flashReturnRow(){
 function pageShell(title,subtitle,bodyHtml,ro,addAct,extraHead){
   return '<div class="fullpage">'+
     '<div class="page-top">'+
-    '<div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">tx('backToday')</button>'+
+    '<div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">'+tx('backToday')+'</button>'+
     '<div class="page-title"><h1>'+esc(title)+'</h1><span class="savestate '+SYNC.state+'">'+pageSaveState()+'</span></div>'+
-    (ro?"":(addAct?'<button class="btn addrow-head" data-act="'+addAct+'">＋tx('addrow')</button>':""))+'</div>'+
+    (ro?"":(addAct?'<button class="btn addrow-head" data-act="'+addAct+'">＋'+tx('addrow')+'</button>':""))+'</div>'+
     (subtitle?'<p class="page-sub">'+esc(subtitle)+'</p>':"")+'</div>'+
     bodyHtml+
-    (ro?"":(addAct?'<button class="btn addrow-mobile" data-act="'+addAct+'">＋tx('addrow')</button>':""))+
+    (ro?"":(addAct?'<button class="btn addrow-mobile" data-act="'+addAct+'">＋'+tx('addrow')+'</button>':""))+
     '</div>';
 }
 function tfArchiveMonth(){const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");}
@@ -3306,7 +3306,7 @@ function analyticsPageHTML(){
   const leaves=mEmps.filter(e=>e.leaves.some(l=>l>=monthStart&&l<=today));
   const leaveDays=mEmps.reduce((t,e)=>t+e.leaves.filter(l=>l>=monthStart&&l<=today).length,0);
 
-  const head='<div class="page-top"><div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">tx('backToday')</button><div class="page-title"><h1>產能分析</h1></div></div>'+
+  const head='<div class="page-top"><div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">'+tx('backToday')+'</button><div class="page-title"><h1>產能分析</h1></div></div>'+
     '<p class="page-sub">'+today.slice(0,7).replace('-',' 年 ')+' 月（至 '+md(today)+'） · '+workDays+' 個工作天 · '+mEmps.length+' 位員工 · '+mMachs.length+' 台設備</p></div>';
 
   const bar=(label,pct,color)=>{
@@ -3444,7 +3444,7 @@ function reviewPageHTML(){
   const ro=!canMaster();
   const pendE=S.employees.filter(e=>e.reviewStatus==='pending').length;
   const pendM=S.machines.filter(m=>m.reviewStatus==='pending').length;
-  const head='<div class="page-top"><div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">tx('backToday')</button><div class="page-title"><h1>初次核對資料</h1><span class="savestate '+SYNC.state+'">'+pageSaveState()+'</span></div></div>'+
+  const head='<div class="page-top"><div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">'+tx('backToday')+'</button><div class="page-title"><h1>初次核對資料</h1><span class="savestate '+SYNC.state+'">'+pageSaveState()+'</span></div></div>'+
     '<p class="page-sub">核對完成前，自動排班與故障重排保持關閉。三個步驟逐一確認。</p></div>';
   const steps='<div class="wiz-steps">'+
     [1,2,3].map(n=>'<button class="wiz-step'+(n===step?' on':'')+(n<step?' done':'')+'" data-act="review-step" data-v="'+n+'"'+(ro?' disabled':'')+'>步驟 '+n+'：'+['員工','設備／工位','技能與工時'][n-1]+(n===1&&pendE?'（待確認 '+pendE+'）':'')+(n===2&&pendM?'（待確認 '+pendM+'）':'')+'</button>').join('')+'</div>';
