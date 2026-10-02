@@ -74,12 +74,14 @@ jobs:
              CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS \$\$ SELECT NULL::uuid \$\$; \
              CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY);"
           # 還原：stdout/stderr 各存檔，exit code 用 || 捕捉（bash -e 安全）
+          # --disable-triggers：以 replica 模式載入資料，跳過指向 auth.users 的 FK
+          # （Supabase 管理的系統表不在 --schema=public 備份範圍，值本身在正式庫是有效的）
           RESTORE_EXIT=0
           docker run --rm --network drill-net \
             -v "$PWD/restored:/backup" \
             -e PGPASSWORD=drill \
             postgres:17 \
-            sh -c "pg_restore --no-owner --no-privileges --exit-on-error -h drill-pg -U postgres -d postgres /backup/$DUMP_BASE" \
+            sh -c "pg_restore --no-owner --no-privileges --exit-on-error --disable-triggers -h drill-pg -U postgres -d postgres /backup/$DUMP_BASE" \
             > /tmp/restore_out.txt 2> /tmp/restore_err.txt || RESTORE_EXIT=$?
           echo "Restore exit code: $RESTORE_EXIT"
           if [ "$RESTORE_EXIT" -ne 0 ]; then
