@@ -293,7 +293,7 @@ await runCase("C4 機台故障（兩階段・故障適應實際區段）", async
   const fdate = seg[0].d;
   const fs2 = Math.min(...seg.filter((x) => x.d === fdate).map((x) => x.s));
   const fe2 = Math.max(...seg.filter((x) => x.d === fdate).map((x) => x.e));
-  out.push(`（故障時段＝實際焊接區段 ${fdate} ${fs2}-${fe2}）`);
+  console.log(`[C4] 故障時段＝實際焊接區段 ${fdate} ${fs2}-${fe2}`);
   const fault = { type: "fault", machine: "f1b", date: fdate, start: fs2, end: fe2, note: "TEST 故障（依實際區段）" };
   const plan2 = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: fault, now, time_limit: 3 });
   const opt2 = plan2.options.find((o) => o.applicable);
