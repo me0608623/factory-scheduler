@@ -127,7 +127,7 @@ const blocksOn = (dates) => s.one(
   `SELECT count(*) FROM schedule_blocks b JOIN orders o ON o.id=b.order_id
    WHERE o.code LIKE 'TEST-%' AND b.date IN (${dates.map((d) => `'${d}'`).join(",")})`);
 const blockDump = async () => clean(await s.one(String.raw`SELECT coalesce(string_agg(o.code||'#'||b.step_seq||'@'||b.date||'x'||b.qty,'、'),'(無)') FROM schedule_blocks b JOIN orders o ON o.id=b.order_id WHERE o.code LIKE 'TEST-%'`));
-const stationQty = (code, step) => Number(s.one(
+const stationQty = async (code, step) => Number(await s.one(
   `SELECT coalesce(sum(b.qty),0) FROM schedule_blocks b JOIN orders o ON o.id=b.order_id WHERE o.code='${code}' AND b.step_seq=${step}`));
 const lastBlockAbs = async (code) => {
   const bs = JSON.parse(await orderBlocks(code));
@@ -237,8 +237,8 @@ await runCase("C1 正常單廠", async (out) => {
   if (!opt) { noOpt(plan, out); return "FAIL"; }
   await applyOption(plan, orderEvent("TEST-O1", P2, 120, 14), opt.id, "TEST-O1");
   const blocks = JSON.parse(await orderBlocks("TEST-O1"));
-  if (stationQty("TEST-O1", 0) !== 120) out.push("裁切站件數≠120");
-  if (stationQty("TEST-O1", 1) !== 120) out.push("焊接站件數≠120");
+  if (await stationQty("TEST-O1", 0) !== 120) out.push("裁切站件數≠120");
+  if (await stationQty("TEST-O1", 1) !== 120) out.push("焊接站件數≠120");
   const cut = blocks.filter((b) => b.step === 0), weld = blocks.filter((b) => b.step === 1);
   if (Math.min(...weld.map((b) => dayIdx(b.date) * 1440 + b.start)) < Math.max(...cut.map((b) => dayIdx(b.date) * 1440 + b.end)) - EPS) out.push("焊接開始早於裁切結束（batch=0 應整批流轉）");
   assertWindows(blocks, out);
@@ -252,7 +252,7 @@ await runCase("C2 正常跨廠", async (out) => {
   const opt = plan.options.find((o) => o.applicable && o.solver_method !== "keep");
   if (!opt) { noOpt(plan, out); return "FAIL"; }
   await applyOption(plan, ev, opt.id, "TEST-O2");
-  for (const st of [0, 1, 2]) if (stationQty("TEST-O2", st) !== 120) out.push(`站 ${st} 件數≠120`);
+  for (const st of [0, 1, 2]) if (await stationQty("TEST-O2", st) !== 120) out.push(`站 ${st} 件數≠120`);
   await assertFlow("TEST-O2", 0, 1, 60, out) || out.push("裁切→沖壓 累計流轉檢查未過");
   await assertFlow("TEST-O2", 1, 2, 60, out) || out.push("沖壓→包裝 累計流轉檢查未過");
   const bad = await s.one(`SELECT count(*) FROM schedule_blocks b JOIN orders o ON o.id=b.order_id
@@ -280,7 +280,7 @@ await runCase("C3 技能不足", async (out) => {
 await runCase("C4 機台故障（兩階段）", async (out) => {
   await s.run(`INSERT INTO leaves (employee_id,date,start_min,end_min,note) VALUES ('${E01}','${T}',780,1020,'TEST 下午請假')`);
   const v0 = await stateVersion();
-  const ev = orderEvent("TEST-O4", P2, 120, 1, 0);
+  const ev = orderEvent("TEST-O4", P2, 120, 0, 0);
   const plan1 = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: ev, now, time_limit: 3 });
   const opt1 = plan1.options.find((o) => o.applicable && o.solver_method !== "keep");
   if (!opt1) { noOpt(plan1, out, "基準階段無可套用方案"); return "FAIL"; }
@@ -294,7 +294,7 @@ await runCase("C4 機台故障（兩階段）", async (out) => {
   await applyOption(plan2, { type: "fault", machine: "f1b", date: T, start: 480, end: 720, note: "TEST 故障" }, opt2.id, "TEST-O4 故障", "fault");
   const f1bOnT = Number(await s.one(`SELECT count(*) FROM schedule_blocks b JOIN orders o ON o.id=b.order_id WHERE o.code='TEST-O4' AND b.machine_id='f1b' AND b.date='${T}'`));
   if (f1bOnT !== 0) out.push(`故障日 T 的 f1b 仍有 ${f1bOnT} 段排程`);
-  if (stationQty("TEST-O4", 0) !== 120 || stationQty("TEST-O4", 1) !== 120) out.push("件數未保留（工作消失）");
+  if (await stationQty("TEST-O4", 0) !== 120 || await stationQty("TEST-O4", 1) !== 120) out.push("件數未保留（工作消失）");
   const end = await lastBlockAbs("TEST-O4");
   if (end > dayIdx(D(1)) * 1440 + 1020 + EPS) out.push("未在 T+1 內完成");
   const leaveOK = Number(await s.one(`SELECT count(*) FROM schedule_blocks b JOIN orders o ON o.id=b.order_id JOIN employees e ON e.id=b.employee_id WHERE o.code='TEST-O4' AND e.id='${E01}' AND b.date='${T}' AND b.start_min>=780`));
@@ -311,7 +311,7 @@ await runCase("C5 交期不足（軟限制）", async (out) => {
   const summary = [JSON.stringify(plan.options.map((o) => o.diagnostics || [])), JSON.stringify(plan.summary || plan.options.map((o) => o.lines || []))].join(" ");
   if (!/超過期限/.test(summary)) out.push("方案資訊未標示逾期（超過期限）");
   await applyOption(plan, ev, opt.id, "TEST-O5");
-  if (stationQty("TEST-O5", 0) !== 1200 || stationQty("TEST-O5", 1) !== 1200) out.push("站件數≠1200");
+  if (await stationQty("TEST-O5", 0) !== 1200 || await stationQty("TEST-O5", 1) !== 1200) out.push("站件數≠1200");
   const end = await lastBlockAbs("TEST-O5");
   if (end <= dayIdx(D(1)) * 1440 + 1020) out.push("完工未超過交期（與逾期診斷矛盾）");
   return out.length ? "FAIL" : "PASS";
@@ -327,10 +327,10 @@ await runCase("C6 週末跨越", async (out) => {
   await applyOption(plan, ev, opt.id, "TEST-O6");
   const weekend = Number(await blocksOn([D(5), D(6)]));
   if (weekend !== 0) out.push(`週末 T+5/T+6 有 ${weekend} 段排程`);
-  for (const st of [0, 1, 2]) if (stationQty("TEST-O6", st) !== 1200) out.push(`站 ${st} 件數≠1200`);
+  for (const st of [0, 1, 2]) if (await stationQty("TEST-O6", st) !== 1200) out.push(`站 ${st} 件數≠1200`);
   const leaveBlocks = Number(await s.one(`SELECT count(*) FROM schedule_blocks b JOIN employees e ON e.id=b.employee_id WHERE e.id='${E03}' AND b.date IN ('${D(0)}','${D(1)}','${D(2)}')`));
   if (leaveBlocks > 0) out.push("E03 請假日期被排程違反");
-  const before = Number(await blocksOn([D(3), D(4)])), after = Number(await blocksOn([D(7), D(8)]));
+  const before = Number(await blocksOn([D(0), D(1), D(2), D(3), D(4)])), after = Number(await blocksOn([D(7), D(8)]));
   if (before === 0 || after === 0) return (out.push(`跨越證據不足（T+3/T+4=${before}、T+7/T+8=${after}）——案例設定未成立`), "未成立");
   return out.length ? "FAIL" : "PASS";
 });
@@ -344,7 +344,7 @@ await runCase("C7 停工日跨越", async (out) => {
   await applyOption(plan, ev, opt.id, "TEST-O7");
   const shutdownN = Number(await blocksOn([SHUTDOWN]));
   if (shutdownN !== 0) out.push(`停工日 ${SHUTDOWN} 有 ${shutdownN} 段排程`);
-  for (const st of [0, 1, 2]) if (stationQty("TEST-O7", st) !== 3600) out.push(`站 ${st} 件數≠3600`);
+  for (const st of [0, 1, 2]) if (await stationQty("TEST-O7", st) !== 3600) out.push(`站 ${st} 件數≠3600`);
   const before = Number(await blocksOn([D(7), D(8)])), after = Number(await blocksOn([D(10), D(11)]));
   if (before === 0 || after === 0) return (out.push(`跨越證據不足（T+7/T+8=${before}、T+10/T+11=${after}）——案例設定未成立`), "未成立");
   const weekend = Number(await blocksOn([D(5), D(6), D(12), D(13)]));
