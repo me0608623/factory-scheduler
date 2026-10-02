@@ -1,0 +1,157 @@
+# 匯入資料盤點（唯讀）：還原最新備份到拋棄式容器後執行診斷查詢。
+# 不修改任何資料、不補任何假設值；只列出「現有值／問題／需要誰確認」。
+# 另外分析 TEST_ 模擬訂單的可行性（只讀分析，不建立訂單）。
+name: 匯入資料盤點
+on:
+  workflow_dispatch: {}
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 下載最新備份
+        run: |
+          ARTIFACTS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?per_page=20" | \
+            jq -r '.artifacts[] | select(.name | startswith("db-backup-")) | .id' | head -1)
+          if [ -z "$ARTIFACTS" ]; then echo "No backup artifact found"; exit 1; fi
+          curl -s -L -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACTS/zip" -o backup.zip
+          unzip -o backup.zip -d restored/
+
+      - name: 還原到拋棄式 PostgreSQL 17（兩階段 + Supabase stub）
+        run: |
+          DUMP=$(ls restored/*.dump | head -1)
+          DUMP_BASE=$(basename "$DUMP")
+          docker network create inv-net 2>/dev/null || true
+          docker run -d --name inv-pg --network inv-net -e POSTGRES_PASSWORD=inv postgres:17
+          READY=0
+          for i in $(seq 1 20); do
+            if docker exec inv-pg pg_isready -U postgres >/dev/null 2>&1; then READY=1; break; fi
+            sleep 2
+          done
+          [ "$READY" = "1" ] || { echo "postgres not ready"; exit 1; }
+          docker exec inv-pg psql -U postgres -d postgres -q -c "DROP SCHEMA IF EXISTS public CASCADE;"
+          docker exec inv-pg psql -U postgres -d postgres -q -c \
+            "CREATE SCHEMA IF NOT EXISTS auth; \
+             CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS \$\$ SELECT NULL::uuid \$\$; \
+             CREATE TABLE IF NOT EXISTS auth.users (id uuid PRIMARY KEY); \
+             DO \$\$ BEGIN CREATE ROLE anon NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END \$\$; \
+             DO \$\$ BEGIN CREATE ROLE authenticated NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END \$\$; \
+             DO \$\$ BEGIN CREATE ROLE service_role NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END \$\$;"
+          P1=0
+          docker run --rm --network inv-net -v "$PWD/restored:/backup" -e PGPASSWORD=inv postgres:17 \
+            sh -c "pg_restore --no-owner --no-privileges --exit-on-error --disable-triggers --section=pre-data --section=data -h inv-pg -U postgres -d postgres /backup/$DUMP_BASE" \
+            > /tmp/p1.out 2> /tmp/p1.err || P1=$?
+          [ "$P1" = "0" ] || { echo "Phase1 failed"; tail -30 /tmp/p1.err; exit 1; }
+          docker run --rm -v "$PWD/restored:/backup" postgres:17 \
+            sh -c "pg_restore -f /dev/stdout --section=post-data /backup/$DUMP_BASE" > /tmp/post-data.sql 2>/dev/null || true
+          FK_PAIRS=$(awk '
+            /ALTER TABLE ONLY public\.[a-zA-Z_0-9]+/ { tbl = $4; sub(/public\./, "", tbl); next }
+            /^ *ADD CONSTRAINT / && /FOREIGN KEY/ && /REFERENCES auth\.users/ {
+              if (match($0, /FOREIGN KEY \([a-zA-Z_0-9]+\)/))
+                print tbl, substr($0, RSTART + 13, RLENGTH - 14)
+            }' /tmp/post-data.sql | sort -u)
+          echo "$FK_PAIRS" | while read -r t c; do
+            [ -z "$t" ] && continue
+            docker exec inv-pg psql -U postgres -d postgres -q -c \
+              "INSERT INTO auth.users (id) SELECT DISTINCT $c FROM $t WHERE $c IS NOT NULL ON CONFLICT (id) DO NOTHING;" || true
+          done
+          P3=0
+          docker run --rm --network inv-net -v "$PWD/restored:/backup" -e PGPASSWORD=inv postgres:17 \
+            sh -c "pg_restore --no-owner --no-privileges --exit-on-error --section=post-data -h inv-pg -U postgres -d postgres /backup/$DUMP_BASE" \
+            > /tmp/p3.out 2> /tmp/p3.err || P3=$?
+          [ "$P3" = "0" ] || { echo "Phase3 failed"; tail -30 /tmp/p3.err; exit 1; }
+          echo "✓ 還原完成（$(date -u +%Y-%m-%dT%H:%MZ) 的備份）"
+
+      - name: 產出盤點報告
+        run: |
+          Q() { docker exec inv-pg psql -U postgres -d postgres -q -t -A -c "$1"; }
+          R=/tmp/inventory.md
+          {
+            echo "# 匯入資料盤點報告（$(date -u +%Y-%m-%d)，來源：最新備份）"
+            echo ""
+            echo "## A. 員工名冊"
+            echo "- 現有值：$(Q "SELECT '總數 '||count(*)||'（一廠 '||count(*) FILTER (WHERE factory=1)||'、二廠 '||count(*) FILTER (WHERE factory=2)||'）；待確認 '||count(*) FILTER (WHERE review_status='pending')||'；停用 '||count(*) FILTER (WHERE NOT active)" FROM employees)"
+            echo "- 現有值：$(Q "SELECT '不加班 '||count(*) FILTER (WHERE no_overtime)||' 人；可同時顧機 >1 台 '||count(*) FILTER (WHERE max_concurrent_machines>1)||' 人' FROM employees")"
+            D=$(Q "SELECT string_agg(name||'（x'||c||'）','、') FROM (SELECT name,count(*) c FROM employees GROUP BY name HAVING count(*)>1) d")
+            [ -n "$D" ] && echo "- 問題：同名重複 → $D"
+            D=$(Q "SELECT string_agg(name||'（'||coalesce(code,'無編號')||'，'||factory_tag||'）','、') FROM (SELECT e.name,e.code,'F'||e.factory factory_tag FROM employees e WHERE NOT EXISTS (SELECT 1 FROM employee_skills s WHERE s.employee_id=e.id)) z")
+            [ -n "$D" ] && echo "- 問題：沒有任何機台技能 → $D"
+            D=$(Q "SELECT count(*) FROM employees WHERE code IS NULL OR code=''")
+            [ "$D" != "0" ] && echo "- 問題：員工編號空白 → $D 人"
+            echo "- 需要誰確認：老闆＋組長（名冊與技能對應現場核對）"
+            echo ""
+            echo "## B. 員工技能"
+            echo "- 現有值：技能列共 $(Q "SELECT count(*) FROM employee_skills") 筆"
+            D=$(Q "SELECT string_agg(id||' '||label||'（'||process||'，F'||factory||'）','、') FROM machines WHERE NOT EXISTS (SELECT 1 FROM employee_skills s JOIN employees e ON e.id=s.employee_id WHERE s.machine_id=machines.id AND e.active)")
+            [ -n "$D" ] && echo "- 問題：沒有在職員工會操作 → $D"
+            D=$(Q "SELECT string_agg(x,'、') FROM (SELECT e.name||'→機台'||s.machine_id x FROM employee_skills s JOIN employees e ON e.id=s.employee_id JOIN machines m ON m.id=s.machine_id WHERE m.factory<>e.factory) z")
+            [ -n "$D" ] && echo "- 問題：技能指向另一廠的機台 → $D"
+            D=$(Q "SELECT string_agg(x,'、') FROM (SELECT e.name||'→機台'||s.machine_id||'（停用）' x FROM employee_skills s JOIN employees e ON e.id=s.employee_id JOIN machines m ON m.id=s.machine_id WHERE NOT m.active) z")
+            [ -n "$D" ] && echo "- 問題：技能指向停用機台 → $D"
+            echo "- 需要誰確認：組長（誰實際會操作哪些機台）"
+            echo ""
+            echo "## C. 班別／工時"
+            echo "- 現有值：時段 $(Q "SELECT string_agg(id||':'||start_min||'-'||end_min||CASE WHEN is_overtime THEN '（加班）' ELSE '' END,'、' ORDER BY id) FROM work_windows")"
+            echo "- 現有值：每週上班日（0=週日）→ $(Q "SELECT string_agg(weekday::text||CASE WHEN is_open THEN '開' ELSE '休' END,' ') FROM (SELECT * FROM calendar_weekly ORDER BY weekday) w")"
+            D=$(Q "SELECT count(*) FROM calendar_days WHERE date>=current_date")
+            echo "- 現有值：未來單日調整 $(D) 天"
+            [ "$D" != "0" ] && echo "  - $(Q "SELECT string_agg(date||CASE WHEN is_open IS NULL THEN '照每週' WHEN is_open THEN '開' ELSE '休' END||CASE WHEN overtime THEN '＋加班至'||coalesce(overtime_end::text,'1200') ELSE '' END,'、' ORDER BY date) FROM calendar_days WHERE date>=current_date")"
+            D=$(Q "SELECT string_agg(h.date||' '||h.name,'、' ORDER BY h.date) FROM holidays h WHERE h.date>=current_date AND NOT EXISTS (SELECT 1 FROM calendar_days c WHERE c.date=h.date)")
+            [ -n "$D" ] && echo "- 問題：國定假日但沒有單日調整（會照每週設定排班）→ $D"
+            D=$(Q "SELECT string_agg(h.date||' '||h.name,'、' ORDER BY h.date) FROM holidays h JOIN calendar_days c ON c.date=h.date WHERE c.is_open AND h.date>=current_date")
+            [ -n "$D" ] && echo "- 問題：國定假日卻標成上班日 → $D"
+            D=$(Q "SELECT count(*) FROM holidays WHERE date>=current_date")
+            echo "- 現有值：未來國定假日 $D 天"
+            D=$(Q "SELECT coalesce(string_agg(date||'：'||c||'人','、' ORDER BY date),'無') FROM (SELECT date,count(*) c FROM employee_overtime_days WHERE date>=current_date GROUP BY date) z")
+            echo "- 現有值：未來個人加班日 → $D"
+            echo "- 需要誰確認：組長（班別、加班與假日出勤安排）"
+            echo ""
+            echo "## D. 機台"
+            echo "- 現有值：$(Q "SELECT '總數 '||count(*)||'（一廠 '||count(*) FILTER (WHERE factory=1)||'、二廠 '||count(*) FILTER (WHERE factory=2)||'）；停用 '||count(*) FILTER (WHERE NOT active)||'；待確認 '||count(*) FILTER (WHERE review_status='pending') FROM machines")"
+            echo "- 現有值：各工序 → $(Q "SELECT string_agg(process||' '||c,'、' ORDER BY c DESC) FROM (SELECT process,count(*) c FROM machines GROUP BY process) z")"
+            D=$(Q "SELECT string_agg(id||' '||label,'、') FROM machines WHERE NOT EXISTS (SELECT 1 FROM machine_products p WHERE p.machine_id=machines.id)")
+            [ -n "$D" ] && echo "- 問題：沒有任何產品模具 → $D"
+            D=$(Q "SELECT coalesce(string_agg(machine_id||'（'||date||'）','、' ORDER BY date),'無')")
+            echo "- 現有值：未修復故障 → $D"
+            echo "- 需要誰確認：組長＋設備負責（機台狀態與模具對應）"
+            echo ""
+            echo "## E. 產品工序與加工時間"
+            echo "- 現有值：$(Q "SELECT '產品 '||count(*) FILTER (WHERE active)||' 個使用中（停用 '||count(*) FILTER (WHERE NOT active)||'）；工序 '||(SELECT count(*) FROM product_steps) FROM products")"
+            echo "- 現有值：加工速率 rate（件/分/人）min=$(Q "SELECT min(rate) FROM product_steps")／max=$(Q "SELECT max(rate) FROM product_steps")；transfer_batch=0（前站全部完成才流轉）$(Q "SELECT count(*) FROM product_steps WHERE transfer_batch=0") 站"
+            D=$(Q "SELECT string_agg(code||' '||name,'、') FROM products WHERE NOT EXISTS (SELECT 1 FROM product_steps s WHERE s.product_id=products.id)")
+            [ -n "$D" ] && echo "- 問題：沒有任何工序定義 → $D"
+            D=$(Q "SELECT string_agg(x,'、') FROM (SELECT p.code||' 站'||s.seq||'（'||s.process||'）rate='||s.rate x FROM product_steps s JOIN products p ON p.id=s.product_id WHERE s.rate<0.01 OR s.rate>50) z")
+            [ -n "$D" ] && echo "- 問題：rate 疑似異常（<0.01 或 >50）→ $D"
+            D=$(Q "SELECT string_agg(x,'、') FROM (SELECT p.code||' 站'||s.seq||'（'||s.process||'，F'||s.factory||'）' x FROM product_steps s JOIN products p ON p.id=s.product_id WHERE NOT EXISTS (SELECT 1 FROM machines m WHERE m.process=s.process AND m.factory=s.factory AND m.active)) z")
+            [ -n "$D" ] && echo "- 問題：該站工序在對應廠沒有啟用中的機台 → $D"
+            D=$(Q "SELECT string_agg(x,'、') FROM (SELECT p.code||' 站'||s.seq||'（'||s.process||'，F'||s.factory||'）' x FROM product_steps s JOIN products p ON p.id=s.product_id WHERE EXISTS (SELECT 1 FROM machines m WHERE m.process=s.process AND m.factory=s.factory AND m.active) AND NOT EXISTS (SELECT 1 FROM machines m JOIN machine_products mp ON mp.machine_id=m.id WHERE m.process=s.process AND m.factory=s.factory AND m.active AND mp.product_id=p.id)) z")
+            [ -n "$D" ] && echo "- 問題：有機台但沒有任何機台列這個產品的模具 → $D"
+            echo "- 需要誰確認：老闆＋現場估工時人員（rate 與批量）"
+            echo ""
+            echo "## F. 現有工單"
+            echo "- 現有值：$(Q "SELECT string_agg(status||' '||c,'、') FROM (SELECT status,count(*) c FROM orders GROUP BY status) z")；交期範圍 $(Q "SELECT min(due_date)||' ~ '||max(due_date) FROM orders")"
+            echo ""
+            echo "## G. TEST_ 模擬訂單可行性（只讀分析，未建立任何訂單）"
+            echo '```'
+            Q "WITH sc AS (SELECT p.id pid,p.code,s.seq,s.process,s.factory,
+                 EXISTS (SELECT 1 FROM machines m WHERE m.process=s.process AND m.factory=s.factory AND m.active) hm,
+                 EXISTS (SELECT 1 FROM machines m JOIN machine_products mp ON mp.machine_id=m.id WHERE m.process=s.process AND m.factory=s.factory AND m.active AND mp.product_id=p.id) hd,
+                 EXISTS (SELECT 1 FROM machines m JOIN machine_products mp ON mp.machine_id=m.id JOIN employee_skills es ON es.machine_id=m.id JOIN employees e ON e.id=es.employee_id WHERE m.process=s.process AND m.factory=s.factory AND m.active AND mp.product_id=p.id AND e.active) hw
+               FROM products p JOIN product_steps s ON s.product_id=p.id WHERE p.active)
+               SELECT code||'：'||count(*)||' 站'||CASE WHEN count(*) FILTER (WHERE NOT hm)>0 THEN '，缺機台 '||count(*) FILTER (WHERE NOT hm)||' 站' ELSE '' END||CASE WHEN count(*) FILTER (WHERE NOT hd)>0 THEN '，缺模具 '||count(*) FILTER (WHERE NOT hd)||' 站' ELSE '' END||CASE WHEN count(*) FILTER (WHERE NOT hw)>0 THEN '，缺可操作員工 '||count(*) FILTER (WHERE NOT hw)||' 站' ELSE '' END||CASE WHEN count(*) FILTER (WHERE NOT hm OR NOT hd OR NOT hw)=0 THEN ' ✓ 可完整排程' ELSE '' END
+               FROM sc GROUP BY pid,code ORDER BY code"
+            echo '```'
+            echo "- 需要誰確認：缺機台/模具/人員的站別 → 組長盤點後決定 TEST_ 訂單用哪些產品"
+          } | tee "$R"
+          docker cp inv-pg:/dev/null /dev/null 2>/dev/null || true
+          docker rm -f inv-pg >/dev/null 2>&1 || true
+          docker network rm inv-net >/dev/null 2>&1 || true
+
+      - name: 上傳報告
+        uses: actions/upload-artifact@v4
+        with:
+          name: catalog-inventory
+          path: /tmp/inventory.md
+          retention-days: 30

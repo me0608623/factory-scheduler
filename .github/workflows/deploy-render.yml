@@ -14,6 +14,7 @@ on:
       - '.github/workflows/backup-drill.yml'
       - '.github/workflows/permissions-drill.yml'
       - '.github/workflows/apply-migration.yml'
+      - '.github/workflows/catalog-inventory.yml'
   workflow_dispatch: {}
 
 jobs:
