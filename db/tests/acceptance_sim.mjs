@@ -126,6 +126,7 @@ const stateVersion = async () => Number(await s.one("SELECT version FROM schedul
 const blocksOn = (dates) => s.one(
   `SELECT count(*) FROM schedule_blocks b JOIN orders o ON o.id=b.order_id
    WHERE o.code LIKE 'TEST-%' AND b.date IN (${dates.map((d) => `'${d}'`).join(",")})`);
+const blockDump = async () => clean(await s.one(String.raw`SELECT coalesce(string_agg(o.code||'#'||b.step_seq||'@'||b.date||'x'||b.qty,'、'),'(無)') FROM schedule_blocks b JOIN orders o ON o.id=b.order_id WHERE o.code LIKE 'TEST-%'`));
 const stationQty = (code, step) => Number(s.one(
   `SELECT coalesce(sum(b.qty),0) FROM schedule_blocks b JOIN orders o ON o.id=b.order_id WHERE o.code='${code}' AND b.step_seq=${step}`));
 const lastBlockAbs = async (code) => {
@@ -224,7 +225,8 @@ async function runCase(id, fn) {
   const out = []; let outcome = "PASS";
   try { outcome = await fn(out) || "PASS"; }
   catch (e) { outcome = "FAIL"; out.push(clean(e?.stack || e?.message || String(e)).split("\n").slice(0, 3).join(" ⏎ ")); }
-  finally { await s.run("ROLLBACK"); }
+  if (outcome !== "PASS") { try { out.push("當時排程：" + (await blockDump())); } catch {} }
+  await s.run("ROLLBACK");
   record(id, outcome, out);
 }
 
