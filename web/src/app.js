@@ -1351,15 +1351,13 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
       const r=(S.execution||[]).find(x=>x.blockId===a.dataset.id);
       if(!r||r.status!=='done'){toast('這項工作還未報完工');break;}
       a.disabled=true;
+      // 只有伺服器確認成功才改畫面；失敗一律保持待確認，避免 ERP 匯出讀到沒存住的狀態
       STORE.confirmExecution(a.dataset.id,true).then(async()=>{
         await reloadFromStore();toast('已確認完工（已存到資料庫）');
-      }).catch(async e=>{
+      }).catch(e=>{
         a.disabled=false;
-        if(/不存在|not exist|PGRST202|Could not find/.test(e.message||'')){
-          // 資料庫還沒有 0035 migration：退回舊行為（僅本次畫面有效，重新整理後會還原）
-          r.confirmed=true;commit({kind:"edit",title:"確認完工（資料庫待更新，僅本機生效）",lines:[]},"execution.manage");
-          toast('已確認完工（提示：資料庫尚未更新，重新整理後會還原）');
-        } else toast('沒存到：'+e.message);
+        const pendingDb=/不存在|not exist|PGRST202|Could not find/.test(e.message||'');
+        toast(pendingDb?'沒存到：資料庫尚未更新（缺 0035），確認狀態保持待確認':'沒存到：'+e.message);
       });
       break;}
     case 'exec-unconfirm':{
@@ -1369,12 +1367,10 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
       a.disabled=true;
       STORE.confirmExecution(a.dataset.id,false).then(async()=>{
         await reloadFromStore();toast('已取消確認，回報仍保留');
-      }).catch(async e=>{
+      }).catch(e=>{
         a.disabled=false;
-        if(/不存在|not exist|PGRST202|Could not find/.test(e.message||'')){
-          delete r.confirmed;commit({kind:"edit",title:"取消確認完工（資料庫待更新，僅本機生效）",lines:[]},"execution.manage");
-          toast('已取消確認（提示：資料庫尚未更新）');
-        } else toast('沒存到：'+e.message);
+        const pendingDb=/不存在|not exist|PGRST202|Could not find/.test(e.message||'');
+        toast(pendingDb?'沒存到：資料庫尚未更新（缺 0035），維持原確認狀態':'沒存到：'+e.message);
       });
       break;}
     case "group-edit":openModal({t:'staff-group',id});break;

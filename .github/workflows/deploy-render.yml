@@ -20,6 +20,32 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: 測試關卡：等「Tests」（同 SHA）通過才繼續
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMITS_JSON: ${{ toJSON(github.event.commits) }}
+        run: |
+          # 這次 push 沒動到 db/web/solver 時 Tests 不會跑，直接放行（手動 dispatch 也走這裡）
+          CHANGED=$(printf '%s' "$COMMITS_JSON" | \
+            jq -r '[.[] | (.added + .modified + .removed)[]] | unique | .[]')
+          echo "變更檔案："; echo "$CHANGED"
+          if ! printf '%s\n' "$CHANGED" | grep -qE '^(db/|web/|solver/)|^\.github/workflows/tests\.yml$'; then
+            echo "無 db/web/solver 變更，不需等待測試"; exit 0
+          fi
+          echo "等待 Tests（SHA=${GITHUB_SHA:0:7}）完成…"
+          for i in $(seq 1 60); do
+            RUNS=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
+              "https://api.github.com/repos/${{ github.repository }}/actions/runs?head_sha=${{ github.sha }}&event=push&per_page=20")
+            STATUS=$(printf '%s' "$RUNS" | jq -r '[.workflow_runs[] | select(.name=="Tests" and .event=="push")][0].status // "none"')
+            CONCL=$(printf '%s' "$RUNS" | jq -r '[.workflow_runs[] | select(.name=="Tests" and .event=="push")][0].conclusion // "none"')
+            echo "  [$i] Tests status=$STATUS conclusion=$CONCL"
+            if [ "$STATUS" = "completed" ]; then
+              if [ "$CONCL" = "success" ]; then echo "✓ Tests 通過，允許部署"; exit 0; fi
+              echo "::error::Tests 結論為 $CONCL，取消部署"; exit 1
+            fi
+            sleep 30
+          done
+          echo "::error::等待 Tests 超時（30 分鐘），取消部署"; exit 1
       - name: 觸發 web 部署
         env:
           HOOK: ${{ secrets.RENDER_WEB_DEPLOY_HOOK }}
