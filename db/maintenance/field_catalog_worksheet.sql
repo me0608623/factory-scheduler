@@ -80,6 +80,14 @@ group by factory;
 -- delete from products where code in ('P1','P2','P3');
 
 -- ─────────────────────────────────────────────────────────────
+-- I.（選用）廠區平面圖佈局：machine_layout 的 x/y 是 0–100 的廠內座標
+--    沒填也能用——平面圖會自動按工序排列；填了就固定位置
+-- ─────────────────────────────────────────────────────────────
+-- select id, label from machines where factory=1 order by id;
+-- insert into machine_layout (machine_id, x, y) values ('f1e', 10, 10) on conflict (machine_id) do update set x=excluded.x, y=excluded.y;
+-- 一批填：直接在 SQL 用 values 清單對照紙本廠區圖
+
+-- ─────────────────────────────────────────────────────────────
 -- H. 完成核對後：解除排程鎖定（最後一步；正式解除前建議重跑兩個演練工作流）
 -- ─────────────────────────────────────────────────────────────
 -- update schedule_state set setup_pending=false;

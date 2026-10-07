@@ -77,6 +77,9 @@ await db.query("update profiles set role='boss' where user_id=$1", [BOSS]);
 ok((await db.query("select role from profiles where user_id=$1", [BOSS])).rows[0].role === "boss", "管理員核對身分後可指定老闆");
 await as(BOSS, () => db.query("update profiles set role='lead' where user_id=$1", [LEAD]));
 ok((await db.query("select role from profiles where user_id=$1", [LEAD])).rows[0].role === "lead", "老闆可以把帳號改成組長");
+// 測試用未來日期＝下週一：_check_manual_availability 對「過去且未變動」的區段豁免重驗，
+// 固定日期一旦成為過去，停工／請假等重驗測試會假失敗（2026-10-07 實際發生過）。
+const FD = (() => { const d = new Date(Date.now() + 7 * 86400000); const add = (8 - d.getUTCDay()) % 7; return new Date(d.getTime() + add * 86400000).toISOString().slice(0, 10); })();
 await as(LEAD, async () => {
   const r = await db.query("update profiles set role='boss' where user_id=$1", [LEAD]);
   ok(r.affectedRows === 0, "組長不能把自己升成老闆");
@@ -176,8 +179,8 @@ ok(leadCapacity.affectedRows === 0, "組長不能修改員工上限");
 
 console.log("套用方案 apply_plan()");
 const blocks = [
-  { order_id: "00000000-0000-4000-8000-0000000000b1", step_seq: 0, machine_id: "a", employee_id: "00000000-0000-4000-8000-0000000000e1", date: "2026-10-05", start_min: 480, end_min: 540, qty: 120 },
-  { order_id: "00000000-0000-4000-8000-0000000000b1", step_seq: 1, machine_id: "c", employee_id: "00000000-0000-4000-8000-0000000000e2", date: "2026-10-05", start_min: 540, end_min: 580, qty: 120 },
+  { order_id: "00000000-0000-4000-8000-0000000000b1", step_seq: 0, machine_id: "a", employee_id: "00000000-0000-4000-8000-0000000000e1", date: FD, start_min: 480, end_min: 540, qty: 120 },
+  { order_id: "00000000-0000-4000-8000-0000000000b1", step_seq: 1, machine_id: "c", employee_id: "00000000-0000-4000-8000-0000000000e2", date: FD, start_min: 540, end_min: 580, qty: 120 },
 ];
 const opt = (id, bl, eff = {}) => ({ id, name: "方案" + id, summary: "測試", metrics: { moved: 1 }, lines: [], blocks: bl, effects: eff });
 const blockedPreview = (await db.query("insert into plan_previews (kind, title, event, base_version, options) values ('auto','超時方案','{}',0,$1) returning id",
@@ -185,13 +188,13 @@ const blockedPreview = (await db.query("insert into plan_previews (kind, title, 
 await as(LEAD, () => expectErr("select apply_plan($1,'A')", [blockedPreview], /不能套用/, "計算超時或不完整的方案不能透過資料庫直接套用"));
 ok((await db.query("select version::int v from schedule_state")).rows[0].v === 0, "被拒絕的方案不會修改排程版本");
 const pv1 = (await db.query("insert into plan_previews (kind, title, event, base_version, options) values ('auto','重新排程','{}',0,$1) returning id",
-  [JSON.stringify([opt("A", blocks, { overtime_on: ["2026-10-05"] })])])).rows[0].id;
+  [JSON.stringify([opt("A", blocks, { overtime_on: [FD] })])])).rows[0].id;
 await as(TV, () => expectErr("select apply_plan($1,'A')", [pv1], /沒有套用這類方案的權限/, "電視帳號不能套用方案"));
 const cs1 = await as(LEAD, async () => (await db.query("select apply_plan($1,'A','第一次') cs", [pv1])).rows[0].cs);
 ok(!!cs1, "組長可以套用方案");
 ok((await db.query("select version from schedule_state")).rows[0].version === 1n || (await db.query("select version::int v from schedule_state")).rows[0].v === 1, "版本號 +1");
 ok((await db.query("select count(*)::int n from schedule_blocks")).rows[0].n === 2, "排程表寫入 2 段");
-ok((await db.query("select overtime from calendar_days where date='2026-10-05'")).rows[0]?.overtime === true, "方案附帶的加班日也一起寫入");
+ok((await db.query("select overtime from calendar_days where date='"+FD+"'")).rows[0]?.overtime === true, "方案附帶的加班日也一起寫入");
 const aud = (await db.query("select count(*)::int n from audit_log where change_set_id=$1", [cs1])).rows[0].n;
 ok(aud === 3, "這次變更的 3 筆稽核（2 段排程＋1 個加班日）都帶著變更編號");
 await as(LEAD, () => expectErr("select apply_plan($1,'A')", [pv1], /已經套用過/, "同一個方案不能套用兩次"));
@@ -200,9 +203,9 @@ await as(LEAD, () => expectErr("select apply_plan($1,'A')", [pv1], /已經套用
 const cur = (await db.query("select * from schedule_blocks order by step_seq")).rows;
 const keep = { ...blocks[0], id: cur[0].id };
 const moved = { ...blocks[1], id: cur[1].id, start_min: 600, end_min: 640 };
-const add = { order_id: "00000000-0000-4000-8000-0000000000b1", step_seq: 2, machine_id: "e", employee_id: "00000000-0000-4000-8000-0000000000e1", date: "2026-10-05", start_min: 660, end_min: 690, qty: 120 };
+const add = { order_id: "00000000-0000-4000-8000-0000000000b1", step_seq: 2, machine_id: "e", employee_id: "00000000-0000-4000-8000-0000000000e1", date: FD, start_min: 660, end_min: 690, qty: 120 };
 const pv2 = (await db.query("insert into plan_previews (kind, title, event, base_version, options) values ('fault','c 故障','{}',1,$1) returning id",
-  [JSON.stringify([opt("A", [keep, moved, add], { faults_insert: [{ machine_id: "c", date: "2026-10-05", start_min: 540, end_min: 600, note: "馬達", original_blocks: [blocks[1]] }] })])])).rows[0].id;
+  [JSON.stringify([opt("A", [keep, moved, add], { faults_insert: [{ machine_id: "c", date: FD, start_min: 540, end_min: 600, note: "馬達", original_blocks: [blocks[1]] }] })])])).rows[0].id;
 const pvOld = (await db.query("insert into plan_previews (kind, title, event, base_version, options) values ('auto','舊方案','{}',0,$1) returning id",
   [JSON.stringify([opt("A", [])])])).rows[0].id;
 await as(LEAD, () => expectErr("select apply_plan($1,'A')", [pvOld], /其他人更新/, "排程已被更新時，舊方案會被拒絕（防止兩人同時改）"));
@@ -233,21 +236,21 @@ const materialGap = [
 ];
 await as(LEAD, () => expectErr("select save_blocks(3, $1, '物料未到')", [JSON.stringify(materialGap)], /累積產量/, "RPC 不接受後站中途用完尚未做出的件數"));
 const parallelFirst = [
-  { order_id: blocks[0].order_id, step_seq: 0, date: "2026-10-05", start_min: 480, end_min: 540, qty: 50 },
-  { order_id: blocks[0].order_id, step_seq: 0, date: "2026-10-05", start_min: 480, end_min: 540, qty: 50 },
+  { order_id: blocks[0].order_id, step_seq: 0, date: FD, start_min: 480, end_min: 540, qty: 50 },
+  { order_id: blocks[0].order_id, step_seq: 0, date: FD, start_min: 480, end_min: 540, qty: 50 },
 ];
 await expectErr("select _assert_manual_material_flow($1::jsonb)",
-  [JSON.stringify([...parallelFirst, { order_id: blocks[0].order_id, step_seq: 1, date: "2026-10-05", start_min: 510, end_min: 520, qty: 10 }])],
+  [JSON.stringify([...parallelFirst, { order_id: blocks[0].order_id, step_seq: 1, date: FD, start_min: 510, end_min: 520, qty: 10 }])],
   /交接批量/, "並行兩台各做 50 件，08:30 合計尚未達到 60 件交接門檻");
 await db.query("select _assert_manual_material_flow($1::jsonb)",
-  [JSON.stringify([...parallelFirst, { order_id: blocks[0].order_id, step_seq: 1, date: "2026-10-05", start_min: 520, end_min: 530, qty: 10 }])]);
+  [JSON.stringify([...parallelFirst, { order_id: blocks[0].order_id, step_seq: 1, date: FD, start_min: 520, end_min: 530, qty: 10 }])]);
 ok(true, "並行兩台合計在 08:40 達門檻後可開始少量加工");
 ok((await db.query("select version::int v from schedule_state")).rows[0].v === 3, "被拒絕的手動安排不增加版本");
 const partialBatch = [{ ...all[0], qty: 60 }, { ...all[1], start_min: 540, end_min: 550, qty: 30 }];
 await as(LEAD, () => db.query("select save_blocks(3, $1, '先交接一批')", [JSON.stringify(partialBatch)]));
 ok((await db.query("select version::int v from schedule_state")).rows[0].v === 4, "前站只做滿首批、後站先做一部分可儲存");
 await as(LEAD, () => expectErr("select save_blocks(4, $1, '刪掉前站')", [JSON.stringify([partialBatch[1]])], /交接批量/, "刪除前站時也會重驗受影響工單"));
-const anotherOrder = (await db.query("insert into orders (code, product_id, qty, due_date) values ('MOVE-TEST',$1,120,'2026-10-05') returning id", ["00000000-0000-4000-8000-0000000000a1"])).rows[0].id;
+const anotherOrder = (await db.query("insert into orders (code, product_id, qty, due_date) values ('MOVE-TEST',$1,120,'"+FD+"') returning id", ["00000000-0000-4000-8000-0000000000a1"])).rows[0].id;
 const movedOrder = [{ ...partialBatch[0], order_id: anotherOrder }, partialBatch[1]];
 await as(LEAD, () => expectErr("select save_blocks(4, $1, '換工單')", [JSON.stringify(movedOrder)], /交接批量/, "方塊改屬其他工單時，舊工單也會重驗"));
 ok((await db.query("select version::int v from schedule_state")).rows[0].v === 4, "刪除與換工單被拒絕後版本保持不變");
@@ -275,7 +278,7 @@ const wrongSkill = [{ ...partialBatch[0], employee_id: "00000000-0000-4000-8000-
 await as(LEAD, () => expectErr("select save_blocks(4, $1, '不會操作')", [JSON.stringify(wrongSkill)], /員工.*不會操作機台/, "RPC 不接受沒有該機台技能的員工"));
 const wrongProcess = [{ ...partialBatch[0], machine_id: "d" }, partialBatch[1]];
 await as(LEAD, () => expectErr("select save_blocks(4, $1, '工序不符')", [JSON.stringify(wrongProcess)], /機台.*不符合產品工序/, "RPC 不接受用焊接機做裁切工序"));
-const secondProductOrder = (await db.query("insert into orders (code, product_id, qty, due_date) values ('MOULD-TEST',$1,120,'2026-10-05') returning id", ["00000000-0000-4000-8000-0000000000a2"])).rows[0].id;
+const secondProductOrder = (await db.query("insert into orders (code, product_id, qty, due_date) values ('MOULD-TEST',$1,120,'"+FD+"') returning id", ["00000000-0000-4000-8000-0000000000a2"])).rows[0].id;
 const wrongProduct = [...partialBatch,
   { ...partialBatch[0], id: null, order_id: secondProductOrder, machine_id: "b", qty: 30, start_min: 660, end_min: 690 }];
 await as(LEAD, () => expectErr("select save_blocks(4, $1, '缺少模具')", [JSON.stringify(wrongProduct)], /機台.*不符合產品工序/, "RPC 不接受機台沒有此產品模具的指派"));
@@ -301,22 +304,22 @@ await db.query("update employees set factory=1 where id=$1", [EMP1]);
 
 const laterBlocks = (await db.query("select id, order_id, step_seq, machine_id, employee_id, date::text, start_min, end_min, qty, pinned from schedule_blocks")).rows;
 const newManual = { id: null, order_id: anotherOrder, step_seq: 0, machine_id: "a", employee_id: EMP1,
-  date: "2026-10-05", start_min: 480, end_min: 540, qty: 30, pinned: true };
-await db.query("insert into leaves (employee_id,date,start_min,end_min,note) values ($1,'2026-10-05',500,560,'測試半日請假')", [EMP1]);
+  date: FD, start_min: 480, end_min: 540, qty: 30, pinned: true };
+await db.query("insert into leaves (employee_id,date,start_min,end_min,note) values ($1,'"+FD+"',500,560,'測試半日請假')", [EMP1]);
 await as(LEAD, () => expectErr("select save_blocks(5, $1, '請假仍排工作')", [JSON.stringify([...laterBlocks, newManual])], /請假時段/, "RPC 不接受員工請假時段內的新工作"));
-await db.query("delete from leaves where employee_id=$1 and date='2026-10-05'", [EMP1]);
-await db.query("insert into machine_faults (machine_id,date,start_min,end_min,note) values ('a','2026-10-05',500,560,'測試故障')");
+await db.query("delete from leaves where employee_id=$1 and date='"+FD+"'", [EMP1]);
+await db.query("insert into machine_faults (machine_id,date,start_min,end_min,note) values ('a','"+FD+"',500,560,'測試故障')");
 await as(LEAD, () => expectErr("select save_blocks(5, $1, '故障仍排工作')", [JSON.stringify([...laterBlocks, newManual])], /機台故障時段/, "RPC 不接受機台故障時段內的新工作"));
 await db.query("delete from machine_faults where note='測試故障'");
 ok((await db.query("select version::int v from schedule_state")).rows[0].v === 5, "請假與故障衝突被拒後版本保持不變");
-await db.query("insert into leaves (employee_id,date,note) values ($1,'2026-10-05','測試整日請假')", [EMP1]);
+await db.query("insert into leaves (employee_id,date,note) values ($1,'"+FD+"','測試整日請假')", [EMP1]);
 await as(LEAD, () => expectErr("select save_blocks(5, $1, '整日請假仍排工作')", [JSON.stringify([...laterBlocks, newManual])], /請假時段/, "RPC 不接受整日請假時的新工作"));
-await db.query("delete from leaves where employee_id=$1 and date='2026-10-05'", [EMP1]);
-await db.query("insert into leaves (employee_id,date,start_min,end_min,note) values ($1,'2026-10-05',540,600,'測試相鄰請假')", [EMP1]);
-await db.query("insert into machine_faults (machine_id,date,start_min,end_min,note) values ('a','2026-10-05',540,600,'測試相鄰故障')");
+await db.query("delete from leaves where employee_id=$1 and date='"+FD+"'", [EMP1]);
+await db.query("insert into leaves (employee_id,date,start_min,end_min,note) values ($1,'"+FD+"',540,600,'測試相鄰請假')", [EMP1]);
+await db.query("insert into machine_faults (machine_id,date,start_min,end_min,note) values ('a','"+FD+"',540,600,'測試相鄰故障')");
 await as(LEAD, () => db.query("select save_blocks(5, $1, '工作在請假故障前結束')", [JSON.stringify([...laterBlocks, newManual])]));
 ok((await db.query("select version::int v from schedule_state")).rows[0].v === 6, "工作剛好在請假與故障開始時結束，仍可儲存");
-await db.query("delete from leaves where employee_id=$1 and date='2026-10-05'", [EMP1]);
+await db.query("delete from leaves where employee_id=$1 and date='"+FD+"'", [EMP1]);
 await db.query("delete from machine_faults where note='測試相鄰故障'");
 const afterAvailability = (await db.query("select id, order_id, step_seq, machine_id, employee_id, date::text, start_min, end_min, qty, pinned from schedule_blocks")).rows;
 await as(LEAD, () => expectErr("select save_blocks(6, $1, '停工日排班')",
@@ -335,15 +338,15 @@ await as(LEAD, () => db.query("select save_blocks(6, $1, '合法加班')",
 ok((await db.query("select version::int v from schedule_state")).rows[0].v === 7, "已開加班且員工當日可加班時，仍可儲存晚間工作");
 const afterOvertime = (await db.query("select id, order_id, step_seq, machine_id, employee_id, date::text, start_min, end_min, qty, pinned from schedule_blocks")).rows;
 const extraOvertime = { ...newManual, start_min: 1080, end_min: 1140 };
-await db.query("update calendar_days set is_open=false where date='2026-10-05'");
+await db.query("update calendar_days set is_open=false where date='"+FD+"'");
 await as(LEAD, () => expectErr("select save_blocks(7, $1, '單日改停工')",
   [JSON.stringify([...afterOvertime, extraOvertime])], /停工日/, "RPC 尊重單日停工覆蓋每週開工設定"));
-await db.query("update calendar_days set is_open=null where date='2026-10-05'");
-await db.query("insert into employee_overtime_days (employee_id,date,available) values ($1,'2026-10-05',false)", [EMP1]);
+await db.query("update calendar_days set is_open=null where date='"+FD+"'");
+await db.query("insert into employee_overtime_days (employee_id,date,available) values ($1,'"+FD+"',false)", [EMP1]);
 await as(LEAD, () => expectErr("select save_blocks(7, $1, '當天臨時不加班')",
   [JSON.stringify([...afterOvertime, extraOvertime])], /不可加班/, "RPC 尊重員工單日臨時改成不加班"));
-await db.query("delete from employee_overtime_days where employee_id=$1 and date='2026-10-05'", [EMP1]);
-await db.query("insert into employee_overtime_days (employee_id,date,available) values ($1,'2026-10-05',true)", ["00000000-0000-4000-8000-0000000000e5"]);
+await db.query("delete from employee_overtime_days where employee_id=$1 and date='"+FD+"'", [EMP1]);
+await db.query("insert into employee_overtime_days (employee_id,date,available) values ($1,'"+FD+"',true)", ["00000000-0000-4000-8000-0000000000e5"]);
 await as(LEAD, () => db.query("select save_blocks(7, $1, '臨時同意加班')",
   [JSON.stringify([...afterOvertime, { ...extraOvertime, employee_id: "00000000-0000-4000-8000-0000000000e5" }])]));
 ok((await db.query("select version::int v from schedule_state")).rows[0].v === 8, "原本不加班的員工當日臨時同意後可儲存工作");
@@ -367,9 +370,9 @@ await db.query("insert into employee_skills (employee_id,machine_id) values ($1,
 ok((await db.query("select version::int v from schedule_state")).rows[0].v === 8, "過期技能方案被拒後版本保持不變");
 const pvCalendar = (await db.query("insert into plan_previews (kind,title,event,base_version,options) values ('auto','停工前方案','{}',8,$1) returning id",
   [JSON.stringify([{ ...opt("A", previewBlocks), applicable: true }])])).rows[0].id;
-await db.query("update calendar_days set is_open=false where date='2026-10-05'");
+await db.query("update calendar_days set is_open=false where date='"+FD+"'");
 await as(LEAD, () => expectErr("select apply_plan($1,'A')", [pvCalendar], /停工日/, "方案預覽後改為停工，套用時仍須拒絕"));
-await db.query("update calendar_days set is_open=null where date='2026-10-05'");
+await db.query("update calendar_days set is_open=null where date='"+FD+"'");
 ok((await db.query("select version::int v from schedule_state")).rows[0].v === 8, "過期行事曆方案被拒後版本保持不變");
 await as(LEAD, () => db.query("select apply_plan($1,'A')", [pvSkill]));
 ok((await db.query("select version::int v from schedule_state")).rows[0].v === 9, "資料恢復後，原方案仍可經驗證套用");

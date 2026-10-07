@@ -19,6 +19,7 @@ import {transferUI} from './transfer-ui.js';
 import {validateRush,shortageRowFlags} from './rush.js';
 import {validateWorkLog} from './worklog.js';
 import {notifySettingsHTML,sendLineNotify} from './line-notify.js';
+import { floorCells, renderFloor, hitFloor } from './floor.js';
 import {rosterUI} from './roster-ui.js';
 import {installScheduleChat} from './chat-ui.js';
 import {PERMISSIONS,effectivePermission} from './permissions.js';
@@ -83,10 +84,10 @@ function setTheme(t){
 function loadPreferencesForDevice(){UI.prefs=loadPreferences();applyPreferences(UI.prefs);UI.zoom=UI.prefs.scale;UI.theme=UI.prefs.theme;}
 
 const SETTINGS_TEXT={
-  'zh-TW':{settings:'設定',today:'今天',orders:'工單',people:'人',output:'產量',notes:'備忘',more:'更多',worklog:'工作紀錄',shortage:'欠缺品項',transfer:'給二廠／回一廠',addrow:'＋加一列',work:'上班',leave:'休假',uncertain:'未確定',backToday:'← 回今天班表',saved:'已儲存',notSaved:'沒存到',close:'關閉',cancel:'取消',save:'儲存',delete:'刪除'},
-  en:{settings:'Settings',today:'Today',orders:'Orders',people:'People',output:'Output',notes:'Notes',more:'More',worklog:'Work Log',shortage:'Shortage',transfer:'Send/Return',addrow:'＋Add Row',work:'Work',leave:'Leave',uncertain:'Uncertain',backToday:'← Back to Today',saved:'Saved',notSaved:'Not saved',close:'Close',cancel:'Cancel',save:'Save',delete:'Delete'},
-  vi:{settings:'Cài đặt',today:'Hôm nay',orders:'Đơn hàng',people:'Người',output:'Sản lượng',notes:'Ghi chú',more:'Thêm',worklog:'Nhật ký',shortage:'Thiếu hàng',transfer:'Giao/Nhận',addrow:'＋Thêm dòng',work:'Đi làm',leave:'Nghỉ',uncertain:'Chưa chắc',backToday:'← Về hôm nay',saved:'Đã lưu',notSaved:'Không lưu được',close:'Đóng',cancel:'Hủy',save:'Lưu',delete:'Xóa'},
-  th:{settings:'ตั้งค่า',today:'วันนี้',orders:'ใบสั่งงาน',people:'คน',output:'ผลผลิต',notes:'บันทึก',more:'เพิ่มเติม',worklog:'บันทึกงาน',shortage:'ของขาด',transfer:'ส่ง/รับคืน',addrow:'＋เพิ่มแถว',work:'ทำงาน',leave:'ลา',uncertain:'ไม่แน่ใจ',backToday:'← กลับวันนี้',saved:'บันทึกแล้ว',notSaved:'บันทึกไม่ได้',close:'ปิด',cancel:'ยกเลิก',save:'บันทึก',delete:'ลบ'}
+  'zh-TW':{settings:'設定',today:'今天',orders:'工單',people:'人',output:'產量',notes:'備忘',more:'更多',worklog:'工作紀錄',shortage:'欠缺品項',transfer:'給二廠／回一廠',addrow:'＋加一列',work:'上班',leave:'休假',uncertain:'未確定',backToday:'← 回今天班表',floor:'廠區平面圖',floorHint:'藍＝當日有排程、灰＝閒置、紅＝故障。沒有佈局資料時自動按工序排列。',saved:'已儲存',notSaved:'沒存到',close:'關閉',cancel:'取消',save:'儲存',delete:'刪除'},
+  en:{settings:'Settings',today:'Today',orders:'Orders',people:'People',output:'Output',notes:'Notes',more:'More',worklog:'Work Log',shortage:'Shortage',transfer:'Send/Return',addrow:'＋Add Row',work:'Work',leave:'Leave',uncertain:'Uncertain',backToday:'← Back to Today',floor:'Floor Plan',floorHint:'Blue=scheduled today, Gray=idle, Red=fault. Auto-arranged by process when no layout data.',saved:'Saved',notSaved:'Not saved',close:'Close',cancel:'Cancel',save:'Save',delete:'Delete'},
+  vi:{settings:'Cài đặt',today:'Hôm nay',orders:'Đơn hàng',people:'Người',output:'Sản lượng',notes:'Ghi chú',more:'Thêm',worklog:'Nhật ký',shortage:'Thiếu hàng',transfer:'Giao/Nhận',addrow:'＋Thêm dòng',work:'Đi làm',leave:'Nghỉ',uncertain:'Chưa chắc',backToday:'← Về hôm nay',floor:'Sơ đồ nhà xưởng',floorHint:'Xanh=có lịch hôm nay, Xám=rảnh, Đỏ=lỗi. Tự xếp theo công đoạn khi chưa có dữ liệu bố trí.',saved:'Đã lưu',notSaved:'Không lưu được',close:'Đóng',cancel:'Hủy',save:'Lưu',delete:'Xóa'},
+  th:{settings:'ตั้งค่า',today:'วันนี้',orders:'ใบสั่งงาน',people:'คน',output:'ผลผลิต',notes:'บันทึก',more:'เพิ่มเติม',worklog:'บันทึกงาน',shortage:'ของขาด',transfer:'ส่ง/รับคืน',addrow:'＋เพิ่มแถว',work:'ทำงาน',leave:'ลา',uncertain:'ไม่แน่ใจ',backToday:'← กลับวันนี้',floor:'ผังโรงงาน',floorHint:'น้ำเงิน=มีงานวันนี้ เทา=ว่าง แดง=เสีย จัดเรียงอัตโนมัติเมื่อยังไม่มีข้อมูลตำแหน่ง',saved:'บันทึกแล้ว',notSaved:'บันทึกไม่ได้',close:'ปิด',cancel:'ยกเลิก',save:'บันทึก',delete:'ลบ'}
 };
 const tx=k=>SETTINGS_TEXT[UI.prefs.language]?.[k]||SETTINGS_TEXT['zh-TW'][k]||k;
 // RPC 不存在（資料庫缺 migration）的錯誤特徵：確認完工等寫入要保持原狀、明確提示
@@ -650,11 +651,12 @@ function render(){
     try{html=withState(o.A,()=>topHTML()+'<main class="wrap">'+pvPanelHTML(o))+withState(st,()=>bannerHTML()+(UI.view==="day"?dayHTML(ctx):weekHTML(ctx))+generalBoardHTML())+"</main>";}
     finally{readOnly=ro;}
   }else html=topHTML()+appNavHTML()+'<main class="wrap">'+
-    (UI.page==='shortage'?shortagePageHTML():UI.page==='transferflow'?transferFlowPageHTML():UI.page==='worklog'?workLogPageHTML():UI.page==='review'?reviewPageHTML():UI.page==='analytics'?analyticsPageHTML():
+    (UI.page==='shortage'?shortagePageHTML():UI.page==='transferflow'?transferFlowPageHTML():UI.page==='worklog'?workLogPageHTML():UI.page==='review'?reviewPageHTML():UI.page==='analytics'?analyticsPageHTML():UI.page==='floor'?floorPageHTML():
       bannerHTML()+(UI.view==="day"?(UI.layout==='work'?workViewHTML():dayHTML()+generalBoardHTML()):weekHTML()+generalBoardHTML()))+'</main>'+drawerHTML();
   $("#app").innerHTML=html;
   const sc2=$(".scroller");if(sc2)sc2.scrollLeft=sl;
   window.scrollTo(0,sy);
+  if(UI.page==='floor')initFloor();
   if(UI.modal)renderModal();
   if(UI.editCell){const el=$(".cellinp");if(el){el.focus();if(el.select)el.select();}}
   scheduleChat?.refresh();
@@ -1226,7 +1228,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "resource-load":if(!PV)openModal({t:'resource-load'});break;
     case 'work-queue':openModal({t:'work-queue'});break;
     case 'rush':UI.page='shortage';UI.drawer=null;render();window.scrollTo(0,0);break;
-    case "page":{if(PV){toast("預覽中：先按「用這套」或「取消」");break;}const map={board:null,shortage:"shortage",transfer:"transferflow",worklog:"worklog",review:"review",analytics:"analytics"};UI.page=map[a.dataset.v]??null;UI.drawer=null;UI.focus=null;UI.editCell=null;UI.confirmRow=null;try{history.replaceState(null,"",UI.page?"?view="+(UI.page==="transferflow"?"transfer":UI.page):location.pathname);}catch{}if(UI.page==="transferflow"&&canPermission("transfers.manage")){const n=tfAutoArchive();if(n)UI.tfArchivedNote="本月已歸檔 "+n+" 筆";}
+    case "page":{if(PV){toast("預覽中：先按「用這套」或「取消」");break;}const map={board:null,shortage:"shortage",transfer:"transferflow",worklog:"worklog",review:"review",analytics:"analytics",floor:"floor"};UI.page=map[a.dataset.v]??null;UI.drawer=null;UI.focus=null;UI.editCell=null;UI.confirmRow=null;try{history.replaceState(null,"",UI.page?"?view="+(UI.page==="transferflow"?"transfer":UI.page):location.pathname);}catch{}if(UI.page==="transferflow"&&canPermission("transfers.manage")){const n=tfAutoArchive();if(n)UI.tfArchivedNote="本月已歸檔 "+n+" 筆";}
       render();window.scrollTo(0,0);if(UI.page)flashReturnRow();break;}
     case "page-return":{const p=UI.returnTo?.page||null;UI.returnTo=null;UI.page=p;try{history.replaceState(null,"",p?"?view="+(p==="transferflow"?"transfer":p):location.pathname);}catch{}render();window.scrollTo(0,0);if(p)flashReturnRow();break;}
     case "worklog":UI.page="worklog";UI.drawer=null;try{history.replaceState(null,"","?view=worklog");}catch{}render();window.scrollTo(0,0);flashReturnRow();break;
@@ -3267,6 +3269,36 @@ function printDaySchedule(){
 }
 
 /* ---------- 產能分析儀表板 ---------- */
+function floorPageHTML(){
+  const fac=UI.factory==='all'?1:UI.factory;
+  const cells=floorCells(S,fac,UI.date);
+  const counts={busy:cells.filter(c=>c.status==='busy').length,fault:cells.filter(c=>c.status==='fault').length,idle:cells.filter(c=>c.status==='idle').length};
+  return '<div class="page-top"><div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">'+tx('backToday')+'</button>'+
+    '<div class="seg factory-switch" role="group" aria-label="平面圖廠別">'+[[1,'1 廠'],[2,'2 廠']].map(([v,t])=>'<button data-act="factory" data-v="'+v+'" aria-pressed="'+(fac===v)+'">'+t+'</button>').join('')+'</div>'+
+    '<div class="datenav"><button class="iconbtn" data-act="prev" aria-label="往前">‹</button><button class="btn" data-act="today">'+mdw(UI.date)+'</button><button class="iconbtn" data-act="next" aria-label="往後">›</button></div>'+
+    '<div class="page-title"><h1>'+tx('floor')+'</h1></div></div>'+
+    '<p class="page-sub">'+tx('floorHint')+'</p>'+
+    '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin:6px 0 10px">'+
+    [['busy','#315FA7',counts.busy],['idle','#9AA3AF',counts.idle],['fault','#DC2626',counts.fault]].map(([st,c,n])=>'<span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:'+c+';opacity:'+(st==='idle'?0.35:0.85)+';margin-right:5px;vertical-align:-1px"></i>'+({busy:'排程中',idle:'閒置',fault:'故障'}[st])+' '+n+'</span>').join('')+
+    '</div>'+
+    '<div style="position:relative"><canvas id="floor-canvas" style="width:100%;display:block;touch-action:pan-y"></canvas></div>'+
+    '<div id="floor-tip" style="position:fixed;pointer-events:none;background:var(--surface);border:1px solid var(--line);padding:6px 9px;border-radius:6px;font-size:12px;display:none;z-index:60;box-shadow:0 2px 8px rgba(0,0,0,.15)"></div>'+
+    ((S.machineLayout||[]).length?'':'<p class="hint">目前為自動排列；要固定位置，請在資料庫 machine_layout 填入各機台 0–100 座標。</p>');
+}
+function initFloor(){
+  const canvas=$('#floor-canvas');if(!canvas)return;
+  const fac=UI.factory==='all'?1:UI.factory;
+  const rects=renderFloor(canvas,floorCells(S,fac,UI.date));
+  const tip=$('#floor-tip');
+  const at=e=>{const r=canvas.getBoundingClientRect();return hitFloor(rects,e.clientX-r.left,e.clientY-r.top);};
+  canvas.onmousemove=e=>{const hit=at(e);
+    if(hit){tip.style.display='block';tip.style.left=Math.min(e.clientX+12,innerWidth-220)+'px';tip.style.top=(e.clientY+14)+'px';
+      tip.innerHTML='<b>'+esc(hit.cell.label)+'</b>（'+esc(hit.cell.process||'—')+'）<br>'+(hit.cell.detail?esc(hit.cell.detail):'當日無排程');}
+    else tip.style.display='none';};
+  canvas.onmouseleave=()=>tip.style.display='none';
+  canvas.onclick=e=>{const hit=at(e);if(hit)toast(hit.cell.label+'：'+(hit.cell.detail||'當日無排程'));};
+}
+
 function analyticsPageHTML(){
   const today=todayStr();
   const monthStart=today.slice(0,7)+'-01';
@@ -3859,7 +3891,7 @@ async function start(){
   loadPreferencesForDevice();loadFactory();
   if(!UI.date)UI.date=todayStr();
   // ?view=shortage|transfer|worklog：重新整理仍停在該頁
-  try{const v=new URLSearchParams(location.search).get("view");UI.page={shortage:"shortage",transfer:"transferflow",worklog:"worklog",review:"review",analytics:"analytics"}[v]||null;if(UI.page==="review")UI.reviewStep ??= 1;}catch{}
+  try{const v=new URLSearchParams(location.search).get("view");UI.page={shortage:"shortage",transfer:"transferflow",worklog:"worklog",review:"review",analytics:"analytics",floor:"floor"}[v]||null;if(UI.page==="review")UI.reviewStep ??= 1;}catch{}
   render();
   if(UI.page)flashReturnRow();
   STORE.subscribe(onRemoteChange);

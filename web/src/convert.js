@@ -57,6 +57,7 @@ export function toSnapshot(S, holidays = {}) {
     blocks: S.blocks.map((b) => ({ id: b.id, order: b.oid, step: b.step, machine: b.m, employee: b.emp ?? null,
       date: b.date, start: b.s, end: b.e, qty: b.qty, pinned: !!b.pin })),
     work_execution: (S.execution || []).map((r) => ({ blockId: r.blockId, status: r.status, qtyDone: Number(r.qtyDone) || 0, confirmed: !!r.confirmed })),
+    machine_layout: (S.machineLayout || []).map((l) => ({ machine_id: l.machineId, x: +l.x, y: +l.y })),
   };
 }
 
@@ -68,6 +69,7 @@ export function fromSnapshot(snap) {
   return {
     v: 1, demo: false, version: snap.version || 0, setupPending: !!snap.setup_pending,
     execution: snap.work_execution || [],
+    machineLayout: snap.machine_layout || [],
     workContents: snap.work_contents||[],workAssignments:snap.work_assignments||[],workReferenceOrders:snap.work_reference_orders||[],
     transferOrders:snap.transfer_orders||[],
     rushOrders:snap.rush_orders||[],
