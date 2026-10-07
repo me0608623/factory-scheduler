@@ -46,9 +46,10 @@ jobs:
             exit 1
           fi
           echo "變更檔案："; echo "$CHANGED"
-          # 判定「需要部署」的檔案＝db/web/solver 變更，排除純驗收驅動程式（不影響任何執行期程式）。
+          # 判定「需要部署」的檔案＝db/web/solver 變更，排除非執行期檔案（tests 驅動、maintenance 工作表）。
+          # migrations 仍計入：schema 變更後重部署確保服務與新結構相容。
           # 不廣泛排除 db/，真正的資料庫變更（schema/遷移/程式）仍會觸發部署判斷。
-          NEED=$(printf '%s\n' "$CHANGED" | grep -E '^(db/|web/|solver/)|^\.github/workflows/tests\.yml$' | grep -v '^db/tests/acceptance_sim\.mjs$' || true)
+          NEED=$(printf '%s\n' "$CHANGED" | grep -E '^(db/|web/|solver/)|^\.github/workflows/tests\.yml$' | grep -vE '^db/(tests|maintenance)/' || true)
           if [ -z "$NEED" ]; then
             echo "無需部署的程式變更（僅工作流／文件／純驗收驅動）→ 跳過部署（不呼叫 hook）"
             set_deploy skip; exit 0
