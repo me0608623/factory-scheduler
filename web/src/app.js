@@ -3646,8 +3646,14 @@ function initVisualDemo(){
 
 // 3D 場景實例管理：頁面重繪時停掉舊的，避免背景 rAF 洩漏
 let viz3d = null;
-async function mountViz3D(el) {
+let vizBg = null;
+function stopLoginViz() {
   try { viz3d?.stop?.(); } catch (e) {}
+  try { vizBg?.stop?.(); } catch (e) {}
+  viz3d = null; vizBg = null;
+}
+async function mountViz3D(el) {
+  stopLoginViz();
   viz3d = await mount3D(el);
 }
 
@@ -3665,7 +3671,7 @@ function showLogin(err="",email="",signup=false){
     '<button class="btn" type="button" id="lg-signup">'+tx('註冊新帳號')+'</button>'+
     (signup?'<div class="hint">註冊後為「檢視」身分；要排程權限請找老闆在「權限管理」開放。若本站採邀請制，註冊被拒時請找管理者邀請。</div>':'')+
     '<div class="hint">帳號由管理者邀請。收到邀請信，先開啟信中的連結，再到「帳號與連線」設定密碼。</div></form></main>';
-  mountBackdrop(document.getElementById("login-bg"),{interactive:true});
+  vizBg = mountBackdrop(document.getElementById("login-bg"),{interactive:true});
   mountViz3D(document.getElementById("login-bg"));
   $("#loginf").addEventListener("submit",async e=>{
     e.preventDefault();const btn=e.target.querySelector('button[type=submit]'),email=$("#lg-email").value.trim();btn.disabled=true;
@@ -3927,6 +3933,7 @@ document.addEventListener('keydown',e=>{if(PV)return;const el=e.target.closest?.
 
 // ---------- 啟動 ----------
 async function start(){
+  stopLoginViz(); // 登入成功→停掉背景動畫 rAF（防洩漏）
   const r=await STORE.init();
   if(r.needLogin){showLogin();return;}
   readOnly=STORE.kind==="supabase"&&!STORE.can("schedule.manage");
