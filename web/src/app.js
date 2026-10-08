@@ -20,7 +20,7 @@ import {validateRush,shortageRowFlags} from './rush.js';
 import {validateWorkLog} from './worklog.js';
 import {notifySettingsHTML,sendLineNotify} from './line-notify.js';
 import { tx, I18N, SETTINGS_TEXT } from './i18n.js';
-import { liquidLogoSVG, mountBackdrop, ensureVisualStyles } from './visual.js';
+import { liquidLogoSVG, mountBackdrop, mount3D, ensureVisualStyles } from './visual.js';
 import { floorCells, renderFloor, hitFloor } from './floor.js';
 import {rosterUI} from './roster-ui.js';
 import {installScheduleChat} from './chat-ui.js';
@@ -631,7 +631,7 @@ const NAV_IC={
 const LOGIC={leave:"假",fault:"修",move:"移",auto:"排",ot:"加",edit:"改",save:"存"};
 function hourPx(){return parseFloat(getComputedStyle(document.body).getPropertyValue("--hour"))||72;}
 
-function render(){ I18N.lang=UI.prefs.language;
+function render(){ I18N.lang=UI.prefs.language; ensureVisualStyles();
   const sc=$(".scroller"),sl=sc?sc.scrollLeft:0,sy=window.scrollY;
   document.body.classList.toggle("tv",!!UI.tv);
   document.body.classList.toggle("pvmode",!!PV);
@@ -746,7 +746,7 @@ function drawerHTML(){
   if(!UI.drawer)return '';
   const body=UI.drawer==='orders'?ordersDrawerHTML():UI.drawer==='people'?peopleDrawerHTML():UI.drawer==='output'?outputDrawerHTML():UI.drawer==='notes'?notesDrawerHTML():UI.drawer==='settings'?settingsDrawerHTML():moreDrawerHTML();
   const title=drawerTitle(UI.drawer);
-  return '<aside class="ops-drawer" aria-label="'+esc(title)+'" tabindex="-1"><div class="ops-drawer-h"><h2>'+esc(title)+'</h2><button class="iconbtn" data-act="drawer-close" aria-label="關閉">×</button></div><div class="ops-drawer-b">'+body+'</div></aside>';
+  return '<aside class="ops-drawer vg-glass" aria-label="'+esc(title)+'" tabindex="-1"><div class="ops-drawer-h"><h2>'+esc(title)+'</h2><button class="iconbtn" data-act="drawer-close" aria-label="關閉">×</button></div><div class="ops-drawer-b">'+body+'</div></aside>';
 }
 
 function ordersDrawerHTML(){
@@ -3635,7 +3635,15 @@ function visualDemoPageHTML(){
 }
 function initVisualDemo(){
   const stage=document.getElementById("vd-stage");
-  if(stage) mountBackdrop(stage,{interactive:true});
+  if(stage){ mountBackdrop(stage,{interactive:true}); mountViz3D(stage); }
+}
+
+
+// 3D 場景實例管理：頁面重繪時停掉舊的，避免背景 rAF 洩漏
+let viz3d = null;
+async function mountViz3D(el) {
+  try { viz3d?.stop?.(); } catch (e) {}
+  viz3d = await mount3D(el);
 }
 
 // ---------- 登入畫面 ----------
@@ -3651,6 +3659,7 @@ function showLogin(err="",email=""){
     '<button class="btn" type="button" id="lg-reset">忘記密碼／設定邀請帳號密碼</button>'+
     '<div class="hint">帳號由管理者邀請。收到邀請信，先開啟信中的連結，再到「帳號與連線」設定密碼。</div></form></main>';
   mountBackdrop(document.getElementById("login-bg"),{interactive:true});
+  mountViz3D(document.getElementById("login-bg"));
   $("#loginf").addEventListener("submit",async e=>{
     e.preventDefault();const btn=e.target.querySelector("button"),email=$("#lg-email").value.trim();btn.disabled=true;btn.textContent="登入中…";
     try{await STORE.login(email,$("#lg-pw").value);await start();}

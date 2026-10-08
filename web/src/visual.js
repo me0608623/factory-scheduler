@@ -146,3 +146,79 @@ export function mountBackdrop(container, { interactive = true, className = "" } 
     stop() { cancelAnimationFrame(raf); window.removeEventListener("pointermove", onMove); cv.remove(); },
   };
 }
+
+// —— 真 3D 場景（react-three-fiber 的等效：官方路徑＝three.js 本體，lazy import 獨立 chunk）——
+// 懸浮二十面體線框＋粒子群，滑鼠視差旋轉；疊在漸層背景上（透明畫布）。
+// reduced-motion → 只渲一張靜態畫面；無 WebGL → 不掛載。
+export async function mount3D(container) {
+  ensureVisualStyles();
+  if (reducedMotion()) return { mode: "reduced-motion", stop() {} };
+  let testGl;
+  try { testGl = document.createElement("canvas").getContext("webgl"); } catch (e) { testGl = null; }
+  if (!testGl) return { mode: "none", stop() {} };
+  const THREE = await import("three");
+  const w = () => container.clientWidth || 1, h = () => container.clientHeight || 1;
+  const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "low-power" });
+  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
+  renderer.setSize(w(), h());
+  renderer.domElement.style.cssText = "position:absolute;inset:0;pointer-events:none";
+  container.insertBefore(renderer.domElement, container.children[1] || null);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(55, w() / h(), 0.1, 100);
+  camera.position.set(0, 0, 9);
+  const group = new THREE.Group();
+  scene.add(group);
+  // 主角：線框二十面體（品牌藍）＋內層實心微光
+  const ico = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(2.1, 1),
+    new THREE.MeshBasicMaterial({ color: 0x7ea6ff, wireframe: true, transparent: true, opacity: 0.65 }));
+  const core = new THREE.Mesh(
+    new THREE.IcosahedronGeometry(1.15, 0),
+    new THREE.MeshBasicMaterial({ color: 0x315FA7, transparent: true, opacity: 0.28 }));
+  group.add(ico, core);
+  // 粒子群（視差深度）
+  const N = 260, pos = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    const r = 3.2 + Math.random() * 4.5, th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+    pos[i * 3] = r * Math.sin(ph) * Math.cos(th);
+    pos[i * 3 + 1] = r * Math.sin(ph) * Math.sin(th);
+    pos[i * 3 + 2] = r * Math.cos(ph);
+  }
+  const pgeo = new THREE.BufferGeometry();
+  pgeo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  const pts = new THREE.Points(pgeo, new THREE.PointsMaterial({ color: 0xa8c4ff, size: 0.05, transparent: true, opacity: 0.8 }));
+  scene.add(pts);
+  let mx = 0, my = 0, tx = 0, ty = 0;
+  const onMove = (e) => {
+    const r = container.getBoundingClientRect();
+    tx = ((e.clientX - r.left) / Math.max(1, r.width) - 0.5) * 2;
+    ty = ((e.clientY - r.top) / Math.max(1, r.height) - 0.5) * 2;
+  };
+  window.addEventListener("pointermove", onMove, { passive: true });
+  const onResize = () => { renderer.setSize(w(), h()); camera.aspect = w() / h(); camera.updateProjectionMatrix(); };
+  window.addEventListener("resize", onResize, { passive: true });
+  const t0 = performance.now();
+  let raf = 0;
+  const frame = () => {
+    const t = (performance.now() - t0) / 1000;
+    mx += (tx - mx) * 0.05; my += (ty - my) * 0.05;
+    group.rotation.y = t * 0.12 + mx * 0.5;
+    group.rotation.x = Math.sin(t * 0.2) * 0.15 + my * 0.3;
+    pts.rotation.y = -t * 0.02 + mx * 0.15;
+    camera.position.x = mx * 0.6; camera.position.y = -my * 0.4;
+    camera.lookAt(0, 0, 0);
+    renderer.render(scene, camera);
+    raf = requestAnimationFrame(frame);
+  };
+  frame();
+  return {
+    mode: "three",
+    stop() {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("resize", onResize);
+      renderer.dispose(); ico.geometry.dispose(); core.geometry.dispose(); pgeo.dispose();
+      renderer.domElement.remove();
+    },
+  };
+}

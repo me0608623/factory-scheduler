@@ -883,3 +883,9 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
 :root[data-theme="dark"] .people-calendar .calendar-day.asking{background:#3D3313 !important}
 :root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.asking b,
 :root[data-theme="dark"] .people-calendar .calendar-day.asking b{color:#FFE082}
+
+/* —— TV 大螢幕模式：品牌藍靜態漸層背景（無動畫，適合長時間顯示）—— */
+body.tv{background:radial-gradient(130% 100% at 18% 0%,#24406F 0%,#182C4E 48%,#101828 100%)}
+body.tv .wrap{background:transparent}
+/* 抽屜玻璃化後，原實心底色由 vg-glass 的半透明規則接手 */
+.ops-drawer.vg-glass{background:color-mix(in srgb,var(--surface,#fff) 82%,transparent)}

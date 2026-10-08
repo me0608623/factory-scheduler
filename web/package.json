@@ -13,7 +13,8 @@
     "@supabase/supabase-js": "^2.117.2",
     "exceljs": "^4.4.0",
     "jszip": "^3.10.2",
-    "saxes": "^5.0.1"
+    "saxes": "^5.0.1",
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.3.16",
