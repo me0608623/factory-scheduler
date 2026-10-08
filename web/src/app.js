@@ -674,7 +674,8 @@ function topHTML(){
   [[1,'1 廠'],[2,'2 廠'],['all','跨廠']].map(([v,t])=>'<button data-act="factory" data-v="'+v+'" aria-pressed="'+(UI.factory===v)+'">'+t+'</button>').join('')+'</div>'+
   '<div class="page-links">'+
   '<button class="btn pagelink shortage" data-act="page" data-v="shortage">'+tx('shortage')+'</button>'+
-  '<button class="btn pagelink transfer" data-act="page" data-v="transfer">'+tx('transfer')+'</button></div>'+
+  '<button class="btn pagelink transfer" data-act="page" data-v="transfer">'+tx('transfer')+'</button>'+
+  '<button class="btn pagelink floor" data-act="page" data-v="floor">'+tx('floor')+'</button></div>'+
   '<div class="datenav"><button class="iconbtn" data-act="prev" aria-label="往前">‹</button>'+
   '<button class="datebox'+(!wk&&di.type!=="work"?" hol":"")+'" data-act="pick"><b class="num">'+esc(title)+'</b><small>'+esc(sub)+'</small></button>'+
   '<input type="date" id="datepick" value="'+d+'" style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none" tabindex="-1" aria-hidden="true">'+
@@ -1402,7 +1403,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "line-notify":openModal({t:"line-notify"});break;
     case "ln-save":async a=>{a.disabled=true;try{const enabled=$("#ln-enabled")?.checked||false;const userId=$("#ln-user")?.value.trim()||"";const groupId=$("#ln-group")?.value.trim()||"";const events={};for(const el of document.querySelectorAll("[data-ln-event]"))events[el.dataset.lnEvent]=el.checked;await STORE.sb.from("line_notify_settings").upsert({user_id:STORE.session?.user?.id,enabled,line_user_id:userId,line_group_id:groupId,events},{onConflict:"user_id"});closeModal();toast("LINE 通知設定已儲存");}catch(e){a.disabled=false;toast(e.message);}};break;UI.drawer=null;try{history.replaceState(null,"","?view=analytics");}catch{}render();window.scrollTo(0,0);break;
     case "feedback-send":async a=>{const msg=$("#fb-msg")?.value.trim()||"",cat=$("#fb-cat")?.value||"other";if(!msg){toast("請寫一些內容");return;}a.disabled=true;try{const {error}=await STORE.sb.from("feedback").insert({author_name:STORE.userName||"未命名",category:cat,message:msg,page_url:location.href,user_id:STORE.session?.user?.id});if(error)throw error;closeModal();toast("感謝！意見已送出，我們會盡快處理。"+(STORE.role==="boss"?" 到「更多功能→查看反饋」看全部。":""));}catch(e){a.disabled=false;toast(e.message);}};break;
-    case "feedback-list":{if(STORE.role!=="boss"){toast("只有老闆可以查看全部反饋");break;}openModal({t:"feedback-list",loading:true,items:[]});(async()=>{try{const {data}=await STORE.sb.rpc("list_feedback",{p_limit:50});if(UI.modal?.t==="feedback-list"){UI.modal.loading=false;UI.modal.items=data||[];renderModal();}}catch(e){toast(e.message);closeModal();}})();break;}
+    case "feedback-list":{if(STORE.role!=="boss"){toast("只有老闆可以查看全部反饋");break;}if(STORE.kind==="local"){toast("查看反饋需要雲端模式；本機示範資料沒有反饋紀錄");break;}openModal({t:"feedback-list",loading:true,items:[]});(async()=>{try{const {data}=await STORE.sb.rpc("list_feedback",{p_limit:50});if(UI.modal?.t==="feedback-list"){UI.modal.loading=false;UI.modal.items=data||[];renderModal();}}catch(e){toast(e.message);closeModal();}})();break;}
     case "undo":undo();break;
     case "sync":if(SYNC.state==="error")queueSync(null);else toast(STORE.kind==="local"?"資料存在這台電腦的瀏覽器":"已和雲端資料庫同步");break;
     case "account":openModal({t:"account"});break;
@@ -3335,7 +3336,7 @@ function analyticsPageHTML(){
   for(const o of mOrders){
     const bl=mBlocks.filter(b=>b.oid===o.id);
     if(!bl.length){ordStats.unplaced++;continue;}
-    const totalDone=bl.reduce((t,b)=>t+effectiveBlockQty(S,b),0);
+    const totalDone=bl.reduce((t,b)=>t+effectiveBlockQty(b,S.execution||[]),0);
     if(totalDone>=o.qty)ordStats.done++;
     else if(o.due<today)ordStats.late++;
     else if(totalDone>0)ordStats.part++;

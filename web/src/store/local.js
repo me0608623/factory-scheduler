@@ -74,6 +74,9 @@ export class LocalStore {
     let next;try{next=transitionExecution(S,request,{today});}catch(e){e.rejected=true;throw e;}
     try{localStorage.setItem(KEY,JSON.stringify(next));}catch{throw new Error('儲存空間不足，進度未存入');}
   }
+  async listAccessAccounts() {
+    throw new Error("權限管理需要雲端模式；本機示範資料沒有帳號權限");
+  }
   async confirmExecution(blockId, confirmed) {
     const S=await this.load();if(!S)throw new Error('請先儲存排程');
     const r=(S.execution||[]).find(x=>x.blockId===blockId);
