@@ -74,6 +74,7 @@ export class LocalStore {
     let next;try{next=transitionExecution(S,request,{today});}catch(e){e.rejected=true;throw e;}
     try{localStorage.setItem(KEY,JSON.stringify(next));}catch{throw new Error('儲存空間不足，進度未存入');}
   }
+  async signup() { throw new Error("註冊需要雲端模式；本機示範不需要帳號"); }
   async listAccessAccounts() {
     throw new Error("權限管理需要雲端模式；本機示範資料沒有帳號權限");
   }

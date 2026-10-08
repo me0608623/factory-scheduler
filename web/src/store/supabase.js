@@ -84,6 +84,12 @@ export class SupabaseStore {
     if (error) throw new Error("設定密碼失敗：" + error.message);
   }
 
+  async signup(email, password, name) {
+    const { data, error } = await this.sb.auth.signUp({ email, password,
+      options: { data: { name: name || "" }, emailRedirectTo: location.origin + location.pathname } });
+    if (error) throw new Error(error.message);
+    return data; // 需要信箱驗證時 data.session為 null
+  }
   async logout() {
     await this.sb.auth.signOut();
     this._clearSession();

@@ -21,6 +21,7 @@ import {validateWorkLog} from './worklog.js';
 import {notifySettingsHTML,sendLineNotify} from './line-notify.js';
 import { tx, I18N, SETTINGS_TEXT } from './i18n.js';
 import { liquidLogoSVG, mountBackdrop, mount3D, ensureVisualStyles } from './visual.js';
+import { startTour, TOUR_STEPS, tourDone } from './tour.js';
 import { floorCells, renderFloor, hitFloor } from './floor.js';
 import {rosterUI} from './roster-ui.js';
 import {installScheduleChat} from './chat-ui.js';
@@ -1216,6 +1217,10 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "view":UI.view=a.dataset.v;render();break;
     case "factory":{const v=a.dataset.v==="all"?"all":Number(a.dataset.v);setFactory(v);render();if(v==="all")openModal({t:'transfer-board'});break;}
     case "groups":openModal({t:'groups'});break;
+    case "tour":{closeModal();UI.drawer=null;render();setTimeout(()=>startTour(TOUR_STEPS,{tx}),350);break;}
+    case "logout":(async a=>{if(STORE.kind!=="supabase"){toast("本機模式沒有登入帳號");return;}closeModal();
+      try{await STORE.logout();toast("已登出");}catch(e){toast("登出失敗："+e.message);}
+      showLogin();})();break;
     case "access":{if(STORE.role!=='boss'){toast("只有老闆可以管理權限");break;}openModal({t:'access-accounts',loading:true,accounts:[]});(async()=>{try{const accounts=await STORE.listAccessAccounts();if(UI.modal?.t==='access-accounts'){UI.modal.loading=false;UI.modal.accounts=accounts;renderModal();}}catch(e){toast(e.message);closeModal();}})();break;}
     case 'layout':UI.layout=a.dataset.v;render();break;
     case 'work-contents':openModal({t:'work-contents'});break;
@@ -2424,7 +2429,7 @@ const HELP=[
 ];
 MODALS.help=m=>{
   const [title,steps,tip]=HELP[m.sec];
-  return {title:tx('操作說明'),body:'<div class="help-nav">'+HELP.map((h,i)=>tg("help-sec",i,i===m.sec,esc(h[0]))).join("")+'</div>'+
+  return {title:tx('操作說明'),foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button><button class="btn primary" data-act="tour">'+tx('新手導覽')+'</button>',body:'<div class="help-nav">'+HELP.map((h,i)=>tg("help-sec",i,i===m.sec,esc(h[0]))).join("")+'</div>'+
     '<div class="help-sec"><h4 style="margin:0;font-size:21px;font-weight:900">'+esc(title)+'</h4><ol>'+steps.map(s=>'<li>'+s+'</li>').join("")+'</ol>'+(tip?'<div class="tip">'+tip+'</div>':"")+'</div>',
     foot:(m.sec>0?'<button class="btn" data-act="help-sec" data-v="'+(m.sec-1)+'">‹ 上一頁</button>':"")+'<div class="spacer"></div>'+(m.sec<HELP.length-1?'<button class="btn primary" data-act="help-sec" data-v="'+(m.sec+1)+'">下一頁 ›</button>':'<button class="btn primary" data-act="close">看完了</button>')};
 };
@@ -3647,7 +3652,7 @@ async function mountViz3D(el) {
 }
 
 // ---------- 登入畫面 ----------
-function showLogin(err="",email=""){
+function showLogin(err="",email="",signup=false){
   ensureVisualStyles();
   $("#app").innerHTML='<main class="login" style="position:relative;min-height:100vh"><div id="login-bg" style="position:absolute;inset:0;z-index:0"></div>'+
     '<form class="login-card vg-glass" id="loginf" style="position:relative;z-index:1">'+
@@ -3655,16 +3660,28 @@ function showLogin(err="",email=""){
     '<div class="field"><label for="lg-email">帳號（Email）</label><input class="inp" id="lg-email" type="email" autocomplete="username" value="'+esc(email)+'" required></div>'+
     '<div class="field"><label for="lg-pw">密碼</label><input class="inp" id="lg-pw" type="password" autocomplete="current-password" required></div>'+
     (err?'<div class="issue">'+esc(err)+'</div>':"")+
-    '<button class="btn primary" type="submit" style="justify-content:center;height:56px;font-size:19px">登入</button>'+
+    '<button class="btn primary" type="submit" style="justify-content:center;height:56px;font-size:19px">'+(signup?tx('註冊'):'登入')+'</button>'+
     '<button class="btn" type="button" id="lg-reset">忘記密碼／設定邀請帳號密碼</button>'+
+    '<button class="btn" type="button" id="lg-signup">'+tx('註冊新帳號')+'</button>'+
+    (signup?'<div class="hint">註冊後為「檢視」身分；要排程權限請找老闆在「權限管理」開放。若本站採邀請制，註冊被拒時請找管理者邀請。</div>':'')+
     '<div class="hint">帳號由管理者邀請。收到邀請信，先開啟信中的連結，再到「帳號與連線」設定密碼。</div></form></main>';
   mountBackdrop(document.getElementById("login-bg"),{interactive:true});
   mountViz3D(document.getElementById("login-bg"));
   $("#loginf").addEventListener("submit",async e=>{
-    e.preventDefault();const btn=e.target.querySelector("button"),email=$("#lg-email").value.trim();btn.disabled=true;btn.textContent="登入中…";
+    e.preventDefault();const btn=e.target.querySelector('button[type=submit]'),email=$("#lg-email").value.trim();btn.disabled=true;
+    if(signup){
+      btn.textContent="註冊中…";
+      try{const r=await STORE.signup(email,$("#lg-pw").value);
+        if(r&&r.session)await start();
+        else showLogin("註冊成功！請到信箱點確認連結後再登入。",email,false);
+      }catch(err){showLogin(err.message,email,true);}
+      return;
+    }
+    btn.textContent="登入中…";
     try{await STORE.login(email,$("#lg-pw").value);await start();}
     catch(err){showLogin(err.message,email);}
   });
+  $("#lg-signup")?.addEventListener("click",()=>showLogin("",$("#lg-email")?.value||"",true));
   $("#lg-reset").addEventListener("click",async e=>{
     const input=$("#lg-email"),email=input.value.trim();
     if(!input.checkValidity()||!email){showLogin("請先填寫有效的電子郵件",email);return;}
@@ -3925,6 +3942,7 @@ async function start(){
   try{const v=new URLSearchParams(location.search).get("view");UI.page={shortage:"shortage",transfer:"transferflow",worklog:"worklog",review:"review",analytics:"analytics",floor:"floor","visual-demo":"visual-demo"}[v]||null;if(UI.page==="review")UI.reviewStep ??= 1;}catch{}
   render();
   if(UI.page)flashReturnRow();
+  if(!tourDone()&&!UI.tv&&!UI.page)setTimeout(()=>startTour(TOUR_STEPS,{tx}),600);
   STORE.subscribe(onRemoteChange);
   scheduleChat?.destroy();scheduleChat=installScheduleChat({snapshot:()=>({...toSnapshot(S,HOLI),work_execution:structuredClone(S.execution||[])}),view:()=>({date:UI.date,factory:UI.factory}),store:()=>STORE,enabled:()=>!UI.tv&&canPermission('schedule.manage'),stamp:()=>scenarioKey(S)+'|'+UI.date+'|'+UI.factory});
   SOLVER.check().then(up=>{updateSyncChip();scheduleChat?.refresh();if(up)toast("已連上 OR-Tools 排程服務");});
