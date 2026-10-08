@@ -1,45 +1,38 @@
-// 介面文字翻譯覆蓋稽核：抽樣高流量介面的寫死中文字串（未走 tx()）
+// i18n 覆蓋稽核 v2（字典已搬至 i18n.js）
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const web = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "web", "src");
 const app = fs.readFileSync(path.join(web, "app.js"), "utf8");
+const i18n = fs.readFileSync(path.join(web, "i18n.js"), "utf8");
 
-// 1) 更多抽屜項目標籤（btn('act','標籤') 形式）
-const drawerLabels = [...app.matchAll(/btn\('([a-z0-9-]+)','([^']+)'\)/g)]
-  .filter((m) => /[\u4e00-\u9fff]/.test(m[2]))
-  .map((m) => m[1] + "｜" + m[2]);
+// 1) rendered data-act 的按鈕文字（非 tx 包裹）
+const hardcodedButtons = [];
+app.split("\n").forEach((line, i) => {
+  for (const m of line.matchAll(/btn\('[a-z0-9-]+','([^']*[\u4e00-\u9fff][^']*)'\)/g)) {
+    if (!line.includes("tx(")) hardcodedButtons.push(m[1] + " ← app.js:" + (i + 1));
+  }
+});
 
-// 2) modal 標題（title:'中文' / title:"中文"）
-const modalTitles = [...app.matchAll(/title:\s*['"]([^'"]*[\u4e00-\u9fff][^'"]*)['"]/g)]
-  .map((m) => m[1]);
+// 2) modal 標題（title:'中文' 未包 tx）
+const hardcodedTitles = [];
+app.split("\n").forEach((line, i) => {
+  for (const m of line.matchAll(/title:\s*['"]([^'"]*[\u4e00-\u9fff][^'"]*)['"]/g)) {
+    if (!line.includes("tx(")) hardcodedTitles.push(m[1].trim() + " ← :" + (i + 1));
+  }
+});
 
-// 3) 常見按鈕字面（'關閉'|'取消'|'儲存'|'刪除' 直接作為標籤出現、未包 tx）
-const common = ["關閉", "取消", "儲存", "刪除", "確定", "返回"];
-const literalCounts = {};
-for (const w of common) {
-  const re = new RegExp(`['">（]${w}['"<）]`, "g");
-  literalCounts[w] = (app.match(re) || []).length;
-}
+// 3) 幫助章節標籤
+const helpTabs = app.match(/HELP\s*=\s*\[([\s\S]*?)\]\s*;/)?.[1]
+  ?.match(/'([^']*[\u4e00-\u9fff][^']*)'/g)?.map(s => s.replace(/'/g, "")) || [];
 
-// 4) tx() 鍵與四語字典完整性
-const dictMatch = app.match(/const SETTINGS_TEXT=\{([\s\S]*?)\n\};/);
-const keys = [...dictMatch[1].matchAll(/'zh-TW':\{([^}]*)\}/g)][0][1]
-  .split(",").map((s) => s.trim().split(":")[0].replace(/'/g, "")).filter(Boolean);
-const langs = ["zh-TW", "en", "vi", "th"];
-const dictBody = dictMatch[1];
-const missing = {};
-for (const l of langs) {
-  const esc = l.replace("-", "[-]");
-  const block = [...dictBody.matchAll(new RegExp(esc + ":\\{([^}]*)\\}", "g"))][0]?.[1] || "";
-  missing[l] = keys.filter((k) => !new RegExp(`${k}\\s*:`).test(block));
-}
+// 4) i18n.js 字典鍵數
+const uiTextKeys = [...i18n.matchAll(/"([^"]+)":\s*\{/g)].map(m => m[1]);
 
-console.log("== 更多抽屜寫死中文標籤 ==", drawerLabels.length);
-drawerLabels.forEach((l) => console.log("  " + l));
-console.log("\n== modal 標題（寫死中文）==", modalTitles.length);
-modalTitles.forEach((t) => console.log("  " + t));
-console.log("\n== 常見按鈕字面出現次數（未 tx）==");
-Object.entries(literalCounts).forEach(([k, v]) => console.log("  " + k + " ×" + v));
-console.log("\n== 字典鍵數 ==", keys.length, "／各語缺鍵 ==", JSON.stringify(missing));
+console.log("=== i18n.js UI_TEXT 鍵數 ===", uiTextKeys.length);
+console.log("\n=== 寫死中文按鈕標籤 ===", hardcodedButtons.length);
+hardcodedButtons.slice(0, 10).forEach(s => console.log("  " + s));
+console.log("\n=== 寫死中文 modal 標題 ===", hardcodedTitles.length);
+hardcodedTitles.slice(0, 15).forEach(s => console.log("  " + s));
+console.log("\n=== HELP 章節標籤（全中文）===", helpTabs.length, helpTabs.join("、"));
