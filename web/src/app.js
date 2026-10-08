@@ -20,6 +20,7 @@ import {validateRush,shortageRowFlags} from './rush.js';
 import {validateWorkLog} from './worklog.js';
 import {notifySettingsHTML,sendLineNotify} from './line-notify.js';
 import { tx, I18N, SETTINGS_TEXT } from './i18n.js';
+import { liquidLogoSVG, mountBackdrop, ensureVisualStyles } from './visual.js';
 import { floorCells, renderFloor, hitFloor } from './floor.js';
 import {rosterUI} from './roster-ui.js';
 import {installScheduleChat} from './chat-ui.js';
@@ -646,12 +647,13 @@ function render(){ I18N.lang=UI.prefs.language;
     try{html=withState(o.A,()=>topHTML()+'<main class="wrap">'+pvPanelHTML(o))+withState(st,()=>bannerHTML()+(UI.view==="day"?dayHTML(ctx):weekHTML(ctx))+generalBoardHTML())+"</main>";}
     finally{readOnly=ro;}
   }else html=topHTML()+appNavHTML()+'<main class="wrap">'+
-    (UI.page==='shortage'?shortagePageHTML():UI.page==='transferflow'?transferFlowPageHTML():UI.page==='worklog'?workLogPageHTML():UI.page==='review'?reviewPageHTML():UI.page==='analytics'?analyticsPageHTML():UI.page==='floor'?floorPageHTML():
+    (UI.page==='shortage'?shortagePageHTML():UI.page==='transferflow'?transferFlowPageHTML():UI.page==='worklog'?workLogPageHTML():UI.page==='review'?reviewPageHTML():UI.page==='analytics'?analyticsPageHTML():UI.page==='floor'?floorPageHTML():UI.page==='visual-demo'?visualDemoPageHTML():
       bannerHTML()+(UI.view==="day"?(UI.layout==='work'?workViewHTML():dayHTML()+generalBoardHTML()):weekHTML()+generalBoardHTML()))+'</main>'+drawerHTML();
   $("#app").innerHTML=html;
   const sc2=$(".scroller");if(sc2)sc2.scrollLeft=sl;
   window.scrollTo(0,sy);
   if(UI.page==='floor')initFloor();
+  if(UI.page==='visual-demo')initVisualDemo();
   if(UI.modal)renderModal();
   if(UI.editCell){const el=$(".cellinp");if(el){el.focus();if(el.select)el.select();}}
   scheduleChat?.refresh();
@@ -1224,7 +1226,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "resource-load":if(!PV)openModal({t:'resource-load'});break;
     case 'work-queue':openModal({t:'work-queue'});break;
     case 'rush':UI.page='shortage';UI.drawer=null;render();window.scrollTo(0,0);break;
-    case "page":{if(PV){toast("預覽中：先按「用這套」或「取消」");break;}const map={board:null,shortage:"shortage",transfer:"transferflow",worklog:"worklog",review:"review",analytics:"analytics",floor:"floor"};UI.page=map[a.dataset.v]??null;UI.drawer=null;UI.focus=null;UI.editCell=null;UI.confirmRow=null;try{history.replaceState(null,"",UI.page?"?view="+(UI.page==="transferflow"?"transfer":UI.page):location.pathname);}catch{}if(UI.page==="transferflow"&&canPermission("transfers.manage")){const n=tfAutoArchive();if(n)UI.tfArchivedNote="本月已歸檔 "+n+" 筆";}
+    case "page":{if(PV){toast("預覽中：先按「用這套」或「取消」");break;}const map={board:null,shortage:"shortage",transfer:"transferflow",worklog:"worklog",review:"review",analytics:"analytics",floor:"floor","visual-demo":"visual-demo"};UI.page=map[a.dataset.v]??null;UI.drawer=null;UI.focus=null;UI.editCell=null;UI.confirmRow=null;try{history.replaceState(null,"",UI.page?"?view="+(UI.page==="transferflow"?"transfer":UI.page):location.pathname);}catch{}if(UI.page==="transferflow"&&canPermission("transfers.manage")){const n=tfAutoArchive();if(n)UI.tfArchivedNote="本月已歸檔 "+n+" 筆";}
       render();window.scrollTo(0,0);if(UI.page)flashReturnRow();break;}
     case "page-return":{const p=UI.returnTo?.page||null;UI.returnTo=null;UI.page=p;try{history.replaceState(null,"",p?"?view="+(p==="transferflow"?"transfer":p):location.pathname);}catch{}render();window.scrollTo(0,0);if(p)flashReturnRow();break;}
     case "worklog":UI.page="worklog";UI.drawer=null;try{history.replaceState(null,"","?view=worklog");}catch{}render();window.scrollTo(0,0);flashReturnRow();break;
@@ -3617,16 +3619,38 @@ Object.assign(MODAL_ACT,{
     pushUndo();S.groups=S.groups.filter(g=>g.id!==id);S.groupMembers=S.groupMembers.filter(m=>m.groupId!==id);if(UI.group===id)UI.group='all';closeModal();commit({kind:'edit',title:'停用員工分組 '+name,lines:[]},'groups.manage');}
 });
 
+
+// 視覺效果展示頁（?view=visual-demo）：登入畫面同款背景＋液態 logo＋玻璃卡，驗證與截圖用
+function visualDemoPageHTML(){
+  ensureVisualStyles();
+  return '<div class="page-top"><div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">'+tx('backToday')+'</button><div class="page-title"><h1>視覺效果</h1></div></div></div>'+
+    '<div id="vd-stage" style="position:relative;height:520px;border-radius:14px;overflow:hidden">'+
+      '<form class="login-card vg-glass" id="loginf-demo" style="position:relative;z-index:1;margin:90px auto;max-width:420px;pointer-events:none">'+
+        '<div class="brand" style="color:#EAF0FF"><span class="brand-mark"><span></span></span>'+liquidLogoSVG("產線排程")+'</div>'+
+        '<div class="field"><label>帳號（Email）</label><input class="inp" placeholder="user@example.com"></div>'+
+        '<div class="field"><label>密碼</label><input class="inp" type="password" placeholder="••••••"></div>'+
+        '<button class="btn primary" type="button" style="justify-content:center;height:52px">登入</button>'+
+      '</form></div>'+
+    '<p class="hint">漸層＋點陣背景（WebGL shader）、液態 Logo（SVG 形變）、玻璃卡片（backdrop-filter）。滑鼠移動有光暈視差。</p>';
+}
+function initVisualDemo(){
+  const stage=document.getElementById("vd-stage");
+  if(stage) mountBackdrop(stage,{interactive:true});
+}
+
 // ---------- 登入畫面 ----------
 function showLogin(err="",email=""){
-  $("#app").innerHTML='<main class="login"><form class="login-card" id="loginf">'+
-    '<div class="brand"><span class="brand-mark"><span></span></span>產線排程</div>'+
+  ensureVisualStyles();
+  $("#app").innerHTML='<main class="login" style="position:relative;min-height:100vh"><div id="login-bg" style="position:absolute;inset:0;z-index:0"></div>'+
+    '<form class="login-card vg-glass" id="loginf" style="position:relative;z-index:1">'+
+    '<div class="brand" style="color:#EAF0FF"><span class="brand-mark"><span></span></span>'+liquidLogoSVG("產線排程")+'</div>'+
     '<div class="field"><label for="lg-email">帳號（Email）</label><input class="inp" id="lg-email" type="email" autocomplete="username" value="'+esc(email)+'" required></div>'+
     '<div class="field"><label for="lg-pw">密碼</label><input class="inp" id="lg-pw" type="password" autocomplete="current-password" required></div>'+
     (err?'<div class="issue">'+esc(err)+'</div>':"")+
     '<button class="btn primary" type="submit" style="justify-content:center;height:56px;font-size:19px">登入</button>'+
     '<button class="btn" type="button" id="lg-reset">忘記密碼／設定邀請帳號密碼</button>'+
     '<div class="hint">帳號由管理者邀請。收到邀請信，先開啟信中的連結，再到「帳號與連線」設定密碼。</div></form></main>';
+  mountBackdrop(document.getElementById("login-bg"),{interactive:true});
   $("#loginf").addEventListener("submit",async e=>{
     e.preventDefault();const btn=e.target.querySelector("button"),email=$("#lg-email").value.trim();btn.disabled=true;btn.textContent="登入中…";
     try{await STORE.login(email,$("#lg-pw").value);await start();}
@@ -3889,7 +3913,7 @@ async function start(){
   loadPreferencesForDevice();loadFactory();
   if(!UI.date)UI.date=todayStr();
   // ?view=shortage|transfer|worklog：重新整理仍停在該頁
-  try{const v=new URLSearchParams(location.search).get("view");UI.page={shortage:"shortage",transfer:"transferflow",worklog:"worklog",review:"review",analytics:"analytics",floor:"floor"}[v]||null;if(UI.page==="review")UI.reviewStep ??= 1;}catch{}
+  try{const v=new URLSearchParams(location.search).get("view");UI.page={shortage:"shortage",transfer:"transferflow",worklog:"worklog",review:"review",analytics:"analytics",floor:"floor","visual-demo":"visual-demo"}[v]||null;if(UI.page==="review")UI.reviewStep ??= 1;}catch{}
   render();
   if(UI.page)flashReturnRow();
   STORE.subscribe(onRemoteChange);
