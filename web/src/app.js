@@ -1292,7 +1292,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
       if(!canPermission("rush.manage"))break;
       const r=(S.rushOrders||[]).find(x=>x.id===a.dataset.id);if(!r)break;
       r.archived=false;
-      commit({kind:"edit",title:"還原欠缺品項一列",lines:[]},"rush.manage");break;}
+      commit({kind:"edit",title:tx('還原欠缺品項一列'),lines:[]},"rush.manage");break;}
     case "review-group":{UI.reviewGroup=a.dataset.v;render();break;}
     case "review-step":{UI.reviewStep=Math.max(1,Math.min(3,+a.dataset.v||1));render();window.scrollTo(0,0);break;}
     case "review-mark":{
@@ -1314,7 +1314,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
       if(UI.confirmRow!=="wldel:"+a.dataset.id){UI.confirmRow="wldel:"+a.dataset.id;render();break;}
       UI.confirmRow=null;
       S.workLog=S.workLog.filter(r=>r.id!==a.dataset.id);
-      commit({kind:"edit",title:"刪除工作紀錄一列",lines:[]},"worklog.manage");
+      commit({kind:"edit",title:tx('刪除工作紀錄一列'),lines:[]},"worklog.manage");
       toast("已刪除");break;}
     case "wl-clearfilter":{UI.workLogDate="";render();break;}
     case "tbl-save":{saveTableForm(a);break;}

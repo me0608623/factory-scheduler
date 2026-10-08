@@ -97,6 +97,14 @@ export const UI_TEXT = {
   "歷史排程": { en: "History", vi: "Lịch sử", th: "ประวัติ" },
   "清除示範工單，開始使用": { en: "Clear demo data", vi: "Xóa dữ liệu mẫu", th: "ล้างข้อมูลตัวอย่าง" },
   "產品工序（標準公式）": { en: "Product steps", vi: "Công đoạn sản phẩm", th: "ขั้นตอนผลิตภัณฑ์" },
+  "取消加工單": { en: "Cancel order", vi: "Hủy đơn", th: "ยกเลิกใบสั่ง" },
+  "還原加工單": { en: "Restore order", vi: "Khôi phục đơn", th: "กู้คืนใบสั่ง" },
+  "歸檔已完成加工單": { en: "Archive completed", vi: "Lưu trữ xong", th: "เก็บถาวรที่เสร็จ" },
+  "歸檔已補上的欠缺品項": { en: "Archive fulfilled", vi: "Lưu trữ đủ", th: "เก็บถาวรที่เติมแล้ว" },
+  "還原欠缺品項一列": { en: "Restore shortage", vi: "Khôi phục thiếu", th: "กู้คืนของขาด" },
+  "刪除工作紀錄一列": { en: "Delete work log", vi: "Xóa nhật ký", th: "ลบบันทึกงาน" },
+  "刪除": { en: "Delete", vi: "Xóa", th: "ลบ" },
+  "當日負荷": { en: "Daily load", vi: "Tải trong ngày", th: "ภาระรายวัน" },
 };
 
 export function tx(k) {
