@@ -889,3 +889,8 @@ body.tv{background:radial-gradient(130% 100% at 18% 0%,#24406F 0%,#182C4E 48%,#1
 body.tv .wrap{background:transparent}
 /* 抽屜玻璃化後，原實心底色由 vg-glass 的半透明規則接手 */
 .ops-drawer.vg-glass{background:color-mix(in srgb,var(--surface,#fff) 82%,transparent)}
+
+/* 手機：三頁表格（有「＋加一列」FAB）時隱藏聊天列，避免右下兩顆按鈕重疊 */
+@media(max-width:800px){
+  body.pagemode #schedule-chat{display:none}
+}
