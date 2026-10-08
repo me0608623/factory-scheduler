@@ -52,6 +52,15 @@ test('沒有佈局時全部自動排列、不重疊', () => {
   assert.ok(cells.every((c) => c.x >= 0 && c.x <= 98 && c.y >= 0));
 });
 
+test('欄數自適應：窄欄時格子變寬、不重疊', () => {
+  const cells = floorCells(S, 1, day, 3);
+  assert.equal(cells.length, 2);
+  const [a, b] = cells;
+  assert.ok(a.w > 28, '3 欄時格寬 > 28 正規化單位');
+  assert.ok(Math.abs(a.x - b.x) >= Math.min(a.w, b.w) || Math.abs(a.y - b.y) >= 8, '不重疊');
+  assert.ok(cells.every((c) => c.x >= 0 && c.x + c.w <= 100.01));
+});
+
 test('machine_layout 座標優先，其餘自動補位不與之重疊', () => {
   const withLayout = { ...S, machineLayout: [{ machineId: 'a', x: 50, y: 50 }] };
   const cells = floorCells(withLayout, 1, day);

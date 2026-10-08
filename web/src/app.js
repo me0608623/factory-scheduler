@@ -3288,7 +3288,9 @@ function floorPageHTML(){
 function initFloor(){
   const canvas=$('#floor-canvas');if(!canvas)return;
   const fac=UI.factory==='all'?1:UI.factory;
-  const rects=renderFloor(canvas,floorCells(S,fac,UI.date));
+  // 欄數依寬度自適應：手機 3 欄、平板 5 欄、桌面 9 欄，格子才夠大可讀
+  const w=canvas.clientWidth||900;
+  const rects=renderFloor(canvas,floorCells(S,fac,UI.date,w<520?3:w<800?5:9));
   const tip=$('#floor-tip');
   const at=e=>{const r=canvas.getBoundingClientRect();return hitFloor(rects,e.clientX-r.left,e.clientY-r.top);};
   canvas.onmousemove=e=>{const hit=at(e);
