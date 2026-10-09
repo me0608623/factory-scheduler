@@ -264,3 +264,11 @@
 
 - test_perf_smoke.py：snapshot_for 合成工廠（8機8人），10/30/60 工單 solve 全部完成且單輪 <30s；CI 三 job 綠（frontend/database/solver）
 - NEXT_TASKS Phase 3「效能基準」勾除；commit 48e7467
+
+
+## 輪次 75（2026-10-10）— TEST_STATUS 9-26 疑點①修復
+
+- plans.py：插單（order 事件）選項若新工單逾期（late）或排不完（part）→ diagnostics 加說明並降級不可套用；機理是 applicable 只看硬規則、新單逾期屬軟性目標
+- 回歸：test_edges.py +1（qty500/due 隔日，凡逾期方案必不適用且帶說明）；CI 三 job 綠（solver 83 既有＋5 新全過，test_rush_order_insert 準時情境不受影響）
+- 剩餘唯一未結項：疑點②（10 分鐘零碎段）——需「最短工作段規則 vs 換模成本」的產品決策，屬人類確認事項
+- commit 0ea3809
