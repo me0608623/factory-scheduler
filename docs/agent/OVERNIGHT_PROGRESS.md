@@ -63,7 +63,7 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 126（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
+- **總輪次**: 127（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
 - **正式站**: web 200 ✓ solver 200 ✓ staging 200 ✓
 
 ## 測試
@@ -683,3 +683,9 @@
 
 - i18n 攻堅後首輪完整巡檢：**web 278/278** 綠；生產三站（web/solver/staging）全 200；**夜間備份 #17（10-09 21:58 UTC）success**——昨夜大量 push 後備份管線正常
 - 使用者仍閒置於 feat/soft-switching-cost；PR #7 仍為唯一開啟項；無平行活動
+
+
+## 輪次 127（2026-10-10 早晨）— CI 實證：昨夜 i18n 大規模變更全數通過
+
+- GitHub API 確認：昨夜最後一個程式碼 push（0e2586d）的 **Tests #242／Deploy smoke #228／Render 部署 #190 全部 success**——i18n 攻堅的數百處字串變更經 CI 三重驗證、正式部署成功
+- 生產 web/solver 200 實測；PR #7 仍唯一開啟；無平行活動
