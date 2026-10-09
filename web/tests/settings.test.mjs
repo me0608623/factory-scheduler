@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {DEFAULT_PREFERENCES,loadPreferences,normalizePreferences,notificationEnabled,patchPreference,savePreferences,SETTINGS_KEY} from '../src/settings.js';
+import {DEFAULT_PREFERENCES,loadPreferences,normalizePreferences,notificationEnabled,patchPreference,savePreferences,applyPreferences,SETTINGS_KEY} from '../src/settings.js';
 import {LocalStore} from '../src/store/local.js';
 
 const memory=seed=>{const m=new Map(Object.entries(seed||{}));return {getItem:k=>m.get(k)??null,setItem:(k,v)=>m.set(k,v),value:k=>m.get(k)};};
@@ -35,4 +35,18 @@ test('本機個人名稱會保存並在重新開啟後載入',async()=>{
     const reopened=new LocalStore();await reopened.init();assert.equal(reopened.userName,'現場測試員');
     await assert.rejects(reopened.updateProfile({displayName:'  '}),/1–60/);
   }finally{globalThis.localStorage=previous;}
+});
+
+test('applyPreferences：auto 移除主題屬性、其餘屬性齊上、回正規化結果',()=>{
+  const root={attrs:{},removed:[],props:{},lang:'',
+    setAttribute(k,v){this.attrs[k]=v;},removeAttribute(k){this.removed.push(k);},
+    style:{setProperty:(k,v)=>{root.props[k]=v;}}};
+  const p=applyPreferences({theme:'auto',accent:'green',font:'clear',density:'compact',motion:'reduce',language:'vi',scale:1.1},root);
+  assert.deepEqual(root.removed,['data-app-theme']);
+  assert.equal(root.attrs['data-accent'],'green');assert.equal(root.attrs['data-font'],'clear');
+  assert.equal(root.attrs['data-density'],'compact');assert.equal(root.attrs['data-motion'],'reduce');
+  assert.equal(root.lang,'vi');assert.equal(root.props['--z'],1.1);
+  assert.equal(p.theme,'auto');
+  applyPreferences({theme:'dark'},root);
+  assert.equal(root.attrs['data-app-theme'],'dark');
 });

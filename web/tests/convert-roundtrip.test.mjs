@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { toSnapshot, fromSnapshot } from '../src/convert.js';
+import { toSnapshot, fromSnapshot, blockToDb, blockFromDb } from '../src/convert.js';
 
 // 標準化狀態（模擬 normalizeState 後）
 const mkState = () => ({
@@ -71,4 +71,14 @@ test('fromSnapshot：null／undefined 輸入不丟例外', () => {
   assert.ok(b, 'undefined 輸入回傳可用狀態');
   assert.deepEqual(a.execution, []);
   assert.deepEqual(b.execution, []);
+});
+
+test('blockToDb/blockFromDb 往返保留欄位、pin 強制布林、缺 id 補 UUID',()=>{
+  const b={id:'b1',oid:'o',step:2,m:'a',emp:null,date:'2026-09-30',s:480,e:540,qty:60,pin:1};
+  const d=blockToDb(b);
+  assert.deepEqual(d,{id:'b1',order_id:'o',step_seq:2,machine_id:'a',employee_id:null,date:'2026-09-30',start_min:480,end_min:540,qty:60,pinned:true});
+  assert.deepEqual(blockFromDb(d),{id:'b1',oid:'o',step:2,m:'a',emp:null,date:'2026-09-30',s:480,e:540,qty:60,pin:true});
+  const fresh=blockFromDb({order_id:'o',step_seq:0,machine_id:'a',employee_id:'e',date:'2026-09-30',start_min:0,end_min:60,qty:1,pinned:0});
+  assert.match(fresh.id,/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,'缺 id 要補合法 UUID v4');
+  assert.equal(fresh.pin,false,'pinned=0 → pin=false');
 });

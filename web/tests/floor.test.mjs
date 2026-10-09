@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { floorCells } from '../src/floor.js';
+import { floorCells, hitFloor } from '../src/floor.js';
 
 const day = '2026-10-05';
 const S = {
@@ -69,4 +69,13 @@ test('machine_layout 座標優先，其餘自動補位不與之重疊', () => {
   const auto = cells.find((c) => c.id === 'b');
   const overlap = auto.x < 60 && auto.x + 10 > 50 && auto.y < 58 && auto.y + 8 > 50;
   assert.equal(overlap, false);
+});
+
+test('hitFloor：邊界端點命中、重疊取第一個、外部與空陣列回 null',()=>{
+  const rects=[{x:10,y:10,w:20,h:20},{x:25,y:10,w:20,h:20}];
+  assert.equal(hitFloor(rects,10,10),rects[0]);
+  assert.equal(hitFloor(rects,30,30),rects[0],'右下端點也算命中');
+  assert.equal(hitFloor(rects,26,15),rects[0],'重疊區取第一個');
+  assert.equal(hitFloor(rects,50,10),null);
+  assert.equal(hitFloor([],1,1),null);
 });
