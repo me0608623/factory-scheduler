@@ -921,7 +921,7 @@ function blkHTML(b,px,bad,cls=""){
   const matched=!UI.focus||UI.focus.type==='order'&&b.oid===UI.focus.id||UI.focus.type==='employee'&&b.emp===UI.focus.id||UI.focus.type==='machine'&&b.m===UI.focus.id;
   return '<div class="blk'+(short?" short":"")+(bad?" bad":"")+(readOnly?" ro":"")+(cls?" "+cls:"")+(UI.focus?(matched?' ops-focus':' ops-dim'):'')+(recentManualMove===b.id?' just-applied':'')+'" data-bid="'+b.id+'" tabindex="0" role="button" aria-label="'+esc((E?E.name:"")+" "+label(b)+" "+hm(b.s)+"–"+hm(b.e))+'" title="'+esc(hm(b.s)+"–"+hm(b.e))+'" style="top:'+(px(b.s)+1)+'px;height:'+(h-2)+'px;background:'+empColor(b.emp)+'">'+
     '<div class="n">'+esc(E?E.name:"未指定")+'</div><div class="d">'+esc(o.code+" "+stepName(b)+" "+b.qty+"件")+'</div>'+(h>=58?'<div class="d num">'+hm(b.s)+"–"+hm(b.e)+'</div>':"")+
-    '<div class="flag">'+(cls==="chg"?'<span class="chgf">變</span>':cls==="willchg"?'<span class="chgf">會動</span>':"")+(o.pri===0?'<span class="warn" title="特急">急</span>':"")+(executionOf(S,b.id)?'<span class="pin" title="已有現場回報，排程已鎖定">'+(executionOf(S,b.id).status==='done'?'完':'做')+'</span>':b.pin?'<span class="pin" title="手動固定">釘</span>':"")+(bad?'<span class="warn" title="有問題">!</span>':"")+'</div>'+((readOnly||executionOf(S,b.id))?'':'<div class="resize-handle" data-resize="end" title="拖曳調整結束時間" aria-hidden="true"></div>')+'</div>';
+    '<div class="flag">'+(cls==="chg"?'<span class="chgf">變</span>':cls==="willchg"?'<span class="chgf">會動</span>':"")+(o.pri===0?'<span class="warn" title="'+tx('特急')+'">急</span>':"")+(executionOf(S,b.id)?'<span class="pin" title="'+tx('已有現場回報，排程已鎖定')+'">'+(executionOf(S,b.id).status==='done'?'完':'做')+'</span>':b.pin?'<span class="pin" title="'+tx('手動固定')+'">釘</span>':"")+(bad?'<span class="warn" title="'+tx('有問題')+'">!</span>':"")+'</div>'+((readOnly||executionOf(S,b.id))?'':'<div class="resize-handle" data-resize="end" title="'+tx('拖曳調整結束時間')+'" aria-hidden="true"></div>')+'</div>';
 }
 
 /* ----- 週檢視 ----- */
@@ -2066,7 +2066,7 @@ function ganttHTML(o){
     return '<div class="g-row"><div class="g-lab"><b class="num">'+esc(O.code)+'</b><small>'+priTag(O)+'期限 '+md(O.due)+'</small></div>'+
       '<div class="g-track'+(showBefore&&showAfter?"":" single")+'">'+days.map((ds,i)=>dayInfo(ds).open?"":'<span class="g-offbg" style="left:'+(i/N*100)+'%;width:'+(100/N)+'%"></span>').join("")+
       (showBefore?'<div class="g-lane bef">'+bars(bef(id),"bef")+'</div>':"")+(showAfter?'<div class="g-lane aft">'+bars(aft(id),"aft")+'</div>':"")+
-      '<span class="g-due" style="left:'+x(O.due,DAY1)+'%" title="期限"></span></div>'+
+      '<span class="g-due" style="left:'+x(O.due,DAY1)+'%" title="'+tx('期限')+'"></span></div>'+
       '<div class="g-delta '+cls+'"><b>'+delta+'</b>'+(late?'<span class="tag bad">超過期限</span>':'<span class="tag ok">準時</span>')+'</div></div>';}).join("");
   return '<div class="gantt">'+head+rows+'</div><div class="legend" style="margin-top:8px">'+
     (showBefore?'<span><i style="background:var(--line)"></i>原本</span>':"")+
