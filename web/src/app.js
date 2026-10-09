@@ -1765,7 +1765,7 @@ mach(m){
   const faultBox=m.id&&!ro&&!S.setupPending?
    '<div class="field"><span class="lab">'+mdw(d)+' 機台狀況</span>'+
    (faults.length?faults.map(x=>'<div class="rline"><span class="k fail">故障</span><span style="flex:1">'+hm(x.f.s)+'–'+hm(x.f.e)+(x.f.note?"　"+esc(x.f.note):"")+'</span>'+(x.f.fixed?'<span class="tag ok">已修復</span>':absOf(x.f.date,x.f.e)<=nowAbs()?'<span class="tag mute">已結束</span>':'<button class="btn good" data-act="m-fix" data-v="'+x.i+'">'+tx('修好了')+'</button>')+'</div>').join(""):'<div class="okbox">正常運作</div>')+'</div>'+
-   '<div class="field"><span class="lab">報故障：從幾點開始、壞多久</span><div class="row2"><select class="inp num" id="f-fs">'+opts+'</select><input class="inp" id="f-note" placeholder="'+tx('原因（可不填')+'" value="'+esc(m.note)+'"></div>'+
+   '<div class="field"><span class="lab">報故障：從幾點開始、壞多久</span><div class="row2"><select class="inp num" id="f-fs">'+opts+'</select><input class="inp" id="f-note" placeholder="'+tx('原因（可不填）')+'" value="'+esc(m.note)+'"></div>'+
    '<div class="toggles">'+durs.map(([v,t])=>tg("m-fd",v,m.fd===v,t)).join("")+'</div>'+
    '<button class="btn danger" data-act="m-fault" style="height:56px;font-size:19px;justify-content:center">'+tx('確認故障，讓系統自動調整')+'</button></div>':"";
   const body=(D.sourceRef?'<div class="hint">原檔來源：'+esc(D.sourceRef)+'。'+(D.reviewStatus==='pending'?'此欄可能代表機台或工作站，用途與工序待確認。':'')+'</div>':'')+(m.fromInc?faultBox:"")+
@@ -3798,7 +3798,7 @@ const workName=a=>workCatalog(S).find(w=>w.id===a.workId)?.name||'工作內容�
 const referenceOrder=id=>order(id)||S.workReferenceOrders?.find(o=>o.id===id);
 const timeValue=t=>{const [h,m]=t.split(':').map(Number);return h*60+m;};
 const textInput=(id,label,value,type='text',off='')=>'<div class="field"><label for="'+id+'">'+label+'</label><input class="inp" id="'+id+'" type="'+type+'" value="'+esc(value)+'" '+off+'></div>';
-MODALS['work-contents']=()=>({title:tx('工作內容')+tx(' · 與設備分開管理'),body:
+MODALS['work-contents']=()=>({title:tx('工作內容'),body:
   '<div class="hint">三部分：工作內容（做什麼）、設備／工位（需要時才指定）、排班方塊（人員、時間及參考件數）。既有產品工序仍依原公式排程；下面的獨立工作不會自動算進工單完成量。</div>'+
   '<h4>產品工序工作內容</h4><div class="hint">'+[...new Set(S.products.flatMap(p=>p.steps.map(s=>s.proc)))].map(esc).join('、')+'</div><button class="btn" data-act="products">'+tx('查看產品工序')+'</button>'+
   '<h4>可獨立安排的工作內容</h4>'+workCatalog(S).filter(w=>inFactory(w,UI.factory)).map(w=>'<button class="rline" data-act="work-content-edit" data-id="'+esc(w.id)+'"><b>'+esc(w.name)+'</b><span>'+factoryName(w.factory)+' · '+(w.requiresResource?'需要設備／工位':'純人工，不需機台')+' · 核定 '+w.employeeIds.length+' 人</span></button>').join('')+
