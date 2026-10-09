@@ -91,3 +91,23 @@ test('聊天面板尺寸與浮動按鈕分離（不以 100% 繼承根容器寬�
   assert.match(css, /#schedule-chat\.panel-left \.chat-panel\{left:0;right:auto\}/, '缺少左緣錨定規則');
   assert.ok(chatUI.includes('positionPanel'), '缺少 positionPanel 邊緣調整');
 });
+
+test('員工、設備與工單：更多選單走 master 動作（不再誤導核對頁）', () => {
+  assert.ok(app.includes("btn('master',tx('員工、設備與工單'))"), '更多選單應用 master 動作');
+  assert.ok(app.includes("case \"master\":"), '缺少 master 動作');
+  assert.match(app, /case "master":[\s\S]{0,120}UI\.page='catalog'/, 'master 應開 catalog 管理頁');
+  assert.match(app, /case "catalog":[^;]*UI\.page='review'/, 'catalog 保留給初次核對');
+});
+
+test('catalog 管理頁：搜尋 + cardsHTML + 獨立核對入口', () => {
+  assert.ok(app.includes('function catalogPageHTML()'), '缺少 catalogPageHTML');
+  assert.ok(app.includes('id="emp-search"'), '缺少員工搜尋框');
+  assert.ok(app.includes('initCatalogPage'), '缺少搜尋接線');
+  assert.match(app, /UI\.page==='catalog'\?catalogPageHTML\(\)/, 'page chain 缺 catalog');
+  assert.match(app, /catalog:"catalog"/, 'URL 解析缺 catalog');
+});
+
+test('核對流程：員工卡有「編輯資料」入口', () => {
+  const seg = app.slice(app.indexOf('function reviewPageHTML'));
+  assert.ok(seg.includes("data-act=\"emp\" data-id=\"'+esc(E.id)+'\""), 'review 步驟1缺少編輯資料入口');
+});
