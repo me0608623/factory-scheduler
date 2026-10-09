@@ -2184,7 +2184,7 @@ function rerunHTML(){
     '<div class="toggles pv-rchips">'+chip('noLate','這張單不能晚')+chip('keepPeople','少換人')+chip('ot','可加班')+chip('pinMach','這台機別動')+'</div>'+
     (R.noLate?'<div class="field"><label for="pv-r-order">哪張單不能晚</label><select class="inp" id="pv-r-order">'+orders.map(o=>'<option value="'+esc(o.code)+'"'+(R.order===o.code?' selected':'')+'>'+esc(o.code)+' '+esc(prod(o.pid)?.name||'')+' · 期限 '+md(o.due)+'</option>').join('')+'</select></div>':'')+
     (R.pinMach?'<div class="field"><label for="pv-r-machine">哪台機器不要動</label><select class="inp" id="pv-r-machine">'+machines.map(m=>'<option value="'+esc(m.id)+'"'+(R.machine===m.id?' selected':'')+'>'+esc(m.id+' '+m.label)+'</option>').join('')+'</select></div>':'')+
-    '<div class="field"><label for="pv-r-text">一句白話（可選）</label><input class="inp" id="pv-r-text" maxlength="80" value="'+esc(R.text)+'" placeholder="例：星期五前一定要出 AVK-5" autocomplete="off"></div>'+
+    '<div class="field"><label for="pv-r-text">一句白話（可選）</label><input class="inp" id="pv-r-text" maxlength="80" value="'+esc(R.text)+'" placeholder="'+tx('例：星期五前一定要出 AVK-5')+'" autocomplete="off"></div>'+
     '<button class="btn primary pv-rerun-btn" data-act="pv-rerun"'+(R.busy?' disabled':'')+'>'+(R.busy?'OR-Tools 計算中…':'按這些條件再排一輪')+'</button>'+
     '<div class="hint">只會多一輪「照你的條件」的預覽方案；沒按「用這套」之前，正式班表不會變。</div>';
 }
@@ -2219,7 +2219,7 @@ function pvPanelHTML(o){
    (o.applicable===false?'<div class="pv-sum"><b>目前不能套用：</b>'+o.diagnostics.map(esc).join('；')+'</div>':'')+
    '<div class="pv-sum"><b>'+esc(o.name)+'：</b>'+esc(pvSummary(o))+'</div>'+
    '<div class="pv-tabs">'+sub.map(([k,t])=>'<button class="tg" data-act="pv-tab" data-v="'+k+'" aria-pressed="'+(PV.tab===k)+'">'+t+'</button>').join("")+'</div>'+body+
-   (PV.savedScenario?'<div class="hint">保存時的說明：'+esc(o.desc||'—')+'</div>':ai+'<div class="field"><label for="pv-note">備註（會寫進紀錄）</label><input class="inp" id="pv-note" value="'+esc(PV.note)+'" placeholder="例：馬達燒掉，廠商下午來修" autocomplete="off"></div>')+
+   (PV.savedScenario?'<div class="hint">保存時的說明：'+esc(o.desc||'—')+'</div>':ai+'<div class="field"><label for="pv-note">備註（會寫進紀錄）</label><input class="inp" id="pv-note" value="'+esc(PV.note)+'" placeholder="'+tx('例：馬達燒掉，廠商下午來修')+'" autocomplete="off"></div>')+
    (PV.savedScenario?'':rerunHTML())+
    '</div></aside>';
   return strip+drawer;
@@ -3030,7 +3030,7 @@ const FEEDBACK_CATS=[['bug','問題／錯誤'],['feature','希望新增的功能
 MODALS['feedback']=()=>({title:tx('意見反饋'),body:
   '<div class="hint">告訴我們哪裡有問題、或希望有什麼功能。送出後直接進入系統，開發者會盡快處理。</div>'+
   '<div class="field"><label for="fb-cat">'+tx('類型')+'</label><select class="inp" id="fb-cat">'+FEEDBACK_CATS.map(([v,t])=>'<option value="'+v+'">'+t+'</option>').join('')+'</select></div>'+
-  '<div class="field"><label for="fb-msg">內容</label><textarea class="inp" id="fb-msg" rows="4" maxlength="2000" placeholder="例如：手機上排程表很難滑、希望可以…"></textarea></div>'+
+  '<div class="field"><label for="fb-msg">內容</label><textarea class="inp" id="fb-msg" rows="4" maxlength="2000" placeholder="'+tx('例如：手機上排程表很難滑、希望可以…')+'"></textarea></div>'+
   '<a class="btn" href="mailto:me0608623@gmail.com?subject=[排程系統反饋]" style="text-decoration:none">用 Email 寄</a>',
   foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="feedback-send">送出</button>'});
 MODALS['feedback-list']=m=>m.loading?{title:tx('查看反饋'),body:'<div class="hint">'+tx('讀取中…')+'</div>'}:{title:tx('查看反饋')+'（最近 50 筆）',body:
@@ -3155,9 +3155,9 @@ function saveCellEdit(input){
   }
   UI.editCell=null;
   let list,find,validate,permission,title;
-  if(table==="rush"){list=S.rushOrders;validate=()=>validateRush(S.rushOrders);permission="rush.manage";title="更新欠缺品項的一個欄位";}
-  else if(table==="tf"){list=S.transferOrders;validate=()=>validateTransfers(S,{before:S});permission="transfers.manage";title="更新跨廠加工的一個欄位";}
-  else if(table==="wl"){list=S.workLog;validate=()=>validateWorkLog(S.workLog);permission="worklog.manage";title="更新工作紀錄的一個欄位";}
+  if(table==="rush"){list=S.rushOrders;validate=()=>validateRush(S.rushOrders);permission="rush.manage";title="'+tx('更新欠缺品項的一個欄位')+'";}
+  else if(table==="tf"){list=S.transferOrders;validate=()=>validateTransfers(S,{before:S});permission="transfers.manage";title="'+tx('更新跨廠加工的一個欄位')+'";}
+  else if(table==="wl"){list=S.workLog;validate=()=>validateWorkLog(S.workLog);permission="worklog.manage";title="'+tx('更新工作紀錄的一個欄位')+'";}
   else return;
   const row=list.find(r=>r.id===id);if(!row)return;
   const before=getPath(row,key);
@@ -3979,7 +3979,7 @@ function workBlockHTML(a,px){
   const h=px(a.e)-px(a.s),bad=assignmentIssues(S,a,dayInfo(a.date).win).length;
   const warning=materialWarning(S,a),linked=a.transferBatchId&&batchOf(S,a.transferBatchId);
   const matched=!UI.focus||UI.focus.type==='order'&&a.orderId===UI.focus.id||UI.focus.type==='employee'&&a.emp===UI.focus.id||UI.focus.type==='machine'&&a.resourceId===UI.focus.id;
-  return '<div class="workblk '+(bad||warning?'bad ':'')+(UI.focus?(matched?'ops-focus':'ops-dim'):'')+'" data-gid="'+esc(a.id)+'" tabindex="0" role="button" aria-label="'+esc(emp(a.emp)?.name+' '+workName(a)+(warning?' '+tx('待料'):''))+'" title="'+esc(warning||linked&&linked.order.code+'／'+linked.batch.code||'')+'" style="position:absolute;left:4px;right:4px;top:'+px(a.s)+'px;height:'+Math.max(20,h-2)+'px;background:'+empColor(a.emp)+';color:#17212b;border-radius:6px;padding:5px;overflow:hidden"><b>'+esc(emp(a.emp)?.name||'?')+'</b><div>'+esc(workName(a))+(warning?' · 待料':'')+'</div><small>'+hm(a.s)+'–'+hm(a.e)+(linked?' · '+esc(linked.order.code):'')+'</small>'+(!readOnly&&absOf(a.date,a.s)>=nowAbs()?'<div class="resize-handle" data-gresize="1" title="拉長或縮短工作時間"></div>':'')+'</div>';
+  return '<div class="workblk '+(bad||warning?'bad ':'')+(UI.focus?(matched?'ops-focus':'ops-dim'):'')+'" data-gid="'+esc(a.id)+'" tabindex="0" role="button" aria-label="'+esc(emp(a.emp)?.name+' '+workName(a)+(warning?' '+tx('待料'):''))+'" title="'+esc(warning||linked&&linked.order.code+'／'+linked.batch.code||'')+'" style="position:absolute;left:4px;right:4px;top:'+px(a.s)+'px;height:'+Math.max(20,h-2)+'px;background:'+empColor(a.emp)+';color:#17212b;border-radius:6px;padding:5px;overflow:hidden"><b>'+esc(emp(a.emp)?.name||'?')+'</b><div>'+esc(workName(a))+(warning?' · 待料':'')+'</div><small>'+hm(a.s)+'–'+hm(a.e)+(linked?' · '+esc(linked.order.code):'')+'</small>'+(!readOnly&&absOf(a.date,a.s)>=nowAbs()?'<div class="resize-handle" data-gresize="1" title="'+tx('拉長或縮短工作時間')+'"></div>':'')+'</div>';
 }
 function workGridHTML(title,lanes){
   const d=UI.date,di=dayInfo(d),px=m=>(m-480)/60*hourPx();

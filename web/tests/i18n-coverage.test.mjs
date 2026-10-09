@@ -106,14 +106,14 @@ test('終極棘輪：src 全部 tx() 字面值鍵必須存在於字典（防鍵�
   assert.deepEqual(missing, [], 'tx() 呼叫的鍵缺字典（會默默 fallback 中文）：\n' + missing.join('\n'));
 });
 
-test('aria 棘輪：不得有純中文靜態 aria-label（未包 tx() 者）', () => {
+test('屬性棘輪：不得有純中文靜態 aria-label／title／placeholder（未包 tx() 者）', () => {
   const files = fs.readdirSync(src).filter(f => f.endsWith('.js'));
   const bad = [];
   for (const f of files) {
     const text = fs.readFileSync(path.join(src, f), 'utf8');
-    for (const m of text.matchAll(/aria-label="([^"]*)"/g)) {
-      const v = m[1];
-      if (/[\u4e00-\u9fff]/.test(v) && !v.includes('tx(')) bad.push(f + ': ' + JSON.stringify(v));
+    for (const m of text.matchAll(/(aria-label|title|placeholder)="([^"]*)"/g)) {
+      const v = m[2];
+      if (/[\u4e00-\u9fff]/.test(v) && !v.includes('tx(')) bad.push(f + ': ' + JSON.stringify(m[0]));
     }
   }
   assert.deepEqual(bad, [], '純中文 aria-label（讀屏三語使用者仍聽中文）：\n' + bad.join('\n'));
