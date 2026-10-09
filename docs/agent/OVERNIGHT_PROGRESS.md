@@ -201,3 +201,10 @@
 - 測試：win.test.mjs 5 條 clampRect；全套 262/262；build ✓；瀏覽器全場景驗證（拖曳/縮放/最大化/還原/關閉重開/重載恢復/resize 夾回/手機往返）；生產站實測最大化 1600×900 ✓
 - commit 782eabb（分支 feat/floating-windows → main 3229de0）
 - **下一輪待辦**：評估「更多功能」二級選單、甘特圖/平面圖是否值得改用同套浮動視窗機制
+
+## 輪次 66（2026-10-09）— 抽屜改主內容區分割/放大（使用者指示）
+- 依使用者要求改採「工作紀錄頁同款」主內容區切換，取代上一輪浮動視窗（助理保留浮動拖曳）
+- 一般模式：main-col（排程）+ pane-splitter（可拖分隔線，Pointer Events＋鍵盤）+ ops-drawer.pane 左右分割；--pane-w CSS 變數即時調整、fsched-pane-w 保存
+- 放大模式：drawer-zoom → 抽屜取代排程表滿寬高（wrap.zoomed）；還原回分割並保留寬度
+- 手機 ≤800px 維持底部 sheet；265/265 測試＋build；瀏覽器與生產站全驗證（分割 786+470、放大 1293、重載恢復 670）
+- commit 68cc333（feat/split-pane → main f6f24bd）
