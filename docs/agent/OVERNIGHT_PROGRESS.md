@@ -162,3 +162,10 @@
 - **同類風險稽查**：全 codebase 掃描 vg-glass 套用點共 3 處——ops-drawer（已修）、視覺展示頁與登入頁的 login-card（皆帶 inline `position:relative`，inline 優先於注入樣式，安全）；`.vg-fallback` 由程式碼明設容器 relative，無風險。結論：無其他受害點
 - **通用不變量守門**（→ `346bc77`）：layout-regression 第 7 條——自動掃 src 全部 `class="…vg-glass…"` 元素，凡基底 class 在 styles.css 依賴 fixed/absolute/sticky、無 inline position、又無 `.X.vg-glass` 特異度防護即報錯。未來任何人把 vg-glass 套到新的定位元素上，測試直接攔下
 - 前端測試：**250 → 257** PASS（含使用者 6 條 layout 防回歸＋本輪 1 條守門）
+
+## 輪次 51（2026-10-09）— 主工作區版面修復
+- **根因**：visual.js `ensureVisualStyles()` 注入 `.vg-glass{position:relative}`（同特異度、較晚載入）蓋掉 `.ops-drawer{position:fixed;right:0}`，全部側欄抽屜（人/產量/工單/備忘/更多）掉進文件流擠在左側 470px，右側大片空白
+- **修復**（`42da52c`，分支 fix/main-workspace）：styles.css 加 `.ops-drawer.vg-glass{position:fixed}` 特異度防護（刻意不重宣告位移，避免壓掉手機 bottom-sheet）；第一版曾含 top/bottom 導致手機抽屜跑頂部，已修
+- **新功能**：可收合側欄（78px↔244px、`fsched-nav-collapsed` 保存、收合後主內容 1507px@1600）
+- **驗證**：桌面 1600 / 平板 820 / 手機 390 全導覽項目定位正確、0 console 錯誤；256/256 測試、build 通過；生產站（部署後）實測 fixed x=1115 ✓
+- 新增 web/tests/layout-regression.test.mjs（7 條防回歸，含「防護規則不可含位移」的設計約束）
