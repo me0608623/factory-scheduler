@@ -63,7 +63,7 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 91（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
+- **總輪次**: 92（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
@@ -444,3 +444,8 @@
   - `transfer-ui.js` 的「mock today()＋真實時鐘比較」組合＝上輪已修的唯一案例 ✓
   - 其餘（app.js fault 固定時間戳、列印時間、tfArchiveMonth 等）皆在無單元測試的 DOM action 路徑，不構成測試炸彈
 - **結論：無其他時段依賴測試**；測試數量不變 274/274（本輪純稽查）
+
+
+## 輪次 92（2026-10-10）— OVERNIGHT_REPORT 歷史標註
+
+- 發現 docs/agent/OVERNIGHT_REPORT.md 是 36 輪時代的凍結結案報告（main 1657282／264 commits／215 測試皆過時）——加歷史存檔標註並指向 OVERNIGHT_PROGRESS 現況（同 TEST_STATUS.md 處理模式）
