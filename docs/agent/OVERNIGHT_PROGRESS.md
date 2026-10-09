@@ -63,7 +63,7 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 97（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
+- **總輪次**: 98（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
 - **正式站**: web 200 ✓ solver 200 ✓ staging 200 ✓
 
 ## 測試
@@ -480,3 +480,9 @@
 
 - 補最後一塊版型驗證缺口：390×844 視窗下開「人」抽屜——`position:fixed`、全寬 375/390、**0 JS 錯誤**——手機走 bottom-sheet 定位路徑（非桌面分割窗格/浮動視窗），今晚的分割窗格與 vg-glass 變更未波及手機版型 ✓
 - 測後清理（分頁、vite 殘留程序）完成
+
+
+## 輪次 98（2026-10-10 凌晨）— localStorage 損毀的執行期韌性實測
+
+- 把 fsched-local-v1（壞 JSON）與 fsched-scenarios-v1（非 JSON）實際寫壞後重載：App 完整開機（DOM 17.6KB）、「示範資料」徽章出現、**0 JS 錯誤**——優雅降級到示範資料而非白畫面，輪次 51 的單元測試（listScenarios/load 損毀退回空值）在真實瀏覽器兌現
+- 測後還原 localStorage、關分頁、清 vite 殘留
