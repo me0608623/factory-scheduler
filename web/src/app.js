@@ -116,8 +116,8 @@ function dayInfo(ds){
   if(open){win=[{s:DAY0,e:LUNCH_S,ot:special},{s:LUNCH_E,e:REG_END,ot:special}];if(ot)win.push({s:REG_END,e:otEnd,ot:true});}
   return {type,hol,ot,win,w,open,special};
 }
-function dayLabel(ds){const i=dayInfo(ds);return (i.type==="hol"?i.hol:i.type==="sat"?"週六":i.type==="sun"?"週日":"平日")+(i.open?" · 上班":" · 停工");}
-function payNote(i){return i.type==="hol"?"國定假日出勤，工資加倍":i.type==="sat"?"休息日出勤，依加班計薪":i.type==="sun"?"例假日出勤，請確認是否合法":"";}
+function dayLabel(ds){const i=dayInfo(ds);return (i.type==="hol"?tx(i.hol):i.type==="sat"?tx('週六'):i.type==="sun"?tx('週日'):tx('平日'))+(i.open?tx(' · 上班'):tx(' · 停工'));}
+function payNote(i){return i.type==="hol"?tx('國定假日出勤，工資加倍'):i.type==="sat"?tx('休息日出勤，依加班計薪'):i.type==="sun"?tx('例假日出勤，請確認是否合法'):"";}
 function workdaysFrom(ds,n){const out=[];let d=ds;for(let i=0;out.length<n&&i<400;i++){if(isOpen(d)&&dayInfo(d).type==="work")out.push(d);d=addDays(d,1);}return out;}
 
 /* ===== 3. 示範資料（第一次開啟時產生） ===== */
@@ -775,11 +775,11 @@ function bannerHTML(){
   const pending=S.setupPending?'<div class="banner pending"><span class="grow"><b>'+tx('資料待確認，暫不排班。')+'</b> <button class="btn primary" data-act="catalog" style="min-height:36px;font-size:14px;margin-left:10px">'+tx('核對資料')+'</button></span></div>':"";
   if(UI.view!=="day")return pending;
   const d=UI.date,di=dayInfo(d),out=[pending];
-  const name=di.type==="hol"?"國定假日："+di.hol:di.type==="sat"?"週六休息日":di.type==="sun"?"週日例假日":"";
+  const name=di.type==="hol"?tx('國定假日：')+tx(di.hol):di.type==="sat"?tx('週六休息日'):di.type==="sun"?tx('週日例假日'):"";
   const openBtn=!canCalendar()?"":'<button class="btn admin '+(di.open?"ghost":"primary")+'" data-act="open">'+(di.open?tx('改為停工'):tx('改為上班'))+'</button>';
-  if(!di.open)out.push('<div class="banner wk"><span class="grow">'+(name?esc(name)+"　":"")+'本日停工，不排工作</span>'+openBtn+'</div>');
-  else if(di.special)out.push('<div class="banner hol"><span class="grow">'+esc(name)+'　有上班 · '+payNote(di)+'</span>'+openBtn+'</div>');
-  if(di.ot)out.push('<div class="banner ot"><span class="grow">今天加班到 '+hm(dayInfo(d).win[2]?dayInfo(d).win[2].e:DAY1)+' · '+shownEmployees().filter(e=>overtimeAllowed(e,d)&&!e.leaves.includes(d)).length+' 人可加班</span>'+(!canCalendar()?"":'<button class="btn ghost admin" data-act="ot">'+tx('調整加班人員')+'</button>')+'</div>');
+  if(!di.open)out.push('<div class="banner wk"><span class="grow">'+(name?esc(name)+"　":"")+tx('本日停工，不排工作')+'</span>'+openBtn+'</div>');
+  else if(di.special)out.push('<div class="banner hol"><span class="grow">'+esc(name)+'　'+tx('有上班')+' · '+payNote(di)+'</span>'+openBtn+'</div>');
+  if(di.ot)out.push('<div class="banner ot"><span class="grow">'+tx('今天加班到')+' '+hm(dayInfo(d).win[2]?dayInfo(d).win[2].e:DAY1)+' · '+shownEmployees().filter(e=>overtimeAllowed(e,d)&&!e.leaves.includes(d)).length+tx(' 人可加班')+'</span>'+(!canCalendar()?"":'<button class="btn ghost admin" data-act="ot">'+tx('調整加班人員')+'</button>')+'</div>');
   return out.join("");
 }
 function staffGroupFilterHTML(){
