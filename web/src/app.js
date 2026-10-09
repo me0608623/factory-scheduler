@@ -757,7 +757,7 @@ function topHTML(){
 function appNavHTML(){
   const item=(page,label)=>'<button class="app-nav-item nav-'+page+'" data-act="drawer" data-v="'+page+'" aria-pressed="'+(UI.drawer===page)+'" title="'+esc(label)+'"><b>'+NAV_IC[page]+'</b><span>'+label+'</span></button>';
   const account=STORE&&STORE.kind==='supabase'?(STORE.userName||STORE.session?.user?.email||tx('帳號')):tx('本機模式');
-  const role=ROLE_NAME[STORE?.role]||tx('本機管理者');
+  const role=roleName(STORE?.role);
   const sync=SYNC.state==='busy'?tx('同步中'):SYNC.state==='error'?tx('同步失敗'):STORE?.kind==='supabase'?tx('雲端已同步'):tx('存在這台電腦');
   return '<nav class="app-nav" aria-label="'+tx('主要功能')+'">'+
     
@@ -776,7 +776,7 @@ function bannerHTML(){
   if(UI.view!=="day")return pending;
   const d=UI.date,di=dayInfo(d),out=[pending];
   const name=di.type==="hol"?"國定假日："+di.hol:di.type==="sat"?"週六休息日":di.type==="sun"?"週日例假日":"";
-  const openBtn=!canCalendar()?"":'<button class="btn admin '+(di.open?"ghost":"primary")+'" data-act="open">'+(di.open?"改為停工":"改為上班")+'</button>';
+  const openBtn=!canCalendar()?"":'<button class="btn admin '+(di.open?"ghost":"primary")+'" data-act="open">'+(di.open?tx('改為停工'):tx('改為上班'))+'</button>';
   if(!di.open)out.push('<div class="banner wk"><span class="grow">'+(name?esc(name)+"　":"")+'本日停工，不排工作</span>'+openBtn+'</div>');
   else if(di.special)out.push('<div class="banner hol"><span class="grow">'+esc(name)+'　有上班 · '+payNote(di)+'</span>'+openBtn+'</div>');
   if(di.ot)out.push('<div class="banner ot"><span class="grow">今天加班到 '+hm(dayInfo(d).win[2]?dayInfo(d).win[2].e:DAY1)+' · '+shownEmployees().filter(e=>overtimeAllowed(e,d)&&!e.leaves.includes(d)).length+' 人可加班</span>'+(!canCalendar()?"":'<button class="btn ghost admin" data-act="ot">'+tx('調整加班人員')+'</button>')+'</div>');
@@ -882,7 +882,7 @@ function settingToggle(key,label,desc){
 function settingsDrawerHTML(){
   // 非 zh-TW 語言一律顯示英文（vi/th 勞工看英文比看中文好）；後續可逐項改 tx()
   const en=UI.prefs.language!=='zh-TW',permission=typeof Notification==='undefined'?'unsupported':Notification.permission;
-  const name=STORE?.userName||'',email=STORE?.session?.user?.email||'',role=ROLE_NAME[STORE?.role]||'本機管理者';
+  const name=STORE?.userName||'',email=STORE?.session?.user?.email||'',role=roleName(STORE?.role);
   if(en)return '<div class="settings-intro"><b>Device settings</b><span>Changes preview immediately and are stored only on this device.</span></div>'+settingsSectionsHTML({en,name,email,role,permission});
   return '<div class="settings-intro"><b>'+tx('這台裝置的顯示方式')+'</b><span>'+tx('調整後立即預覽；不會改動其他電腦或手機的班表顯示。')+'</span></div>'+settingsSectionsHTML({en,name,email,role,permission});
 }
@@ -2853,6 +2853,7 @@ function canGroups(){return canPermission('groups.manage');}
 function canWorkContents(){return canPermission('work_contents.manage');}
 function canScenarios(){return canPermission('scenarios.manage');}
 const ROLE_NAME={boss:"老闆",lead:"組長",worker:"員工",viewer:"電視／檢視"};
+const roleName=k=>tx(ROLE_NAME[k]||'本機管理者');
 
 function toast(msg,actLabel,fn){
   let el=$("#toast");
@@ -2941,8 +2942,8 @@ function maybeReload(){if(pendingReload&&!PV&&!UI.modal&&!drag&&!generalDrag){pe
 // ---------- 帳號與連線 ----------
 MODALS.account=()=>({title:tx('帳號與連線'),
   body:'<dl class="kv"><dt>'+tx('資料')+'</dt><dd>'+(STORE.kind==="local"?"本機（這台電腦的瀏覽器）":"雲端資料庫（Supabase）")+'</dd>'+
-    (STORE.kind==="supabase"?'<dt>'+tx('帳號')+'</dt><dd>'+esc(STORE.userName)+'</dd><dt>'+tx('角色')+'</dt><dd>'+esc(ROLE_NAME[STORE.role]||"未設定")+'</dd>':"")+
-    '<dt>'+tx('排程計算')+'</dt><dd>'+(SOLVER.up?"OR-Tools "+esc(SOLVER.version):"瀏覽器內的演算法（排程服務未連線）")+'</dd></dl>'+
+    (STORE.kind==="supabase"?'<dt>'+tx('帳號')+'</dt><dd>'+esc(STORE.userName)+'</dd><dt>'+tx('角色')+'</dt><dd>'+esc(ROLE_NAME[STORE.role]?roleName(STORE.role):tx('未設定'))+'</dd>':"")+
+    '<dt>'+tx('排程計算')+'</dt><dd>'+(SOLVER.up?"OR-Tools "+esc(SOLVER.version):tx('瀏覽器內的演算法（排程服務未連線）'))+'</dd></dl>'+
     (STORE.kind==="local"?'<div class="hint">'+tx('要多人使用、手機和電視即時同步，請設定雲端資料庫（見 README）。')+'</div>':""),
   foot:(STORE.kind==="supabase"?'<button class="btn" data-act="password-open">'+tx('設定登入密碼')+'</button>'+(STORE.role==='boss'?'<button class="btn" data-act="access-accounts">'+tx('管理帳號權限')+'</button>':'')+'<button class="btn" data-act="logout">'+tx('登出')+'</button>':'<button class="btn danger" data-act="reset-local">'+tx('清除這台電腦的資料')+'</button>')+
     '<div class="spacer"></div><button class="btn" data-act="solver-check">'+tx('重新連線排程服務')+'</button><button class="btn primary" data-act="close">'+tx('關閉')+'</button>'});
