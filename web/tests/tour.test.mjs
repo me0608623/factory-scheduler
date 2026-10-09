@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { computePlacement, TOUR_STEPS, TOUR_DONE_KEY, tourDone } from '../src/tour.js';
+import { computePlacement, TOUR_STEPS, TOUR_DONE_KEY, tourDone, FEATURE_TOURS, FEATURE_TOUR_TOPICS } from '../src/tour.js';
 
 test('computePlacement：目標在上方 → 卡片在下方、箭頭朝上', () => {
   const r = computePlacement(
@@ -41,4 +41,17 @@ test('tourDone：無 localStorage 環境回 true（安全降級）', () => {
   // 在 Node 環境沒有 localStorage，tourDone() 應安全回 true 不炸
   assert.equal(typeof tourDone(), 'boolean');
   assert.equal(TOUR_DONE_KEY, 'fsched-tour-done');
+});
+
+test('FEATURE_TOURS：每主題至少 2 步、每步 sel+title+text 齊全，且 topic 清單與鍵一致', () => {
+  for (const t of FEATURE_TOUR_TOPICS) {
+    const steps = FEATURE_TOURS[t.key];
+    assert.ok(Array.isArray(steps) && steps.length >= 2, `主題 ${t.key} 至少 2 步`);
+    assert.ok(t.title && t.icon, `主題 ${t.key} 缺 title/icon`);
+    for (const st of steps) {
+      assert.ok(st.sel && st.title && st.text, `主題 ${t.key} 步驟缺欄位`);
+    }
+  }
+  const extra = Object.keys(FEATURE_TOURS).filter(k => !FEATURE_TOUR_TOPICS.some(t => t.key === k));
+  assert.deepEqual(extra, [], 'FEATURE_TOURS 有主題未列在 TOPICS 清單：' + extra.join(','));
 });
