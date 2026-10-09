@@ -11,6 +11,7 @@ import { employeeGroups, groupedEmployees, memberStatus } from "./groups.js";
 import { resourceLoad } from "./resource-load.js";
 import { workQueue } from './work-queue.js';
 import { makeScenario, scenarioStale, validateScenario, scenarioKey } from './scenarios.js';
+import { floatWindow, reflowAllWindows } from './win.js';
 import { executionOf, canReport, assertExecutionProtected } from './execution.js';
 import { workCatalog,assignments,occupiedWork,assignmentIssues,validateGeneralWork } from './general-work.js';
 import { legacyFieldMap } from './legacy-field-map.js';
@@ -657,9 +658,19 @@ function render(){ I18N.lang=UI.prefs.language; ensureVisualStyles();
   window.scrollTo(0,sy);
   if(UI.page==='floor')initFloor();
   if(UI.page==='visual-demo')initVisualDemo();
+  initFloatWins();
   if(UI.modal)renderModal();
   if(UI.editCell){const el=$(".cellinp");if(el){el.focus();if(el.select)el.select();}}
   scheduleChat?.refresh();
+}
+let _winResizeBound=false;
+function initFloatWins(){
+  const d=$(".ops-drawer");
+  if(d&&UI.drawer){
+    const w=Math.min(470,innerWidth-260);
+    floatWindow(d,{key:"fsched-float-drawer",defaults:{x:innerWidth-w,y:0,w,h:innerHeight},handle:'.ops-drawer-h',maxBtn:d.querySelector('[data-act="win-max"]')});
+  }
+  if(!_winResizeBound){_winResizeBound=true;addEventListener("resize",()=>reflowAllWindows());try{visualViewport?.addEventListener("resize",()=>reflowAllWindows());}catch{}}
 }
 function topHTML(){
   const d=UI.date,di=dayInfo(d);
@@ -749,7 +760,7 @@ function drawerHTML(){
   if(!UI.drawer)return '';
   const body=UI.drawer==='orders'?ordersDrawerHTML():UI.drawer==='people'?peopleDrawerHTML():UI.drawer==='output'?outputDrawerHTML():UI.drawer==='notes'?notesDrawerHTML():UI.drawer==='settings'?settingsDrawerHTML():moreDrawerHTML();
   const title=drawerTitle(UI.drawer);
-  return '<aside class="ops-drawer vg-glass" aria-label="'+esc(title)+'" tabindex="-1"><div class="ops-drawer-h"><h2>'+esc(title)+'</h2><button class="iconbtn" data-act="drawer-close" aria-label="關閉">×</button></div><div class="ops-drawer-b">'+body+'</div></aside>';
+  return '<aside class="ops-drawer vg-glass" aria-label="'+esc(title)+'" tabindex="-1"><div class="ops-drawer-h"><h2>'+esc(title)+'</h2><button class="win-titlebtn" data-act="win-max" aria-label="最大化視窗" title="'+tx('最大化／還原')+'">□</button><button class="iconbtn" data-act="drawer-close" aria-label="關閉">×</button></div><div class="ops-drawer-b">'+body+'</div></aside>';
 }
 
 function ordersDrawerHTML(){

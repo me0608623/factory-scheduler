@@ -316,6 +316,9 @@ export const UI_TEXT = {
   "每台電腦的畫面大小、顏色各自記住，不影響別人。": { en: "Scale and colors are remembered per computer and don't affect others.", vi: "Kích thước và màu màn hình được nhớ riêng cho từng máy, không ảnh hưởng người khác.", th: "ขนาดและสีของหน้าจอจะจำแยกตามเครื่อง ไม่กระทบผู้อื่น" },
   "收合導覽": { en: "Collapse menu", vi: "Thu gọn menu", th: "ย่อเมนู" },
   "展開導覽": { en: "Expand menu", vi: "Mở rộng menu", th: "ขยายเมนู" },
+  "最大化／還原": { en: "Maximize / restore", vi: "Phóng to / khôi phục", th: "ขยายใหญ่ / คืนค่า" },
+  "最大化視窗": { en: "Maximize window", vi: "Phóng to cửa sổ", th: "ขยายหน้าต่าง" },
+  "還原視窗": { en: "Restore window", vi: "Khôi phục cửa sổ", th: "คืนขนาดหน้าต่าง" },
 };
 
 export function tx(k, params) {
