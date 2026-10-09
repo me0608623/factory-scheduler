@@ -1994,7 +1994,7 @@ export(){
 },
 "legacy-preview"(m){
   const legacy=m.legacy,day=legacy.days[m.date]||{"1廠":[],"2廠":[],overtime:{}};
-  const datePicker='<div class="field"><span class="lab">原表日期</span><select id="legacy-date" aria-label="'+tx('原表日期')+'">'+legacy.dates.map(d=>'<option value="'+esc(d)+'"'+(d===m.date?' selected':'')+'>'+esc(d)+'</option>').join('')+'</select></div>';
+  const datePicker='<div class="field"><span class="lab">'+tx('原表日期')+'</span><select id="legacy-date" aria-label="'+tx('原表日期')+'">'+legacy.dates.map(d=>'<option value="'+esc(d)+'"'+(d===m.date?' selected':'')+'>'+esc(d)+'</option>').join('')+'</select></div>';
   return {title:tx('舊版排程 · 唯讀預覽'),body:
     '<div class="hint">檔案：'+esc(m.filename)+'。這是舊表的原始格位與文字，不會變成目前的時間方塊。</div>'+datePicker+
     legacyFactoryHTML(day,'1廠')+legacyFactoryHTML(day,'2廠')+
@@ -2007,7 +2007,7 @@ export(){
   if(m.error)return {title:tx('歷史排程'),body:'<div class="issues"><div class="issue">'+esc(m.error)+'</div></div>'};
   if(!m.archive)return {title:tx('歷史排程'),body:'<div class="hint">'+tx('尚未存入舊版排程。請到 Excel 選擇含「1廠」「2廠」的檔案。')+'</div>',foot:'<button class="btn" data-act="export">'+tx('選擇 Excel')+'</button>'};
   const legacy=m.legacy,day=legacy?.days[m.date],names=m.archives;
-  const source=names.length>1?'<div class="field"><span class="lab">來源檔案</span><select id="history-source" aria-label="'+tx('來源檔案')+'">'+names.map(x=>'<option value="'+esc(x.id)+'"'+(x.id===m.archive.id?' selected':'')+'>'+esc(x.source_name)+'</option>').join('')+'</select></div>':'';
+  const source=names.length>1?'<div class="field"><span class="lab">'+tx('來源檔案')+'</span><select id="history-source" aria-label="'+tx('來源檔案')+'">'+names.map(x=>'<option value="'+esc(x.id)+'"'+(x.id===m.archive.id?' selected':'')+'>'+esc(x.source_name)+'</option>').join('')+'</select></div>':'';
   const dates='<div class="field"><span class="lab">'+tx('日期')+'</span><select id="history-date" aria-label="'+tx('歷史日期')+'">'+(legacy?.dates||[]).map(d=>'<option value="'+esc(d)+'"'+(d===m.date?' selected':'')+'>'+esc(d)+'</option>').join('')+'</select></div>';
   const factories='<div class="seg" role="group" aria-label="'+tx('廠別')+'">'+['全部','1廠','2廠'].map(x=>'<button data-act="history-factory" data-v="'+x+'" aria-pressed="'+(m.factory===x)+'">'+x+'</button>').join('')+'</div>';
   const sections='<div class="seg" role="group" aria-label="'+tx('歷史資料類型')+'">'+[['day','每日安排'],['catalog','製作項目與人員']].map(([v,t])=>'<button data-act="history-section" data-v="'+v+'" aria-pressed="'+(m.section===v)+'">'+t+'</button>').join('')+'</div>';
@@ -2186,14 +2186,14 @@ function rerunHTML(){
     (R.pinMach?'<div class="field"><label for="pv-r-machine">'+tx('哪台機器不要動')+'</label><select class="inp" id="pv-r-machine">'+machines.map(m=>'<option value="'+esc(m.id)+'"'+(R.machine===m.id?' selected':'')+'>'+esc(m.id+' '+m.label)+'</option>').join('')+'</select></div>':'')+
     '<div class="field"><label for="pv-r-text">'+tx('一句白話（可選）')+'</label><input class="inp" id="pv-r-text" maxlength="80" value="'+esc(R.text)+'" placeholder="'+tx('例：星期五前一定要出 AVK-5')+'" autocomplete="off"></div>'+
     '<button class="btn primary pv-rerun-btn" data-act="pv-rerun"'+(R.busy?' disabled':'')+'>'+(R.busy?'OR-Tools 計算中…':'按這些條件再排一輪')+'</button>'+
-    '<div class="hint">只會多一輪「照你的條件」的預覽方案；沒按「用這套」之前，正式班表不會變。</div>';
+    '<div class="hint">'+tx('只會多一輪「照你的條件」的預覽方案；沒按「用這套」之前，正式班表不會變。')+'</div>';
 }
 function pvPanelHTML(o){
   const d=diffOf(o),dates=Object.keys(d.dates).sort();
   const cards=PV.opts.map(x=>{const ai=PV.ai&&PV.ai.pick===x.id,m=planCardMetrics(x);
     return '<button class="pv-opt'+(x.id===o.id?' sel':'')+'" data-act="pv-pick" data-v="'+x.id+'" aria-pressed="'+(x.id===o.id)+'"><b>'+esc(x.name)+'</b>'+
     '<small>會晚 '+m.late+' 張'+(m.maxLate?' · 最晚延遲 '+m.maxLate+' 天':'')+' · 換 '+m.people+' 人 · '+(m.ot?'要加班':'不加班')+'</small>'+
-    '<span>'+(x.hint?'<span class="tag">照你的條件</span>':'')+(x.applicable===false?'<span class="tag bad">不可套用</span>':"")+(x.best?'<span class="tag ok">系統推薦</span>':"")+(ai?'<span class="tag ai">AI 推薦</span>':"")+'</span></button>';}).join("");
+    '<span>'+(x.hint?'<span class="tag">'+tx('照你的條件')+'</span>':'')+(x.applicable===false?'<span class="tag bad">'+tx('不可套用')+'</span>':"")+(x.best?'<span class="tag ok">'+tx('系統推薦')+'</span>':"")+(ai?'<span class="tag ai">'+tx('AI 推薦')+'</span>':"")+'</span></button>';}).join("");
   const sub=[["gantt","跨日影響圖"],["people","每個人的變動"],["lines","系統怎麼調"]];
   const body=PV.tab==="people"?peopleHTML(o):PV.tab==="lines"?'<div class="hint">'+esc(o.desc)+'</div>'+resultHTML(o.lines):ganttHTML(o);
   let ai="";
@@ -2203,14 +2203,14 @@ function pvPanelHTML(o){
     else if(PV.ai.err)ai='<div class="aibox">'+esc(PV.ai.err)+'</div>'+(PV.ai.retry?'<button class="btn ai-btn" data-act="pv-ai">'+tx('再問一次')+'</button>':"");
     else ai='<div class="aibox"><b>AI 建議：'+esc((PV.opts.find(x=>x.id===PV.ai.pick)||{name:PV.ai.pick}).name)+'</b><div>'+esc(PV.ai.reason)+'</div>'+(PV.ai.watch?'<div class="hint">注意：'+esc(PV.ai.watch)+'</div>':"")+
       (PV.ai.pick!==o.id?'<button class="btn" data-act="pv-pick" data-v="'+esc(PV.ai.pick)+'">'+tx('看那套方案')+'</button>':"")+'</div>';
-  }else ai='<div class="hint">AI 助理下一階段由伺服器提供。</div>';
+  }else ai='<div class="hint">'+tx('AI 助理下一階段由伺服器提供。')+'</div>';
   const strip='<section class="pv" aria-label="'+tx('預覽')+'">'+
    '<div class="pv-h"><span class="pv-badge">'+(PV.savedScenario?'保存情境':'預覽中')+'</span><div class="pv-t"><b>'+esc(PV.title)+'</b><small>'+(PV.savedScenario?'只讀比較；正式班表與現場進度不會變更。':'還沒套用，排程不會變。左邊甘特表＝選中的那套；差異色塊＝綠新增／黃搬動／虛線會移走。　計算：'+planEngineLabel(o.solverMethod,PV.engine))+'</small></div><div class="spacer"></div>'+
    (canScenarios()&&!PV.savedScenario?'<button class="btn" data-act="scenario-save">'+tx('保存試排情境')+'</button>':'')+
    '<button class="btn" data-act="pv-cancel">'+(PV.savedScenario?'結束查看':'取消')+'</button><button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+tx('用這套')+'</button></div>'+
-   '<div class="pv-row"><div class="seg" role="group" aria-label="'+tx('預覽圖與下方排程表顯示')+'"><button data-act="pv-mode" data-v="cmp" aria-pressed="'+(PV.mode==="cmp")+'">對照</button><button data-act="pv-mode" data-v="new" aria-pressed="'+(PV.mode==="new")+'">調整後</button><button data-act="pv-mode" data-v="orig" aria-pressed="'+(PV.mode==="orig")+'">'+tx('原本')+'</button></div>'+
+   '<div class="pv-row"><div class="seg" role="group" aria-label="'+tx('預覽圖與下方排程表顯示')+'"><button data-act="pv-mode" data-v="cmp" aria-pressed="'+(PV.mode==="cmp")+'">'+tx('對照')+'</button><button data-act="pv-mode" data-v="new" aria-pressed="'+(PV.mode==="new")+'">'+tx('調整後')+'</button><button data-act="pv-mode" data-v="orig" aria-pressed="'+(PV.mode==="orig")+'">'+tx('原本')+'</button></div>'+
    '<span class="hint">'+(PV.mode==="cmp"?"灰虛線＝原本位置，彩色＝調整後（綠新增、黃搬動）":PV.mode==="new"?"只看調整後：綠框＝新增的工作，黃框＝搬動的工作":"只看原本；紅虛線＝會被移走的工作")+'</span><div class="spacer"></div>'+
-   '<div class="pv-dates"><span class="hint">影響的日期</span>'+(dates.map(ds=>'<button class="pv-date" data-act="pv-date" data-v="'+ds+'" aria-pressed="'+(ds===UI.date)+'"><b class="num">'+md(ds)+'</b><small>'+WD[parseD(ds).getUTCDay()]+' · '+d.dates[ds]+' 處</small></button>').join("")||'<span class="hint">無</span>')+'</div></div>'+
+   '<div class="pv-dates"><span class="hint">'+tx('影響的日期')+'</span>'+(dates.map(ds=>'<button class="pv-date" data-act="pv-date" data-v="'+ds+'" aria-pressed="'+(ds===UI.date)+'"><b class="num">'+md(ds)+'</b><small>'+WD[parseD(ds).getUTCDay()]+' · '+d.dates[ds]+' 處</small></button>').join("")||'<span class="hint">'+tx('無')+'</span>')+'</div></div>'+
    '</section>';
   const drawer='<aside class="pv-drawer'+(PV.sheetCollapsed?' collapsed':'')+'" aria-label="'+tx('方案比較')+'">'+
    '<div class="pv-drawer-h"><h3>'+tx("方案比較　{n} 套",{n:PV.opts.length})+'</h3><button class="iconbtn" data-act="pv-sheet" aria-label="'+(PV.sheetCollapsed?tx('展開'):tx('收合'))+'">'+(PV.sheetCollapsed?'▴':'▾')+'</button></div>'+
@@ -2394,22 +2394,22 @@ function latestHTML(){
   let seen="";try{seen=localStorage.getItem("fsched-seen")||"";}catch(e){}
   if(seen===l.id)return "";
   const dt=new Date(l.t);
-  return '<section class="latest"><span class="pv-badge">最新變更</span><div class="latest-t"><b>'+esc(l.title)+'</b><div>'+esc(l.sum)+'</div>'+
+  return '<section class="latest"><span class="pv-badge">'+tx('最新變更')+'</span><div class="latest-t"><b>'+esc(l.title)+'</b><div>'+esc(l.sum)+'</div>'+
     (l.people&&l.people.length?'<div class="chips" style="margin-top:6px">'+l.people.map(p=>'<span class="tag warn" style="font-size:14px;padding:3px 10px">'+esc(p.name)+' 班表有變</span>').join("")+'</div>':"")+
     '<small class="hint num">'+(dt.getMonth()+1)+"/"+dt.getDate()+" "+pad(dt.getHours())+":"+pad(dt.getMinutes())+'</small></div>'+
-    '<div class="latest-b"><button class="btn" data-act="logone" data-id="'+l.id+'">看細節</button><button class="btn ghost" data-act="seen" data-id="'+l.id+'">'+tx('知道了')+'</button></div></section>';
+    '<div class="latest-b"><button class="btn" data-act="logone" data-id="'+l.id+'">'+tx('看細節')+'</button><button class="btn ghost" data-act="seen" data-id="'+l.id+'">'+tx('知道了')+'</button></div></section>';
 }
 MODAL_ACT.seen=a=>{try{localStorage.setItem("fsched-seen",a.dataset.id);}catch(e){}render();};
 /* ---------- 突發狀況（一個入口） ---------- */
 MODALS.incident=m=>{
   let body;
-  if(m.step==="mach")body='<div class="hint">哪一台壞了？</div><div class="chips">'+shownMachines().map(M=>'<button class="mach big" data-act="inc-mach" data-v="'+M.id+'"><b>'+esc(M.id)+'</b><small>'+esc(M.label)+'</small></button>').join("")+'</div>';
-  else if(m.step==="emp")body='<div class="hint">誰要請假？</div><div class="chips">'+shownEmployees().map(E=>'<button class="emp" data-act="inc-emp" data-v="'+E.id+'"><span class="sw" style="background:'+COLORS[E.color%COLORS.length]+'">'+esc(E.name[0])+'</span>'+esc(E.name)+'</button>').join("")+'</div>';
+  if(m.step==="mach")body='<div class="hint">'+tx('哪一台壞了？')+'</div><div class="chips">'+shownMachines().map(M=>'<button class="mach big" data-act="inc-mach" data-v="'+M.id+'"><b>'+esc(M.id)+'</b><small>'+esc(M.label)+'</small></button>').join("")+'</div>';
+  else if(m.step==="emp")body='<div class="hint">'+tx('誰要請假？')+'</div><div class="chips">'+shownEmployees().map(E=>'<button class="emp" data-act="inc-emp" data-v="'+E.id+'"><span class="sw" style="background:'+COLORS[E.color%COLORS.length]+'">'+esc(E.name[0])+'</span>'+esc(E.name)+'</button>').join("")+'</div>';
   else body='<div class="incs">'+
-    '<button class="inc" data-act="inc-step" data-v="mach"><b>機台故障</b><small>系統算幾種排法讓你挑，AI 可以幫忙建議</small></button>'+
-    '<button class="inc" data-act="inc-step" data-v="emp"><b>有人請假</b><small>先找人代班，不行再往後排</small></button>'+
-    '<button class="inc" data-act="inc-rush"><b>急單／插單</b><small>新工單優先做，看會影響誰</small></button></div>';
-  return {title:tx('突發狀況'),body,foot:m.step?'<button class="btn" data-act="inc-back">上一步</button>':""};
+    '<button class="inc" data-act="inc-step" data-v="mach"><b>'+tx('機台故障')+'</b><small>'+tx('系統算幾種排法讓你挑，AI 可以幫忙建議')+'</small></button>'+
+    '<button class="inc" data-act="inc-step" data-v="emp"><b>'+tx('有人請假')+'</b><small>'+tx('先找人代班，不行再往後排')+'</small></button>'+
+    '<button class="inc" data-act="inc-rush"><b>'+tx('急單／插單')+'</b><small>'+tx('新工單優先做，看會影響誰')+'</small></button></div>';
+  return {title:tx('突發狀況'),body,foot:m.step?'<button class="btn" data-act="inc-back">'+tx('上一步')+'</button>':""};
 };
 MODALS.leaveq=m=>{
   const E=emp(m.id);if(!E)return null;
@@ -2417,9 +2417,9 @@ MODALS.leaveq=m=>{
   let days="";for(let i=0;i<14;i++){const d=addDays(UI.date<todayStr()?todayStr():UI.date,i),di=dayInfo(d);
     days+=tg("lq-date",d,m.date===d,'<span class="num">'+md(d)+'</span><small>'+WD[di.w]+(di.open?"":" 停工")+'</small>',"leave");}
   const n=S.blocks.filter(b=>b.emp===E.id&&b.date===m.date).length;
-  return {title:tx("{name} 請假",{name:esc(E.name)}),body:'<div class="field"><span class="lab">哪一天？</span><div class="toggles">'+days+'</div></div>'+
+  return {title:tx("{name} 請假",{name:esc(E.name)}),body:'<div class="field"><span class="lab">'+tx('哪一天？')+'</span><div class="toggles">'+days+'</div></div>'+
     (E.leaves.includes(m.date)?'<div class="okbox">'+tx('這天已經登記請假')+'</div>':'<div class="hint">'+mdw(m.date)+" "+esc(E.name)+" 有 "+n+" 段工作要調整</div>"),
-    foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="lq-go" '+(E.leaves.includes(m.date)?"disabled":"")+'>看調整方案</button>'};
+    foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="lq-go" '+(E.leaves.includes(m.date)?"disabled":"")+'>'+tx('看調整方案')+'</button>'};
 };
 Object.assign(MODAL_ACT,{
   "inc-step":a=>{UI.modal.step=a.dataset.v;renderModal();},
@@ -3021,8 +3021,8 @@ MODALS['schedule-diff']=m=>{
   const st=r.summary;
   return {title:tx('排程比對')+'：'+md(r.d1)+' vs '+md(r.d2),body:
     '<div class="hint">'+st.total1+' 段 vs '+st.total2+' 段 · 共同 '+r.common+' 段 · '+st.machines1+' 台 vs '+st.machines2+' 台 · '+st.employees1+' 人 vs '+st.employees2+' 人</div>'+
-    '<div class="field"><span class="lab">只在 '+md(r.d1)+'（被移除或改時間）</span><div class="result">'+(r.only1.map(item).join("")||'<div class="okbox">無</div>')+'</div></div>'+
-    '<div class="field"><span class="lab">只在 '+md(r.d2)+'（新增或改時間）</span><div class="result">'+(r.only2.map(item).join("")||'<div class="okbox">無</div>')+'</div></div>',
+    '<div class="field"><span class="lab">只在 '+md(r.d1)+'（被移除或改時間）</span><div class="result">'+(r.only1.map(item).join("")||'<div class="okbox">'+tx('無')+'</div>')+'</div></div>'+
+    '<div class="field"><span class="lab">只在 '+md(r.d2)+'（新增或改時間）</span><div class="result">'+(r.only2.map(item).join("")||'<div class="okbox">'+tx('無')+'</div>')+'</div></div>',
     foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button><button class="btn" data-act="schedule-diff">重選日期</button>'};
 };
 /* ---------- 意見反饋 ---------- */
@@ -3624,7 +3624,7 @@ function reviewPageHTML(){
     }).join(''))+'</div>';
   }
   const allDone=!pendE&&!pendM;
-  const foot='<div class="wiz-foot">'+(step>1&&!ro?'<button class="btn wiz-big" data-act="review-step" data-v="'+(step-1)+'">上一步</button>':'')+
+  const foot='<div class="wiz-foot">'+(step>1&&!ro?'<button class="btn wiz-big" data-act="review-step" data-v="'+(step-1)+'">'+tx('上一步')+'</button>':'')+
     (step<3&&!ro?'<button class="btn primary wiz-big" data-act="review-step" data-v="'+(step+1)+'">下一步</button>':'')+
     (step===3&&!ro?'<button class="btn primary wiz-big" data-act="review-done"'+(allDone?'':' disabled')+'>'+tx('核對完成')+'</button>':'')+'</div>';
   return '<div class="fullpage wiz">'+head+steps+body+foot+'</div>';
