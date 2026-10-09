@@ -20,7 +20,7 @@
 
 - [x] Solver pytest 已在 CI（tests.yml solver job，ubuntu + uv run --frozen pytest）— 原清單過時
 - [x] CP-SAT 邊界案例（→ `6dd3739`）：test_edges.py 4 條（空工單/單工單完成最後一站/全部逾期仍產可行解/全空工廠），CI solver job 綠
-- [ ] 效能基準（不同工單數量的解算時間）
+- [x] 效能基準（→ 48e7467）：test_perf_smoke.py——10/30/60 工單合成工廠解算有界（<30s 煙霧上限），CI solver job 綠；正式基準手動跑 scripts/benchmark.py
 - [ ] 9-26 快照疑點①：插單＋加班的候選方案評分——W07 情境方案 C 顯示「延誤 1」仍列為可套用選項，應過濾或降級不可行方案（見 docs/TEST_STATUS.md，未經重測不假定仍存在）
 - [ ] 9-26 快照疑點②：故障後排程出現 10 分鐘零碎工作段——需最短工作段規則或換模／切換成本（同上需 solver 環境重現）
 - 註：本機 uv 環境損壞（trampoline spawn 失敗），上述各項只能在 CI 跑，暫緩

@@ -258,3 +258,9 @@
 - **solver 邊界案例進 CI**：test_edges.py 4 條——空工單（空排程且驗證通過）、單工單（最後一站必被排到）、全部逾期（仍需產出可行解）、全空工廠；本機 uv/python 損壞由 CI 驗證，**solver job 綠**（CI 三 job 全綠：frontend/database/solver）
 - web 272/272、db 201/201、build ✓；生產 web/solver 雙 200
 - commit 6dd3739；平行循環（worktree）已於輪次 73 補記驗證 272/272
+
+
+## 輪次 74（2026-10-10）— 效能煙霧測試進 CI
+
+- test_perf_smoke.py：snapshot_for 合成工廠（8機8人），10/30/60 工單 solve 全部完成且單輪 <30s；CI 三 job 綠（frontend/database/solver）
+- NEXT_TASKS Phase 3「效能基準」勾除；commit 48e7467
