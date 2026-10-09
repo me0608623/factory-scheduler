@@ -9,7 +9,7 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 82（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
+- **總輪次**: 83（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
@@ -325,3 +325,10 @@
 - 使用者將軟性切換成本整理為 **PR #7**（feat/soft-switching-cost：根因分析——10 分鐘短段是 CP-SAT 合法且近零成本差的選擇、非 to_real() bug；OR-then-AND reified 公式＋必要情況不罰＋PRESETS 權重校準；switching.py 量測模組＋19 條測試＋CI A/B 證據），分支 CI 全綠等待人工審核——本循環不代併
 - 注意：該分支早於 feature-tours 合併點，PR 合併時 tour.js／layout-regression／進度文件需解衝突（其報告已列待辦）
 - 生產站實測 web 200 ✓ solver /health 200 ✓；main 現況 **274/274**（輪次 80 已驗）
+
+
+## 輪次 83（2026-10-10）— CI 實際狀態確認（GitHub API 唯讀）
+
+- 以公開 API（GET only）確認 CI 真實結論，不再只憑本地推斷：**main @5515285 Tests #214／Deploy smoke #201／Render 部署 #164 全部 success**；PR 分支 feat/soft-switching-cost 兩個 commit（3841f8e→0b96e72）Tests #215/#216＋smoke #202/#203 亦全綠——PR #7 分支 CI 確認綠燈
+- 本循環後續 docs-only push 未觸發 Tests 屬路徑過濾預期（docs/ 不在觸發路徑）
+- main 現況 **274/274**（輪次 80 已驗）；生產健康沿用輪次 82 實測雙 200
