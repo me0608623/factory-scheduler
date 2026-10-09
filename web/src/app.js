@@ -732,7 +732,7 @@ function cardsHTML(){
     return '<button class="mach catalog-mach'+(down?" down":"")+'" data-act="mach" data-id="'+m.id+'" aria-label="'+esc(m.id+" "+m.label)+'"><b>'+esc(m.label)+'</b><small>'+esc(m.id)+' · '+(m.reviewStatus==='pending'?"待確認":down?"故障":"正常")+'</small></button>';}).join("");
   const ords=[...orders].sort((a,b)=>a.due.localeCompare(b.due)||a.pri-b.pri);
   const orows=ords.slice(0,4).map(orderRow).join("");
-  const lrows=S.log.slice(0,3).map(logRow).join("")||'<div class="empty">還沒有紀錄</div>';
+  const lrows=S.log.slice(0,3).map(logRow).join("")||'<div class="empty">'+tx('還沒有紀錄')+'</div>';
   return '<section class="cards" aria-label="'+tx('總覽')+'">'+
   '<div class="card"><div class="card-h"><h2>員工</h2><span class="count">'+employees.length+' 人'+(onLeave.length?" · 今天 "+onLeave.length+" 人請假":"")+'</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="emp-new">'+tx('＋新增')+'</button>':"")+'</div>'+staffGroupFilterHTML()+'<div class="chips">'+(emps||'<div class="hint">此廠在此分組沒有員工；可切換廠別或選擇全部分組。</div>')+'</div></div>'+
   '<div class="card"><div class="card-h"><h2>'+tx('設備／工位')+'</h2><span class="count">'+(machines.some(m=>m.catalogGroup)?new Set(machines.map(m=>m.catalogGroup||m.id)).size+' 組 · '+machines.length+' 個位置':machines.length+(S.setupPending?' 個待確認欄位':' 項'))+'</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="mach-new">'+tx('＋新增')+'</button>':"")+'</div><div class="hint">要設定做什麼工作，請按「更多功能」→「設定工作內容」；純人工不需要假機台。</div><div class="chips">'+machs+'</div></div>'+
@@ -1643,7 +1643,7 @@ function resourceLoadHTML(){
       (employee?' · 工作時段合計 '+duration(r.assignedMinutes)+' · 最高占用容量 '+r.peak+(r.limit===null?'（上限待確認）':' / 顧機上限 '+r.limit):r.faultMinutes>0?' · 故障占用 '+duration(r.faultMinutes):'')+'</div>'+
       '<div class="hint">'+esc(free)+(r.pending?'':' · 總空檔 '+duration(r.freeMinutes))+'</div>'+
       warnings.map(t=>'<div class="issue">'+esc(t)+'</div>').join('')+'</article>';
-  }).join('')||'<div class="empty">此範圍沒有資源</div>';
+  }).join('')||'<div class="empty">'+tx('此範圍沒有資源')+'</div>';
   const anomalies=report.invalidBlocks+report.missingResources+report.invalidWindows;
   return {title:tx('當日負荷')+' · '+mdw(UI.date),body:
     '<div class="hint">'+esc(UI.factory==='all'?'兩廠全體資源':factoryName(UI.factory))+' · 分析目前畫面的排程，不套用名冊分組篩選，也不改排程。同步狀態請看右上角；週檢視仍分析上方選定的單日。</div>'+
@@ -1792,7 +1792,7 @@ ord(m){
   if(m.id){const O=order(m.id),st=orderStatus(O);
     const bl=S.blocks.filter(b=>b.oid===m.id).sort((a,b)=>a.step-b.step||byAbs(a,b));
     plan='<div class="field"><span class="lab">目前排程　'+statusTag(O)+(st.fd?'　預計 '+mdw(st.fd)+" "+hm(st.fin%1440)+" 完成":"")+'</span><div class="result">'+
-      (bl.map(b=>'<button class="rline" data-act="goto" data-d="'+b.date+'" style="border:0;text-align:left;width:100%"><span class="k info">'+esc(stepName(b))+'</span><span class="num">'+mdw(b.date)+" "+hm(b.s)+"–"+hm(b.e)+"　"+esc(b.m)+"　"+esc(emp(b.emp)?emp(b.emp).name:"")+"　"+b.qty+'件</span></button>').join("")||'<div class="empty">尚未排入</div>')+'</div></div>';}
+      (bl.map(b=>'<button class="rline" data-act="goto" data-d="'+b.date+'" style="border:0;text-align:left;width:100%"><span class="k info">'+esc(stepName(b))+'</span><span class="num">'+mdw(b.date)+" "+hm(b.s)+"–"+hm(b.e)+"　"+esc(b.m)+"　"+esc(emp(b.emp)?emp(b.emp).name:"")+"　"+b.qty+'件</span></button>').join("")||'<div class="empty">'+tx('尚未排入')+'</div>')+'</div></div>';}
   const body=
    '<div class="row2"><div class="field"><label for="f-code">'+tx('工單號')+'</label><input class="inp num" id="f-code" data-bind="code" value="'+esc(D.code)+'" '+(ro?"disabled":"")+'></div>'+
    '<div class="field"><label for="f-qty">'+tx('數量（件）')+'</label><input class="inp num" type="number" min="1" id="f-qty" data-bind="qty" value="'+D.qty+'" '+(ro?"disabled":"")+'></div></div>'+
@@ -1806,7 +1806,7 @@ ord(m){
   return {title:m.id?"工單 "+esc(D.code):"新增工單",body,foot};
 },
 orders(){
-  const rows=[...shownOrders()].sort((a,b)=>a.due.localeCompare(b.due)||a.pri-b.pri).map(orderRow).join("")||'<div class="empty">此廠沒有工單</div>';
+  const rows=[...shownOrders()].sort((a,b)=>a.due.localeCompare(b.due)||a.pri-b.pri).map(orderRow).join("")||'<div class="empty">'+tx('此廠沒有工單')+'</div>';
   return {title:tx('全部工單'),body:'<div class="olist">'+rows+'</div>',
     foot:(S.demo&&canMaster()&&!readOnly?'<button class="btn danger" data-act="clear-demo">清除示範工單</button><div class="spacer"></div>':'')+(canOrders()?'<button class="btn primary" data-act="ord-new">'+tx('＋新增工單')+'</button>':"")};
 },
@@ -1852,7 +1852,7 @@ blk(m){
   return {title:esc(o.code+" "+p.name+" · "+p.steps[b.step].proc),body,foot};
 },
 /* ---------- 紀錄 ---------- */
-log(){return {title:tx('全部紀錄'),body:'<div class="llist">'+(S.log.map(logRow).join("")||'<div class="empty">還沒有紀錄</div>')+'</div>'};},
+log(){return {title:tx('全部紀錄'),body:'<div class="llist">'+(S.log.map(logRow).join("")||'<div class="empty">'+tx('還沒有紀錄')+'</div>')+'</div>'};},
 logone(m){
   const l=S.log.find(x=>x.id===m.id);if(!l)return null;const dt=new Date(l.t);
   const isLast=S.log[0]===l&&undoStack.length&&!readOnly;
