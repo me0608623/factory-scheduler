@@ -67,3 +67,26 @@ test('常見按鈕字面（關閉/取消/儲存/刪除）走 tx()', () => {
   });
   assert.equal(bad.length, 0, `有 ${bad.length} 個常見按鈕字面未走 tx():\n${bad.join('\n')}`);
 });
+
+test('help 內文（步驟+提示）全部是 UI_TEXT 鍵', () => {
+  const start = app.indexOf('const HELP=[');
+  const end = app.indexOf('\n];', start);
+  assert.ok(start > 0 && end > start, 'HELP 區塊存在');
+  const block = app.slice(start, end);
+  const re = /"((?:[^"\\]|\\.)*)"/g;
+  const steps = [];
+  let m;
+  while ((m = re.exec(block))) {
+    if (!/[\u4e00-\u9fff]/.test(m[1])) continue;
+    if (/tx\(\s*$/.test(block.slice(Math.max(0, m.index - 40), m.index))) continue; // 章節標題
+    steps.push(m[1]);
+  }
+  assert.ok(steps.length >= 50, `HELP 內文應有 ≥50 條，實際 ${steps.length}`);
+  const missing = steps.filter(s => !UI_TEXT[s]);
+  assert.equal(missing.length, 0, `help 內文有 ${missing.length} 條缺字典鍵：${missing.slice(0, 3).map(s => s.slice(0, 30)).join('、')}…`);
+});
+
+test('help 渲染走 tx()（步驟與提示）', () => {
+  assert.ok(app.includes("steps.map(s=>'<li>'+tx(s)+'</li>')"), 'help 步驟渲染未包 tx()');
+  assert.ok(app.includes('tx(tip)'), 'help 提示渲染未包 tx()');
+});
