@@ -156,14 +156,15 @@ ok(snap.machines.find(m => m.id === "c").faults.length === 1, "快照含故障")
 
 console.log("員工加班星期與當日調整");
 const EMP1 = "00000000-0000-4000-8000-0000000000e1";
+const OT_DAY = new Date().toISOString().slice(0, 10); // 用今天（在快照 7 天回看窗內）
 await as(BOSS, () => db.query("update employees set overtime_weekdays=array[1,3,5]::smallint[] where id=$1", [EMP1]));
-await as(LEAD, () => db.query("insert into employee_overtime_days (employee_id,date,available) values ($1,'2026-10-01',true)", [EMP1]));
-await as(TV, () => expectErr("insert into employee_overtime_days (employee_id,date,available) values ($1,'2026-10-02',true)", [EMP1], /row-level security/, "電視帳號不能改單日加班意願"));
+await as(LEAD, () => db.query("insert into employee_overtime_days (employee_id,date,available) values ($1,$2,true)", [EMP1, OT_DAY]));
+await as(TV, () => expectErr("insert into employee_overtime_days (employee_id,date,available) values ($1,$2,true)", [EMP1, OT_DAY], /row-level security/, "電視帳號不能改單日加班意願"));
 const leadWeekly = await as(LEAD, () => db.query("update employees set overtime_weekdays=array[1]::smallint[] where id=$1", [EMP1]));
 ok(leadWeekly.affectedRows === 0, "組長不能改固定加班星期");
 const otSnap = await as(TV, async () => (await db.query("select schedule_snapshot() s")).rows[0].s);
 const otEmp = otSnap.employees.find(e => e.id === EMP1);
-ok(JSON.stringify(otEmp.overtime_weekdays) === JSON.stringify([1,3,5]) && otEmp.overtime_overrides["2026-10-01"] === true,
+ok(JSON.stringify(otEmp.overtime_weekdays) === JSON.stringify([1,3,5]) && otEmp.overtime_overrides[OT_DAY] === true,
   "快照含固定星期與單日臨時意願");
 ok(otSnap.employees.find(e => e.id === "00000000-0000-4000-8000-0000000000e5")?.overtime_weekdays?.length === 0,
   "不能加班的示範員工匯入後沒有可加班星期");
