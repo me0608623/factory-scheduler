@@ -8,9 +8,9 @@
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
-- 前端: **250/250** PASS
+- 前端: **257/257** PASS
 - DB: **206/206** PASS
-- 合計: **456**
+- 合計: **463**
 
 ## Bug 修復（10 項）
 1. **P1** XSS（line-notify）
@@ -155,3 +155,10 @@
 - **queryKinds 測試**（→ `09bec38`）：9 個關鍵字分支逐一斷言（故障/請假/輪班/跨廠/缺料/衝突/交期/進度/一般問句 null），並以同一份資料驗證「有關鍵字時事實變少」——過濾真的生效，不是只回全部
 - **NEXT_TASKS 列回 9-26 快照兩個 solver 疑點**（見 docs/TEST_STATUS.md）：①插單＋加班候選方案評分（延誤方案仍可選）②故障後 10 分鐘零碎工作段。均標註「需 solver 環境重現、未經重測不假定仍存在」
 - 前端測試：**249 → 250** PASS
+
+## 輪次 61（2026-10-09）— 接續使用者根因修復：vg-glass 定位同類風險稽查＋通用守門
+
+- **背景**：使用者平行推送 `42da52c`——右側工作區全空白的根因（visual.js 注入 `.vg-glass{position:relative}` 蓋掉 `.ops-drawer` 的 fixed 定位）＋可收合側欄＋6 條防回歸；agent 分支已快轉同步
+- **同類風險稽查**：全 codebase 掃描 vg-glass 套用點共 3 處——ops-drawer（已修）、視覺展示頁與登入頁的 login-card（皆帶 inline `position:relative`，inline 優先於注入樣式，安全）；`.vg-fallback` 由程式碼明設容器 relative，無風險。結論：無其他受害點
+- **通用不變量守門**（→ `346bc77`）：layout-regression 第 7 條——自動掃 src 全部 `class="…vg-glass…"` 元素，凡基底 class 在 styles.css 依賴 fixed/absolute/sticky、無 inline position、又無 `.X.vg-glass` 特異度防護即報錯。未來任何人把 vg-glass 套到新的定位元素上，測試直接攔下
+- 前端測試：**250 → 257** PASS（含使用者 6 條 layout 防回歸＋本輪 1 條守門）
