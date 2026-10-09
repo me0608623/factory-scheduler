@@ -2,9 +2,9 @@
 
 ## 執行狀態
 - **分支**: `agent/overnight-20261009`（全數合併 main）
-- **最新 main**: `a890195`（輪次 54 推送）
-- **main 總 commits**: 329（輪次 54 文件推送後）
-- **總輪次**: 54
+- **最新 main**: `fbddecb`（輪次 62 推送；使用者開發 feat/floating-windows 中）
+- **main 總 commits**: 360（輪次 63 文件推送後）
+- **總輪次**: 63
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
@@ -177,3 +177,11 @@
 - **攜帶**：使用者未推的 `55304a5`（輪次 51 主工作區版面修復紀錄 docs）隨本輪以 `push agent:main` 快轉上 main
 - 生產站健康：web 200 ✓ solver /health 200 ✓（唯讀 GET）
 - 修正輪次 61 標頭 commit 計數（357→356）
+
+## 輪次 63（2026-10-09）— db 層主動防回歸（worktree 隔離續行）
+
+- **背景**：使用者活躍於 `feat/floating-windows`（app.js/styles.css 未提交修改＋新檔 win.js），主工作樹不碰，續用 fs-agent-wt worktree（補 db/tests/node_modules junction）
+- **DB 層全套驗證（當前 main 狀態）**：`npm test`（migrations）**201 過 0 敗**；另跑未掛入 npm test 的 `machine-layout.test.mjs` **5/5 過**——**201+5=206 與文件「DB 206」數字吻合**，統計口徑之謎解開
+- 前端 257/257（輪次 62 已驗）；生產站沿用輪次 62 實測雙 200
+
+> 標頭勘誤（輪次 63 補記）：輪次 55–62 的標頭「最新 main／總輪次／main 總 commits」更新因 replace 圖樣未命中（單引號 vs 反引號）而**靜默失敗**，停滯在輪次 54 數字；「測試」節數字不受影響。本輪起改用帶命中驗證的腳本更新標頭。
