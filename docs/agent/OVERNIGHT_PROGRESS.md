@@ -251,8 +251,10 @@
 - worktree 同步後全套 **271/271** 驗證綠；生產站實測 web 200 ✓ solver /health 200 ✓
 
 
-## 輪次 73（2026-10-09）— 分支態勢記錄（過渡期）
+## 輪次 73（2026-10-10）— 平面圖 i18n＋solver 邊界測試（分支 agent/overnight-1010）
 
-- 使用者建立後繼分支 **agent/overnight-1010**，將其「平面圖 canvas i18n＋solver 邊界案例測試進 CI」commit（floor.js 故障標籤 tx() 化＋solver/tests/test_edges.py 空工單/單工單/全部逾期/全空工廠 4 條，本機 uv 受限由 CI 驗證——NEXT_TASKS Phase 3 第一項的解法）rebase 到最新 main（6dd3739，未推送）
-- 本循環分支 agent/overnight-20261009 與 main 同步（6208612），全套 **271/271** 確認綠；待使用者推送/合併 1010 分支後隨即驗證（其 commit 自稱 web 272/272）
-- 推送時使用者已將 6dd3739 推上 main（rebase 後併入）；本地驗證其宣稱：**web 272/272 綠** ✓（solver test_edges.py 4 條由 CI 驗證）
+- 基準：web 271/271、db 201/201 全綠
+- **平面圖 canvas 文字 i18n**：floor.js「故障」tx() 化；app.js tooltip/toast「當日無排程」tx() 化；+2 i18n 鍵；floor.test.mjs +1 防回歸（canvas 故障字串必走 tx()）。機台名稱與摘要屬使用者資料、依設計不翻譯
+- **solver 邊界案例進 CI**：test_edges.py 4 條——空工單（空排程且驗證通過）、單工單（最後一站必被排到）、全部逾期（仍需產出可行解）、全空工廠；本機 uv/python 損壞由 CI 驗證，**solver job 綠**（CI 三 job 全綠：frontend/database/solver）
+- web 272/272、db 201/201、build ✓；生產 web/solver 雙 200
+- commit 6dd3739；平行循環（worktree）已於輪次 73 補記驗證 272/272
