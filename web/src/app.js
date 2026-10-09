@@ -1824,14 +1824,14 @@ emp(m){
    (D.identityCandidates?.length?'<div class="field"><span class="lab">'+tx('別名待核對（尚未合併）')+'</span>'+D.identityCandidates.map(c=>'<div class="hint">'+esc(c.name)+' · '+esc(c.source_employee_code||'無代號')+' · '+esc(c.source_ref||'')+'</div>').join('')+'</div>':'')+
    '<div class="field"><label for="f-name">'+tx('姓名')+'</label><input class="inp" id="f-name" data-bind="name" value="'+esc(D.name)+'" '+(ro?"disabled":"")+' autocomplete="off"></div>'+
    '<div class="field"><span class="lab">'+tx('所屬廠別')+'</span><div class="toggles">'+FACTORIES.map(f=>tg("m-emp-factory",f,factoryOf(D)===f,factoryName(f),"",ro)).join("")+'</div></div>'+
-   '<div class="field"><span class="lab">所屬分組／部門</span><div class="hint">'+(employeeGroups(S,D.id).map(x=>esc(x.group.name)+(x.group.department?'（'+esc(x.group.department)+'）':'')+' · '+memberStatus(x.membership.reviewStatus)).join('；')||'尚未分組')+'。分組可在「分組／部門」調整，不等於機台技能。</div></div>'+
+   '<div class="field"><span class="lab">'+tx('所屬分組／部門')+'</span><div class="hint">'+(employeeGroups(S,D.id).map(x=>esc(x.group.name)+(x.group.department?'（'+esc(x.group.department)+'）':'')+' · '+memberStatus(x.membership.reviewStatus)).join('；')||'尚未分組')+'。分組可在「分組／部門」調整，不等於機台技能。</div></div>'+
    '<div class="field"><span class="lab">'+tx('代表顏色')+'</span><div class="swatches">'+COLORS.map((c,i)=>'<button class="swatch" style="background:'+c+'" data-act="m-color" data-v="'+i+'" aria-pressed="'+(D.color===i)+'" aria-label="'+tx('顏色 {n}',{n:i+1})+'"'+(ro?' disabled':'')+'></button>').join("")+'</div></div>'+
-   '<div class="field"><span class="lab">會操作的機台</span><div class="toggles">'+S.machines.filter(M=>factoryOf(M)===factoryOf(D)).map(M=>tg("m-skill",M.id,D.skills.includes(M.id),'<span class="num">'+esc(M.id)+'</span><small>'+esc(M.label)+'</small>',"",ro)).join("")+'</div></div>'+
-   '<div class="field"><label for="f-max-machines">'+tx('同時最多顧幾台機台')+'</label><input class="inp num" type="number" min="1" max="100" step="1" id="f-max-machines" data-bind="maxMachines" value="'+(D.maxMachines||1)+'" '+(ro?"disabled":"")+'><div class="hint">預設 1 台；只計算同時運轉的不同機台，不影響會操作的機台清單。</div></div>'+
-   '<div class="field"><span class="lab">'+tx('固定每週可加班日')+'</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("m-ot-week",w,D.otWeekdays.includes(w),"週"+WD[w],"",ro)).join("")+'</div><div class="hint">當天是否加班另由排程表開放；臨時意願可在當天的「加班設定」調整。</div></div>'+
-   '<div class="field"><span class="lab">請假（點日期切換，紅色 = 請假）</span><div class="toggles">'+days+'</div></div>';
+   '<div class="field"><span class="lab">'+tx('會操作的機台')+'</span><div class="toggles">'+S.machines.filter(M=>factoryOf(M)===factoryOf(D)).map(M=>tg("m-skill",M.id,D.skills.includes(M.id),'<span class="num">'+esc(M.id)+'</span><small>'+esc(M.label)+'</small>',"",ro)).join("")+'</div></div>'+
+   '<div class="field"><label for="f-max-machines">'+tx('同時最多顧幾台機台')+'</label><input class="inp num" type="number" min="1" max="100" step="1" id="f-max-machines" data-bind="maxMachines" value="'+(D.maxMachines||1)+'" '+(ro?"disabled":"")+'><div class="hint">'+tx('預設 1 台；只計算同時運轉的不同機台，不影響會操作的機台清單。')+'</div></div>'+
+   '<div class="field"><span class="lab">'+tx('固定每週可加班日')+'</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("m-ot-week",w,D.otWeekdays.includes(w),"週"+WD[w],"",ro)).join("")+'</div><div class="hint">'+tx('當天是否加班另由排程表開放；臨時意願可在當天的「加班設定」調整。')+'</div></div>'+
+   '<div class="field"><span class="lab">'+tx('請假（點日期切換，紅色 = 請假）')+'</span><div class="toggles">'+days+'</div></div>';
   const foot=ro?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':
-   (m.id?'<button class="btn danger" data-act="m-emp-del">刪除員工</button>':'')+'<div class="spacer"></div><button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="m-emp-save">'+tx('儲存並自動調整')+'</button>';
+   (m.id?'<button class="btn danger" data-act="m-emp-del">'+tx('刪除員工')+'</button>':'')+'<div class="spacer"></div><button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="m-emp-save">'+tx('儲存並自動調整')+'</button>';
   return {title:m.id?esc(D.name||tx("員工")):tx("新增員工"),body,foot};
 },
 /* ---------- 機台 ---------- */
@@ -1846,7 +1846,7 @@ mach(m){
   const faultBox=m.id&&!ro&&!S.setupPending?
    '<div class="field"><span class="lab">'+mdw(d)+' 機台狀況</span>'+
    (faults.length?faults.map(x=>'<div class="rline"><span class="k fail">'+tx('故障')+'</span><span style="flex:1">'+hm(x.f.s)+'–'+hm(x.f.e)+(x.f.note?"　"+esc(x.f.note):"")+'</span>'+(x.f.fixed?'<span class="tag ok">'+tx('已修復')+'</span>':absOf(x.f.date,x.f.e)<=nowAbs()?'<span class="tag mute">'+tx('已結束')+'</span>':'<button class="btn good" data-act="m-fix" data-v="'+x.i+'">'+tx('修好了')+'</button>')+'</div>').join(""):'<div class="okbox">'+tx('正常運作')+'</div>')+'</div>'+
-   '<div class="field"><span class="lab">報故障：從幾點開始、壞多久</span><div class="row2"><select class="inp num" id="f-fs">'+opts+'</select><input class="inp" id="f-note" placeholder="'+tx('原因（可不填）')+'" value="'+esc(m.note)+'"></div>'+
+   '<div class="field"><span class="lab">'+tx('報故障：從幾點開始、壞多久')+'</span><div class="row2"><select class="inp num" id="f-fs">'+opts+'</select><input class="inp" id="f-note" placeholder="'+tx('原因（可不填）')+'" value="'+esc(m.note)+'"></div>'+
    '<div class="toggles">'+durs.map(([v,t])=>tg("m-fd",v,m.fd===v,t)).join("")+'</div>'+
    '<button class="btn danger" data-act="m-fault" style="height:56px;font-size:19px;justify-content:center">'+tx('確認故障，讓系統自動調整')+'</button></div>':"";
   const body=(D.sourceRef?'<div class="hint">原檔來源：'+esc(D.sourceRef)+'。'+(D.reviewStatus==='pending'?'此欄可能代表機台或工作站，用途與工序待確認。':'')+'</div>':'')+(m.fromInc?faultBox:"")+
@@ -1854,12 +1854,12 @@ mach(m){
    (m.id?'':'<div class="field"><label for="f-id">'+tx('代號（例：f）')+'</label><input class="inp num" id="f-id" data-bind="id" value="'+esc(D.id)+'" maxlength="4" autocomplete="off"></div>')+
    '<div class="field"><label for="f-label">'+tx('名稱')+'</label><input class="inp" id="f-label" data-bind="label" value="'+esc(D.label)+'" '+(rm?"disabled":"")+' autocomplete="off"></div>'+
    '<div class="field"><span class="lab">'+tx('所屬廠別')+'</span><div class="toggles">'+FACTORIES.map(f=>tg("m-mach-factory",f,factoryOf(D)===f,factoryName(f),"",rm)).join("")+'</div></div>'+
-   '<div class="field"><label for="f-proc">'+tx('設備工序／工作內容（可自行輸入）')+'</label><input class="inp" id="f-proc" data-bind="proc" list="process-names" value="'+esc(D.proc)+'" '+(rm?'disabled':'')+'><datalist id="process-names">'+processNames().map(p=>'<option value="'+esc(p)+'"></option>').join('')+'</datalist><div class="hint">名稱由使用者設定，不限於示範工序；純人工請使用「工作內容」。</div></div>'+
-   '<div class="field"><span class="lab">允許加工的產品／品號</span><div class="toggles">'+S.products.map(p=>tg("m-prod",p.id,D.products.includes(p.id),esc(p.name)+'<small>'+esc(p.steps.map(s=>s.proc).join("→"))+'</small>',"",rm)).join("")+'</div><div class="hint">這是使用者建立的產品清單，不代表 1023 已核定模具。模具尚未獨立建模。</div>'+(rm?'':'<button class="btn" data-act="mach-products">'+tx('新增／編輯產品與工序')+'</button><div class="hint">請先儲存本視窗修改，再切換產品設定。</div>')+'</div>'+
-   '<div class="field"><span class="lab">誰會操作</span><div class="chips">'+(S.employees.filter(E=>E.skills.includes(D.id)).map(E=>'<span class="emp"><span class="sw" style="background:'+COLORS[E.color%COLORS.length]+'">'+esc(E.name[0])+'</span>'+esc(E.name)+'</span>').join("")||'<span class="hint">'+tx('還沒有人會操作（到員工設定勾選）')+'</span>')+'</div></div>'+
+   '<div class="field"><label for="f-proc">'+tx('設備工序／工作內容（可自行輸入）')+'</label><input class="inp" id="f-proc" data-bind="proc" list="process-names" value="'+esc(D.proc)+'" '+(rm?'disabled':'')+'><datalist id="process-names">'+processNames().map(p=>'<option value="'+esc(p)+'"></option>').join('')+'</datalist><div class="hint">'+tx('名稱由使用者設定，不限於示範工序；純人工請使用「工作內容」。')+'</div></div>'+
+   '<div class="field"><span class="lab">'+tx('允許加工的產品／品號')+'</span><div class="toggles">'+S.products.map(p=>tg("m-prod",p.id,D.products.includes(p.id),esc(p.name)+'<small>'+esc(p.steps.map(s=>s.proc).join("→"))+'</small>',"",rm)).join("")+'</div><div class="hint">'+tx('這是使用者建立的產品清單，不代表 1023 已核定模具。模具尚未獨立建模。')+'</div>'+(rm?'':'<button class="btn" data-act="mach-products">'+tx('新增／編輯產品與工序')+'</button><div class="hint">'+tx('請先儲存本視窗修改，再切換產品設定。')+'</div>')+'</div>'+
+   '<div class="field"><span class="lab">'+tx('誰會操作')+'</span><div class="chips">'+(S.employees.filter(E=>E.skills.includes(D.id)).map(E=>'<span class="emp"><span class="sw" style="background:'+COLORS[E.color%COLORS.length]+'">'+esc(E.name[0])+'</span>'+esc(E.name)+'</span>').join("")||'<span class="hint">'+tx('還沒有人會操作（到員工設定勾選）')+'</span>')+'</div></div>'+
    (m.fromInc?"":faultBox);
   const foot=rm?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':
-   (m.id?'<button class="btn danger" data-act="m-mach-del">刪除機台</button>':'')+'<div class="spacer"></div><button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="m-mach-save">'+tx('儲存')+'</button>';
+   (m.id?'<button class="btn danger" data-act="m-mach-del">'+tx('刪除機台')+'</button>':'')+'<div class="spacer"></div><button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="m-mach-save">'+tx('儲存')+'</button>';
   return {title:m.id?'<span class="num">'+esc(D.id)+'</span>　'+esc(D.label):tx("新增機台"),body,foot};
 },
 /* ---------- 工單 ---------- */
@@ -1877,19 +1877,19 @@ ord(m){
   const body=
    '<div class="row2"><div class="field"><label for="f-code">'+tx('工單號')+'</label><input class="inp num" id="f-code" data-bind="code" value="'+esc(D.code)+'" '+(ro?"disabled":"")+'></div>'+
    '<div class="field"><label for="f-qty">'+tx('數量（件）')+'</label><input class="inp num" type="number" min="1" id="f-qty" data-bind="qty" value="'+D.qty+'" '+(ro?"disabled":"")+'></div></div>'+
-   '<div class="field"><span class="lab">產品</span><div class="toggles">'+S.products.filter(x=>x.id===D.pid||UI.factory==="all"||x.steps.some(s=>factoryOf(s)===UI.factory)).map(x=>tg("o-prod",x.id,D.pid===x.id,esc(x.name),"",ro)).join("")+'</div></div>'+
+   '<div class="field"><span class="lab">'+tx('產品')+'</span><div class="toggles">'+S.products.filter(x=>x.id===D.pid||UI.factory==="all"||x.steps.some(s=>factoryOf(s)===UI.factory)).map(x=>tg("o-prod",x.id,D.pid===x.id,esc(x.name),"",ro)).join("")+'</div></div>'+
    '<div class="row2"><div class="field"><label for="f-due">'+tx('最晚完成日（硬性期限）')+'</label><input class="inp num" type="date" id="f-due" data-bind="due" value="'+D.due+'" '+(ro?"disabled":"")+'></div>'+
-   '<div class="field"><span class="lab">優先順序</span><div class="toggles">'+[[0,"特急"],[1,"急"],[2,"一般"],[3,"不急"]].map(([v,t])=>tg("o-pri",v,D.pri===v,t,"",ro)).join("")+'</div></div></div>'+
-   '<div class="field"><span class="lab">標準工序（依產品設定自動算時間）</span><div class="flow">'+flow+'</div></div>'+
+   '<div class="field"><span class="lab">'+tx('優先順序')+'</span><div class="toggles">'+[[0,"特急"],[1,"急"],[2,"一般"],[3,"不急"]].map(([v,t])=>tg("o-pri",v,D.pri===v,t,"",ro)).join("")+'</div></div></div>'+
+   '<div class="field"><span class="lab">'+tx('標準工序（依產品設定自動算時間）')+'</span><div class="flow">'+flow+'</div></div>'+
    '<div class="field"><label for="f-onote">'+tx('備註（內部說明，不影響排程計算）')+'</label><input class="inp" id="f-onote" data-bind="note" maxlength="200" value="'+esc(D.note||'')+'" '+(ro?"disabled":"")+' autocomplete="off"></div>'+plan;
   const foot=ro?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':
-   (m.id?'<button class="btn danger" data-act="o-del">刪除工單</button>':'')+'<div class="spacer"></div><button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="o-save">'+tx('下一步：選排法')+'</button>';
+   (m.id?'<button class="btn danger" data-act="o-del">'+tx('刪除工單')+'</button>':'')+'<div class="spacer"></div><button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="o-save">'+tx('下一步：選排法')+'</button>';
   return {title:m.id?tx("工單 {code}",{code:esc(D.code)}):tx("新增工單"),body,foot};
 },
 orders(){
   const rows=[...shownOrders()].sort((a,b)=>a.due.localeCompare(b.due)||a.pri-b.pri).map(orderRow).join("")||'<div class="empty">'+tx('此廠沒有工單')+'</div>';
   return {title:tx('全部工單'),body:'<div class="olist">'+rows+'</div>',
-    foot:(S.demo&&canMaster()&&!readOnly?'<button class="btn danger" data-act="clear-demo">清除示範工單</button><div class="spacer"></div>':'')+(canOrders()?'<button class="btn primary" data-act="ord-new">'+tx('＋新增工單')+'</button>':"")};
+    foot:(S.demo&&canMaster()&&!readOnly?'<button class="btn danger" data-act="clear-demo">'+tx('清除示範工單')+'</button><div class="spacer"></div>':'')+(canOrders()?'<button class="btn primary" data-act="ord-new">'+tx('＋新增工單')+'</button>':"")};
 },
 /* ---------- 產品工序（標準公式） ---------- */
 products(m){
@@ -1901,10 +1901,10 @@ products(m){
     '<div class="steps">'+p.steps.map((s,si)=>'<div class="step"><span class="no">'+(si+1)+'</span>'+
       '<input class="inp" data-bind="'+pi+'.steps.'+si+'.proc" aria-label="'+tx('工序')+'" value="'+esc(s.proc)+'" '+(ro?'disabled':'')+' placeholder="'+tx('自行輸入工序名稱')+'">'+
       '<select class="inp" data-bind="'+pi+'.steps.'+si+'.factory" aria-label="'+tx('第 {n} 站廠別',{n:si+1})+'" '+(ro?"disabled":"")+'>'+FACTORIES.map(f=>'<option value="'+f+'"'+(factoryOf(s)===f?' selected':'')+'>'+factoryName(f)+'</option>').join('')+'</select>'+
-      '<label class="field" style="gap:2px"><span class="hint">件/分</span><input class="inp num" type="number" step="0.1" min="0.1" data-bind="'+pi+'.steps.'+si+'.rate" value="'+s.rate+'" '+(ro?"disabled":"")+'></label>'+
-      '<label class="field" style="gap:2px"><span class="hint">幾件可傳下站</span><input class="inp num" type="number" min="0" data-bind="'+pi+'.steps.'+si+'.batch" value="'+s.batch+'" '+(ro?"disabled":"")+'></label>'+
+      '<label class="field" style="gap:2px"><span class="hint">'+tx('件/分')+'</span><input class="inp num" type="number" step="0.1" min="0.1" data-bind="'+pi+'.steps.'+si+'.rate" value="'+s.rate+'" '+(ro?"disabled":"")+'></label>'+
+      '<label class="field" style="gap:2px"><span class="hint">'+tx('幾件可傳下站')+'</span><input class="inp num" type="number" min="0" data-bind="'+pi+'.steps.'+si+'.batch" value="'+s.batch+'" '+(ro?"disabled":"")+'></label>'+
       (ro?"":'<button class="iconbtn x" data-act="p-delstep" data-v="'+pi+'.'+si+'" aria-label="'+tx('刪除這站')+'">×</button>')+'</div>').join("")+'</div>'+
-    (ro?"":'<button class="more" data-act="p-addstep" data-v="'+pi+'">＋加一站</button>')+'</div>').join("")+
+    (ro?"":'<button class="more" data-act="p-addstep" data-v="'+pi+'">'+tx('＋加一站')+'</button>')+'</div>').join("")+
    (ro?"":'<button class="btn" data-act="p-add">'+tx('＋新增產品')+'</button>');
   return {title:tx('產品工序（標準公式）'),body,foot:ro?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="p-save">'+tx('儲存')+'</button>'};
 },
@@ -1921,15 +1921,15 @@ blk(m){
   const machT=S.machines.filter(X=>X.proc===p.steps[b.step].proc&&X.products.includes(o.pid)&&factoryOf(X)===factoryOf(p.steps[b.step])).map(X=>tg("b-mach",X.id,X.id===b.m,'<span class="num">'+esc(X.id)+'</span><small>'+esc(X.label)+'</small>')).join("");
   const body='<dl class="kv"><dt>'+tx('產品')+'</dt><dd>'+esc(p.name)+"　第 "+(b.step+1)+" 站／共 "+p.steps.length+" 站："+esc(p.steps[b.step].proc)+'</dd><dt>'+tx('數量')+'</dt><dd class="num">'+b.qty+' 件</dd><dt>'+tx('時間')+'</dt><dd class="num">'+mdw(b.date)+" "+hm(b.s)+"–"+hm(b.e)+"（"+(b.e-b.s)+' 分）</dd><dt>'+tx('機台')+'</dt><dd>'+esc(M.id+" "+M.label)+'</dd><dt>'+tx('人員')+'</dt><dd>'+esc(E?E.name:"未指定")+'</dd><dt>'+tx('期限')+'</dt><dd>'+mdw(o.due)+"　"+statusTag(o)+'</dd></dl>'+
    (iss.length?'<div class="issues">'+iss.map(t=>'<div class="issue">'+esc(t)+'</div>').join("")+'</div>':'<div class="okbox">'+tx('沒有問題')+'</div>')+
-   (executionOf(S,b.id)?'<div class="hint">已有現場回報，這段排程已鎖定，不可拖曳、改量、解除固定或刪除。</div><button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">'+tx('查看現場回報')+'</button>':'')+
+   (executionOf(S,b.id)?'<div class="hint">'+tx('已有現場回報，這段排程已鎖定，不可拖曳、改量、解除固定或刪除。')+'</div><button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">'+tx('查看現場回報')+'</button>':'')+
    (ro?"":'<div class="field"><span class="lab">'+tx('換人')+'</span><div class="toggles">'+empT+'</div></div>'+
    '<div class="field"><span class="lab">'+tx('換機台')+'</span><div class="toggles">'+machT+'</div></div>'+
    '<div class="row2"><div class="field"><label for="f-bs">'+tx('開始時間')+'</label><select class="inp num" id="f-bs">'+opts+'</select></div>'+
    '<div class="field"><label for="f-be">'+tx('結束時間')+'</label><select class="inp num" id="f-be">'+endOpts+'</select></div></div>'+
    '<div class="hint">調整時段後請按「預覽調整」。工作長度改變會依工序速率重估這段的件數，未排入的剩餘件數仍留在工單中。</div>'+
-   '<div class="field"><span class="lab">固定</span><div class="toggles">'+tg("b-pin","1",b.pin,b.pin?"已固定（系統不會動）":"未固定（系統可調整）")+'</div></div>')+
-   (others.length?'<div class="field"><span class="lab">同一張工單的其他段</span><div class="result">'+others.map(x=>'<button class="rline" data-act="goto" data-d="'+x.date+'" style="border:0;text-align:left;width:100%"><span class="k info">'+esc(stepName(x))+'</span><span class="num">'+mdw(x.date)+" "+hm(x.s)+"–"+hm(x.e)+"　"+esc(x.m)+"　"+esc(emp(x.emp)?emp(x.emp).name:"")+'</span></button>').join("")+'</div></div>':"");
-  const foot=ro?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':'<button class="btn danger" data-act="b-del">'+(m.confirmDel?"再按一次確認刪除":"刪除這段")+'</button><div class="spacer"></div><button class="btn" data-act="b-fix">交給系統重排</button><button class="btn" data-act="close">'+tx('關閉')+'</button><button class="btn primary" data-act="b-preview">預覽調整</button>';
+   '<div class="field"><span class="lab">'+tx('固定')+'</span><div class="toggles">'+tg("b-pin","1",b.pin,b.pin?"已固定（系統不會動）":"未固定（系統可調整）")+'</div></div>')+
+   (others.length?'<div class="field"><span class="lab">'+tx('同一張工單的其他段')+'</span><div class="result">'+others.map(x=>'<button class="rline" data-act="goto" data-d="'+x.date+'" style="border:0;text-align:left;width:100%"><span class="k info">'+esc(stepName(x))+'</span><span class="num">'+mdw(x.date)+" "+hm(x.s)+"–"+hm(x.e)+"　"+esc(x.m)+"　"+esc(emp(x.emp)?emp(x.emp).name:"")+'</span></button>').join("")+'</div></div>':"");
+  const foot=ro?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':'<button class="btn danger" data-act="b-del">'+(m.confirmDel?"再按一次確認刪除":"刪除這段")+'</button><div class="spacer"></div><button class="btn" data-act="b-fix">'+tx('交給系統重排')+'</button><button class="btn" data-act="close">'+tx('關閉')+'</button><button class="btn primary" data-act="b-preview">'+tx('預覽調整')+'</button>';
   return {title:esc(o.code+" "+p.name+" · "+p.steps[b.step].proc),body,foot};
 },
 /* ---------- 紀錄 ---------- */
