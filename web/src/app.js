@@ -3664,8 +3664,8 @@ function showLogin(err="",email="",signup=false){
   $("#app").innerHTML='<main class="login" style="position:relative;min-height:100vh"><div id="login-bg" style="position:absolute;inset:0;z-index:0"></div>'+
     '<form class="login-card vg-glass" id="loginf" style="position:relative;z-index:1">'+
     '<div class="brand" style="color:#EAF0FF"><span class="brand-mark"><span></span></span>'+liquidLogoSVG("產線排程")+'</div>'+
-    '<div class="field"><label for="lg-email">帳號（Email）</label><input class="inp" id="lg-email" type="email" autocomplete="username" value="'+esc(email)+'" required></div>'+
-    '<div class="field"><label for="lg-pw">密碼</label><input class="inp" id="lg-pw" type="password" autocomplete="current-password" required></div>'+
+    '<div class="field"><label for="lg-email">'+tx('帳號（Email）')+'</label><input class="inp" id="lg-email" type="email" autocomplete="username" value="'+esc(email)+'" required></div>'+
+    '<div class="field"><label for="lg-pw">'+tx('密碼')+'</label><input class="inp" id="lg-pw" type="password" autocomplete="current-password" required></div>'+
     (err?'<div class="issue">'+esc(err)+'</div>':"")+
     '<button class="btn primary" type="submit" style="justify-content:center;height:56px;font-size:19px">'+(signup?tx('註冊'):'登入')+'</button>'+
     '<button class="btn" type="button" id="lg-reset">忘記密碼／設定邀請帳號密碼</button>'+
