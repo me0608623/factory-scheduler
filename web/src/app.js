@@ -694,10 +694,10 @@ function appNavHTML(){
     
     '<div class="side-brand"><span class="brand-mark"><span></span></span><span><b>產線排程</b><small>'+tx('工廠工作台')+'</small></span></div>'+
     '<button class="side-profile" data-act="settings" aria-pressed="'+(UI.drawer==='settings')+'"><span class="side-avatar">'+esc(account.slice(0,1).toUpperCase())+'</span><span><b>'+esc(account)+'</b><small>'+esc(role)+'</small></span><i>›</i></button>'+
-    '<span class="side-section">排程</span>'+
+    '<span class="side-section">'+tx('排程表')+'</span>'+
     '<button class="app-nav-item nav-today" data-act="today" aria-pressed="'+(!UI.drawer)+'"><b>'+NAV_IC.today+'</b><span>'+tx('today')+'</span></button>'+item('orders',tx('orders'))+
-    '<span class="side-section">現場</span>'+item('people',tx('people'))+item('output',tx('output'))+item('worklog',tx('worklog'))+item('notes',tx('notes'))+
-    '<span class="side-section">系統</span>'+item('more',tx('more'))+
+    '<span class="side-section">'+tx('現場回報')+'</span>'+item('people',tx('people'))+item('output',tx('output'))+item('worklog',tx('worklog'))+item('notes',tx('notes'))+
+    '<span class="side-section">'+tx('設定')+'</span>'+item('more',tx('more'))+
     '<div class="side-footer"><button class="side-health '+SYNC.state+'" data-act="sync"><i></i><span><b>系統連線</b><small>'+esc(sync)+'</small></span></button></div></nav>';
 }
 function isoWeek(ds){const d=parseD(ds);d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));const y=new Date(Date.UTC(d.getUTCFullYear(),0,1));return Math.ceil(((d-y)/864e5+1)/7);}
