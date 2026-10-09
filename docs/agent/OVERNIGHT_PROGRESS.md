@@ -192,3 +192,12 @@
 - 使用者持續開發 feat/floating-windows（app.js/chat-ui.js/i18n.js/styles.css 有 WIP），本輪全程 worktree 隔離，僅動 general-work.test.mjs（零衝突）
 - **workWindows 直測 1 條 7 斷言**：平日兩窗非加班、週六未開回空、全開後週六視為加班、假日開窗視為加班、單日覆寫停工／開工都優先於星期設定、當日加班加第三窗（1020–1200）且必為加班
 - 前端測試：**257 → 258** PASS
+
+## 輪次 65（2026-10-09）— Windows 式浮動視窗（使用者對話分支）
+- **新模組 web/src/win.js**：共用浮動視窗引擎（Pointer Events、8 向縮放、最大化/還原、z-order 60-78 低於 modal 80、localStorage 保存、可視範圍夾回、moveOnly 模式、雙擊回預設）
+- 抽屜全系列（人/產量/工單/備忘/更多/設定）→ 可拖曳浮動視窗；排程助理藥丸+聊天窗標題可拖曳
+- 手機 ≤800px 維持 bottom sheet/底部錨定，resize 自動切換與夾回
+- 兩個布局陷阱修復：left+right 同錨定致 width:auto 拉伸（paint 先清再量）；安裝當下 block 填滿（fit-content 強制量測）
+- 測試：win.test.mjs 5 條 clampRect；全套 262/262；build ✓；瀏覽器全場景驗證（拖曳/縮放/最大化/還原/關閉重開/重載恢復/resize 夾回/手機往返）；生產站實測最大化 1600×900 ✓
+- commit 782eabb（分支 feat/floating-windows → main 3229de0）
+- **下一輪待辦**：評估「更多功能」二級選單、甘特圖/平面圖是否值得改用同套浮動視窗機制
