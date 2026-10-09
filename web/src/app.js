@@ -3221,7 +3221,7 @@ function shortagePageHTML(){
   const eligible=(S.rushOrders||[]).filter(r=>!r.archived&&!shortageRowFlags(r).f2Empty&&r.f1?.shipDate&&r.f1.shipDate<today).length;
   const bar='<div class="archive-bar">'+
     (ro?"":'<button class="btn" data-act="rush-archive"'+(eligible?'':' disabled')+'>歸檔已補上'+(eligible?'（'+eligible+' 筆）':'')+'</button>')+
-    '<label class="tf-toggle"><input type="checkbox" data-act-change="rush-showarchived"'+(showArch?" checked":"")+'"> 顯示已歸檔</label>'+
+    '<label class="tf-toggle"><input type="checkbox" data-act-change="rush-showarchived"'+(showArch?" checked":"")+'"> '+tx('顯示已歸檔')+'</label>'+
     ((S.rushOrders||[]).some(r=>r.archived)?'<span class="archived-n">已歸檔 '+(S.rushOrders||[]).filter(r=>r.archived).length+' 筆</span>':"")+
     '<span class="hint">'+tx('右欄已補且出貨日已過才可歸檔；歸檔不刪除。')+'</span></div>';
   const table='<div class="sheettable"><table><thead>'+
@@ -3269,12 +3269,12 @@ function transferFlowPageHTML(){
   const doneN=transferOrders(S).filter(o=>o.returned&&!o.archived).length;
   const bar='<div class="archive-bar">'+
     (ro?"":'<button class="btn" data-act="tf-archive"'+(doneN?'':' disabled')+'>歸檔已完成'+(doneN?'（'+doneN+' 筆）':'')+'</button>')+
-    '<label class="tf-toggle"><input type="checkbox" data-act-change="tf-showarchived"'+(showArch?" checked":"")+'"> 顯示已歸檔</label>'+
+    '<label class="tf-toggle"><input type="checkbox" data-act-change="tf-showarchived"'+(showArch?" checked":"")+'"> '+tx('顯示已歸檔')+'</label>'+
     (archN?'<span class="archived-n">已歸檔 '+archN+' 筆</span>':"")+
     (UI.tfArchivedNote?'<span class="archived-n">'+esc(UI.tfArchivedNote)+'</span>':"")+
     '<span class="hint">'+tx('完成只認「已回一廠」已勾；每月一日自動歸檔逾期已完成。')+'</span></div>';
   const table='<div class="sheettable"><table><thead><tr>'+
-    '<th class="rowact"></th><th>'+tx('通知日期')+'</th><th>'+tx('加工編號')+'</th><th>'+tx('加工序')+'</th><th>'+tx('全部可給數')+'</th><th>'+tx('可給二廠時間')+'</th><th>'+tx('急用')+'</th><th>'+tx('要求回一廠時間')+'</th><th>'+tx('現在貨在1樓')+'</th><th>'+tx('現在貨在3樓')+'</th><th>已回一廠</th><th>'+tx('備註')+'</th></tr></thead><tbody>'+
+    '<th class="rowact"></th><th>'+tx('通知日期')+'</th><th>'+tx('加工編號')+'</th><th>'+tx('加工序')+'</th><th>'+tx('全部可給數')+'</th><th>'+tx('可給二廠時間')+'</th><th>'+tx('急用')+'</th><th>'+tx('要求回一廠時間')+'</th><th>'+tx('現在貨在1樓')+'</th><th>'+tx('現在貨在3樓')+'</th><th>'+tx('已回一廠')+'</th><th>'+tx('備註')+'</th></tr></thead><tbody>'+
     (list.map(o=>{
       const urgent=(o.urgentQty||0)>0||!!o.urgentDue;
       const cell=(k,ty,cls="")=>'<td class="'+cls+'">'+editCellHTML("tf",o.id,k,ty,getPath(o,k),ro)+'</td>';
@@ -3625,7 +3625,7 @@ function reviewPageHTML(){
   }
   const allDone=!pendE&&!pendM;
   const foot='<div class="wiz-foot">'+(step>1&&!ro?'<button class="btn wiz-big" data-act="review-step" data-v="'+(step-1)+'">'+tx('上一步')+'</button>':'')+
-    (step<3&&!ro?'<button class="btn primary wiz-big" data-act="review-step" data-v="'+(step+1)+'">下一步</button>':'')+
+    (step<3&&!ro?'<button class="btn primary wiz-big" data-act="review-step" data-v="'+(step+1)+'">'+tx('下一步')+'</button>':'')+
     (step===3&&!ro?'<button class="btn primary wiz-big" data-act="review-done"'+(allDone?'':' disabled')+'>'+tx('核對完成')+'</button>':'')+'</div>';
   return '<div class="fullpage wiz">'+head+steps+body+foot+'</div>';
 }
@@ -3841,7 +3841,7 @@ MODALS.execution=()=>{
     const r=executionOf(S,b.id);return '<article class="worker-ticket '+(r?.status==='running'?'running':'')+'"><span>'+caption+'</span><b>'+esc(order(b.oid)?.code||'?')+' · '+esc(stepName(b))+'</b><strong>'+esc(mach(b.m)?.label||b.m)+'</strong><time>'+hm(b.s)+'–'+hm(b.e)+'</time><small>'+reportStatus(r)+' · 計畫 '+b.qty+' 件</small>'+
       (canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending?'<button class="btn primary" data-act="report-open" data-id="'+esc(b.id)+'">'+(r?.status==='running'?'繼續回報':'查看工作')+'</button>':'')+'</article>';};
   const line=worker?workerTimeline(S,STORE.employeeId,UI.date,UI.date===todayStr()?nowMin():DAY0):null;
-  const workerBody=worker?'<section class="worker-console"><div class="worker-machine">我的設備　<b>'+esc(line?.machineId?(mach(line.machineId)?.label||line.machineId):'尚未指定')+'</b></div>'+ticket(line?.current,'現在')+ticket(line?.next,'下一件')+'</section>':'';
+  const workerBody=worker?'<section class="worker-console"><div class="worker-machine">'+tx('我的設備')+'　<b>'+esc(line?.machineId?(mach(line.machineId)?.label||line.machineId):'尚未指定')+'</b></div>'+ticket(line?.current,'現在')+ticket(line?.next,'下一件')+'</section>':'';
   const managerBody=!worker?blocks.map(b=>{const r=executionOf(S,b.id);return '<article class="load-row"><b>'+esc((order(b.oid)?.code||'?')+' · '+stepName(b))+'</b>'+
       '<div class="hint">'+esc(emp(b.emp)?.name||'未指定')+' · '+esc(mach(b.m)?.label||b.m)+' · 原定 '+hm(b.s)+'–'+hm(b.e)+' · '+b.qty+' 件</div>'+
       '<div class="hint">'+reportStatus(r)+(r?' · 累計 '+r.qtyDone+' 件 · 差異 '+(r.qtyDone-b.qty)+' 件':'')+'</div>'+
@@ -3955,7 +3955,7 @@ function previewGeneral(D){
   openModal({t:'general-preview',draft:structuredClone(D),issues});
 }
 MODALS['general-preview']=m=>({title:tx('一般工作排班預覽'),body:
-  '<dl class="kv"><dt>工作內容</dt><dd>'+esc(workName(m.draft))+'</dd><dt>'+tx('執行員工')+'</dt><dd>'+esc(emp(m.draft.emp)?.name||'未指定')+'</dd><dt>'+tx('設備／工位')+'</dt><dd>'+esc(mach(m.draft.resourceId)?.label||'不需機台')+'</dd><dt>'+tx('時段')+'</dt><dd>'+esc(m.draft.date)+' '+hm(m.draft.s)+'–'+hm(m.draft.e)+'（'+(m.draft.e-m.draft.s)+' 分）</dd></dl>'+
+  '<dl class="kv"><dt>'+tx('工作內容')+'</dt><dd>'+esc(workName(m.draft))+'</dd><dt>'+tx('執行員工')+'</dt><dd>'+esc(emp(m.draft.emp)?.name||'未指定')+'</dd><dt>'+tx('設備／工位')+'</dt><dd>'+esc(mach(m.draft.resourceId)?.label||'不需機台')+'</dd><dt>'+tx('時段')+'</dt><dd>'+esc(m.draft.date)+' '+hm(m.draft.s)+'–'+hm(m.draft.e)+'（'+(m.draft.e-m.draft.s)+' 分）</dd></dl>'+
   '<div class="hint">'+tx('不改產品工序與其他工作。件數只作參考，不推定實際完成或產能。')+'</div>'+
   transferPlanWarnings(S,m.draft).map(t=>'<div class="issue">'+esc(t)+'。可保存為預排；實際加工完成仍須先點收。</div>').join('')+
   (m.issues.length?m.issues.map(t=>'<div class="issue">'+esc(t)+'</div>').join(''):'<div class="okbox">'+tx('檢查通過；確認後才會存入排程。')+'</div>'),
