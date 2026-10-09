@@ -804,7 +804,8 @@ function settingToggle(key,label,desc){
   return '<button class="setting-toggle" data-act="setting-toggle" data-key="'+key+'" aria-pressed="'+!!value+'"><span><b>'+esc(label)+'</b><small>'+esc(desc)+'</small></span><i></i></button>';
 }
 function settingsDrawerHTML(){
-  const en=UI.prefs.language==='en',permission=typeof Notification==='undefined'?'unsupported':Notification.permission;
+  // 非 zh-TW 語言一律顯示英文（vi/th 勞工看英文比看中文好）；後續可逐項改 tx()
+  const en=UI.prefs.language!=='zh-TW',permission=typeof Notification==='undefined'?'unsupported':Notification.permission;
   const name=STORE?.userName||'',email=STORE?.session?.user?.email||'',role=ROLE_NAME[STORE?.role]||'本機管理者';
   if(en)return '<div class="settings-intro"><b>Device settings</b><span>Changes preview immediately and are stored only on this device.</span></div>'+settingsSectionsHTML({en,name,email,role,permission});
   return '<div class="settings-intro"><b>這台裝置的顯示方式</b><span>調整後立即預覽；不會改動其他電腦或手機的班表顯示。</span></div>'+settingsSectionsHTML({en,name,email,role,permission});
