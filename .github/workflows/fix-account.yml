@@ -43,12 +43,31 @@ jobs:
           docker run --rm -e DATABASE_URL -e EMAIL="${{ inputs.email }}" \
             -v /tmp/sim.sql:/sim.sql:ro postgres:17 \
             sh -c 'psql "$DATABASE_URL" -v ON_ERROR_STOP=0 -v email="$EMAIL" -f /sim.sql'
-      - name: 傾印 auth 結構描述（診斷用）
+      - name: 完全模仿既有使用者欄位形狀（修補 token 空字串與 identity_data）
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
-          docker run --rm -e DATABASE_URL postgres:17 \
-            sh -c 'psql "$DATABASE_URL" -c "\d auth.refresh_tokens" -c "\d auth.sessions"'
+          cat > /tmp/mimic.sql <<'SQL'
+          update auth.users set
+            confirmation_token     = coalesce(confirmation_token, ''),
+            recovery_token         = coalesce(recovery_token, ''),
+            email_change           = coalesce(email_change, ''),
+            email_change_token_new = coalesce(email_change_token_new, ''),
+            invited_at             = coalesce(invited_at, created_at),
+            last_sign_in_at        = coalesce(last_sign_in_at, now())
+          where email = :'email';
+          update auth.identities i set
+            identity_data = i.identity_data
+              || '{"phone_verified": false}'::jsonb
+          where i.user_id = (select id from auth.users where email = :'email')
+            and not (i.identity_data ? 'phone_verified');
+          select email, invited_at is not null as invited,
+                 (confirmation_token = '') as tok_empty
+          from auth.users where email = :'email';
+          SQL
+          docker run --rm -e DATABASE_URL -e EMAIL="${{ inputs.email }}" \
+            -v /tmp/mimic.sql:/mimic.sql:ro postgres:17 \
+            sh -c 'psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -v email="$EMAIL" -f /mimic.sql'
       - name: 診斷與修復
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
