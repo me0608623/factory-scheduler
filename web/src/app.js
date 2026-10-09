@@ -146,7 +146,7 @@ function makeDemo(){
     {id:"o5",code:"B05",pid:"p2",qty:90,due:W[5],pri:3},
     {id:"o6",code:"C06",pid:"p3",qty:150,due:W[6],pri:3}];
   const fails=autoPlan(nowAbs());
-  S.log.unshift({id:uid(),t:Date.now(),kind:"auto",title:"系統自動排好 "+S.orders.length+" 張工單",lines:fails.map(f=>({k:"fail",t:f}))});
+  S.log.unshift({id:uid(),t:Date.now(),kind:"auto",title:tx("系統自動排好")+" "+S.orders.length+" 張工單",lines:fails.map(f=>({k:"fail",t:f}))});
 }
 
 /* ===== 4. 變更與復原（實際寫入由資料層 STORE 負責，見第 12 節） ===== */
@@ -1644,7 +1644,7 @@ function resourceLoadHTML(){
       warnings.map(t=>'<div class="issue">'+esc(t)+'</div>').join('')+'</article>';
   }).join('')||'<div class="empty">此範圍沒有資源</div>';
   const anomalies=report.invalidBlocks+report.missingResources+report.invalidWindows;
-  return {title:'當日負荷 · '+mdw(UI.date),body:
+  return {title:tx('當日負荷')+' · '+mdw(UI.date),body:
     '<div class="hint">'+esc(UI.factory==='all'?'兩廠全體資源':factoryName(UI.factory))+' · 分析目前畫面的排程，不套用名冊分組篩選，也不改排程。同步狀態請看右上角；週檢視仍分析上方選定的單日。</div>'+
     '<div class="hint">占用率 = 可用時段內的占用時間 ÷ 可用時間。午休、停工、故障、請假及個人加班設定均扣除。一人同時顧多台時，占用時間不重複加總，機台工作合計另列；重疊或超限另外警示。</div>'+
     '<div class="hint">空檔只代表時間未被占用，不保證技能、物料、工序或交期允許排入；負荷高也不等於已確認的生產瓶頸。待確認名冊不推測可用產能。</div>'+
@@ -1870,7 +1870,7 @@ logone(m){
 },
 issues(){
   const bad=S.blocks.filter(b=>b.date===UI.date).map(b=>({b,iss:issuesOf(b)})).filter(x=>x.iss.length);
-  if(!bad.length)return {title:"沒有問題",body:'<div class="okbox">今天的排程都沒有衝突</div>'};
+  if(!bad.length)return {title:tx('沒有問題'),body:'<div class="okbox">今天的排程都沒有衝突</div>'};
   return {title:mdw(UI.date)+" 有 "+bad.length+" 個問題",
     body:'<div class="result">'+bad.map(x=>'<div class="rline" style="flex-wrap:wrap"><span style="flex:1;min-width:200px">'+esc(label(x.b)+"（"+x.b.m+" "+hm(x.b.s)+"）")+'<br><span style="color:var(--bad)">'+esc(x.iss.join("、"))+'</span></span><button class="btn" data-act="blk-open" data-v="'+x.b.id+'">處理</button></div>').join("")+'</div>',
     foot:readOnly?"":'<button class="btn primary" data-act="fix-all">讓系統自動修正全部</button>'};
@@ -1929,7 +1929,7 @@ export(){
   const dates='<div class="field"><span class="lab">日期</span><select id="history-date" aria-label="歷史日期">'+(legacy?.dates||[]).map(d=>'<option value="'+esc(d)+'"'+(d===m.date?' selected':'')+'>'+esc(d)+'</option>').join('')+'</select></div>';
   const factories='<div class="seg" role="group" aria-label="廠別">'+['全部','1廠','2廠'].map(x=>'<button data-act="history-factory" data-v="'+x+'" aria-pressed="'+(m.factory===x)+'">'+x+'</button>').join('')+'</div>';
   const sections='<div class="seg" role="group" aria-label="歷史資料類型">'+[['day','每日安排'],['catalog','製作項目與人員']].map(([v,t])=>'<button data-act="history-section" data-v="'+v+'" aria-pressed="'+(m.section===v)+'">'+t+'</button>').join('')+'</div>';
-  return {title:'歷史排程 · '+esc(m.archive.source_name),body:
+  return {title:tx('歷史排程')+' · '+esc(m.archive.source_name),body:
     '<div class="hint">原檔日期 '+esc(m.archive.date_from)+'～'+esc(m.archive.date_to)+'。原檔名冊尚待確認，不影響目前排程。</div>'+source+sections+(m.section==='catalog'?'':dates)+factories+
     (m.factory==='全部'||m.factory==='1廠'?(m.section==='catalog'?legacyCatalogHTML(legacy?.catalog,'1廠'):legacyFactoryHTML(day,'1廠')):'')+
     (m.factory==='全部'||m.factory==='2廠'?(m.section==='catalog'?legacyCatalogHTML(legacy?.catalog,'2廠'):legacyFactoryHTML(day,'2廠')):''),
@@ -1994,7 +1994,7 @@ Object.assign(MODAL_ACT,{
     pushUndo();S.cal={week:[...UI.modal.draft.week],over:{...UI.modal.draft.over}};
     for(const d of Object.keys(S.dayOT))if(!isOpen(d))delete S.dayOT[d];
     const r=closeDays();
-    commit({kind:"ot",title:"更新上班日設定"+(r.aff.length?"，移走 "+r.aff.length+" 段工作":""),lines:r.lines},"calendar.manage");
+    commit({kind:"ot",title:tx('更新上班日設定')+(r.aff.length?"，移走 "+r.aff.length+" 段工作":""),lines:r.lines},"calendar.manage");
     if(r.lines.length)showResult();else{closeModal();toast("已儲存。新開的上班日要排工作嗎？","重新排程",runAuto);}
   }
 });
@@ -2741,7 +2741,7 @@ async function copyText(t){
   try{await navigator.clipboard.writeText(t);toast("已複製，到試算表 A1 貼上即可");}
   catch(e){openModal({t:"copybox",text:t});}
 }
-MODALS.copybox=m=>({title:"請手動複製",body:'<textarea id="cbx" class="inp" style="height:240px;font-size:14px;font-family:var(--mono)" readonly>'+esc(m.text)+'</textarea><div class="hint">已全選，按 Ctrl+C（手機長按）複製。</div>'});
+MODALS.copybox=m=>({title:tx('請手動複製'),body:'<textarea id="cbx" class="inp" style="height:240px;font-size:14px;font-family:var(--mono)" readonly>'+esc(m.text)+'</textarea><div class="hint">已全選，按 Ctrl+C（手機長按）複製。</div>'});
 async function downloadCSV(){
   const csv="﻿"+allRows().map(r=>r.map(v=>{v=String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}).join(",")).join("\r\n");
   saveFile("排程明細_"+todayStr()+".csv",new Blob([csv],{type:"text/csv;charset=utf-8"}));
@@ -2930,7 +2930,7 @@ MODALS['schedule-diff']=m=>{
     '<div class="field"><label for="diff-date2">日期 B</label><input class="inp" type="date" id="diff-date2" value="'+UI.date+'"></div></div>',
     foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="diff-run">比較</button>'};
   const st=r.summary;
-  return {title:'排程比對：'+md(r.d1)+' vs '+md(r.d2),body:
+  return {title:tx('排程比對')+'：'+md(r.d1)+' vs '+md(r.d2),body:
     '<div class="hint">'+st.total1+' 段 vs '+st.total2+' 段 · 共同 '+r.common+' 段 · '+st.machines1+' 台 vs '+st.machines2+' 台 · '+st.employees1+' 人 vs '+st.employees2+' 人</div>'+
     '<div class="field"><span class="lab">只在 '+md(r.d1)+'（被移除或改時間）</span><div class="result">'+(r.only1.map(item).join("")||'<div class="okbox">無</div>')+'</div></div>'+
     '<div class="field"><span class="lab">只在 '+md(r.d2)+'（新增或改時間）</span><div class="result">'+(r.only2.map(item).join("")||'<div class="okbox">無</div>')+'</div></div>',
@@ -3733,7 +3733,7 @@ async function viewScenario(id){
     const stale=scenarioStale(item,S),B=item.payload.base,A=item.payload.candidate,ev={date:item.payload.date||UI.date};
     const opts=[{id:'S',name:item.name,desc:item.payload.description||'保存的情境',A,state:JSON.stringify(A),
       lines:[],mt:measure(B,A,ev),applicable:false,diagnostics:[stale?'此情境的基準與現況不同；僅供查看，不可覆蓋目前班表':'保存的情境僅供比較，不可直接套用'],best:false}];
-    enterPreview({title:'保存情境：'+item.name,logTitle:item.name,kind:'edit',base:JSON.stringify(B),B,opts,ev,
+    enterPreview({title:tx('保存試排情境')+'：'+item.name,logTitle:item.name,kind:'edit',base:JSON.stringify(B),B,opts,ev,
       extra:{savedScenario:true,engine:'歷史試排資料'}});
   }catch(e){toast(e.message);}
 }
@@ -3751,7 +3751,7 @@ MODALS.execution=()=>{
       '<div class="hint">'+esc(emp(b.emp)?.name||'未指定')+' · '+esc(mach(b.m)?.label||b.m)+' · 原定 '+hm(b.s)+'–'+hm(b.e)+' · '+b.qty+' 件</div>'+
       '<div class="hint">'+reportStatus(r)+(r?' · 累計 '+r.qtyDone+' 件 · 差異 '+(r.qtyDone-b.qty)+' 件':'')+'</div>'+
       (canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending?'<button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">查看／回報進度</button>':'')+'</article>';}).join(''):'';
-  return {title:'現場回報 · '+mdw(UI.date),body:
+  return {title:tx('現場回報')+' · '+mdw(UI.date),body:
     '<div class="hint">開始、做了幾件、完工都另外保存實際事實。完工少做的件數會回到未排工作，下一次重排會補足；不會悄悄改掉原定產能。</div>'+
     (worker&&!STORE.employeeId?'<div class="issue">帳號尚未綁定員工，請由管理員綁定後使用。</div>':'')+
     (S.setupPending?'<div class="issue">來源名冊與工時待確認，不能回報。</div>':'')+
