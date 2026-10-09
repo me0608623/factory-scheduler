@@ -597,6 +597,22 @@ def solve(
     # 只在有選擇時罰（該站只有一種人選或機台 → 屬必要配置，不計），權重為 0
     # 或 SOLVER_SWITCH_COST=0 時完全不加項，模型與基準一致。
     if _switch_cost_enabled(weights):
+        def uses(key, pred, tag):
+            """「這站選的組合滿足 pred」的布林（對滿足 pred 的候選 OR）。"""
+            v = m.new_bool_var(f"uses_{tag}_{key[0]}_{key[1]}")
+            lits = [X[key, pr] for pr in ops[key].pairs if pred(pr)]
+            if lits:
+                m.add_max_equality(v, lits)
+            return v, bool(lits)
+
+        def both(a, b, tag):
+            """a ∧ b 的 reified 布林。"""
+            v = m.new_bool_var(tag)
+            m.add(v >= a + b - 1)
+            m.add_implication(v, a)
+            m.add_implication(v, b)
+            return v
+
         for o in snap.orders:
             p = prods.get(o.product)
             if not p:
@@ -614,15 +630,14 @@ def solve(
                         keep = m.new_bool_var(f"same_emp_{o.id}_{k}")
                         lits = []
                         for e in sorted(shared):
-                            b = m.new_bool_var(f"same_emp_{o.id}_{k}_{e}")
-                            grp = [X[prev.key, pr] for pr in prev.pairs if pr[1] == e] + \
-                                  [X[cur.key, pr] for pr in cur.pairs if pr[1] == e]
-                            m.add(b >= sum(grp) - len(grp) + 1)   # 全選中 → b=1
-                            for lit in grp:
-                                m.add_implication(b, lit)
-                            lits.append(b)
-                        m.add_max_equality(keep, lits)
-                        terms.append(weights.sw_emp * (1 - keep))
+                            # 同員工不論在哪台機器：兩站各自「用到 e」的 OR 再 AND
+                            pe, ok1 = uses(prev.key, lambda pr, e=e: pr[1] == e, f"emp_prev")
+                            ce, ok2 = uses(cur.key, lambda pr, e=e: pr[1] == e, f"emp_cur")
+                            if ok1 and ok2:
+                                lits.append(both(pe, ce, f"same_emp_{o.id}_{k}_{e}"))
+                        if lits:
+                            m.add_max_equality(keep, lits)
+                            terms.append(weights.sw_emp * (1 - keep))
                 if weights.sw_mach:
                     prev_machs = {pr[0] for pr in prev.pairs}
                     cur_machs = {pr[0] for pr in cur.pairs}
@@ -632,15 +647,13 @@ def solve(
                         keep_m = m.new_bool_var(f"same_mach_{o.id}_{k}")
                         lits_m = []
                         for mid in sorted(shared_m):
-                            b = m.new_bool_var(f"same_mach_{o.id}_{k}_{mid}")
-                            grp = [X[prev.key, pr] for pr in prev.pairs if pr[0] == mid] + \
-                                  [X[cur.key, pr] for pr in cur.pairs if pr[0] == mid]
-                            m.add(b >= sum(grp) - len(grp) + 1)
-                            for lit in grp:
-                                m.add_implication(b, lit)
-                            lits_m.append(b)
-                        m.add_max_equality(keep_m, lits_m)
-                        terms.append(weights.sw_mach * (1 - keep_m))
+                            pm, ok1 = uses(prev.key, lambda pr, mid=mid: pr[0] == mid, f"mach_prev")
+                            cm, ok2 = uses(cur.key, lambda pr, mid=mid: pr[0] == mid, f"mach_cur")
+                            if ok1 and ok2:
+                                lits_m.append(both(pm, cm, f"same_mach_{o.id}_{k}_{mid}"))
+                        if lits_m:
+                            m.add_max_equality(keep_m, lits_m)
+                            terms.append(weights.sw_mach * (1 - keep_m))
     m.minimize(sum(terms) if terms else 0)
 
     solver = cp_model.CpSolver()

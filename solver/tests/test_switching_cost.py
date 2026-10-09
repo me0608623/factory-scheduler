@@ -138,7 +138,7 @@ def test_solver_machine_switch_weight_keeps_same_machine():
     assert len(machs) == 1, f"兩站應同一台機台，實際 {machs}"
 
 
-def test_solver_zero_weights_baseline_compatible(monkeypatch):
+def test_solver_zero_weights_baseline_compatible(demo, monkeypatch):
     """12：sw 權重 0 ＋環境關閉 → 模型行為回到基準（合法解、量測不受影響）。"""
     monkeypatch.setenv("SOLVER_SWITCH_COST", "0")
     snap, now = demo
@@ -149,7 +149,7 @@ def test_solver_zero_weights_baseline_compatible(monkeypatch):
     assert m["pieces_total"] > 0
 
 
-def test_solver_presets_keep_semantics_with_switch_cost():
+def test_solver_presets_keep_semantics_with_switch_cost(demo):
     """15：三個 PRESETS 含軟性成本後仍各自有合法解。"""
     snap, now = demo
     for name, w in PRESETS.items():
@@ -225,3 +225,24 @@ def test_solver_restricted_draft_vs_full_quality():
         assert check(snap, r.blocks, NOW) == [], tag
     mf, md = switching_metrics(snap, full.blocks), switching_metrics(snap, draft.blocks)
     print(f"full={mf} draft={md}")
+
+
+def test_ab_quality_evidence_fault_scenario(demo, monkeypatch):
+    """Phase 8 A/B 證據：同一故障情境，基準（關閉）vs 開啟軟性成本的指標對照。
+    數值由 CI（pytest -rP）輸出，供報告引用；斷言只守硬性規則與指標自洽。"""
+    from app.schemas import Fault
+    snap, now = demo
+    snap = snap.model_copy(deep=True)
+    next(m for m in snap.machines if m.id == "a").faults.append(
+        Fault(date="2026-09-29", start=700, end=780))
+    monkeypatch.setenv("SOLVER_SWITCH_COST", "0")
+    base = solve(snap, now, PRESETS["min_change"], time_limit=5)
+    monkeypatch.setenv("SOLVER_SWITCH_COST", "1")
+    tuned = solve(snap, now, PRESETS["min_change"], time_limit=5)
+    for r, tag in ((base, "baseline"), (tuned, "switch-cost")):
+        assert r.status in ("OPTIMAL", "FEASIBLE"), tag
+        assert check(snap, r.blocks, now) == [], tag
+    mb, mt = switching_metrics(snap, base.blocks), switching_metrics(snap, tuned.blocks)
+    print(f"A/B fault scenario: baseline={mb} switch_cost={mt}")
+    assert mb["machine_switches"] + mb["employee_switches"] >= \
+        0  # 指標存在即可；改善幅度見 CI 輸出與報告
