@@ -1741,12 +1741,12 @@ emp(m){
    (D.sourceNotes?'<div class="hint">原文備註：'+esc(D.sourceNotes)+'</div>':'')+
    (D.catalogSources?.length?'<div class="hint">補充來源：'+D.catalogSources.map(esc).join('；')+'</div>':'')+
    (D.identityCandidates?.length?'<div class="field"><span class="lab">別名待核對（尚未合併）</span>'+D.identityCandidates.map(c=>'<div class="hint">'+esc(c.name)+' · '+esc(c.source_employee_code||'無代號')+' · '+esc(c.source_ref||'')+'</div>').join('')+'</div>':'')+
-   '<div class="field"><label for="f-name">姓名</label><input class="inp" id="f-name" data-bind="name" value="'+esc(D.name)+'" '+(ro?"disabled":"")+' autocomplete="off"></div>'+
+   '<div class="field"><label for="f-name">'+tx('姓名')+'</label><input class="inp" id="f-name" data-bind="name" value="'+esc(D.name)+'" '+(ro?"disabled":"")+' autocomplete="off"></div>'+
    '<div class="field"><span class="lab">所屬廠別</span><div class="toggles">'+FACTORIES.map(f=>tg("m-emp-factory",f,factoryOf(D)===f,factoryName(f),"",ro)).join("")+'</div></div>'+
    '<div class="field"><span class="lab">所屬分組／部門</span><div class="hint">'+(employeeGroups(S,D.id).map(x=>esc(x.group.name)+(x.group.department?'（'+esc(x.group.department)+'）':'')+' · '+memberStatus(x.membership.reviewStatus)).join('；')||'尚未分組')+'。分組可在「分組／部門」調整，不等於機台技能。</div></div>'+
    '<div class="field"><span class="lab">代表顏色</span><div class="swatches">'+COLORS.map((c,i)=>'<button class="swatch" style="background:'+c+'" data-act="m-color" data-v="'+i+'" aria-pressed="'+(D.color===i)+'" aria-label="顏色 '+(i+1)+'"'+(ro?' disabled':'')+'></button>').join("")+'</div></div>'+
    '<div class="field"><span class="lab">會操作的機台</span><div class="toggles">'+S.machines.filter(M=>factoryOf(M)===factoryOf(D)).map(M=>tg("m-skill",M.id,D.skills.includes(M.id),'<span class="num">'+esc(M.id)+'</span><small>'+esc(M.label)+'</small>',"",ro)).join("")+'</div></div>'+
-   '<div class="field"><label for="f-max-machines">同時最多顧幾台機台</label><input class="inp num" type="number" min="1" max="100" step="1" id="f-max-machines" data-bind="maxMachines" value="'+(D.maxMachines||1)+'" '+(ro?"disabled":"")+'><div class="hint">預設 1 台；只計算同時運轉的不同機台，不影響會操作的機台清單。</div></div>'+
+   '<div class="field"><label for="f-max-machines">'+tx('同時最多顧幾台機台')+'</label><input class="inp num" type="number" min="1" max="100" step="1" id="f-max-machines" data-bind="maxMachines" value="'+(D.maxMachines||1)+'" '+(ro?"disabled":"")+'><div class="hint">預設 1 台；只計算同時運轉的不同機台，不影響會操作的機台清單。</div></div>'+
    '<div class="field"><span class="lab">固定每週可加班日</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("m-ot-week",w,D.otWeekdays.includes(w),"週"+WD[w],"",ro)).join("")+'</div><div class="hint">當天是否加班另由排程表開放；臨時意願可在當天的「加班設定」調整。</div></div>'+
    '<div class="field"><span class="lab">請假（點日期切換，紅色 = 請假）</span><div class="toggles">'+days+'</div></div>';
   const foot=ro?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':
@@ -1770,10 +1770,10 @@ mach(m){
    '<button class="btn danger" data-act="m-fault" style="height:56px;font-size:19px;justify-content:center">確認故障，讓系統自動調整</button></div>':"";
   const body=(D.sourceRef?'<div class="hint">原檔來源：'+esc(D.sourceRef)+'。'+(D.reviewStatus==='pending'?'此欄可能代表機台或工作站，用途與工序待確認。':'')+'</div>':'')+(m.fromInc?faultBox:"")+
    (D.catalogGroup?'<div class="hint">來源資源群組：'+esc(D.catalogGroup)+(D.catalogSide?' · '+esc(D.catalogSide)+'側操作位置':'')+'。僅作來源對照，尚未確認共用產能。</div>':'')+
-   (m.id?'':'<div class="field"><label for="f-id">代號（例：f）</label><input class="inp num" id="f-id" data-bind="id" value="'+esc(D.id)+'" maxlength="4" autocomplete="off"></div>')+
-   '<div class="field"><label for="f-label">名稱</label><input class="inp" id="f-label" data-bind="label" value="'+esc(D.label)+'" '+(rm?"disabled":"")+' autocomplete="off"></div>'+
+   (m.id?'':'<div class="field"><label for="f-id">'+tx('代號（例：f）')+'</label><input class="inp num" id="f-id" data-bind="id" value="'+esc(D.id)+'" maxlength="4" autocomplete="off"></div>')+
+   '<div class="field"><label for="f-label">'+tx('名稱')+'</label><input class="inp" id="f-label" data-bind="label" value="'+esc(D.label)+'" '+(rm?"disabled":"")+' autocomplete="off"></div>'+
    '<div class="field"><span class="lab">所屬廠別</span><div class="toggles">'+FACTORIES.map(f=>tg("m-mach-factory",f,factoryOf(D)===f,factoryName(f),"",rm)).join("")+'</div></div>'+
-   '<div class="field"><label for="f-proc">設備工序／工作內容（可自行輸入）</label><input class="inp" id="f-proc" data-bind="proc" list="process-names" value="'+esc(D.proc)+'" '+(rm?'disabled':'')+'><datalist id="process-names">'+processNames().map(p=>'<option value="'+esc(p)+'"></option>').join('')+'</datalist><div class="hint">名稱由使用者設定，不限於示範工序；純人工請使用「工作內容」。</div></div>'+
+   '<div class="field"><label for="f-proc">'+tx('設備工序／工作內容（可自行輸入）')+'</label><input class="inp" id="f-proc" data-bind="proc" list="process-names" value="'+esc(D.proc)+'" '+(rm?'disabled':'')+'><datalist id="process-names">'+processNames().map(p=>'<option value="'+esc(p)+'"></option>').join('')+'</datalist><div class="hint">名稱由使用者設定，不限於示範工序；純人工請使用「工作內容」。</div></div>'+
    '<div class="field"><span class="lab">允許加工的產品／品號</span><div class="toggles">'+S.products.map(p=>tg("m-prod",p.id,D.products.includes(p.id),esc(p.name)+'<small>'+esc(p.steps.map(s=>s.proc).join("→"))+'</small>',"",rm)).join("")+'</div><div class="hint">這是使用者建立的產品清單，不代表 1023 已核定模具。模具尚未獨立建模。</div>'+(rm?'':'<button class="btn" data-act="mach-products">新增／編輯產品與工序</button><div class="hint">請先儲存本視窗修改，再切換產品設定。</div>')+'</div>'+
    '<div class="field"><span class="lab">誰會操作</span><div class="chips">'+(S.employees.filter(E=>E.skills.includes(D.id)).map(E=>'<span class="emp"><span class="sw" style="background:'+COLORS[E.color%COLORS.length]+'">'+esc(E.name[0])+'</span>'+esc(E.name)+'</span>').join("")||'<span class="hint">還沒有人會操作（到員工設定勾選）</span>')+'</div></div>'+
    (m.fromInc?"":faultBox);
@@ -1794,13 +1794,13 @@ ord(m){
     plan='<div class="field"><span class="lab">目前排程　'+statusTag(O)+(st.fd?'　預計 '+mdw(st.fd)+" "+hm(st.fin%1440)+" 完成":"")+'</span><div class="result">'+
       (bl.map(b=>'<button class="rline" data-act="goto" data-d="'+b.date+'" style="border:0;text-align:left;width:100%"><span class="k info">'+esc(stepName(b))+'</span><span class="num">'+mdw(b.date)+" "+hm(b.s)+"–"+hm(b.e)+"　"+esc(b.m)+"　"+esc(emp(b.emp)?emp(b.emp).name:"")+"　"+b.qty+'件</span></button>').join("")||'<div class="empty">尚未排入</div>')+'</div></div>';}
   const body=
-   '<div class="row2"><div class="field"><label for="f-code">工單號</label><input class="inp num" id="f-code" data-bind="code" value="'+esc(D.code)+'" '+(ro?"disabled":"")+'></div>'+
-   '<div class="field"><label for="f-qty">數量（件）</label><input class="inp num" type="number" min="1" id="f-qty" data-bind="qty" value="'+D.qty+'" '+(ro?"disabled":"")+'></div></div>'+
+   '<div class="row2"><div class="field"><label for="f-code">'+tx('工單號')+'</label><input class="inp num" id="f-code" data-bind="code" value="'+esc(D.code)+'" '+(ro?"disabled":"")+'></div>'+
+   '<div class="field"><label for="f-qty">'+tx('數量（件）')+'</label><input class="inp num" type="number" min="1" id="f-qty" data-bind="qty" value="'+D.qty+'" '+(ro?"disabled":"")+'></div></div>'+
    '<div class="field"><span class="lab">產品</span><div class="toggles">'+S.products.filter(x=>x.id===D.pid||UI.factory==="all"||x.steps.some(s=>factoryOf(s)===UI.factory)).map(x=>tg("o-prod",x.id,D.pid===x.id,esc(x.name),"",ro)).join("")+'</div></div>'+
-   '<div class="row2"><div class="field"><label for="f-due">最晚完成日（硬性期限）</label><input class="inp num" type="date" id="f-due" data-bind="due" value="'+D.due+'" '+(ro?"disabled":"")+'></div>'+
+   '<div class="row2"><div class="field"><label for="f-due">'+tx('最晚完成日（硬性期限）')+'</label><input class="inp num" type="date" id="f-due" data-bind="due" value="'+D.due+'" '+(ro?"disabled":"")+'></div>'+
    '<div class="field"><span class="lab">優先順序</span><div class="toggles">'+[[0,"特急"],[1,"急"],[2,"一般"],[3,"不急"]].map(([v,t])=>tg("o-pri",v,D.pri===v,t,"",ro)).join("")+'</div></div></div>'+
    '<div class="field"><span class="lab">標準工序（依產品設定自動算時間）</span><div class="flow">'+flow+'</div></div>'+
-   '<div class="field"><label for="f-onote">備註（內部說明，不影響排程計算）</label><input class="inp" id="f-onote" data-bind="note" maxlength="200" value="'+esc(D.note||'')+'" '+(ro?"disabled":"")+' autocomplete="off"></div>'+plan;
+   '<div class="field"><label for="f-onote">'+tx('備註（內部說明，不影響排程計算）')+'</label><input class="inp" id="f-onote" data-bind="note" maxlength="200" value="'+esc(D.note||'')+'" '+(ro?"disabled":"")+' autocomplete="off"></div>'+plan;
   const foot=ro?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':
    (m.id?'<button class="btn danger" data-act="o-del">刪除工單</button>':'')+'<div class="spacer"></div><button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="o-save">下一步：選排法</button>';
   return {title:m.id?"工單 "+esc(D.code):"新增工單",body,foot};
@@ -1843,8 +1843,8 @@ blk(m){
    (executionOf(S,b.id)?'<div class="hint">已有現場回報，這段排程已鎖定，不可拖曳、改量、解除固定或刪除。</div><button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">查看現場回報</button>':'')+
    (ro?"":'<div class="field"><span class="lab">換人</span><div class="toggles">'+empT+'</div></div>'+
    '<div class="field"><span class="lab">換機台</span><div class="toggles">'+machT+'</div></div>'+
-   '<div class="row2"><div class="field"><label for="f-bs">開始時間</label><select class="inp num" id="f-bs">'+opts+'</select></div>'+
-   '<div class="field"><label for="f-be">結束時間</label><select class="inp num" id="f-be">'+endOpts+'</select></div></div>'+
+   '<div class="row2"><div class="field"><label for="f-bs">'+tx('開始時間')+'</label><select class="inp num" id="f-bs">'+opts+'</select></div>'+
+   '<div class="field"><label for="f-be">'+tx('結束時間')+'</label><select class="inp num" id="f-be">'+endOpts+'</select></div></div>'+
    '<div class="hint">調整時段後請按「預覽調整」。工作長度改變會依工序速率重估這段的件數，未排入的剩餘件數仍留在工單中。</div>'+
    '<div class="field"><span class="lab">固定</span><div class="toggles">'+tg("b-pin","1",b.pin,b.pin?"已固定（系統不會動）":"未固定（系統可調整）")+'</div></div>')+
    (others.length?'<div class="field"><span class="lab">同一張工單的其他段</span><div class="result">'+others.map(x=>'<button class="rline" data-act="goto" data-d="'+x.date+'" style="border:0;text-align:left;width:100%"><span class="k info">'+esc(stepName(x))+'</span><span class="num">'+mdw(x.date)+" "+hm(x.s)+"–"+hm(x.e)+"　"+esc(x.m)+"　"+esc(emp(x.emp)?emp(x.emp).name:"")+'</span></button>').join("")+'</div></div>':"");
