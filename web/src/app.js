@@ -3771,9 +3771,9 @@ MODALS['execution-report']=m=>{
     (r?.status==='done'?'<div class="hint">已完成 '+r.qtyDone+' 件；相對原定差異 '+(r.qtyDone-b.qty)+' 件。此版不提供修改已完成回報。</div>':''),
     foot:'<div class="work-report-actions">'+(allowed&&r?.status!=='done'?
       (m.pendingRequest?'<button class="btn danger" data-act="report-work" data-v="retry">重試上一筆回報</button>':
-        '<button class="btn primary" data-act="report-work" data-v="start" '+(r?'disabled':'')+'>開工</button>'+
-        '<button class="btn" data-act="report-work" data-v="quantity" '+(!r?'disabled':'')+'>做了幾件</button>'+
-        '<button class="btn success" data-act="report-work" data-v="finish" '+(!r?'disabled':'')+'>完工</button>'):'')+'<button class="btn" data-act="close">'+tx('關閉')+'</button></div>'};
+        '<button class="btn primary" data-act="report-work" data-v="start" '+(r?'disabled':'')+'>'+tx('開工')+'</button>'+
+        '<button class="btn" data-act="report-work" data-v="quantity" '+(!r?'disabled':'')+'>'+tx('做了幾件')+'</button>'+
+        '<button class="btn success" data-act="report-work" data-v="finish" '+(!r?'disabled':'')+'>'+tx('完工')+'</button>'):'')+'<button class="btn" data-act="close">'+tx('關閉')+'</button></div>'};
 };
 async function reportWork(button){
   const m=UI.modal;if(m?.t!=='execution-report'||m.busy||PV)return;
