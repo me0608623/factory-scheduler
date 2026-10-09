@@ -5,6 +5,18 @@
 > ② **使用者系列**（vg-glass 根因修復=51、浮動視窗=65、分割放大=66、聊天面板=69、效能煙霧=74 等，多為功能/修復）
 > 兩系列皆經 main 推送與 CI 把關。
 
+## 夜間摘要（2026-10-09 晚 ~ 10-10 晨，給使用者的一頁交接）
+
+**健康狀態（全部實證）**：web 274/274、db 201+5=206、solver CI 83+（含 test_edges/test_perf_smoke/test_switching_cost）；CI main 與 PR #7 分支全綠；生產 web/solver/staging 三站 200；本機＋正式站瀏覽器煙霧 0 JS 錯誤；四語 i18n runtime 驗證齊。
+
+**你今晚完成（6 個系列）**：vg-glass 定位根因修復＋可收合側欄 → 浮動視窗（win.js）→ 分割窗格 → 聊天面板窄視窗修復 → 員工/設備/工單完整管理頁 → 功能解說主題導覽 → 平面圖 i18n＋solver 邊界/效能測試進 CI → 9-26 疑點①修復 → **PR #7 軟性切換成本（疑點②，等你審核合併）**。
+
+**自動循環完成（輪 51-89 概要）**：測試 218→274（i18n 複合標題、localStorage 邊界、chat-ledgers、transfer-ui、roster-ui、未測匯出、workWindows、orderCounters、CSS 結構守門、vg-glass 定位不變量守門等）；CSS 死碼清理（-5.6%）；repo 衛生（tmp 腳本、TEST_STATUS 歷史標註、ARCHITECTURE 對齊現況、輪次索引）；修復鏽死的 benchmark_manual_flow（0021 起即斷，1000 單 1019/43ms 基準）；CI 實證監測法（GitHub API 唯讀）；瀏覽器煙霧（本機主流程/導覽七步/四語＋正式站唯讀）。
+
+**等你處理**：① PR #7 審核合併（分支 CI 已綠；注意與 feature-tours 的 tour.js/layout-regression/進度文件衝突）② setup_pending 實地驗證解除 ③ DB 密碼輪換 ④ LINE notify token ⑤ 員工帳號實測。
+
+**已知環境限制**：本機 uv trampoline 損壞（python/solver 相關只能 CI 跑）；integration_solver_apply.mjs 與 acceptance_sim.mjs 因此本機不可跑（後者另需 Docker）。
+
 ## 輪次索引
 
 - 輪次 48-49（2026-09-30 續）：fromSnapshot(null/undefined) 防護（→ `cdb6b6e`）：空輸入回傳可用狀態，補 1 測試
@@ -51,7 +63,7 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 88（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
+- **總輪次**: 89（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
@@ -410,3 +422,8 @@
 - **staging 站首次驗證**：factory-scheduler-web-staging.onrender.com → **200** ✓（此前從未檢查過）
 - **新手導覽七步完整走查**（本機瀏覽器，清除 fsched-tour-done 後重載觸發）：從「切換日期」起連點下一步至「更多功能」，第七次點擊後對話框與聚焦框正確移除——完成路徑乾淨；計數讀值的跳動（1→4→6）是取樣撞上 render() 整頁 DOM 重建的時序現象，非導覽缺陷
 - 附帶確認：evaluate 多語句需包 IIFE 且避免可選鏈（傳輸層限制）
+
+
+## 輪次 89（2026-10-10）— 夜間摘要交接
+
+- 在輪次索引前插入「夜間摘要」：健康狀態實證數字、使用者 6 個系列、自動循環 51-89 概要、待使用者處理清單、環境限制——醒來看一頁即掌握全況
