@@ -9,7 +9,7 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 78（65/66/69/74/75/76 為使用者系列，編號重疊以內容區分）
+- **總輪次**: 79（65/66/69/74/75/76 為使用者系列，編號重疊以內容區分）
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
@@ -296,3 +296,10 @@
 - 使用者於 feat/soft-switching-cost 展開 **9-26 疑點②**實作，產品決策（其 NEXT_TASKS WIP，未提交）：採 **Soft Switching Cost 軟性切換成本**——不用最短工段硬限制，保留合法短工段，以可配置權重（switching/fragmentation）引導連續性，自然分段（午休／下班／跨日／故障）不計懲罰
 - 本輪不碰 solver 與 NEXT_TASKS（其 WIP 範圍）；worktree 確認 main 現況 web **272/272** 綠
 - 待其實作完成合併後做驗證輪
+
+
+## 輪次 79（2026-10-10）— 疑點②實作待併觀察輪
+
+- 使用者完成疑點②實作：`3841f8e` Soft Switching Cost（feat/soft-switching-cost 分支，**已推遠端未併 main**——推測等分支 CI 驗證後自行合併，本循環不代併其分支）
+- 使用者已轉戰 feat/feature-tours（工作樹乾淨）；生產站實測 web 200 ✓ solver /health 200 ✓
+- main 現況維持 **272/272**（輪次 78 已驗）；待 soft-switching-cost 併入後做驗證輪
