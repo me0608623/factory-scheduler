@@ -606,7 +606,7 @@ function issuesOf(b,opt={}){
   if(assignments(S).some(a=>a.date===b.date&&a.resourceId===b.m&&a.s<b.e&&a.e>b.s))out.push('設備／工位被一般工作占用');
   const di=dayInfo(b.date);
   const inWin=di.win.some(w=>b.s>=w.s&&b.e<=w.e);
-  if(!inWin)out.push(di.open?"超出上班時間（午休或未開加班）":"這天停工");
+  if(!inWin)out.push(di.open?tx("超出上班時間（午休或未開加班）"):tx("這天停工"));
   else if(E&&!overtimeAllowed(E,b.date)&&di.win.some(w=>w.ot&&b.s<w.e&&b.e>w.s))out.push(E.name+" 當日不可加班（假日出勤也不排）");
   for(const x of S.blocks){if(x===b||x.date!==b.date||x.s>=b.e||x.e<=b.s)continue;
     if(x.m===b.m){if(opt.pushOK&&!x.pin){opt.push++;continue;}out.push(x.pin?"和固定的 "+label(x)+" 重疊":"和 "+label(x)+" 撞同一台機器");break;}}
@@ -805,7 +805,7 @@ function cardsHTML(searchable=false){
   const filtered=q?employees.filter(e=>e.name.toLowerCase().includes(q)||(e.sourceCode||"").toLowerCase().includes(q)):employees;
   const emps=empChipsHTML(filtered);
   const machs=machines.map(m=>{const down=m.faults.some(f=>f.date===d&&!f.fixed);
-    return '<button class="mach catalog-mach'+(down?" down":"")+'" data-act="mach" data-id="'+m.id+'" aria-label="'+esc(m.id+" "+m.label)+'"><b>'+esc(m.label)+'</b><small>'+esc(m.id)+' · '+(m.reviewStatus==='pending'?"待確認":down?"故障":"正常")+'</small></button>';}).join("");
+    return '<button class="mach catalog-mach'+(down?" down":"")+'" data-act="mach" data-id="'+m.id+'" aria-label="'+esc(m.id+" "+m.label)+'"><b>'+esc(m.label)+'</b><small>'+esc(m.id)+' · '+(m.reviewStatus==='pending'?tx("待確認"):down?tx("故障"):tx("正常"))+'</small></button>';}).join("");
   const ords=[...orders].sort((a,b)=>a.due.localeCompare(b.due)||a.pri-b.pri);
   const orows=ords.slice(0,4).map(orderRow).join("");
   const lrows=S.log.slice(0,3).map(logRow).join("")||'<div class="empty">'+tx('還沒有紀錄')+'</div>';
@@ -966,7 +966,7 @@ function dayHTML(ctx={}){
     if(!di.open)z+='<div class="zone off" style="top:0;height:'+px(DAY1)+'px">'+tx('停工')+'</div>';
     else{
       z+='<div class="zone lunch" style="top:'+px(LUNCH_S)+'px;height:'+(H)+'px">'+tx('午休')+'</div>';
-      z+='<div class="zone ot'+(di.ot?"":" closed")+'" style="top:'+px(REG_END)+'px;height:'+(px(DAY1)-px(REG_END))+'px">'+(di.ot?"加班到 "+hm(otEnd):"未開加班")+'</div>';
+      z+='<div class="zone ot'+(di.ot?"":" closed")+'" style="top:'+px(REG_END)+'px;height:'+(px(DAY1)-px(REG_END))+'px">'+(di.ot?tx("加班到")+" "+hm(otEnd):tx("未開加班"))+'</div>';
     }
     for(const f of M.faults.filter(f=>f.date===d))z+='<div class="zone fault" style="top:'+px(f.s)+'px;height:'+(px(f.e)-px(f.s))+'px">故障 '+hm(f.s)+'–'+hm(f.e)+(f.fixed?"（已修復）":"")+(f.note?" "+esc(f.note):"")+'</div>';
     for(const f of (ctx.extraFaults||[]).filter(f=>f.m===M.id&&f.date===d))z+='<div class="zone fault" style="top:'+px(f.s)+'px;height:'+(px(f.e)-px(f.s))+'px;opacity:.75">將故障 '+hm(f.s)+'–'+hm(f.e)+'</div>';
@@ -977,7 +977,7 @@ function dayHTML(ctx={}){
     return '<div class="col" data-m="'+M.id+'" style="height:'+px(DAY1)+'px">'+z+gh+bl+'</div>';
   }).join("");
   const heads=ms.map(M=>{const down=M.faults.some(f=>f.date===d&&!f.fixed);
-    return '<button class="colhead'+(down?" down":"")+'" data-act="mach" data-id="'+M.id+'"><span class="L">'+esc(M.id)+'</span><span class="N">'+esc(M.label)+'<small>'+esc(M.proc)+'</small></span><span class="st tag '+(M.reviewStatus==='pending'?"warn":down?"bad":"ok")+'">'+(M.reviewStatus==='pending'?"待確認":down?"故障":"正常")+'</span></button>';}).join("");
+    return '<button class="colhead'+(down?" down":"")+'" data-act="mach" data-id="'+M.id+'"><span class="L">'+esc(M.id)+'</span><span class="N">'+esc(M.label)+'<small>'+esc(M.proc)+'</small></span><span class="st tag '+(M.reviewStatus==='pending'?"warn":down?"bad":"ok")+'">'+(M.reviewStatus==='pending'?tx("待確認"):down?tx("故障"):tx("正常"))+'</span></button>';}).join("");
   let times="";for(let m=DAY0;m<DAY1;m+=30)times+='<div class="'+(m%60?"half":"")+'">'+hm(m)+'</div>';
   const leave=shownEmployees().filter(e=>e.leaves.includes(d));
   const otBtn=!canCalendar()?"":(di.open?'<button class="btn admin" data-act="ot">'+(di.ot?tx('調整加班'):tx('開加班'))+'</button>':"")+'<button class="btn admin" data-act="cal">'+tx('上班日設定')+'</button>';
