@@ -423,10 +423,10 @@ function optimizePlan(fromAbs,budget=700){
   const os=S.orders;
   const cr=o=>Math.max(1,(absOf(o.due,DAY1)-now)/60)/Math.max(1,workMin(o)/60);
   const seeds=[
-    ["優先級",[...os].sort((a,b)=>a.pri-b.pri||a.due.localeCompare(b.due))],
-    ["交期最早 EDD",[...os].sort((a,b)=>a.due.localeCompare(b.due)||a.pri-b.pri)],
-    ["工時最短 SPT",[...os].sort((a,b)=>workMin(a)-workMin(b))],
-    ["寬裕比最小 CR",[...os].sort((a,b)=>cr(a)-cr(b))]];
+    [tx("優先級"),[...os].sort((a,b)=>a.pri-b.pri||a.due.localeCompare(b.due))],
+    [tx("交期最早 EDD"),[...os].sort((a,b)=>a.due.localeCompare(b.due)||a.pri-b.pri)],
+    [tx("工時最短 SPT"),[...os].sort((a,b)=>workMin(a)-workMin(b))],
+    [tx("寬裕比最小 CR"),[...os].sort((a,b)=>cr(a)-cr(b))]];
   let best=null,seed="";
   for(const [n,list] of seeds){const r=decode(list.map(o=>o.id));if(!best||r.cost<best.cost){best=r;seed=n;}}
   const first=best.cost;let cur=best,it=0;
@@ -1913,7 +1913,7 @@ export(){
 "legacy-preview"(m){
   const legacy=m.legacy,day=legacy.days[m.date]||{"1廠":[],"2廠":[],overtime:{}};
   const datePicker='<div class="field"><span class="lab">原表日期</span><select id="legacy-date" aria-label="原表日期">'+legacy.dates.map(d=>'<option value="'+esc(d)+'"'+(d===m.date?' selected':'')+'>'+esc(d)+'</option>').join('')+'</select></div>';
-  return {title:'舊版排程 · 唯讀預覽',body:
+  return {title:tx('舊版排程 · 唯讀預覽'),body:
     '<div class="hint">檔案：'+esc(m.filename)+'。這是舊表的原始格位與文字，不會變成目前的時間方塊。</div>'+datePicker+
     legacyFactoryHTML(day,'1廠')+legacyFactoryHTML(day,'2廠')+
     '<div class="hint">存為歷史資料後，可從上方「歷史排程」按日期查看；現有示範排程不變。</div>'+
@@ -2883,7 +2883,7 @@ MODALS['access-accounts']=m=>({title:tx('權限管理'),body:m.loading?'<div cla
     const gs=emp?employeeGroups(S,emp.id).map(g=>g.group.name).join('、'):'';
     return '<button class="btn" data-act="access-account" data-id="'+esc(x.userId)+'" style="width:100%;height:auto;min-height:64px;justify-content:space-between;margin:8px 0;display:flex;flex-direction:column;align-items:flex-start;gap:4px"><span style="display:flex;justify-content:space-between;width:100%"><b>'+esc(x.displayName||'未命名帳號')+'</b><span class="tag">'+esc(ROLE_NAME[x.role]||x.role)+'</span></span><small style="color:var(--muted)">'+esc(x.email||'')+(emp?' · 員工：'+esc(emp.name):' · 未關聯員工')+(gs?' · 分組：'+esc(gs):'')+'</small></button>';}).join(''),
   foot:'<button class="btn primary" data-act="close">'+tx('關閉')+'</button>'});
-MODALS['access-account']=m=>{const x=m.account,isBoss=x.role==='boss';return {title:'設定 '+esc(x.displayName||'帳號')+' 的權限',body:
+MODALS['access-account']=m=>{const x=m.account,isBoss=x.role==='boss';return {title:tx('設定')+' '+esc(x.displayName||'帳號')+' 的權限',body:
   '<div class="hint">職位：'+esc(ROLE_NAME[x.role]||x.role)+'。'+(isBoss?'老闆永遠擁有全部功能，避免失去管理入口。':'以下開關會決定實際可用功能；日後可再次調整。'+(x.customized?'目前使用自訂權限。':'目前使用職位預設。'))+'</div>'+PERMISSIONS.map(([key,name,desc])=>
     '<label class="permission-row"><input type="checkbox" data-permission="'+key+'" '+(x.permissions?.[key]?'checked ':'')+(isBoss?'disabled ':'')+'><span><b>'+esc(name)+'</b><small>'+esc(desc)+'</small></span></label>').join(''),
   foot:'<button class="btn" data-act="access-accounts">'+tx('返回')+'</button><div class="spacer"></div>'+(isBoss?'':(x.customized?'<button class="btn" data-act="access-reset">恢復職位預設</button>':'')+'<button class="btn primary" data-act="access-save">儲存權限</button>')};};
@@ -3619,9 +3619,9 @@ Object.assign(MODAL_ACT,{
     if(S.groups.some(g=>g.id!==D.id&&g.name===D.name&&(g.department||null)===D.department&&(g.homeFactory??null)===D.homeFactory)){toast('相同範圍、部門已有這個分組');return;}
     pushUndo();const index=S.groups.findIndex(g=>g.id===D.id);if(index<0)S.groups.push(JSON.parse(JSON.stringify(D)));else S.groups[index]=JSON.parse(JSON.stringify(D));
     S.groupMembers=S.groupMembers.filter(x=>x.groupId!==D.id).concat(JSON.parse(JSON.stringify(m.members)));
-    closeModal();commit({kind:'edit',title:'更新員工分組 '+D.name,lines:[]},'groups.manage');},
+    closeModal();commit({kind:'edit',title:tx('更新員工分組')+' '+D.name,lines:[]},'groups.manage');},
   'group-retire':a=>{if(!canGroups()||!confirmStep(a,'group-retire'))return;const id=UI.modal.id,name=S.groups.find(g=>g.id===id)?.name;
-    pushUndo();S.groups=S.groups.filter(g=>g.id!==id);S.groupMembers=S.groupMembers.filter(m=>m.groupId!==id);if(UI.group===id)UI.group='all';closeModal();commit({kind:'edit',title:'停用員工分組 '+name,lines:[]},'groups.manage');}
+    pushUndo();S.groups=S.groups.filter(g=>g.id!==id);S.groupMembers=S.groupMembers.filter(m=>m.groupId!==id);if(UI.group===id)UI.group='all';closeModal();commit({kind:'edit',title:tx('停用員工分組')+' '+name,lines:[]},'groups.manage');}
 });
 
 
@@ -3763,7 +3763,7 @@ MODALS['execution-report']=m=>{
   const b=S.blocks.find(b=>b.id===m.id);if(!b)return {title:tx('現場回報'),body:'<div class="issue">工作已變動，請重新載入。</div>'};
   const r=executionOf(S,b.id),allowed=canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending&&!PV;
   const actual=t=>t?new Date(t).toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}):'—';
-  return {title:'回報 '+(order(b.oid)?.code||'?')+' · '+stepName(b),body:
+  return {title:tx('回報')+' '+(order(b.oid)?.code||'?')+' · '+stepName(b),body:
     '<dl class="kv"><dt>原定</dt><dd>'+mdw(b.date)+' '+hm(b.s)+'–'+hm(b.e)+' · '+b.qty+' 件</dd><dt>狀態</dt><dd>'+reportStatus(r)+'</dd><dt>實際開始</dt><dd>'+esc(actual(r?.startedAt))+'</dd><dt>實際完成</dt><dd>'+esc(actual(r?.finishedAt))+'</dd></dl>'+
     '<div class="hint">'+(r?'已鎖定排程，不可拖曳、改量、解除固定或刪除。':'按開始後會鎖定此段工作。')+' 件數填累計，不是這次增加量；完成會記錄實際時間，不用原定結束時間代替。</div>'+
     (r&&r.status!=='done'?'<div class="field"><label for="execution-qty">累計已做件數</label><input class="inp" id="execution-qty" type="number" min="'+r.qtyDone+'" max="'+b.qty+'" step="1" value="'+r.qtyDone+'"></div>':'')+
@@ -3869,16 +3869,16 @@ MODAL_ACT['gw-content-save']=()=>{
   if(PV||!canWorkContents())return;readGeneralFields();const D=UI.modal.draft;D.name=D.name.trim();
   const candidate=structuredClone(S);candidate.workContents=workCatalog(S).filter(w=>w.id!==D.id).concat(D);
   try{validateGeneralWork(candidate,{today:todayStr(),baseAssignments:assignments(S)});validateTransfers(candidate,{before:S});}catch(e){toast(e.message);return;}
-  pushUndo();S.workContents=candidate.workContents;closeModal();commit({kind:'edit',title:'更新工作內容 '+D.name,lines:[]},'work_contents.manage');
+  pushUndo();S.workContents=candidate.workContents;closeModal();commit({kind:'edit',title:tx('更新工作內容')+' '+D.name,lines:[]},'work_contents.manage');
 };
 MODAL_ACT['gw-preview']=()=>{if(PV||readOnly||S.setupPending)return;readGeneralFields();previewGeneral(UI.modal.draft);};
 MODAL_ACT['gw-remove-preview']=()=>{if(PV||readOnly||S.setupPending||!UI.modal?.id)return;openModal({t:'general-remove',id:UI.modal.id});};
-MODALS['general-remove']=m=>({title:'移除工作預覽',body:'<div class="hint">確認後只移除這段一般工作，不動產品排程。可以使用「復原」。</div>',foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn danger" data-act="gw-remove">確認移除</button>'});
-MODAL_ACT['gw-remove']=()=>{if(PV||readOnly||S.setupPending||UI.modal?.t!=='general-remove')return;const a=assignments(S).find(a=>a.id===UI.modal.id);if(!a||absOf(a.date,a.s)<nowAbs())return;pushUndo();S.workAssignments=assignments(S).filter(x=>x.id!==a.id);closeModal();commit({kind:'edit',title:'移除一般工作 '+workName(a),lines:[]});};
+MODALS['general-remove']=m=>({title:tx('移除工作預覽'),body:'<div class="hint">確認後只移除這段一般工作，不動產品排程。可以使用「復原」。</div>',foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn danger" data-act="gw-remove">確認移除</button>'});
+MODAL_ACT['gw-remove']=()=>{if(PV||readOnly||S.setupPending||UI.modal?.t!=='general-remove')return;const a=assignments(S).find(a=>a.id===UI.modal.id);if(!a||absOf(a.date,a.s)<nowAbs())return;pushUndo();S.workAssignments=assignments(S).filter(x=>x.id!==a.id);closeModal();commit({kind:'edit',title:tx('移除一般工作')+' '+workName(a),lines:[]});};
 MODAL_ACT['gw-apply']=()=>{
   if(PV||readOnly||S.setupPending||UI.modal?.t!=='general-preview')return;const D=UI.modal.draft;
   const issues=assignmentIssues(S,D,dayInfo(D.date).win,{today:todayStr(),nowMin:nowMin()});if(issues.length){toast(issues.join('；'));return;}
-  pushUndo();S.workAssignments=assignments(S).filter(a=>a.id!==D.id).concat(D);closeModal();commit({kind:'edit',title:'安排 '+workName(D)+' · '+emp(D.emp).name,lines:[]});
+  pushUndo();S.workAssignments=assignments(S).filter(a=>a.id!==D.id).concat(D);closeModal();commit({kind:'edit',title:tx('安排')+' '+workName(D)+' · '+emp(D.emp).name,lines:[]});
 };
 function workBlockHTML(a,px){
   const h=px(a.e)-px(a.s),bad=assignmentIssues(S,a,dayInfo(a.date).win).length;
