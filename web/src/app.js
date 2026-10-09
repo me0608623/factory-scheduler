@@ -11,7 +11,7 @@ import { employeeGroups, groupedEmployees, memberStatus } from "./groups.js";
 import { resourceLoad } from "./resource-load.js";
 import { workQueue } from './work-queue.js';
 import { makeScenario, scenarioStale, validateScenario, scenarioKey } from './scenarios.js';
-import { floatWindow, reflowAllWindows } from './win.js';
+import { reflowAllWindows } from './win.js';
 import { executionOf, canReport, assertExecutionProtected } from './execution.js';
 import { workCatalog,assignments,occupiedWork,assignmentIssues,validateGeneralWork } from './general-work.js';
 import { legacyFieldMap } from './legacy-field-map.js';
@@ -64,8 +64,10 @@ function mergeIv(iv){iv.sort((a,b)=>a[0]-b[0]);const o=[];for(const x of iv){if(
 let S=null;            // 目前排程（全部資料）
 let readOnly=false, undoStack=[];
 let recentManualMove=null;
-const UI={date:null,view:"day",layout:'resource',factory:1,group:'all',modal:null,zoom:1,theme:"light",drawer:null,focus:null,prefs:structuredClone(DEFAULT_PREFERENCES),page:null,returnTo:null,leaveBrush:null,brushStart:null,editCell:null,confirmRow:null,workLogDate:null,navCollapsed:false};
+const UI={date:null,view:"day",layout:'resource',factory:1,group:'all',modal:null,zoom:1,theme:"light",drawer:null,focus:null,prefs:structuredClone(DEFAULT_PREFERENCES),page:null,returnTo:null,leaveBrush:null,brushStart:null,editCell:null,confirmRow:null,workLogDate:null,navCollapsed:false,drawerZoom:false,paneW:470};
 try{UI.navCollapsed=localStorage.getItem("fsched-nav-collapsed")==="1";}catch(e){}
+try{const pw=parseInt(localStorage.getItem("fsched-pane-w"),10);if(pw>=280&&pw<=900)UI.paneW=pw;}catch(e){}
+const paneWClamped=()=>Math.min(Math.max(UI.paneW||470,280),Math.min(900,Math.max(320,innerWidth-420)));
 function loadFactory(){try{UI.factory=factoryPreference(localStorage.getItem("fsched-factory"));}catch(e){}}
 function setFactory(n){UI.factory=FACTORIES.includes(n)?n:"all";try{localStorage.setItem("fsched-factory",String(UI.factory));}catch(e){}}
 const shownEmployees=()=>groupedEmployees(S,S.employees.filter(e=>inFactory(e,UI.factory)),UI.group);
@@ -643,6 +645,7 @@ function render(){ I18N.lang=UI.prefs.language; ensureVisualStyles();
   document.body.classList.toggle("has-app-nav",!PV);
   document.body.classList.toggle("drawer-open",!!UI.drawer&&!PV);
   document.body.classList.toggle("nav-collapsed",!!UI.navCollapsed);
+  if(!UI.drawer)UI.drawerZoom=false;
   let html;
   if(PV){
     // 預覽：上方是方案面板，下方排程表顯示「原本／調整後／對照」
@@ -650,9 +653,16 @@ function render(){ I18N.lang=UI.prefs.language; ensureVisualStyles();
     readOnly=true;
     try{html=withState(o.A,()=>topHTML()+'<main class="wrap">'+pvPanelHTML(o))+withState(st,()=>bannerHTML()+(UI.view==="day"?dayHTML(ctx):weekHTML(ctx))+generalBoardHTML())+"</main>";}
     finally{readOnly=ro;}
-  }else html=topHTML()+appNavHTML()+'<main class="wrap">'+
-    (UI.page==='shortage'?shortagePageHTML():UI.page==='transferflow'?transferFlowPageHTML():UI.page==='worklog'?workLogPageHTML():UI.page==='review'?reviewPageHTML():UI.page==='analytics'?analyticsPageHTML():UI.page==='floor'?floorPageHTML():UI.page==='visual-demo'?visualDemoPageHTML():
-      bannerHTML()+(UI.view==="day"?(UI.layout==='work'?workViewHTML():dayHTML()+generalBoardHTML()):weekHTML()+generalBoardHTML()))+'</main>'+drawerHTML();
+  }else{
+    const boards=bannerHTML()+(UI.view==="day"?(UI.layout==='work'?workViewHTML():dayHTML()+generalBoardHTML()):weekHTML()+generalBoardHTML());
+    if(UI.drawer&&!UI.page){
+      // 桌面：抽屜內嵌主內容區——一般=左右分割（可拖分隔線）、放大=取代排程表（同 worklog 頁的區域切換）
+      html=topHTML()+appNavHTML()+'<main class="wrap has-drawer'+(UI.drawerZoom?' zoomed':'')+'" style="--pane-w:'+paneWClamped()+'px">'+
+        (UI.drawerZoom?'':'<div class="main-col">'+boards+'</div><div class="pane-splitter" role="separator" aria-orientation="vertical" aria-label="'+tx('拖曳調整寬度')+'" tabindex="0"></div>')+
+        drawerHTML()+'</main>';
+    }else html=topHTML()+appNavHTML()+'<main class="wrap">'+
+      (UI.page==='shortage'?shortagePageHTML():UI.page==='transferflow'?transferFlowPageHTML():UI.page==='worklog'?workLogPageHTML():UI.page==='review'?reviewPageHTML():UI.page==='analytics'?analyticsPageHTML():UI.page==='floor'?floorPageHTML():UI.page==='visual-demo'?visualDemoPageHTML():boards)+'</main>'+drawerHTML();
+  }
   $("#app").innerHTML=html;
   const sc2=$(".scroller");if(sc2)sc2.scrollLeft=sl;
   window.scrollTo(0,sy);
@@ -665,10 +675,35 @@ function render(){ I18N.lang=UI.prefs.language; ensureVisualStyles();
 }
 let _winResizeBound=false;
 function initFloatWins(){
-  const d=$(".ops-drawer");
-  if(d&&UI.drawer){
-    const w=Math.min(470,innerWidth-260);
-    floatWindow(d,{key:"fsched-float-drawer",defaults:{x:innerWidth-w,y:0,w,h:innerHeight},handle:'.ops-drawer-h',maxBtn:d.querySelector('[data-act="win-max"]')});
+  // 分隔線拖曳（Pointer Events：滑鼠/觸控一致；拖動中只改 CSS 變數，不觸發 re-render）
+  const sp=$(".pane-splitter");
+  if(sp&&!sp.dataset.bound){
+    sp.dataset.bound="1";
+    sp.addEventListener("pointerdown",ev=>{
+      ev.preventDefault();
+      const wrap=sp.closest(".wrap");if(!wrap)return;
+      const aside=wrap.querySelector(".ops-drawer");
+      const startX=ev.clientX,startW=aside.getBoundingClientRect().width;
+      sp.classList.add("dragging");sp.setPointerCapture?.(ev.pointerId);
+      const move=e=>{
+        const w=Math.min(Math.max(startW+(e.clientX-startX),280),Math.min(900,Math.max(320,innerWidth-420)));
+        wrap.style.setProperty("--pane-w",w+"px");UI.paneW=w;
+      };
+      const up=()=>{
+        removeEventListener("pointermove",move);removeEventListener("pointerup",up);removeEventListener("pointercancel",up);
+        sp.classList.remove("dragging");
+        try{localStorage.setItem("fsched-pane-w",String(Math.round(UI.paneW)));}catch(e){}
+      };
+      addEventListener("pointermove",move);addEventListener("pointerup",up);addEventListener("pointercancel",up);
+    });
+    sp.addEventListener("keydown",e=>{
+      if(e.key!=="ArrowLeft"&&e.key!=="ArrowRight")return;
+      e.preventDefault();
+      const wrap=sp.closest(".wrap");
+      UI.paneW=Math.min(Math.max((UI.paneW||470)+(e.key==="ArrowLeft"?-40:40),280),Math.min(900,Math.max(320,innerWidth-420)));
+      wrap?.style.setProperty("--pane-w",UI.paneW+"px");
+      try{localStorage.setItem("fsched-pane-w",String(UI.paneW));}catch(err){}
+    });
   }
   if(!_winResizeBound){_winResizeBound=true;addEventListener("resize",()=>reflowAllWindows());try{visualViewport?.addEventListener("resize",()=>reflowAllWindows());}catch{}}
 }
@@ -760,7 +795,7 @@ function drawerHTML(){
   if(!UI.drawer)return '';
   const body=UI.drawer==='orders'?ordersDrawerHTML():UI.drawer==='people'?peopleDrawerHTML():UI.drawer==='output'?outputDrawerHTML():UI.drawer==='notes'?notesDrawerHTML():UI.drawer==='settings'?settingsDrawerHTML():moreDrawerHTML();
   const title=drawerTitle(UI.drawer);
-  return '<aside class="ops-drawer vg-glass" aria-label="'+esc(title)+'" tabindex="-1"><div class="ops-drawer-h"><h2>'+esc(title)+'</h2><button class="win-titlebtn" data-act="win-max" aria-label="最大化視窗" title="'+tx('最大化／還原')+'">□</button><button class="iconbtn" data-act="drawer-close" aria-label="關閉">×</button></div><div class="ops-drawer-b">'+body+'</div></aside>';
+  return '<aside class="ops-drawer pane vg-glass" aria-label="'+esc(title)+'" tabindex="-1"><div class="ops-drawer-h"><h2>'+esc(title)+'</h2><button class="win-titlebtn" data-act="drawer-zoom" aria-label="'+(UI.drawerZoom?tx('還原'):tx('放大'))+'" title="'+(UI.drawerZoom?tx('還原'):tx('放大'))+'">'+(UI.drawerZoom?'⤡':'⤢')+'</button><button class="iconbtn" data-act="drawer-close" aria-label="關閉">×</button></div><div class="ops-drawer-b">'+body+'</div></aside>';
 }
 
 function ordersDrawerHTML(){
@@ -1148,7 +1183,8 @@ document.addEventListener("click",e=>{
     case "today":UI.date=todayStr();UI.view='day';UI.drawer=null;UI.page=null;UI.focus=null;render();break;
     case "drawer":if(a.dataset.v==="worklog"){UI.page="worklog";UI.drawer=null;try{history.replaceState(null,"","?view=worklog");}catch{}render();window.scrollTo(0,0);flashReturnRow();break;}UI.drawer=UI.drawer===a.dataset.v?null:a.dataset.v;UI.page=null;UI.focus=null;render();requestAnimationFrame(()=>$('.ops-drawer')?.focus());break;
     case "settings":UI.drawer='settings';UI.page=null;UI.focus=null;render();requestAnimationFrame(()=>$('.ops-drawer')?.focus());break;
-    case "drawer-close":UI.drawer=null;UI.focus=null;render();break;
+    case "drawer-close":UI.drawer=null;UI.drawerZoom=false;UI.focus=null;render();break;
+    case "drawer-zoom":UI.drawerZoom=!UI.drawerZoom;render();break;
     case "nav-toggle":UI.navCollapsed=!UI.navCollapsed;try{localStorage.setItem("fsched-nav-collapsed",UI.navCollapsed?"1":"0");}catch(e){}render();break;
     case "setting-set":updateDeviceSetting(a.dataset.key,a.dataset.v);break;
     case "setting-toggle":toggleDeviceSetting(a);break;

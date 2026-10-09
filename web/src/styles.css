@@ -121,23 +121,27 @@ body.nav-collapsed .side-health span{display:none}
    故意不重宣告位移（top/right/bottom）——留給上面的基礎規則與手機版媒體查詢（bottom sheet）。 */
 .ops-drawer.vg-glass{position:fixed}
 
-/* ===== 浮動視窗（win.js）：拖曳把手、縮放邊框、最大化 ===== */
-.float-win{touch-action:none}
-.float-win .win-rh{position:absolute;z-index:5}
-.float-win .rh-n,.float-win .rh-s{left:10px;right:10px;height:7px;cursor:ns-resize}
-.float-win .rh-n{top:-3px}.float-win .rh-s{bottom:-3px}
-.float-win .rh-e,.float-win .rh-w{top:10px;bottom:10px;width:7px;cursor:ew-resize}
-.float-win .rh-e{right:-3px}.float-win .rh-w{left:-3px}
-.float-win .rh-ne,.float-win .rh-nw,.float-win .rh-se,.float-win .rh-sw{width:13px;height:13px}
-.float-win .rh-ne{top:-3px;right:-3px;cursor:nesw-resize}.float-win .rh-nw{top:-3px;left:-3px;cursor:nwse-resize}
-.float-win .rh-se{bottom:-3px;right:-3px;cursor:nwse-resize}.float-win .rh-sw{bottom:-3px;left:-3px;cursor:nesw-resize}
-.float-win.win-max{border-radius:0;box-shadow:none}
-.float-win.win-max .win-rh{display:none}
-.ops-drawer.float-win .ops-drawer-h{cursor:grab;user-select:none}
-.ops-drawer.float-win .ops-drawer-h:active{cursor:grabbing}
+/* ===== 抽屜內嵌分割窗格（桌面 >800px）：一般=左右分割＋可拖分隔線；放大=取代排程表 ===== */
+@media (min-width:801px){
+  .wrap.has-drawer{flex-direction:row;align-items:stretch}
+  .wrap.has-drawer .main-col{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:14px}
+  .pane-splitter{flex:0 0 9px;cursor:col-resize;position:relative;z-index:6;touch-action:none;border-radius:5px}
+  .pane-splitter::after{content:"";position:absolute;inset:0 3px;background:var(--line2);border-radius:3px;transition:background .15s}
+  .pane-splitter:hover::after,.pane-splitter.dragging::after,.pane-splitter:focus-visible::after{background:var(--accent)}
+  .ops-drawer.pane{position:relative;flex:0 0 var(--pane-w,470px);width:var(--pane-w,470px);height:auto;top:auto;right:auto;bottom:auto;left:auto;box-shadow:none;border-left:0;border:1px solid var(--line);border-radius:14px}
+  .ops-drawer.pane.vg-glass{position:relative}
+  .ops-drawer.pane .ops-drawer-b{max-height:calc(100dvh - 190px)}
+  .wrap.has-drawer.zoomed{flex-direction:column}
+  .wrap.has-drawer.zoomed .main-col,
+  .wrap.has-drawer.zoomed .pane-splitter{display:none}
+  .wrap.has-drawer.zoomed .ops-drawer.pane{flex:1 1 auto;width:100%;min-height:calc(100dvh - 150px)}
+  .wrap.has-drawer.zoomed .ops-drawer.pane .ops-drawer-b{max-height:calc(100dvh - 240px)}
+}
+@media (max-width:800px){.pane-splitter{display:none}}
 .win-titlebtn{flex:none;width:34px;height:34px;border:1px solid var(--line);border-radius:8px;background:var(--surface2);color:var(--muted);font-size:15px;font-weight:900;cursor:pointer;display:grid;place-items:center;margin-left:6px}
 .win-titlebtn:hover{color:var(--ink);border-color:var(--accent)}
-/* 排程助理浮動（moveOnly）：root 不再撐滿寬度，跟著藥丸位置走 */
+/* 排程助理浮動（win.js moveOnly）：自由拖曳，位置保存 */
+.float-win{touch-action:none}
 #schedule-chat.float-win{pointer-events:none;width:auto}
 #schedule-chat .chat-launch{width:fit-content}
 #schedule-chat.float-win .chat-launch{cursor:grab;touch-action:none}
