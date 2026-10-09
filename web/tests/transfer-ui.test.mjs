@@ -79,7 +79,7 @@ test('流轉預覽：未來時間被擋下、合法時間進入確認頁',()=>{
   f1.ui.actions['tf-flow-preview'](null);
   assert.ok(f1.calls.toast.some(m=>/未來/.test(m)),'未來時間要以 toast 擋下');
   assert.equal(f1.calls.open.length,0,'擋下時不得開確認頁');
-  const f2=make();f2.deps.ui.modal={...base,draft:{id:'x',batchId:'batch',action:'send',at:day+'T08:00',qty:10,badQty:0,note:''}};
+  const f2=make();f2.deps.ui.modal={...base,draft:{id:'x',batchId:'batch',action:'send',at:'2026-09-29T12:00',qty:10,badQty:0,note:''}};  // 前一天：不受真實時鐘時段影響
   f2.ui.actions['tf-flow-preview'](null);
   assert.equal(f2.calls.open[0]?.t,'transfer-flow-preview','合法時間進確認頁');
 });
