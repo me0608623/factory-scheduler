@@ -3946,20 +3946,20 @@ MODALS['general-edit']=m=>{
     textInput('gw-date','工作日期',D.date,'date',off)+'<div class="row2">'+textInput('gw-start','工作開始',hm(D.s),'time',off)+textInput('gw-end','工作結束',hm(D.e),'time',off)+'</div>'+
     textInput('gw-qty',D.transferBatchId?'跨廠計畫件數（必填）':'參考件數（可留空）',D.qty??'','number',off)+
     select('gw-transfer','跨廠加工批次（可不選）',transferOrders(S).flatMap(o=>o.batches.map(b=>({id:b.id,name:o.code+'／'+b.code+' · '+o.itemCode}))),D.transferBatchId)+
-    (D.transferBatchId?'<div class="field"><label for="gw-stage">'+tx('跨廠工作階段')+'</label><select class="inp" id="gw-stage" '+off+'><option value="process" '+(D.transferStage!=='return'?'selected':'')+'>加工廠加工</option><option value="return" '+(D.transferStage==='return'?'selected':'')+'>回廠點收後工作</option></select></div>':'')+
+    (D.transferBatchId?'<div class="field"><label for="gw-stage">'+tx('跨廠工作階段')+'</label><select class="inp" id="gw-stage" '+off+'><option value="process" '+(D.transferStage!=='return'?'selected':'')+'>'+tx('加工廠加工')+'</option><option value="return" '+(D.transferStage==='return'?'selected':'')+'>'+tx('回廠點收後工作')+'</option></select></div>':'')+
     select('gw-order','參考工單（可不選）',S.orders.concat((S.workReferenceOrders||[]).filter(o=>!S.orders.some(x=>x.id===o.id))),D.orderId)+textInput('gw-note','工作備註',D.note,'text',off),
-    foot:(existing&&!ro?'<button class="btn danger" data-act="gw-remove-preview">移除此段工作</button>':'')+'<button class="btn" data-act="close">'+tx('取消')+'</button>'+(!ro?'<button class="btn primary" data-act="gw-preview">預覽工作排班</button>':'')};
+    foot:(existing&&!ro?'<button class="btn danger" data-act="gw-remove-preview">'+tx('移除此段工作')+'</button>':'')+'<button class="btn" data-act="close">'+tx('取消')+'</button>'+(!ro?'<button class="btn primary" data-act="gw-preview">'+tx('預覽工作排班')+'</button>':'')};
 };
 function previewGeneral(D){
   const issues=assignmentIssues(S,D,dayInfo(D.date).win,{today:todayStr(),nowMin:nowMin()});
   openModal({t:'general-preview',draft:structuredClone(D),issues});
 }
 MODALS['general-preview']=m=>({title:tx('一般工作排班預覽'),body:
-  '<dl class="kv"><dt>工作內容</dt><dd>'+esc(workName(m.draft))+'</dd><dt>執行員工</dt><dd>'+esc(emp(m.draft.emp)?.name||'未指定')+'</dd><dt>'+tx('設備／工位')+'</dt><dd>'+esc(mach(m.draft.resourceId)?.label||'不需機台')+'</dd><dt>'+tx('時段')+'</dt><dd>'+esc(m.draft.date)+' '+hm(m.draft.s)+'–'+hm(m.draft.e)+'（'+(m.draft.e-m.draft.s)+' 分）</dd></dl>'+
-  '<div class="hint">不改產品工序與其他工作。件數只作參考，不推定實際完成或產能。</div>'+
+  '<dl class="kv"><dt>工作內容</dt><dd>'+esc(workName(m.draft))+'</dd><dt>'+tx('執行員工')+'</dt><dd>'+esc(emp(m.draft.emp)?.name||'未指定')+'</dd><dt>'+tx('設備／工位')+'</dt><dd>'+esc(mach(m.draft.resourceId)?.label||'不需機台')+'</dd><dt>'+tx('時段')+'</dt><dd>'+esc(m.draft.date)+' '+hm(m.draft.s)+'–'+hm(m.draft.e)+'（'+(m.draft.e-m.draft.s)+' 分）</dd></dl>'+
+  '<div class="hint">'+tx('不改產品工序與其他工作。件數只作參考，不推定實際完成或產能。')+'</div>'+
   transferPlanWarnings(S,m.draft).map(t=>'<div class="issue">'+esc(t)+'。可保存為預排；實際加工完成仍須先點收。</div>').join('')+
-  (m.issues.length?m.issues.map(t=>'<div class="issue">'+esc(t)+'</div>').join(''):'<div class="okbox">檢查通過；確認後才會存入排程。</div>'),
-  foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="gw-apply" '+(m.issues.length?'disabled':'')+'>確認工作排班</button>'});
+  (m.issues.length?m.issues.map(t=>'<div class="issue">'+esc(t)+'</div>').join(''):'<div class="okbox">'+tx('檢查通過；確認後才會存入排程。')+'</div>'),
+  foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="gw-apply" '+(m.issues.length?'disabled':'')+'>'+tx('確認工作排班')+'</button>'});
 MODAL_ACT['gw-content-save']=()=>{
   if(PV||!canWorkContents())return;readGeneralFields();const D=UI.modal.draft;D.name=D.name.trim();
   const candidate=structuredClone(S);candidate.workContents=workCatalog(S).filter(w=>w.id!==D.id).concat(D);
@@ -3968,7 +3968,7 @@ MODAL_ACT['gw-content-save']=()=>{
 };
 MODAL_ACT['gw-preview']=()=>{if(PV||readOnly||S.setupPending)return;readGeneralFields();previewGeneral(UI.modal.draft);};
 MODAL_ACT['gw-remove-preview']=()=>{if(PV||readOnly||S.setupPending||!UI.modal?.id)return;openModal({t:'general-remove',id:UI.modal.id});};
-MODALS['general-remove']=m=>({title:tx('移除工作預覽'),body:'<div class="hint">確認後只移除這段一般工作，不動產品排程。可以使用「復原」。</div>',foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn danger" data-act="gw-remove">確認移除</button>'});
+MODALS['general-remove']=m=>({title:tx('移除工作預覽'),body:'<div class="hint">'+tx('確認後只移除這段一般工作，不動產品排程。可以使用「復原」。')+'</div>',foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn danger" data-act="gw-remove">'+tx('確認移除')+'</button>'});
 MODAL_ACT['gw-remove']=()=>{if(PV||readOnly||S.setupPending||UI.modal?.t!=='general-remove')return;const a=assignments(S).find(a=>a.id===UI.modal.id);if(!a||absOf(a.date,a.s)<nowAbs())return;pushUndo();S.workAssignments=assignments(S).filter(x=>x.id!==a.id);closeModal();commit({kind:'edit',title:tx('移除一般工作')+' '+workName(a),lines:[]});};
 MODAL_ACT['gw-apply']=()=>{
   if(PV||readOnly||S.setupPending||UI.modal?.t!=='general-preview')return;const D=UI.modal.draft;
@@ -3986,7 +3986,7 @@ function workGridHTML(title,lanes){
   let times='';for(let m=480;m<1200;m+=30)times+='<div class="'+(m%60?'half':'')+'">'+hm(m)+'</div>';
   const cols=lanes.map(l=>'<div class="col gcol" data-gwork="'+esc(l.workId||'')+'" data-gemp="'+esc(l.emp||'')+'" data-gresource="'+esc(l.resourceId||'')+'" style="height:'+px(1200)+'px">'+
     '<div class="zone lunch" style="top:'+px(720)+'px;height:'+(px(780)-px(720))+'px">'+tx('午休')+'</div>'+
-    (!di.ot?'<div class="zone ot-off" style="top:'+px(1020)+'px;height:'+(px(1200)-px(1020))+'px">未開加班</div>':'')+
+    (!di.ot?'<div class="zone ot-off" style="top:'+px(1020)+'px;height:'+(px(1200)-px(1020))+'px">'+tx('未開加班')+'</div>':'')+
     (l.production||[]).map(b=>blkHTML(b,px,issuesOf(b).length)).join('')+(l.general||[]).map(a=>workBlockHTML(a,px)).join('')+'</div>').join('');
   return '<section class="board" aria-label="'+title+'"><div class="board-h"><h2>'+title+' · '+mdw(d)+'</h2><div class="spacer"></div>'+(!readOnly&&!S.setupPending?'<button class="btn primary" data-act="general-add">'+tx('＋一般工作排班')+'</button>':'')+'</div><div class="hint" style="padding:10px">一般工作方塊可拖曳及拉底邊；放開先預覽，確認前不改班表。純人工占用完整人員時間；參考件數不算作工單已完成。產品工序方塊請在「設備／工位」檢視調整。</div>'+
     (lanes.length?'<div class="scroller"><div class="grid" style="grid-template-columns:64px repeat('+lanes.length+',minmax(180px,1fr))"><div class="corner"></div>'+lanes.map(l=>'<div class="colhead"><span class="N">'+esc(l.name)+'</span></div>').join('')+'<div class="times">'+times+'</div>'+cols+'</div></div>':'<div class="empty">尚未有可安排的工作內容。請按「更多功能」→「設定工作內容」，先核定工作、人員與所需設備。</div>')+'</section>';
