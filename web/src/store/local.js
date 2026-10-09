@@ -58,11 +58,18 @@ export class LocalStore {
   jwt() { return null; }
   can() { return true; }
 
-  async listScenarios() {return JSON.parse(localStorage.getItem(SCENARIOS)||'[]').map(({payload,...meta})=>meta);}
-  async getScenario(id) {return JSON.parse(localStorage.getItem(SCENARIOS)||'[]').find(s=>s.id===id);}
+  async listScenarios() {
+    try { return JSON.parse(localStorage.getItem(SCENARIOS)||'[]').map(({payload,...meta})=>meta); }
+    catch { return []; }                             // 儲存被停用或 JSON 損毀 → 視為沒有情境
+  }
+  async getScenario(id) {
+    try { return JSON.parse(localStorage.getItem(SCENARIOS)||'[]').find(s=>s.id===id)??null; }
+    catch { return null; }
+  }
   async saveScenario(item) {
     validateScenario(item.payload);
-    const items=JSON.parse(localStorage.getItem(SCENARIOS)||'[]'),old=items.find(x=>x.id===item.id);
+    let items=[];try{items=JSON.parse(localStorage.getItem(SCENARIOS)||'[]');}catch{}
+    const old=items.find(x=>x.id===item.id);
     if(old){if(JSON.stringify(old)!==JSON.stringify(item))throw new Error('情境代號已使用');return old.id;}
     if(items.length>=20)throw new Error('最多保存 20 個情境');
     try{localStorage.setItem(SCENARIOS,JSON.stringify([item,...items]));}catch{throw new Error('儲存空間不足，情境未存入');}
@@ -106,7 +113,10 @@ export class LocalStore {
     try {
       localStorage.setItem(archiveKey(item.id), JSON.stringify(legacy));
       localStorage.setItem(ARCHIVE_INDEX, JSON.stringify([item, ...await this.listLegacyArchives()]));
-    } catch { throw new Error("瀏覽器儲存空間不足，歷史排程未存入"); }
+    } catch {
+      try { localStorage.removeItem(archiveKey(item.id)); } catch {}   // 索引寫不進就回滾，不留孤兒資料佔空間
+      throw new Error("瀏覽器儲存空間不足，歷史排程未存入");
+    }
     return item;
   }
 
