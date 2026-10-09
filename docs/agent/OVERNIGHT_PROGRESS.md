@@ -4,7 +4,7 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 72（65 為使用者系列）
+- **總輪次**: 73（65 為使用者系列）
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
@@ -249,3 +249,10 @@
 
 - 使用者合併 feat/master-data-page（`8390732`：「員工、設備與工單」改完整管理頁，修正誤導初次核對頁問題；app.js＋i18n＋3 條 layout-regression 測試，含隔離 LocalStore 的瀏覽器驗證）
 - worktree 同步後全套 **271/271** 驗證綠；生產站實測 web 200 ✓ solver /health 200 ✓
+
+
+## 輪次 73（2026-10-09）— 分支態勢記錄（過渡期）
+
+- 使用者建立後繼分支 **agent/overnight-1010**，將其「平面圖 canvas i18n＋solver 邊界案例測試進 CI」commit（floor.js 故障標籤 tx() 化＋solver/tests/test_edges.py 空工單/單工單/全部逾期/全空工廠 4 條，本機 uv 受限由 CI 驗證——NEXT_TASKS Phase 3 第一項的解法）rebase 到最新 main（6dd3739，未推送）
+- 本循環分支 agent/overnight-20261009 與 main 同步（6208612），全套 **271/271** 確認綠；待使用者推送/合併 1010 分支後隨即驗證（其 commit 自稱 web 272/272）
+- 本輪無程式碼變更（使用者活躍佈線中，避免無謂並發）；下輪若 1010 已上 main 則做完整驗證輪
