@@ -678,7 +678,7 @@ function topHTML(){
   '<button class="datebox'+(!wk&&di.type!=="work"?" hol":"")+'" data-act="pick"><b class="num">'+esc(title)+'</b><small>'+esc(sub)+'</small></button>'+
   '<input type="date" id="datepick" value="'+d+'" style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none" tabindex="-1" aria-hidden="true">'+
   '<button class="iconbtn" data-act="next" aria-label="往後">›</button></div>'+
-  (S.demo?'<span class="demo-chip">示範資料</span>':'')+(readOnly&&!PV?'<span class="ro-chip">排程唯讀</span>':'')+
+  (S.demo?'<span class="demo-chip">'+tx('示範資料')+'</span>':'')+(readOnly&&!PV?'<span class="ro-chip">'+tx('排程唯讀')+'</span>':'')+
   (S.setupPending?'<button class="btn primary verify-entry" data-act="catalog">'+tx('初次核對資料')+'</button>':'')+
   (UI.returnTo?'<button class="btn pagelink return-chip" data-act="page-return">↩ 返回'+(UI.returnTo.page==='shortage'?'欠缺品項':UI.returnTo.page==='worklog'?'工作紀錄':'給二廠／回一廠')+'</button>':'')+
   '<div class="top-status">'+syncChipHTML()+
