@@ -133,3 +133,10 @@
   - `hitFloor`（平面圖命中測試）：邊界端點含命中、重疊區取第一個、外部與空陣列回 null
   - `applyPreferences`：theme=auto 移除 data-app-theme、accent/font/density/motion/lang/--z 齊上、回正規化結果
 - 前端測試：**243 → 248** PASS（分散附屬於 convert-roundtrip/factory/transfers/floor/settings 五個對應模組測試檔）
+
+## 輪次 58（2026-10-09）— 生產健康驗證＋repo 衛生
+
+- **生產站唯讀健康檢查**：web `factory-scheduler-web.onrender.com` → 200 ✓、solver `/health` → 200 ✓（GET only，未動任何資料）
+- **移除 6 個被 git 追蹤的歷程補丁暫存腳本**（→ `e98213b`）：docs/ 下 add-btn.tmp.mjs、fix-orphan.tmp.cjs、form-modal.tmp.js、ro-form.tmp.cjs、ui-refactor.tmp.cjs、unconfirm.tmp.cjs——已確認無任何文件引用；wireframe HTML 與驗證截圖有被文件引用故保留
+- **TEST_STATUS.md 加歷史存檔標註**：該文為 9-26 快照（測試數 13/42/14、部署未選定皆已過時），標註指向現況來源；「尚未修復」兩項未經重測不宣稱已修或仍在
+- 前端測試維持 **248/248** PASS（本輪未動程式碼，仍重跑確認）
