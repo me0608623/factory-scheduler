@@ -73,3 +73,9 @@
 - 前端測試：**223 → 225** PASS
 - 剩餘：操作紀錄 log 標題（歷史資料層，NEXT_TASKS 已註明非 modal 範圍）、CSS 死碼清理（P3）
 - 環境注意：使用者平行在 agent/main 上活動（faf88bb、1f624dd fix-account 500 除錯），本輪 merge 一併帶上 main；後續輪次同步需先 fetch 看 main 是否前進
+
+## 帳號建立 runbook（2026-10-09）
+- 建立 `create-account.yml`（workflow_dispatch + 臨時 secret `BOSS_TEST_PW`，DB 端 bcrypt，密碼不進 git/日誌）
+- 直接 insert auth.users 有兩個坑：`instance_id` 需補 `00000000-...`、token 欄位要空字串（非 NULL）且 identity_data 需含 `phone_verified`——`fix-account.yml` 已含完整修補步驟
+- 已建立：a2a.richard@gmail.com（Richard，boss，登入驗證 200）
+- 臨時 secret 已刪；兩工作流在無 secret 時自動失效，保留作為未來建帳號工具
