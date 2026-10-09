@@ -1677,10 +1677,10 @@ const MODALS={
   return {title:mdw(UI.date)+" · 手動排班",body:
     '<div class="hint">先選工單工序、機台與員工，再指定時段。新增後會先顯示預覽；若撞到其他工作，會建議順延，確認前不改排程。</div>'+
     '<div class="field"><label for="manual-choice">要做的工作</label><select class="inp" id="manual-choice">'+choices.map(x=>'<option value="'+esc(x.o.id+":"+x.step)+'"'+(x===chosen?' selected':'')+'>'+esc(x.o.code+' · '+factoryName(x.st.factory)+' '+x.st.proc+' · 剩餘 '+x.remaining+' 件')+'</option>').join('')+'</select></div>'+
-    '<div class="row2"><div class="field"><label for="manual-machine">機台</label><select class="inp" id="manual-machine">'+machines.map(x=>'<option value="'+esc(x.id)+'"'+(x.id===D.machine?' selected':'')+'>'+esc(x.id+' '+x.label)+'</option>').join('')+'</select></div>'+
+    '<div class="row2"><div class="field"><label for="manual-machine">'+tx('機台')+'</label><select class="inp" id="manual-machine">'+machines.map(x=>'<option value="'+esc(x.id)+'"'+(x.id===D.machine?' selected':'')+'>'+esc(x.id+' '+x.label)+'</option>').join('')+'</select></div>'+
     '<div class="field"><label for="manual-employee">員工</label><select class="inp" id="manual-employee">'+employees.map(x=>'<option value="'+esc(x.id)+'"'+(x.id===D.employee?' selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select></div></div>'+
-    '<div class="row2"><div class="field"><label for="manual-start">開始</label><select class="inp num" id="manual-start">'+times(D.s,DAY0,DAY1-10)+'</select></div>'+
-    '<div class="field"><label for="manual-end">結束</label><select class="inp num" id="manual-end">'+times(D.e,DAY0+10,DAY1)+'</select></div></div>'+
+    '<div class="row2"><div class="field"><label for="manual-start">'+tx('開始')+'</label><select class="inp num" id="manual-start">'+times(D.s,DAY0,DAY1-10)+'</select></div>'+
+    '<div class="field"><label for="manual-end">'+tx('結束')+'</label><select class="inp num" id="manual-end">'+times(D.e,DAY0+10,DAY1)+'</select></div></div>'+
     '<div class="pv-sum">'+hm(D.s)+'–'+hm(D.e)+'（'+(D.e-D.s)+' 分） · 依工序速率預計 '+qty+' 件；此站尚待排 '+chosen.remaining+' 件。'+(!isFinite(ready)?'前站尚未排完，暫時不能開始本站。':'')+'</div>'+
     (!machines.length?'<div class="issues"><div class="issue">沒有符合這道工序的機台</div></div>':!employees.length?'<div class="issues"><div class="issue">沒有具操作資格的同廠員工</div></div>':''),
     foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="manual-preview">預覽新增工作</button>'};
@@ -2941,7 +2941,7 @@ MODALS['schedule-diff']=m=>{
 const FEEDBACK_CATS=[['bug','問題／錯誤'],['feature','希望新增的功能'],['ux','操作不方便'],['other','其他']];
 MODALS['feedback']=()=>({title:tx('意見反饋'),body:
   '<div class="hint">告訴我們哪裡有問題、或希望有什麼功能。送出後直接進入系統，開發者會盡快處理。</div>'+
-  '<div class="field"><label for="fb-cat">類型</label><select class="inp" id="fb-cat">'+FEEDBACK_CATS.map(([v,t])=>'<option value="'+v+'">'+t+'</option>').join('')+'</select></div>'+
+  '<div class="field"><label for="fb-cat">'+tx('類型')+'</label><select class="inp" id="fb-cat">'+FEEDBACK_CATS.map(([v,t])=>'<option value="'+v+'">'+t+'</option>').join('')+'</select></div>'+
   '<div class="field"><label for="fb-msg">內容</label><textarea class="inp" id="fb-msg" rows="4" maxlength="2000" placeholder="例如：手機上排程表很難滑、希望可以…"></textarea></div>'+
   '<a class="btn" href="mailto:me0608623@gmail.com?subject=[排程系統反饋]" style="text-decoration:none">用 Email 寄</a>',
   foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="feedback-send">送出</button>'});
@@ -2951,7 +2951,7 @@ MODALS['feedback-list']=m=>m.loading?{title:tx('查看反饋'),body:'<div class=
 MODALS['leave-request']=m=>({title:tx('新增請假詢問'),body:
   '<div class="hint">詢問送出後不會立刻成為正式請假，也不會觸發自動重排；必須由有「故障與請假」權限的人准假。</div>'+
   '<div class="field"><label for="leave-request-employee">人員</label><select class="inp" id="leave-request-employee">'+shownEmployees().map(e=>'<option value="'+e.id+'">'+esc(e.name)+'</option>').join('')+'</select></div>'+
-  '<div class="field"><label for="leave-request-date">日期</label><input class="inp" id="leave-request-date" type="date" value="'+esc(m.date||UI.date)+'"></div>'+
+  '<div class="field"><label for="leave-request-date">'+tx('日期')+'</label><input class="inp" id="leave-request-date" type="date" value="'+esc(m.date||UI.date)+'"></div>'+
   '<div class="field"><label for="leave-request-note">一句說明</label><input class="inp" id="leave-request-note" maxlength="140" value="'+esc(m.note||'')+'"></div>',
   foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="leave-request-save">送出詢問</button>'});
 /* ---------- 員工月曆：單日休假／上班、整月每週固定班 ---------- */
@@ -3566,7 +3566,7 @@ function workLogPageHTML(){
 
 MODALS['memo-edit']=m=>({title:tx('新增備忘'),body:
   '<div class="hint">備忘只提醒現場，不會直接修改排程。</div>'+
-  '<div class="row2"><div class="field"><label for="memo-machine">機台（可不選）</label><select class="inp" id="memo-machine"><option value="">不指定</option>'+shownMachines().map(x=>'<option value="'+x.id+'">'+esc(x.id+' '+x.label)+'</option>').join('')+'</select></div>'+
+  '<div class="row2"><div class="field"><label for="memo-machine">'+tx('機台（可不選）')+'</label><select class="inp" id="memo-machine"><option value="">不指定</option>'+shownMachines().map(x=>'<option value="'+x.id+'">'+esc(x.id+' '+x.label)+'</option>').join('')+'</select></div>'+
   '<div class="field"><label for="memo-employee">人員（可不選）</label><select class="inp" id="memo-employee"><option value="">不指定</option>'+shownEmployees().map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('')+'</select></div></div>'+
   '<div class="field"><label for="memo-text">一句話</label><input class="inp" id="memo-text" maxlength="140" value="'+esc(m.text||'')+'"></div>'+
   '<label class="permission-row"><input id="memo-pinned" type="checkbox"><span><b>釘選</b><small>固定顯示在其他備忘前面</small></span></label>',
@@ -3601,7 +3601,7 @@ MODALS['staff-group']=m=>{
     m.members=JSON.parse(JSON.stringify(S.groupMembers.filter(x=>x.groupId===m.draft.id)));}
   const D=m.draft,ro=!canGroups(),off=ro?' disabled':'';
   const body='<div class="field"><label for="group-name">分組名稱</label><input class="inp" id="group-name" data-bind="name" maxlength="80" value="'+esc(D.name)+'"'+off+'></div>'+
-    '<div class="field"><label for="group-department">部門（可不填）</label><input class="inp" id="group-department" data-bind="department" maxlength="80" value="'+esc(D.department||'')+'"'+off+'><div class="hint">部門可自行命名；同一員工可以加入不同部門的分組，不另外建立重複員工。</div></div>'+
+    '<div class="field"><label for="group-department">'+tx('部門（可不填）')+'</label><input class="inp" id="group-department" data-bind="department" maxlength="80" value="'+esc(D.department||'')+'"'+off+'><div class="hint">部門可自行命名；同一員工可以加入不同部門的分組，不另外建立重複員工。</div></div>'+
     '<div class="field"><label for="group-factory">分組所屬範圍</label><select class="inp" id="group-factory" data-bind="homeFactory"'+off+'>'+[['all',tx('跨廠')],[1,'1 廠'],[2,'2 廠']].map(([id,t])=>'<option value="'+id+'"'+((D.homeFactory??'all')==id?' selected':'')+'>'+t+'</option>').join('')+'</select><div class="hint">分組範圍是管理標籤，不會限制加入人員；跨廠實際排班仍須符合現行技能與廠別規則。</div></div>'+
     (D.sourceRef?'<div class="hint">分組來源：'+esc(D.sourceRef)+'</div>':'')+
     FACTORIES.map(f=>'<div class="field"><span class="lab">'+factoryName(f)+' · 組員</span><div class="toggles">'+S.employees.filter(e=>factoryOf(e)===f).map(e=>{const mem=m.members.find(x=>x.employeeId===e.id);
@@ -3767,7 +3767,7 @@ MODALS['execution-report']=m=>{
   return {title:tx('回報')+' '+(order(b.oid)?.code||'?')+' · '+stepName(b),body:
     '<dl class="kv"><dt>原定</dt><dd>'+mdw(b.date)+' '+hm(b.s)+'–'+hm(b.e)+' · '+b.qty+' 件</dd><dt>狀態</dt><dd>'+reportStatus(r)+'</dd><dt>實際開始</dt><dd>'+esc(actual(r?.startedAt))+'</dd><dt>實際完成</dt><dd>'+esc(actual(r?.finishedAt))+'</dd></dl>'+
     '<div class="hint">'+(r?'已鎖定排程，不可拖曳、改量、解除固定或刪除。':'按開始後會鎖定此段工作。')+' 件數填累計，不是這次增加量；完成會記錄實際時間，不用原定結束時間代替。</div>'+
-    (r&&r.status!=='done'?'<div class="field"><label for="execution-qty">累計已做件數</label><input class="inp" id="execution-qty" type="number" min="'+r.qtyDone+'" max="'+b.qty+'" step="1" value="'+r.qtyDone+'"></div>':'')+
+    (r&&r.status!=='done'?'<div class="field"><label for="execution-qty">'+tx('累計已做件數')+'</label><input class="inp" id="execution-qty" type="number" min="'+r.qtyDone+'" max="'+b.qty+'" step="1" value="'+r.qtyDone+'"></div>':'')+
     (r?.status==='done'?'<div class="hint">已完成 '+r.qtyDone+' 件；相對原定差異 '+(r.qtyDone-b.qty)+' 件。此版不提供修改已完成回報。</div>':''),
     foot:'<div class="work-report-actions">'+(allowed&&r?.status!=='done'?
       (m.pendingRequest?'<button class="btn danger" data-act="report-work" data-v="retry">重試上一筆回報</button>':
@@ -3810,7 +3810,7 @@ MODALS['work-content-edit']=m=>{
   const D=m.draft,off=canWorkContents()?'':'disabled';
   const picks=(items,key,label)=>'<div class="field"><span class="lab">'+label+'</span>'+items.filter(x=>factoryOf(x)===D.factory).map(x=>'<label><input type="checkbox" id="gw-'+key+'-'+esc(x.id)+'" data-key="'+key+'" data-id="'+esc(x.id)+'" '+(D[key].includes(x.id)?'checked':'')+' '+off+'> '+esc(x.name||x.label)+(x.reviewStatus==='pending'?' · 待確認':'')+'</label>').join('')+'</div>';
   return {title:m.id?'工作內容設定':'新增工作內容',body:textInput('gw-name','工作內容名稱',D.name,'text',off)+
-    '<div class="field"><label for="gw-factory">所屬廠別</label><select class="inp" id="gw-factory" '+off+'>'+FACTORIES.map(f=>'<option value="'+f+'" '+(D.factory===f?'selected':'')+'>'+factoryName(f)+'</option>').join('')+'</select></div>'+
+    '<div class="field"><label for="gw-factory">'+tx('所屬廠別')+'</label><select class="inp" id="gw-factory" '+off+'>'+FACTORIES.map(f=>'<option value="'+f+'" '+(D.factory===f?'selected':'')+'>'+factoryName(f)+'</option>').join('')+'</select></div>'+
     '<div class="field"><label for="gw-kind">工作方式</label><select class="inp" id="gw-kind" '+off+'><option value="manual" '+(!D.requiresResource?'selected':'')+'>純人工，不需要機台</option><option value="resource" '+(D.requiresResource?'selected':'')+'>需要設備／工位</option></select></div>'+
     '<div class="hint">核定人員與設備由你明確勾選，不依原表顏色、名字位置或分組自動認定。設備工作另須具操作技能。</div>'+
     picks(S.employees,'employeeIds','核定可做此工作的人員')+(D.requiresResource?picks(S.machines,'resourceIds','允許使用的設備／工位'):'<div class="hint">純人工工作占用整段員工時間，不能一邊顧機台一邊做。</div>'),
