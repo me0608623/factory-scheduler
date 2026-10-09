@@ -51,7 +51,7 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 86（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
+- **總輪次**: 87（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
@@ -397,3 +397,9 @@
 - 主動實跑 db 層尚未驗證的工具：`acceptance_sim.mjs`（需 Docker，使用者手動驗收用，跳過）、`benchmark_manual_flow.mjs`——**後者自 migration 0021 起就無法執行**：腳本只跳過檔名含 realtime 的 migration，但 0021 起 `alter publication` 出現在一般檔名內（work_execution/account_permissions/leave_requests/…），第一條就炸 `publication "supabase_realtime" does not exist`；migrations.test.mjs 有 create publication shim 故不受影響
 - **修復**：補上與 migrations.test 相同的一行 shim（→ 本輪 commit）；修復後基準全跑通——100 單全量 42ms／增量 8ms、500 單 292/22ms、**1000 單（3000 方塊）全量 1019ms／增量 43ms**——增量路徑便宜、成長近線性，健康
 - db `npm test` 修後重跑 **201/201** 綠；教訓：未被 CI 覆蓋的工具會隨 schema 演進鏽死，這類「主動實跑」輪正是解法
+
+
+## 輪次 87（2026-10-10）— 進度文件輪次索引
+
+- 文件已 87+ 輪、巨大難導航——頂部新增「輪次索引」（39 條：輪號→一句摘要），由標題與首行重點自動生成
+- 另查最後一個未跑的 db 腳本 integration_solver_apply.mjs：其 spawn uv run python（本機 uv 損壞跑不了），且它已有 publication shim 與正確註解（環境限制、非腳本 bug），維持原樣
