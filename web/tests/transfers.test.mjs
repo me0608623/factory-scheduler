@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validateTransfers,appendFlow,batchTotals,transferSummary,materialWarning,assertTransferLink,transferPlanWarnings} from '../src/transfers.js';
+import {validateTransfers,appendFlow,batchTotals,transferSummary,materialWarning,assertTransferLink,transferPlanWarnings,validDate} from '../src/transfers.js';
 import {assignmentToDb,validateGeneralWork} from '../src/general-work.js';
 import {toSnapshot,fromSnapshot} from '../src/convert.js';
 import {scenarioKey} from '../src/scenarios.js';
@@ -85,4 +85,14 @@ test('SQL 跨廠 RPC：權限、版本、歷史保護、批次連結及整次撤
   custom.machines.push({id:'z2',label:'自訂工位',factory:1,proc:'自訂磨邊',products:[pid],faults:[]});await B.sync(custom);
   const checked=await B.load();assert.equal(checked.machines.find(m=>m.id==='z2').proc,'自訂磨邊');assert.equal(checked.products.find(p=>p.id===pid).name,'自訂加工品號');
  }finally{await db.close();}
+});
+
+test('validDate：格式、真實日曆日、字串型別缺一不可',()=>{
+  assert.equal(validDate('2026-09-30'),true);
+  assert.equal(validDate('2024-02-29'),true,'閏年二月成立');
+  assert.equal(validDate('2026-2-3'),false);
+  assert.equal(validDate('2026-02-30'),false,'日曆上不存在的日期');
+  assert.equal(validDate('2026-02-29'),false,'平年二月');
+  assert.equal(validDate('2026-13-01'),false);
+  assert.equal(validDate(20260930),false,'非字串');
 });
