@@ -46,3 +46,23 @@ test('可收合側欄：app.js 有切換動作與 localStorage 保存', () => {
 test('導覽項目有 title 提示（收合時仍可辨識）', () => {
   assert.ok(app.includes("aria-pressed=\"'+(UI.drawer===page)+'\" title=\""), 'nav item 缺少 title 屬性');
 });
+
+test('不變量：與 vg-glass 併用且依賴定位的基底 class 必須有特異度防護（防同類回歸）', () => {
+  // visual.js 後端注入 .vg-glass{position:relative}（同特異度、晚載入），
+  // 會蓋掉基底 class 的 fixed/absolute/sticky。凡是這種組合都必須有 .X.vg-glass 防護規則，
+  // 或元素本身帶 inline position（inline 優先於注入樣式）。
+  const risky = [];
+  for (const f of fs.readdirSync(src).filter(f => /\.js$/.test(f))) {
+    const text = fs.readFileSync(path.join(src, f), 'utf8');
+    for (const m of text.matchAll(/class="([^"]*\bvg-glass\b[^"]*)"/g)) {
+      const around = text.slice(m.index, m.index + m[0].length + 220);
+      if (/style="[^"]*position\s*:/i.test(around)) continue;   // inline position 免疫
+      for (const c of m[1].split(/\s+/).filter(c => c && c !== 'vg-glass')) {
+        const rule = css.match(new RegExp('\.' + c.replace(/[^a-zA-Z0-9_-]/g, '') + '\{[^}]*\}'));
+        if (rule && /position:\s*(fixed|absolute|sticky)/.test(rule[1]) && !css.includes('.' + c + '.vg-glass'))
+          risky.push(f + ':' + c);
+      }
+    }
+  }
+  assert.deepEqual(risky, [], '這些組合會被注入的 position:relative 蓋掉定位，需加 .X.vg-glass 防護或 inline position：' + risky.join('、'));
+});
