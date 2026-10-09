@@ -9,7 +9,7 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 77（65/66/69/74/75/76 為使用者系列，編號重疊以內容區分）
+- **總輪次**: 78（65/66/69/74/75/76 為使用者系列，編號重疊以內容區分）
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
@@ -289,3 +289,10 @@
 
 - 使用者修復 **TEST_STATUS 9-26 疑點①**（`ef89d07`：solver plans.py 新工單完成判定 late/part 時加診斷並降級為不可套用——W07 情境「延誤 1 仍可選」不再出現；回歸測試併入 test_edges.py，CI solver job 綠）——這正是輪次 60 列回 NEXT_TASKS 的項目，待辦僅剩疑點②（10 分鐘零碎工段，需產品決策：最短工作段規則 vs 換模成本）
 - worktree 同步後 web **272/272** 確認綠；生產站實測 web 200 ✓ solver /health 200 ✓
+
+
+## 輪次 78（2026-10-10）— 疑點②方向確認旁觀輪
+
+- 使用者於 feat/soft-switching-cost 展開 **9-26 疑點②**實作，產品決策（其 NEXT_TASKS WIP，未提交）：採 **Soft Switching Cost 軟性切換成本**——不用最短工段硬限制，保留合法短工段，以可配置權重（switching/fragmentation）引導連續性，自然分段（午休／下班／跨日／故障）不計懲罰
+- 本輪不碰 solver 與 NEXT_TASKS（其 WIP 範圍）；worktree 確認 main 現況 web **272/272** 綠
+- 待其實作完成合併後做驗證輪
