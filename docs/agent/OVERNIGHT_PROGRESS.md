@@ -5,6 +5,48 @@
 > ② **使用者系列**（vg-glass 根因修復=51、浮動視窗=65、分割放大=66、聊天面板=69、效能煙霧=74 等，多為功能/修復）
 > 兩系列皆經 main 推送與 CI 把關。
 
+## 輪次索引
+
+- 輪次 48-49（2026-09-30 續）：fromSnapshot(null/undefined) 防護（→ `cdb6b6e`）：空輸入回傳可用狀態，補 1 測試
+- 輪次 50（2026-09-30 續）— 效能實測：render() 大量方塊實測（真實瀏覽器、本機 dev server、注入壓力資料集）：
+- 輪次 51（2026-10-09）— localStorage 限制檢查（Phase 4）：檢查結論：寫入路徑（sync/reportExecution/confirmExecution/saveScenario/saveLeg
+- 輪次 52（2026-10-09）— 複合變數 modal 標題 i18n 結案（P3）：tx() 新增佔位參數：`tx('鍵',{x:值})` 以 `{x}` 替換（值由呼叫端自行跳脫；zh-TW fallback 即原文鍵
+- 輪次 53（2026-10-09）— CSS 死碼清理結案（P3）：方法：萃取 styles.css 全部 446 個 class，對全 repo JS/HTML 做子字串交叉比對得 34 個零引用候選；
+- 輪次 54（2026-10-09）— 主動改善：chat-ledgers 直接測試：NEXT_TASKS 列項全數結案後進入主動搜尋模式；盤點 src 測試覆蓋，零測試模組餘 4 個（chat-ledgers/chat-ui
+- 輪次 55（2026-10-09）— 主動改善：transfer-ui 純渲染測試：零測試模組 4→2（chat-ui、roster-ui 剩餘，需 DOM 或含 document 呼叫的路徑）
+- 輪次 56（2026-10-09）— 主動改善：roster-ui 渲染與 action 測試：零測試模組剩 1（chat-ui，全模組 DOM 綁定：createElement/speechSynthesis，需真瀏覽器環境，維持標註
+- 輪次 57（2026-10-09）— 主動改善：未測匯出補強：全模組掃描「export 了但測試沒引用」的函式，補 5 個有資料完整性價值的（→ `dcb804f`）：
+- 輪次 58（2026-10-09）— 生產健康驗證＋repo 衛生：生產站唯讀健康檢查：web `factory-scheduler-web.onrender.com` → 200 ✓、solver `/
+- 輪次 59（2026-10-09）— 主動改善：renderFloor canvas stub 測試：floor 模組最後一個未測匯出 `renderFloor` 補上（→ `713ab77`）：以錄製式 2D context stub＋`g
+- 輪次 60（2026-10-09）— 主動改善：queryKinds 路由測試＋solver 疑點列回待辦：queryKinds 測試（→ `09bec38`）：9 個關鍵字分支逐一斷言（故障/請假/輪班/跨廠/缺料/衝突/交期/進度/一般問句
+- 輪次 61（2026-10-09）— 接續使用者根因修復：vg-glass 定位同類風險稽查＋通用守門：背景：使用者平行推送 `42da52c`——右側工作區全空白的根因（visual.js 注入 `.vg-glass{position:r
+- 輪次 51（2026-10-09）— 主工作區版面修復：根因：visual.js `ensureVisualStyles()` 注入 `.vg-glass{position:relative}
+- 輪次 62（2026-10-09）— 平行作業安全輪：worktree 隔離執行：背景：使用者活躍於 `fix/main-workspace` 分支（工作樹在該分支），本輪改用 git worktree（`Downlo
+- 輪次 63（2026-10-09）— db 層主動防回歸（worktree 隔離續行）：背景：使用者活躍於 `feat/floating-windows`（app.js/styles.css 未提交修改＋新檔 win.js）
+- 輪次 64（2026-10-09）— workWindows 日曆開窗直測（worktree 續行）：使用者持續開發 feat/floating-windows（app.js/chat-ui.js/i18n.js/styles.css 有 W
+- 輪次 65（2026-10-09）— Windows 式浮動視窗（使用者對話分支）：新模組 web/src/win.js：共用浮動視窗引擎（Pointer Events、8 向縮放、最大化/還原、z-order 60-7
+- 輪次 66（2026-10-09）— 浮動視窗合併後驗證＋收尾補強：使用者完成並合併 feat/floating-windows（`782eabb`：抽屜可拖曳/縮放/最大化、排程助理自由定位、win.js 
+- 輪次 67（2026-10-09）— orderCounters 計數器直測：使用者展開新分支 feat/split-pane（工作樹乾淨），worktree 續行、僅動 overview.test.mjs（零衝突）
+- 輪次 68（2026-10-09）— split-pane 合併驗證輪：使用者合併 feat/split-pane（`68cc333`：抽屜改主內容分割/放大模式，對齊工作紀錄頁的區域切換機制；app.js+i1
+- 輪次 69（2026-10-09）— ARCHITECTURE.md 對齊現況：使用者已自行解決輪次 68 的進度文件衝突（併入其分支紀錄 `26a7db6`）；worktree 續行
+- 輪次 70（2026-10-09）— 聊天面板窄視窗修復驗證輪：使用者合併 fix/chat-panel-size（`f74cbd2`：聊天面板寬度不再繼承縮小後的根容器，chat-ui.js＋style
+- 輪次 71（2026-10-09）— 手動稽核腳本主動驗證：使用者活躍於 feat/master-data-page（app.js/i18n.js/layout-regression WIP），wor
+- 輪次 72（2026-10-09）— master-data-page 合併驗證輪：使用者合併 feat/master-data-page（`8390732`：「員工、設備與工單」改完整管理頁，修正誤導初次核對頁問題；app
+- 輪次 73（2026-10-10）— 平面圖 i18n＋solver 邊界測試（分支 agent/overnight-1010）：基準：web 271/271、db 201/201 全綠
+- 輪次 74（2026-10-10）— 效能煙霧測試進 CI：test_perf_smoke.py：snapshot_for 合成工廠（8機8人），10/30/60 工單 solve 全部完成且單輪 <
+- 輪次 75（2026-10-09）— 效能煙霧測試驗證＋系列說明：使用者在 agent/overnight-1010 上持續推送：`48e7467` solver 效能煙霧測試（10/30/60 工單，斷言
+- 輪次 76（2026-10-10）— TEST_STATUS 9-26 疑點①修復：plans.py：插單（order 事件）選項若新工單逾期（late）或排不完（part）→ diagnostics 加說明並降級不可套用；
+- 輪次 77（2026-10-09）— 9-26 疑點①修復驗證輪：使用者修復 TEST_STATUS 9-26 疑點①（`ef89d07`：solver plans.py 新工單完成判定 late/
+- 輪次 78（2026-10-10）— 疑點②方向確認旁觀輪：使用者於 feat/soft-switching-cost 展開 9-26 疑點②實作，產品決策（其 NEXT_TASKS WIP，
+- 輪次 79（2026-10-10）— 疑點②實作待併觀察輪：使用者完成疑點②實作：`3841f8e` Soft Switching Cost（feat/soft-switching-cost 分支，*
+- 輪次 80（2026-10-10）— feature-tours 合併驗證輪：使用者合併 feat/feature-tours（`3fefed1`：「功能解說」左側導覽獨立入口——主題式逐步導覽；tour.js＋i18
+- 輪次 81（2026-10-10）— 真實瀏覽器煙霧測試（本機模式）：使用者閒置於 main（工作樹乾淨），本輪補一直缺的覆蓋：IAB 真實瀏覽器煙霧（worktree vite dev server 
+- 輪次 82（2026-10-10）— PR #7 交付審核觀察輪：使用者將軟性切換成本整理為 PR #7（feat/soft-switching-cost：根因分析——10 分鐘短段是 CP-SAT
+- 輪次 83（2026-10-10）— CI 實際狀態確認（GitHub API 唯讀）：以公開 API（GET only）確認 CI 真實結論，不再只憑本地推斷：main @5515285 Tests #214／Deploy
+- 輪次 84（2026-10-10）— 正式站唯讀視覺煙霧：動機：vg-glass「黑色工作區」事件正是只在正式站被發現——本地全綠不等於部署 bundle 沒事，補上正式站層級的煙霧
+- 輪次 85（2026-10-10）— en/vi 執行期 i18n 煙霧（本機）：延續輪次 81 本機煙霧，補英/越兩語言的執行期驗證（泰語已於輪次 84 正式站實證）：以 localStorage 設語言後重載
+- 輪次 86（2026-10-10）— 發現並修復鏽死的基準腳本：主動實跑 db 層尚未驗證的工具：`acceptance_sim.mjs`（需 Docker，使用者手動驗收用，跳過）、`benchmark
+
 ## 執行狀態
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
