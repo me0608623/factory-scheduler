@@ -314,6 +314,8 @@ export const UI_TEXT = {
   "<b>匯出 Excel</b>：下載當天彩色排班表或複製到試算表；也可從此處匯入範本。": { en: "<b>Export Excel</b>: download the day's colored schedule or copy it to a spreadsheet; import templates from here too.", vi: "<b>Xuất Excel</b>: tải bảng lịch màu trong ngày hoặc sao chép sang bảng tính; cũng có thể nhập mẫu từ đây.", th: "<b>ส่งออก Excel</b>: ดาวน์โหลดตารางสีของวันนั้นหรือคัดลอกไปยังสเปรดชีต นำเข้าเทมเพลตจากที่นี่ได้ด้วย" },
   "畫面太大太小：到 <b>更多功能 → 畫面設定</b> 調整比例或淺色／深色。": { en: "Display too big or small: adjust scale or light/dark under <b>More → Display settings</b>.", vi: "Màn hình quá to hoặc quá nhỏ: vào <b>Thêm → Cài đặt hiển thị</b> chỉnh tỷ lệ hoặc sáng/tối.", th: "หน้าจอใหญ่หรือเล็กเกินไป: ปรับสัดส่วนหรือโหมดสว่าง/มืดได้ที่ <b>เพิ่มเติม → ตั้งค่าการแสดงผล</b>" },
   "每台電腦的畫面大小、顏色各自記住，不影響別人。": { en: "Scale and colors are remembered per computer and don't affect others.", vi: "Kích thước và màu màn hình được nhớ riêng cho từng máy, không ảnh hưởng người khác.", th: "ขนาดและสีของหน้าจอจะจำแยกตามเครื่อง ไม่กระทบผู้อื่น" },
+  "收合導覽": { en: "Collapse menu", vi: "Thu gọn menu", th: "ย่อเมนู" },
+  "展開導覽": { en: "Expand menu", vi: "Mở rộng menu", th: "ขยายเมนู" },
 };
 
 export function tx(k, params) {

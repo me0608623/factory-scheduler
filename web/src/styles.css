@@ -99,7 +99,27 @@ body.has-app-nav .wrap{margin-left:244px}
 .nav-today b{background:linear-gradient(145deg,#3CA2F4,#1871D3)}.nav-orders b{background:linear-gradient(145deg,#786CF4,#5947D3)}.nav-people b{background:linear-gradient(145deg,#2FD29A,#15A978)}.nav-output b{background:linear-gradient(145deg,#9A70F2,#6546D5)}.nav-notes b{background:linear-gradient(145deg,#FFAF4B,#E57D28)} .nav-worklog b{background:linear-gradient(145deg,#4FC3F7,#0288D1)}.nav-more b{background:linear-gradient(145deg,#88919C,#626A75)}
 .app-nav-item:hover{background:var(--surface2)}.app-nav-item[aria-pressed="true"]{background:color-mix(in srgb,var(--line) 58%,var(--surface));color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
 .side-footer{margin-top:auto;padding-top:12px}.side-health{width:100%;min-height:66px;display:grid;grid-template-columns:12px 1fr;align-items:center;gap:10px;padding:11px 13px;border:1px solid var(--line);border-radius:13px;background:var(--surface);text-align:left}.side-health>i{width:10px;height:10px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 4px var(--ok-bg)}.side-health.error>i{background:var(--bad);box-shadow:0 0 0 4px var(--bad-bg)}.side-health.busy>i{background:var(--warn);box-shadow:0 0 0 4px var(--warn-bg)}.side-health b,.side-health small{display:block}.side-health b{font-size:13px}.side-health small{margin-top:2px;color:var(--muted);font-size:11px}
+/* 可收合側欄：收合後僅留圖示欄，主內容自動使用完整剩餘寬度（桌面與平板） */
+.nav-collapse{margin-left:auto;flex:none;width:30px;height:30px;border:1px solid var(--line);border-radius:8px;background:var(--surface2);color:var(--muted);font-size:17px;font-weight:900;cursor:pointer;display:grid;place-items:center}
+.nav-collapse:hover{color:var(--ink);border-color:var(--accent)}
+body.nav-collapsed .app-nav{width:78px;padding-inline:11px}
+body.nav-collapsed.has-app-nav .wrap{margin-left:78px}
+body.nav-collapsed .side-brand{padding:8px 2px}
+body.nav-collapsed .side-brand>span:nth-child(2){display:none}
+body.nav-collapsed .side-brand .nav-collapse{margin-left:auto}
+body.nav-collapsed .app-nav-item{justify-content:center;padding:6px}
+body.nav-collapsed .app-nav-item span,
+body.nav-collapsed .side-section,
+body.nav-collapsed .side-profile>span:nth-child(2),
+body.nav-collapsed .side-profile>i{display:none}
+body.nav-collapsed .side-profile{grid-template-columns:40px;justify-content:center}
+body.nav-collapsed .side-health{grid-template-columns:12px;justify-content:center;padding:11px 6px}
+body.nav-collapsed .side-health span{display:none}
 .ops-drawer{position:fixed;z-index:55;right:0;top:0;bottom:0;width:min(470px,calc(100vw - 260px));background:var(--surface);border-left:1px solid var(--line);box-shadow:-18px 0 42px rgba(28,36,48,.16);display:flex;flex-direction:column}
+/* 防護：visual.js 後端注入 .vg-glass{position:relative}（同特異度、較晚載入）會蓋掉上方
+   fixed 定位，使抽屜掉進文件流、擠在左側而右側大片空白。以較高特異度還原定位方式；
+   故意不重宣告位移（top/right/bottom）——留給上面的基礎規則與手機版媒體查詢（bottom sheet）。 */
+.ops-drawer.vg-glass{position:fixed}
 .ops-drawer-h{min-height:72px;padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line2)}
 .ops-drawer-h h2{margin:0;font-size:27px}.ops-drawer-h .iconbtn{margin-left:auto}
 .ops-drawer-b{padding:16px;overflow:auto;overscroll-behavior:contain;flex:1}

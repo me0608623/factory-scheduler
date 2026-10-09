@@ -63,7 +63,8 @@ function mergeIv(iv){iv.sort((a,b)=>a[0]-b[0]);const o=[];for(const x of iv){if(
 let S=null;            // 目前排程（全部資料）
 let readOnly=false, undoStack=[];
 let recentManualMove=null;
-const UI={date:null,view:"day",layout:'resource',factory:1,group:'all',modal:null,zoom:1,theme:"light",drawer:null,focus:null,prefs:structuredClone(DEFAULT_PREFERENCES),page:null,returnTo:null,leaveBrush:null,brushStart:null,editCell:null,confirmRow:null,workLogDate:null};
+const UI={date:null,view:"day",layout:'resource',factory:1,group:'all',modal:null,zoom:1,theme:"light",drawer:null,focus:null,prefs:structuredClone(DEFAULT_PREFERENCES),page:null,returnTo:null,leaveBrush:null,brushStart:null,editCell:null,confirmRow:null,workLogDate:null,navCollapsed:false};
+try{UI.navCollapsed=localStorage.getItem("fsched-nav-collapsed")==="1";}catch(e){}
 function loadFactory(){try{UI.factory=factoryPreference(localStorage.getItem("fsched-factory"));}catch(e){}}
 function setFactory(n){UI.factory=FACTORIES.includes(n)?n:"all";try{localStorage.setItem("fsched-factory",String(UI.factory));}catch(e){}}
 const shownEmployees=()=>groupedEmployees(S,S.employees.filter(e=>inFactory(e,UI.factory)),UI.group);
@@ -640,6 +641,7 @@ function render(){ I18N.lang=UI.prefs.language; ensureVisualStyles();
   document.body.classList.toggle("pagemode",!!UI.page);
   document.body.classList.toggle("has-app-nav",!PV);
   document.body.classList.toggle("drawer-open",!!UI.drawer&&!PV);
+  document.body.classList.toggle("nav-collapsed",!!UI.navCollapsed);
   let html;
   if(PV){
     // 預覽：上方是方案面板，下方排程表顯示「原本／調整後／對照」
@@ -686,13 +688,13 @@ function topHTML(){
 }
 
 function appNavHTML(){
-  const item=(page,label)=>'<button class="app-nav-item nav-'+page+'" data-act="drawer" data-v="'+page+'" aria-pressed="'+(UI.drawer===page)+'"><b>'+NAV_IC[page]+'</b><span>'+label+'</span></button>';
+  const item=(page,label)=>'<button class="app-nav-item nav-'+page+'" data-act="drawer" data-v="'+page+'" aria-pressed="'+(UI.drawer===page)+'" title="'+esc(label)+'"><b>'+NAV_IC[page]+'</b><span>'+label+'</span></button>';
   const account=STORE&&STORE.kind==='supabase'?(STORE.userName||STORE.session?.user?.email||'帳號'):'本機模式';
   const role=ROLE_NAME[STORE?.role]||'本機管理者';
   const sync=SYNC.state==='busy'?'同步中':SYNC.state==='error'?'同步失敗':STORE?.kind==='supabase'?'雲端已同步':'存在這台電腦';
   return '<nav class="app-nav" aria-label="'+tx('主要功能')+'">'+
     
-    '<div class="side-brand"><span class="brand-mark"><span></span></span><span><b>產線排程</b><small>'+tx('工廠工作台')+'</small></span></div>'+
+    '<div class="side-brand"><span class="brand-mark"><span></span></span><span><b>產線排程</b><small>'+tx('工廠工作台')+'</small></span><button class="nav-collapse" data-act="nav-toggle" aria-label="'+(UI.navCollapsed?tx('展開導覽'):tx('收合導覽'))+'" title="'+(UI.navCollapsed?tx('展開導覽'):tx('收合導覽'))+'">'+(UI.navCollapsed?'›':'‹')+'</button></div>'+
     '<button class="side-profile" data-act="settings" aria-pressed="'+(UI.drawer==='settings')+'"><span class="side-avatar">'+esc(account.slice(0,1).toUpperCase())+'</span><span><b>'+esc(account)+'</b><small>'+esc(role)+'</small></span><i>›</i></button>'+
     '<span class="side-section">'+tx('排程表')+'</span>'+
     '<button class="app-nav-item nav-today" data-act="today" aria-pressed="'+(!UI.drawer)+'"><b>'+NAV_IC.today+'</b><span>'+tx('today')+'</span></button>'+item('orders',tx('orders'))+
@@ -1136,6 +1138,7 @@ document.addEventListener("click",e=>{
     case "drawer":if(a.dataset.v==="worklog"){UI.page="worklog";UI.drawer=null;try{history.replaceState(null,"","?view=worklog");}catch{}render();window.scrollTo(0,0);flashReturnRow();break;}UI.drawer=UI.drawer===a.dataset.v?null:a.dataset.v;UI.page=null;UI.focus=null;render();requestAnimationFrame(()=>$('.ops-drawer')?.focus());break;
     case "settings":UI.drawer='settings';UI.page=null;UI.focus=null;render();requestAnimationFrame(()=>$('.ops-drawer')?.focus());break;
     case "drawer-close":UI.drawer=null;UI.focus=null;render();break;
+    case "nav-toggle":UI.navCollapsed=!UI.navCollapsed;try{localStorage.setItem("fsched-nav-collapsed",UI.navCollapsed?"1":"0");}catch(e){}render();break;
     case "setting-set":updateDeviceSetting(a.dataset.key,a.dataset.v);break;
     case "setting-toggle":toggleDeviceSetting(a);break;
     case "notification-permission":requestNotificationPermission();break;

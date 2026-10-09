@@ -1,0 +1,48 @@
+// 版面防回歸：抽屜固定定位防護（vg-glass 覆蓋問題）與可收合側欄
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const src = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'src');
+const css = fs.readFileSync(path.join(src, 'styles.css'), 'utf8');
+const app = fs.readFileSync(path.join(src, 'app.js'), 'utf8');
+const visual = fs.readFileSync(path.join(src, 'visual.js'), 'utf8');
+
+test('visual.js 注入的 .vg-glass 仍宣告 position:relative（耦合前提存在）', () => {
+  assert.ok(/\.vg-glass\{[^}]*position:relative/.test(visual.replace(/\s+/g, ' ')),
+    '若 visual.js 移除了 position:relative，可考慮一併移除 styles.css 的防護規則');
+});
+
+test('styles.css 有 .ops-drawer.vg-glass 特異度防護（fixed 定位）', () => {
+  const m = css.match(/\.ops-drawer\.vg-glass\{([^}]*)\}/);
+  assert.ok(m, '缺少 .ops-drawer.vg-glass 防護規則');
+  assert.match(m[1], /position:\s*fixed/, '防護規則必須還原 position:fixed');
+  // 故意不重宣告位移：否則（0,2,0）會壓過手機版媒體查詢的 bottom-sheet 定位
+  assert.doesNotMatch(m[1], /top:|right:|bottom:|left:/, '防護規則不可包含位移，避免破壞手機版 bottom sheet');
+});
+
+test('防護規則出現在基礎區（非僅媒體查詢內）', () => {
+  const idx = css.indexOf('.ops-drawer.vg-glass{');
+  const mediaStart = css.indexOf('@media', 0);
+  // 找出 idx 之前最近的一個 @{ 與 @} 的配對狀態過於複雜，改驗證：防護規則緊跟在基礎 .ops-drawer 規則之後
+  assert.ok(idx > css.indexOf('.ops-drawer{'), '防護規則應在基礎 .ops-drawer 規則之後');
+});
+
+test('可收合側欄：CSS 有收合寬度與主內容 margin 調整', () => {
+  assert.match(css, /body\.nav-collapsed \.app-nav\{[^}]*width:78px/, '缺少收合寬度規則');
+  assert.match(css, /body\.nav-collapsed\.has-app-nav \.wrap\{[^}]*margin-left:78px/, '缺少主內容 margin 調整');
+  assert.match(css, /body\.nav-collapsed \.app-nav-item span\{[^}]*display:none|body\.nav-collapsed \.app-nav-item span,\s*\nbody\.nav-collapsed \.side-section,/, '缺少文字隱藏規則');
+});
+
+test('可收合側欄：app.js 有切換動作與 localStorage 保存', () => {
+  assert.ok(app.includes('case "nav-toggle"'), '缺少 nav-toggle 動作');
+  assert.ok(app.includes('"fsched-nav-collapsed"'), '缺少 localStorage 保存');
+  assert.ok(app.includes('classList.toggle("nav-collapsed"'), '缺少 body class 切換');
+  assert.ok(app.includes('data-act="nav-toggle"'), '缺少收合按鈕');
+});
+
+test('導覽項目有 title 提示（收合時仍可辨識）', () => {
+  assert.ok(app.includes("aria-pressed=\"'+(UI.drawer===page)+'\" title=\""), 'nav item 缺少 title 屬性');
+});
