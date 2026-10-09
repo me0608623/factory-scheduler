@@ -2,15 +2,15 @@
 
 ## 執行狀態
 - **分支**: `agent/overnight-20261009`（全數合併 main）
-- **最新 main**: `b079185`（輪次 52 推送；另含使用者平行 commit `1f624dd` fix-account 除錯）
-- **main 總 commits**: 315（輪次 52 文件推送後）
-- **總輪次**: 52
+- **最新 main**: `57bde77`（輪次 53 推送；期間使用者平行推送 3d2bc58→0e5fb87 fix-account 除錯，自動 merge 無衝突）
+- **main 總 commits**: 325（輪次 53 文件推送後）
+- **總輪次**: 53
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
-- 前端: **225/225** PASS
+- 前端: **228/228** PASS
 - DB: **206/206** PASS
-- 合計: **431**
+- 合計: **434**
 
 ## Bug 修復（10 項）
 1. **P1** XSS（line-notify）
@@ -79,3 +79,12 @@
 - 直接 insert auth.users 有兩個坑：`instance_id` 需補 `00000000-...`、token 欄位要空字串（非 NULL）且 identity_data 需含 `phone_verified`——`fix-account.yml` 已含完整修補步驟
 - 已建立：a2a.richard@gmail.com（Richard，boss，登入驗證 200）
 - 臨時 secret 已刪；兩工作流在無 secret 時自動失效，保留作為未來建帳號工具
+
+## 輪次 53（2026-10-09）— CSS 死碼清理結案（P3）
+
+- **方法**：萃取 styles.css 全部 446 個 class，對全 repo JS/HTML 做子字串交叉比對得 34 個零引用候選；再逐一排查動態組合風險（`'rs-'+type`、`'nav-'+page`、`"tour-"+arrow` 等），救回 11 個活碼
+- **移除**（→ `c467286`，main `57bde77`）：23 個真死碼類別＝53 條規則＋14 個群組選擇器（`.tf-board,.rush-table` 只刪後者），80598→76069 bytes（-5.6%）。涵蓋舊版工具列（more-tools/toolset/top-actions/mobile-only/reference-panel）、舊 rush 表樣式（rush-table/row/sec/f1/f2）、side-chrome、drawer-grip/zoom、codelink、urgent-tag 等
+- **除錯教訓**：CSS 剖析器判斷 @media 時未先剝除前置註解（`/* 註解 */\n@media(...)` 的 trim() 開頭是 `/*`），導致誤判為普通規則、括號級連錯位——用「body 含 1 個以上括號即報警」的儀器化定位後修正
+- **防回歸**：新增 `web/tests/css-structure.test.mjs` 3 測試（括號平衡、動態組合類存在、死碼不回流）
+- 前端測試：**225 → 228** PASS
+- 剩餘待辦：平面圖 canvas 中文機器名（資料層）、solver 兩項（uv 壞，CI 限定）；操作紀錄 log 標題屬歷史資料層已註明非範圍
