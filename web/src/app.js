@@ -2431,7 +2431,7 @@ const HELP=[
 MODALS.help=m=>{
   const [title,steps,tip]=HELP[m.sec];
   return {title:tx('操作說明'),foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button><button class="btn primary" data-act="tour">'+tx('新手導覽')+'</button>',body:'<div class="help-nav">'+HELP.map((h,i)=>tg("help-sec",i,i===m.sec,esc(h[0]))).join("")+'</div>'+
-    '<div class="help-sec"><h4 style="margin:0;font-size:21px;font-weight:900">'+esc(title)+'</h4><ol>'+steps.map(s=>'<li>'+s+'</li>').join("")+'</ol>'+(tip?'<div class="tip">'+tip+'</div>':"")+'</div>',
+    '<div class="help-sec"><h4 style="margin:0;font-size:21px;font-weight:900">'+esc(title)+'</h4><ol>'+steps.map(s=>'<li>'+tx(s)+'</li>').join("")+'</ol>'+(tip?'<div class="tip">'+tx(tip)+'</div>':"")+'</div>',
     foot:(m.sec>0?'<button class="btn" data-act="help-sec" data-v="'+(m.sec-1)+'">‹ '+tx('上一步')+'</button>':"")+'<div class="spacer"></div>'+(m.sec<HELP.length-1?'<button class="btn primary" data-act="help-sec" data-v="'+(m.sec+1)+'">'+tx('下一步')+' ›</button>':'<button class="btn primary" data-act="close">'+tx('完成')+'</button>')};
 };
 MODAL_ACT["help-sec"]=a=>{UI.modal.sec=+a.dataset.v;const ov=$("#ov");renderModal();if(ov)$("#ov").scrollTop=0;};
