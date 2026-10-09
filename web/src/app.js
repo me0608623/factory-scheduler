@@ -3566,8 +3566,8 @@ function workLogPageHTML(){
 
 MODALS['memo-edit']=m=>({title:tx('新增備忘'),body:
   '<div class="hint">備忘只提醒現場，不會直接修改排程。</div>'+
-  '<div class="row2"><div class="field"><label for="memo-machine">'+tx('機台（可不選）')+'</label><select class="inp" id="memo-machine"><option value="">不指定</option>'+shownMachines().map(x=>'<option value="'+x.id+'">'+esc(x.id+' '+x.label)+'</option>').join('')+'</select></div>'+
-  '<div class="field"><label for="memo-employee">人員（可不選）</label><select class="inp" id="memo-employee"><option value="">不指定</option>'+shownEmployees().map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('')+'</select></div></div>'+
+  '<div class="row2"><div class="field"><label for="memo-machine">'+tx('機台（可不選）')+'</label><select class="inp" id="memo-machine"><option value="">'+tx('不指定')+'</option>'+shownMachines().map(x=>'<option value="'+x.id+'">'+esc(x.id+' '+x.label)+'</option>').join('')+'</select></div>'+
+  '<div class="field"><label for="memo-employee">人員（可不選）</label><select class="inp" id="memo-employee"><option value="">'+tx('不指定')+'</option>'+shownEmployees().map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('')+'</select></div></div>'+
   '<div class="field"><label for="memo-text">一句話</label><input class="inp" id="memo-text" maxlength="140" value="'+esc(m.text||'')+'"></div>'+
   '<label class="permission-row"><input id="memo-pinned" type="checkbox"><span><b>釘選</b><small>固定顯示在其他備忘前面</small></span></label>',
   foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="memo-save">儲存備忘</button>'});
@@ -3811,7 +3811,7 @@ MODALS['work-content-edit']=m=>{
   const picks=(items,key,label)=>'<div class="field"><span class="lab">'+label+'</span>'+items.filter(x=>factoryOf(x)===D.factory).map(x=>'<label><input type="checkbox" id="gw-'+key+'-'+esc(x.id)+'" data-key="'+key+'" data-id="'+esc(x.id)+'" '+(D[key].includes(x.id)?'checked':'')+' '+off+'> '+esc(x.name||x.label)+(x.reviewStatus==='pending'?' · 待確認':'')+'</label>').join('')+'</div>';
   return {title:m.id?'工作內容設定':'新增工作內容',body:textInput('gw-name','工作內容名稱',D.name,'text',off)+
     '<div class="field"><label for="gw-factory">'+tx('所屬廠別')+'</label><select class="inp" id="gw-factory" '+off+'>'+FACTORIES.map(f=>'<option value="'+f+'" '+(D.factory===f?'selected':'')+'>'+factoryName(f)+'</option>').join('')+'</select></div>'+
-    '<div class="field"><label for="gw-kind">工作方式</label><select class="inp" id="gw-kind" '+off+'><option value="manual" '+(!D.requiresResource?'selected':'')+'>純人工，不需要機台</option><option value="resource" '+(D.requiresResource?'selected':'')+'>需要設備／工位</option></select></div>'+
+    '<div class="field"><label for="gw-kind">工作方式</label><select class="inp" id="gw-kind" '+off+'><option value="manual" '+(!D.requiresResource?'selected':'')+'>'+tx('純人工，不需要機台')+'</option><option value="resource" '+(D.requiresResource?'selected':'')+'>'+tx('需要設備／工位')+'</option></select></div>'+
     '<div class="hint">核定人員與設備由你明確勾選，不依原表顏色、名字位置或分組自動認定。設備工作另須具操作技能。</div>'+
     picks(S.employees,'employeeIds','核定可做此工作的人員')+(D.requiresResource?picks(S.machines,'resourceIds','允許使用的設備／工位'):'<div class="hint">純人工工作占用整段員工時間，不能一邊顧機台一邊做。</div>'),
     foot:'<button class="btn" data-act="close">'+tx('取消')+'</button>'+(canWorkContents()?'<button class="btn primary" data-act="gw-content-save">儲存工作內容</button>':'')};
@@ -3843,7 +3843,7 @@ MODALS['general-edit']=m=>{
   const existing=assignments(S).find(a=>a.id===m.id),ro=readOnly||S.setupPending||!!existing&&absOf(existing.date,existing.s)<nowAbs();
   m.draft ||= structuredClone(existing||{id:uid(),workId:workCatalog(S).find(w=>inFactory(w,UI.factory))?.id||'',emp:'',resourceId:null,date:UI.date,s:UI.date===todayStr()?Math.min(1140,Math.max(480,Math.ceil(nowMin()/10)*10)):480,e:UI.date===todayStr()?Math.min(1200,Math.max(540,Math.ceil(nowMin()/10)*10+60)):540,qty:null,orderId:null,note:''});
   const D=m.draft,w=workCatalog(S).find(w=>w.id===D.workId),off=ro?'disabled':'';
-  const select=(id,label,items,value)=>'<div class="field"><label for="'+id+'">'+label+'</label><select class="inp" id="'+id+'" '+off+'><option value="">請選擇</option>'+items.map(x=>'<option value="'+esc(x.id)+'" '+(x.id===value?'selected':'')+'>'+esc(x.name||x.label||x.code)+'</option>').join('')+'</select></div>';
+  const select=(id,label,items,value)=>'<div class="field"><label for="'+id+'">'+label+'</label><select class="inp" id="'+id+'" '+off+'><option value="">'+tx('請選擇')+'</option>'+items.map(x=>'<option value="'+esc(x.id)+'" '+(x.id===value?'selected':'')+'>'+esc(x.name||x.label||x.code)+'</option>').join('')+'</select></div>';
   return {title:existing?'一般工作排班':'新增一般工作排班',body:
     '<div class="hint">先選工作內容、人員與時間。純人工不需要設備；參考件數與工單不會充當工序產能或工單完成量。'+(ro?'目前只供查看。':'確認前不更動排程。')+'</div>'+
     select('gw-work','工作內容',workCatalog(S).filter(w=>inFactory(w,UI.factory)),D.workId)+
