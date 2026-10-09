@@ -90,3 +90,18 @@ test('help 渲染走 tx()（步驟與提示）', () => {
   assert.ok(app.includes("steps.map(s=>'<li>'+tx(s)+'</li>')"), 'help 步驟渲染未包 tx()');
   assert.ok(app.includes('tx(tip)'), 'help 提示渲染未包 tx()');
 });
+
+test('終極棘輪：src 全部 tx() 字面值鍵必須存在於字典（防鍵錯字默默 fallback 中文）', () => {
+  const files = fs.readdirSync(src).filter(f => f.endsWith('.js'));
+  const re = /tx\((['"])((?:[^'"\\]|\\.)*?)\1/g;
+  const missing = [];
+  for (const f of files) {
+    const text = fs.readFileSync(path.join(src, f), 'utf8');
+    for (const m of text.matchAll(re)) {
+      const k = m[2];
+      const inSettings = Object.values(SETTINGS_TEXT).some(o => Object.prototype.hasOwnProperty.call(o, k));
+      if (!UI_TEXT[k] && !inSettings) missing.push(f + ': ' + JSON.stringify(k));
+    }
+  }
+  assert.deepEqual(missing, [], 'tx() 呼叫的鍵缺字典（會默默 fallback 中文）：\n' + missing.join('\n'));
+});
