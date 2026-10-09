@@ -120,6 +120,28 @@ body.nav-collapsed .side-health span{display:none}
    fixed 定位，使抽屜掉進文件流、擠在左側而右側大片空白。以較高特異度還原定位方式；
    故意不重宣告位移（top/right/bottom）——留給上面的基礎規則與手機版媒體查詢（bottom sheet）。 */
 .ops-drawer.vg-glass{position:fixed}
+
+/* ===== 浮動視窗（win.js）：拖曳把手、縮放邊框、最大化 ===== */
+.float-win{touch-action:none}
+.float-win .win-rh{position:absolute;z-index:5}
+.float-win .rh-n,.float-win .rh-s{left:10px;right:10px;height:7px;cursor:ns-resize}
+.float-win .rh-n{top:-3px}.float-win .rh-s{bottom:-3px}
+.float-win .rh-e,.float-win .rh-w{top:10px;bottom:10px;width:7px;cursor:ew-resize}
+.float-win .rh-e{right:-3px}.float-win .rh-w{left:-3px}
+.float-win .rh-ne,.float-win .rh-nw,.float-win .rh-se,.float-win .rh-sw{width:13px;height:13px}
+.float-win .rh-ne{top:-3px;right:-3px;cursor:nesw-resize}.float-win .rh-nw{top:-3px;left:-3px;cursor:nwse-resize}
+.float-win .rh-se{bottom:-3px;right:-3px;cursor:nwse-resize}.float-win .rh-sw{bottom:-3px;left:-3px;cursor:nesw-resize}
+.float-win.win-max{border-radius:0;box-shadow:none}
+.float-win.win-max .win-rh{display:none}
+.ops-drawer.float-win .ops-drawer-h{cursor:grab;user-select:none}
+.ops-drawer.float-win .ops-drawer-h:active{cursor:grabbing}
+.win-titlebtn{flex:none;width:34px;height:34px;border:1px solid var(--line);border-radius:8px;background:var(--surface2);color:var(--muted);font-size:15px;font-weight:900;cursor:pointer;display:grid;place-items:center;margin-left:6px}
+.win-titlebtn:hover{color:var(--ink);border-color:var(--accent)}
+/* 排程助理浮動（moveOnly）：root 不再撐滿寬度，跟著藥丸位置走 */
+#schedule-chat.float-win{pointer-events:none;width:auto}
+#schedule-chat .chat-launch{width:fit-content}
+#schedule-chat.float-win .chat-launch{cursor:grab;touch-action:none}
+#schedule-chat.float-win .chat-panel header{cursor:grab;touch-action:none}
 .ops-drawer-h{min-height:72px;padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line2)}
 .ops-drawer-h h2{margin:0;font-size:27px}.ops-drawer-h .iconbtn{margin-left:auto}
 .ops-drawer-b{padding:16px;overflow:auto;overscroll-behavior:contain;flex:1}

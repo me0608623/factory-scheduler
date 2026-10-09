@@ -1,10 +1,26 @@
 import {chatContext,answerFromFacts} from './chat-context.js';
 import {SOLVER} from './solver.js';
+import {floatWindow} from './win.js';
 
 export function installScheduleChat({snapshot,view,store,enabled,stamp}){
   const root=document.createElement('aside');root.id='schedule-chat';root.setAttribute('aria-label','排程聊天室');document.body.append(root);
   root.innerHTML='<button class="chat-launch" aria-label="開啟排程 AI 聊天室" aria-expanded="false" aria-controls="schedule-chat-panel">✦ 排程助理</button><section id="schedule-chat-panel" class="chat-panel" hidden aria-label="排程 AI 聊天室"><header><strong>排程助理</strong><button class="btn chat-tts" aria-pressed="false" title="新回答自動唸出來">🔊</button><button class="btn chat-clear">清除</button><button class="btn chat-close" aria-label="關閉聊天室">×</button></header><div class="chat-log" role="log" aria-live="polite" aria-label="排程對話"></div><form><textarea id="schedule-chat-question" maxlength="1000" rows="2" placeholder="問我排程、請假、趕貨…"></textarea><button class="btn primary" type="submit">送出</button></form><div class="chat-quick"><button class="btn">目前排程有哪些問題？</button><button class="btn">誰請假？</button><button class="btn">哪些機台故障？</button><button class="btn">輪班人力缺口</button><button class="btn">跨廠流轉進度</button><button class="btn">特別趕貨欠什麼？</button></div></section>';
   const launch=root.querySelector('.chat-launch'),panel=root.querySelector('.chat-panel'),log=root.querySelector('.chat-log'),input=root.querySelector('textarea'),submit=root.querySelector('[type="submit"]'),ttsBtn=root.querySelector('.chat-tts');
+  // 浮動定位（桌面）：藥丸本身與聊天窗標題皆為拖曳把手；點一下仍開關聊天、拖動則移動位置。
+  // 位置存 fsched-float-chat；雙擊把手回預設（右下角）；手機維持 CSS 錨定不啟用。
+  {
+    const chatHead=panel.querySelector('header');
+    // 強制收縮後量自然尺寸，避免安裝當下 block 填滿寬度造成預設位置偏移
+    const prevW=launch.style.width;
+    launch.style.width='fit-content';
+    const w=launch.offsetWidth||150,h=launch.offsetHeight||52;
+    launch.style.width=prevW;
+    floatWindow(root,{key:'fsched-float-chat',defaults:{x:Math.max(8,innerWidth-w-18),y:Math.max(8,innerHeight-h-18),w,h},handle:launch,moveOnly:true,dragOnButton:true});
+    chatHead.addEventListener('pointerdown',ev=>{
+      if(ev.target.closest('button')||window.matchMedia('(max-width:800px)').matches)return;
+      launch.dispatchEvent(new PointerEvent('pointerdown',{clientX:ev.clientX,clientY:ev.clientY,bubbles:false}));
+    });
+  }
   // 語音播報：用瀏覽器內建語音（zh-TW 優先），不把回答送到任何服務
   let ttsAuto=false;try{ttsAuto=localStorage.getItem('fsched-chat-tts')==='1';}catch{}
   const synthOK=typeof window!=='undefined'&&'speechSynthesis' in window;
