@@ -162,3 +162,12 @@
 - **同類風險稽查**：全 codebase 掃描 vg-glass 套用點共 3 處——ops-drawer（已修）、視覺展示頁與登入頁的 login-card（皆帶 inline `position:relative`，inline 優先於注入樣式，安全）；`.vg-fallback` 由程式碼明設容器 relative，無風險。結論：無其他受害點
 - **通用不變量守門**（→ `346bc77`）：layout-regression 第 7 條——自動掃 src 全部 `class="…vg-glass…"` 元素，凡基底 class 在 styles.css 依賴 fixed/absolute/sticky、無 inline position、又無 `.X.vg-glass` 特異度防護即報錯。未來任何人把 vg-glass 套到新的定位元素上，測試直接攔下
 - 前端測試：**250 → 257** PASS（含使用者 6 條 layout 防回歸＋本輪 1 條守門）
+
+## 輪次 52（2026-10-09）— Windows 式浮動視窗
+- **新模組 web/src/win.js**：共用浮動視窗引擎（Pointer Events、8 向縮放、最大化/還原、z-order 60-78 低於 modal 80、localStorage 保存、可視範圍夾回、moveOnly 模式、雙擊回預設）
+- 抽屜全系列（人/產量/工單/備忘/更多/設定）→ 可拖曳浮動視窗；排程助理藥丸+聊天窗標題可拖曳
+- 手機 ≤800px 維持 bottom sheet/底部錨定，resize 自動切換與夾回
+- 兩個布局陷阱修復：left+right 同錨定致 width:auto 拉伸（paint 先清再量）；安裝當下 block 填滿（fit-content 強制量測）
+- 測試：win.test.mjs 5 條 clampRect；全套 262/262；build ✓；瀏覽器全場景驗證（拖曳/縮放/最大化/還原/關閉重開/重載恢復/resize 夾回/手機往返）；生產站實測最大化 1600×900 ✓
+- commit 782eabb（分支 feat/floating-windows → main 3229de0）
+- **下一輪待辦**：評估「更多功能」二級選單、甘特圖/平面圖是否值得改用同套浮動視窗機制
