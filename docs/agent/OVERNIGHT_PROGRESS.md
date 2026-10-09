@@ -63,7 +63,7 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 99（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
+- **總輪次**: 100（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
 - **正式站**: web 200 ✓ solver 200 ✓ staging 200 ✓
 
 ## 測試
@@ -491,3 +491,19 @@
 ## 輪次 99（2026-10-10 凌晨）— audit_i18n 複檢（feature-tours 之後）
 
 - 重跑 audit_i18n（上次在 feature-tours 合併前）：寫死中文按鈕標籤 **0**、modal 標題 **0**、HELP 章節標籤 **0**——feature-tours 新增的 45 個導覽鍵全部合規，exit 0
+
+
+## 輪次 100（2026-10-10 凌晨）— 百輪里程碑總結
+
+**本輪全套健康實證**：web **274/274**、生產三站 200、CI 全綠（輪 83/95 實證）、備份管線綠（輪 95）、PR #7 為唯一開啟項。
+
+**百輪累計（自動循環 51→100）**：
+- 測試 218→**274**（+56）：i18n 複合標題、localStorage 邊界、chat-ledgers、transfer-ui、roster-ui、未測匯出×5、workWindows、orderCounters、CSS 結構×3、vg-glass 不變量守門、時段依賴修復等
+- Bug 修復 **3**（自主）：localStorage 讀取側損毀/停用防護、歷史檔索引回滾、benchmark_manual_flow 鏽死（0021 起即斷）＋自己寫的時段依賴測試
+- 防回正棘輪：i18n 覆蓋率門檻 60→95%（實測 100%）、CSS 死碼不回流、vg-glass 定位不變量
+- 品質：CSS 死碼 -5.6%、console.log 零殘留、bundle 體檢（初始 ≈196KB gz、lazy 如常）、時段依賴清零
+- 驗證體系（從無到有）：本機瀏覽器煙霧（桌面＋手機＋四語＋導覽七步＋損毀韌性）、正式站唯讀煙霧、CI/備份/backlog API 監測、db 206 主動複跑、稽核腳本複檢
+- 文件：ARCHITECTURE 對齊現況、TEST_STATUS/OVERNIGHT_REPORT 歷史標註、輪次索引、夜間摘要、repo 衛生
+- 平行作業：worktree 隔離模式（自輪 62 起與使用者六個 feature 系列零衝突並行）
+
+**待使用者**：PR #7 審核合併（CI 綠）、setup_pending、DB 密碼輪換、LINE token、員工帳號實測。
