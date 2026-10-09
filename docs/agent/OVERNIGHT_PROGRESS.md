@@ -9,11 +9,11 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 79（65/66/69/74/75/76 為使用者系列，編號重疊以內容區分）
+- **總輪次**: 80（65/66/69/74/75/76 為使用者系列，編號重疊以內容區分）
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
-- 前端: **271/271** PASS
+- 前端: **274/274** PASS
 - DB: **206/206** PASS
 - 合計: **463**
 
@@ -303,3 +303,10 @@
 - 使用者完成疑點②實作：`3841f8e` Soft Switching Cost（feat/soft-switching-cost 分支，**已推遠端未併 main**——推測等分支 CI 驗證後自行合併，本循環不代併其分支）
 - 使用者已轉戰 feat/feature-tours（工作樹乾淨）；生產站實測 web 200 ✓ solver /health 200 ✓
 - main 現況維持 **272/272**（輪次 78 已驗）；待 soft-switching-cost 併入後做驗證輪
+
+
+## 輪次 80（2026-10-10）— feature-tours 合併驗證輪
+
+- 使用者合併 feat/feature-tours（`3fefed1`：「功能解說」左側導覽獨立入口——主題式逐步導覽；tour.js＋i18n 45 鍵＋2 條回歸測試）
+- worktree 同步後全套 **274/274** 驗證綠；生產站實測 web 200 ✓ solver /health 200 ✓
+- feat/soft-switching-cost（`3841f8e`）仍在分支待併（其分支 CI 驗證中）
