@@ -2117,11 +2117,11 @@ function pvPanelHTML(o){
   const body=PV.tab==="people"?peopleHTML(o):PV.tab==="lines"?'<div class="hint">'+esc(o.desc)+'</div>'+resultHTML(o.lines):ganttHTML(o);
   let ai="";
   if(SAMPLE){
-    if(!PV.ai)ai='<button class="btn ai-btn" data-act="pv-ai">問 AI：該選哪一個？</button>';
+    if(!PV.ai)ai='<button class="btn ai-btn" data-act="pv-ai">'+tx('問 AI：該選哪一個？')+'</button>';
     else if(PV.ai.loading)ai='<div class="aibox">AI 正在比較這 '+PV.opts.length+' 個方案…</div>';
-    else if(PV.ai.err)ai='<div class="aibox">'+esc(PV.ai.err)+'</div>'+(PV.ai.retry?'<button class="btn ai-btn" data-act="pv-ai">再問一次</button>':"");
+    else if(PV.ai.err)ai='<div class="aibox">'+esc(PV.ai.err)+'</div>'+(PV.ai.retry?'<button class="btn ai-btn" data-act="pv-ai">'+tx('再問一次')+'</button>':"");
     else ai='<div class="aibox"><b>AI 建議：'+esc((PV.opts.find(x=>x.id===PV.ai.pick)||{name:PV.ai.pick}).name)+'</b><div>'+esc(PV.ai.reason)+'</div>'+(PV.ai.watch?'<div class="hint">注意：'+esc(PV.ai.watch)+'</div>':"")+
-      (PV.ai.pick!==o.id?'<button class="btn" data-act="pv-pick" data-v="'+esc(PV.ai.pick)+'">看那套方案</button>':"")+'</div>';
+      (PV.ai.pick!==o.id?'<button class="btn" data-act="pv-pick" data-v="'+esc(PV.ai.pick)+'">'+tx('看那套方案')+'</button>':"")+'</div>';
   }else ai='<div class="hint">AI 助理下一階段由伺服器提供。</div>';
   const strip='<section class="pv" aria-label="'+tx('預覽')+'">'+
    '<div class="pv-h"><span class="pv-badge">'+(PV.savedScenario?'保存情境':'預覽中')+'</span><div class="pv-t"><b>'+esc(PV.title)+'</b><small>'+(PV.savedScenario?'只讀比較；正式班表與現場進度不會變更。':'還沒套用，排程不會變。左邊甘特表＝選中的那套；差異色塊＝綠新增／黃搬動／虛線會移走。　計算：'+planEngineLabel(o.solverMethod,PV.engine))+'</small></div><div class="spacer"></div>'+
@@ -3560,7 +3560,7 @@ function workLogPageHTML(){
         '</tr>';
     }).join("")||'<tr><td colspan="10"><div class="empty">還沒有資料，按下方加一列</div></td></tr>')+
     '</tbody></table></div>';
-  const filterBar='<div class="wl-filter"><label for="wl-date">依日期篩</label><input type="date" id="wl-date" value="'+esc(filter)+'" data-act-change="wl-filter"><button class="btn" data-act="wl-clearfilter">清除</button></div>';
+  const filterBar='<div class="wl-filter"><label for="wl-date">依日期篩</label><input type="date" id="wl-date" value="'+esc(filter)+'" data-act-change="wl-filter"><button class="btn" data-act="wl-clearfilter">'+tx('清除')+'</button></div>';
   return pageShell("工作紀錄","",filterBar+table,ro,"wl-addrow");
 }
 
@@ -3607,7 +3607,7 @@ MODALS['staff-group']=m=>{
     FACTORIES.map(f=>'<div class="field"><span class="lab">'+factoryName(f)+' · 組員</span><div class="toggles">'+S.employees.filter(e=>factoryOf(e)===f).map(e=>{const mem=m.members.find(x=>x.employeeId===e.id);
       return '<button class="tg" data-act="group-member" data-v="'+esc(e.id)+'" aria-pressed="'+!!mem+'"'+off+'>'+esc(e.name)+(e.sourceCode?' '+esc(e.sourceCode):'')+(mem?'<small>'+memberStatus(mem.reviewStatus)+'</small>':'')+'</button>';
     }).join('')+'</div></div>').join('')+
-    m.members.filter(x=>x.reviewStatus==='pending').map(x=>'<div class="hint">'+esc(emp(x.employeeId)?.name)+'：原檔別名的分組尚待核對；不會自動合併身份。'+(ro?'':'<button class="btn" data-act="group-confirm" data-v="'+esc(x.employeeId)+'">僅確認分組</button>')+'</div>').join('');
+    m.members.filter(x=>x.reviewStatus==='pending').map(x=>'<div class="hint">'+esc(emp(x.employeeId)?.name)+'：原檔別名的分組尚待核對；不會自動合併身份。'+(ro?'':'<button class="btn" data-act="group-confirm" data-v="'+esc(x.employeeId)+'">'+tx('僅確認分組')+'</button>')+'</div>').join('');
   return {title:m.id?'分組設定':'新增分組',body,foot:ro?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':
     (m.id?'<button class="btn danger" data-act="group-retire">停用分組</button>':'')+'<div class="spacer"></div><button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="group-save">儲存分組</button>'};
 };
@@ -3668,7 +3668,7 @@ function showLogin(err="",email="",signup=false){
     '<div class="field"><label for="lg-pw">'+tx('密碼')+'</label><input class="inp" id="lg-pw" type="password" autocomplete="current-password" required></div>'+
     (err?'<div class="issue">'+esc(err)+'</div>':"")+
     '<button class="btn primary" type="submit" style="justify-content:center;height:56px;font-size:19px">'+(signup?tx('註冊'):'登入')+'</button>'+
-    '<button class="btn" type="button" id="lg-reset">忘記密碼／設定邀請帳號密碼</button>'+
+    '<button class="btn" type="button" id="lg-reset">'+tx('忘記密碼／設定邀請帳號密碼')+'</button>'+
     '<button class="btn" type="button" id="lg-signup">'+tx('註冊新帳號')+'</button>'+
     (signup?'<div class="hint">註冊後為「檢視」身分；要排程權限請找老闆在「權限管理」開放。若本站採邀請制，註冊被拒時請找管理者邀請。</div>':'')+
     '<div class="hint">帳號由管理者邀請。收到邀請信，先開啟信中的連結，再到「帳號與連線」設定密碼。</div></form></main>';
