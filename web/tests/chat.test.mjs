@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {chatContext,answerFromFacts} from '../src/chat-context.js';
+import {chatContext,answerFromFacts,queryKinds} from '../src/chat-context.js';
 
 const raw=()=>({version:7,employees:[{id:'e',name:'測試員工',factory:1,leaves:['2026-09-30'],max_concurrent_machines:2}],machines:[{id:'a',label:'檢查台',factory:1,faults:[{date:'2026-09-30',start:480,end:540,fixed:false}]},{id:'b',label:'二廠設備',factory:2,faults:[]}],orders:[{id:'o',code:'A01',due:'2026-09-29'}],blocks:[{id:'one',order:'o',machine:'a',employee:'e',date:'2026-09-30',start:480,end:540,qty:10},{id:'two',order:'o',machine:'a',employee:'e',date:'2026-09-30',start:510,end:570,qty:10},{id:'other',order:'o',machine:'b',employee:null,date:'2026-09-30',start:480,end:540,qty:10}],work_assignments:[]});
 test('當日廠別依據、預排與實際完成區別，唯讀不更動輸入',()=>{
@@ -99,4 +99,20 @@ test('跨日有界大資料查詢，警告不被一萬段預排蓋掉',()=>{
   assert.equal(ctx.endDate,'2026-09-30');assert.ok(ctx.facts.some(f=>f.kind==='alert'&&f.text.includes('重疊')));
   assert.ok(!ctx.facts.some(f=>f.kind==='work'));
   assert.ok(performance.now()-started<5000,'合成資料查詢超過有界測試時間；不是正式效能保證');
+});
+
+test('queryKinds：關鍵字對應事實類型，決定聊天只帶相關事實',()=>{
+  assert.deepEqual(queryKinds('哪些機台故障？還沒修好'),['fault']);
+  assert.deepEqual(queryKinds('今天誰請假'),['leave','alert']);
+  assert.deepEqual(queryKinds('輪班人力與崗位'),['roster','alert']);
+  assert.deepEqual(queryKinds('跨廠流轉送回了嗎'),['transfer','material','deadline']);
+  assert.deepEqual(queryKinds('缺料待料點收'),['material','transfer']);
+  assert.deepEqual(queryKinds('有什麼衝突問題'),['alert','execution_alert','fault','deadline','material']);
+  assert.deepEqual(queryKinds('交期逾期'),['deadline','material']);
+  assert.deepEqual(queryKinds('完成進度累計回報'),['execution','execution_alert']);
+  assert.equal(queryKinds('你好'),null,'一般問句不過濾');
+  const raw0={version:1,employees:[{id:'e',name:'工人',factory:1,leaves:[]}],machines:[{id:'a',label:'A',factory:1,faults:[{date:'2026-09-30',start:480,end:540,fixed:false}]}],orders:[{id:'o',code:'A01',due:'2026-09-29'}],blocks:[{id:'one',order:'o',machine:'a',employee:'e',date:'2026-09-30',start:480,end:540,qty:10}],work_assignments:[]};
+  const all=chatContext(raw0,{date:'2026-09-30',factory:1,question:'故障'});
+  const none=chatContext(raw0,{date:'2026-09-30',factory:1,question:'你好'});
+  assert.ok(all.facts.length<none.facts.length,'有關鍵字時事實較少（過濾生效）');
 });

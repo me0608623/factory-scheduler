@@ -21,7 +21,9 @@
 - [x] Solver pytest 已在 CI（tests.yml solver job，ubuntu + uv run --frozen pytest）— 原清單過時
 - [ ] 驗證 CP-SAT 模型在邊界案例的行為（空工單、單工單、全部逾期）
 - [ ] 效能基準（不同工單數量的解算時間）
-- 註：本機 uv 環境損壞（trampoline spawn 失敗），上述兩項只能在 CI 跑，暫緩
+- [ ] 9-26 快照疑點①：插單＋加班的候選方案評分——W07 情境方案 C 顯示「延誤 1」仍列為可套用選項，應過濾或降級不可行方案（見 docs/TEST_STATUS.md，未經重測不假定仍存在）
+- [ ] 9-26 快照疑點②：故障後排程出現 10 分鐘零碎工作段——需最短工作段規則或換模／切換成本（同上需 solver 環境重現）
+- 註：本機 uv 環境損壞（trampoline spawn 失敗），上述各項只能在 CI 跑，暫緩
 
 ## Phase 4（效能）
 
