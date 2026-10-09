@@ -679,7 +679,7 @@ function topHTML(){
   '<input type="date" id="datepick" value="'+d+'" style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none" tabindex="-1" aria-hidden="true">'+
   '<button class="iconbtn" data-act="next" aria-label="往後">›</button></div>'+
   (S.demo?'<span class="demo-chip">示範資料</span>':'')+(readOnly&&!PV?'<span class="ro-chip">排程唯讀</span>':'')+
-  (S.setupPending?'<button class="btn primary verify-entry" data-act="catalog">初次核對資料</button>':'')+
+  (S.setupPending?'<button class="btn primary verify-entry" data-act="catalog">'+tx('初次核對資料')+'</button>':'')+
   (UI.returnTo?'<button class="btn pagelink return-chip" data-act="page-return">↩ 返回'+(UI.returnTo.page==='shortage'?'欠缺品項':UI.returnTo.page==='worklog'?'工作紀錄':'給二廠／回一廠')+'</button>':'')+
   '<div class="top-status">'+syncChipHTML()+
   '<button class="btn" data-act="settings" title="'+esc(tx('settings'))+'">'+IC.user+'<span class="lbl">'+esc(STORE&&STORE.kind==="supabase"?(STORE.userName||"帳號"):"本機")+'</span></button></div></div></div></header>';
@@ -702,14 +702,14 @@ function appNavHTML(){
 }
 function isoWeek(ds){const d=parseD(ds);d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));const y=new Date(Date.UTC(d.getUTCFullYear(),0,1));return Math.ceil(((d-y)/864e5+1)/7);}
 function bannerHTML(){
-  const pending=S.setupPending?'<div class="banner pending"><span class="grow"><b>資料待確認，暫不排班。</b> <button class="btn primary" data-act="catalog" style="min-height:36px;font-size:14px;margin-left:10px">核對資料</button></span></div>':"";
+  const pending=S.setupPending?'<div class="banner pending"><span class="grow"><b>資料待確認，暫不排班。</b> <button class="btn primary" data-act="catalog" style="min-height:36px;font-size:14px;margin-left:10px">'+tx('核對資料')+'</button></span></div>':"";
   if(UI.view!=="day")return pending;
   const d=UI.date,di=dayInfo(d),out=[pending];
   const name=di.type==="hol"?"國定假日："+di.hol:di.type==="sat"?"週六休息日":di.type==="sun"?"週日例假日":"";
   const openBtn=!canCalendar()?"":'<button class="btn admin '+(di.open?"ghost":"primary")+'" data-act="open">'+(di.open?"改為停工":"改為上班")+'</button>';
   if(!di.open)out.push('<div class="banner wk"><span class="grow">'+(name?esc(name)+"　":"")+'本日停工，不排工作</span>'+openBtn+'</div>');
   else if(di.special)out.push('<div class="banner hol"><span class="grow">'+esc(name)+'　有上班 · '+payNote(di)+'</span>'+openBtn+'</div>');
-  if(di.ot)out.push('<div class="banner ot"><span class="grow">今天加班到 '+hm(dayInfo(d).win[2]?dayInfo(d).win[2].e:DAY1)+' · '+shownEmployees().filter(e=>overtimeAllowed(e,d)&&!e.leaves.includes(d)).length+' 人可加班</span>'+(!canCalendar()?"":'<button class="btn ghost admin" data-act="ot">調整加班人員</button>')+'</div>');
+  if(di.ot)out.push('<div class="banner ot"><span class="grow">今天加班到 '+hm(dayInfo(d).win[2]?dayInfo(d).win[2].e:DAY1)+' · '+shownEmployees().filter(e=>overtimeAllowed(e,d)&&!e.leaves.includes(d)).length+' 人可加班</span>'+(!canCalendar()?"":'<button class="btn ghost admin" data-act="ot">'+tx('調整加班人員')+'</button>')+'</div>');
   return out.join("");
 }
 function staffGroupFilterHTML(){
@@ -904,11 +904,11 @@ function dayHTML(ctx={}){
     return '<button class="colhead'+(down?" down":"")+'" data-act="mach" data-id="'+M.id+'"><span class="L">'+esc(M.id)+'</span><span class="N">'+esc(M.label)+'<small>'+esc(M.proc)+'</small></span><span class="st tag '+(M.reviewStatus==='pending'?"warn":down?"bad":"ok")+'">'+(M.reviewStatus==='pending'?"待確認":down?"故障":"正常")+'</span></button>';}).join("");
   let times="";for(let m=DAY0;m<DAY1;m+=30)times+='<div class="'+(m%60?"half":"")+'">'+hm(m)+'</div>';
   const leave=shownEmployees().filter(e=>e.leaves.includes(d));
-  const otBtn=!canCalendar()?"":(di.open?'<button class="btn admin" data-act="ot">'+(di.ot?'調整加班':'開加班')+'</button>':"")+'<button class="btn admin" data-act="cal">上班日設定</button>';
+  const otBtn=!canCalendar()?"":(di.open?'<button class="btn admin" data-act="ot">'+(di.ot?'調整加班':'開加班')+'</button>':"")+'<button class="btn admin" data-act="cal">'+tx('上班日設定')+'</button>';
   return '<section class="board" aria-label="'+tx('排程表')+'"><div class="board-h"><h2>'+esc(UI.factory==="all"?"跨廠":factoryName(UI.factory))+' · '+mdw(d)+(ctx.pv?(PV.mode==="orig"?" 原本的排程":PV.mode==="new"?" 調整後":" 對照"):" 排程")+'</h2>'+
     (leave.length?'<span class="tag bad" style="font-size:15px;padding:4px 10px">請假：'+esc(leave.map(e=>e.name).join("、"))+'</span>':"")+
     (nBad?'<button class="btn danger" data-act="issues">'+nBad+' 個問題</button>':(blocks.length?'<span class="tag ok" style="font-size:15px;padding:4px 10px">沒有衝突</span>':""))+
-    '<div class="spacer"></div><div class="legend"><span><i style="background:var(--lunch)"></i>午休</span><span><i style="background:var(--ot)"></i>加班</span><span><i style="background:var(--bad-bg);border-color:var(--bad)"></i>故障</span><span>顏色 = 員工</span><span>上班日／加班開關目前兩廠共用</span>'+(readOnly||S.setupPending?"":"<span>拖動方塊可改時段，拉底邊可改工作長度</span>")+'</div>'+(readOnly||ctx.pv||S.setupPending?"":'<button class="btn primary" data-act="manual-add">＋手動排班</button>')+otBtn+'</div>'+
+    '<div class="spacer"></div><div class="legend"><span><i style="background:var(--lunch)"></i>午休</span><span><i style="background:var(--ot)"></i>加班</span><span><i style="background:var(--bad-bg);border-color:var(--bad)"></i>故障</span><span>顏色 = 員工</span><span>上班日／加班開關目前兩廠共用</span>'+(readOnly||S.setupPending?"":"<span>拖動方塊可改時段，拉底邊可改工作長度</span>")+'</div>'+(readOnly||ctx.pv||S.setupPending?"":'<button class="btn primary" data-act="manual-add">'+tx('＋手動排班')+'</button>')+otBtn+'</div>'+
     (ms.length?'<div class="scroller"><div class="grid" style="grid-template-columns:64px repeat('+ms.length+',minmax(170px,1fr))">'+
     '<div class="corner"></div>'+heads+'<div class="times">'+times+'</div>'+cols+'</div></div>':
     '<div class="empty factory-empty">此廠尚未設定機台與員工；「歷史排程」是獨立的唯讀原表，不會自動變成正式排程。</div>')+
@@ -1764,7 +1764,7 @@ mach(m){
   const durs=[[30,"30 分"],[60,"1 小時"],[120,"2 小時"],[240,"半天"],[-1,"到 17:00"],[-2,"整天"]];
   const faultBox=m.id&&!ro&&!S.setupPending?
    '<div class="field"><span class="lab">'+mdw(d)+' 機台狀況</span>'+
-   (faults.length?faults.map(x=>'<div class="rline"><span class="k fail">故障</span><span style="flex:1">'+hm(x.f.s)+'–'+hm(x.f.e)+(x.f.note?"　"+esc(x.f.note):"")+'</span>'+(x.f.fixed?'<span class="tag ok">已修復</span>':absOf(x.f.date,x.f.e)<=nowAbs()?'<span class="tag mute">已結束</span>':'<button class="btn good" data-act="m-fix" data-v="'+x.i+'">修好了</button>')+'</div>').join(""):'<div class="okbox">正常運作</div>')+'</div>'+
+   (faults.length?faults.map(x=>'<div class="rline"><span class="k fail">故障</span><span style="flex:1">'+hm(x.f.s)+'–'+hm(x.f.e)+(x.f.note?"　"+esc(x.f.note):"")+'</span>'+(x.f.fixed?'<span class="tag ok">已修復</span>':absOf(x.f.date,x.f.e)<=nowAbs()?'<span class="tag mute">已結束</span>':'<button class="btn good" data-act="m-fix" data-v="'+x.i+'">'+tx('修好了')+'</button>')+'</div>').join(""):'<div class="okbox">正常運作</div>')+'</div>'+
    '<div class="field"><span class="lab">報故障：從幾點開始、壞多久</span><div class="row2"><select class="inp num" id="f-fs">'+opts+'</select><input class="inp" id="f-note" placeholder="'+tx('原因（可不填')+'" value="'+esc(m.note)+'"></div>'+
    '<div class="toggles">'+durs.map(([v,t])=>tg("m-fd",v,m.fd===v,t)).join("")+'</div>'+
    '<button class="btn danger" data-act="m-fault" style="height:56px;font-size:19px;justify-content:center">確認故障，讓系統自動調整</button></div>':"";
