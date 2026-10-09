@@ -9,7 +9,7 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 84（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
+- **總輪次**: 85（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
@@ -339,3 +339,12 @@
 - 動機：vg-glass「黑色工作區」事件正是只在正式站被發現——本地全綠不等於部署 bundle 沒事，補上正式站層級的煙霧
 - **結果（唯讀載入、零互動、不截圖避免留存正式資料）**：部署 bundle 完整載入（雲端模式）、**0 JS 錯誤**、即時同步晶片「雲端已同步」正常、導覽／按鈕／圖例以**泰語**呈現（i18n 在正式環境端到端生效；使用者資料與假日名稱保持中文屬設計）、setup_pending 橫幅如預期顯示「資料待確認，暫不排程」、排程板與機台列渲染正常（f1aa 等）——無白畫面／黑工作區回歸
 - 注意：IAB 瀏覽器留有已登入的組長 session（同步驗收帳號）——本輪僅讀取渲染結果，未點擊任何資料操作（改為停工／開加班／核對等皆未觸碰），讀完立即關閉分頁
+
+
+## 輪次 85（2026-10-10）— en/vi 執行期 i18n 煙霧（本機）
+
+- 延續輪次 81 本機煙霧，補英/越兩語言的執行期驗證（泰語已於輪次 84 正式站實證）：以 localStorage 設語言後重載
+  - **en**：導覽 Today/Orders/People/Output/Work Log/Notes、banner Schedule／Machines × time／All plants／Shortage／Send/Return／Floor Plan——**0 JS 錯誤**（含互動監測）
+  - **vi**：Hôm nay／Đơn hàng／Người／Sản lượng…、`<html lang="vi">` 由 applyPreferences 正確設定、「更多」選單可開、功能解說顯示 **Hướng dẫn tính năng**（feature-tours 的 45 個新鍵越語到位）
+  - 品牌名「產線排程」保持中文屬設計
+- 四語 runtime 驗證至此齊（zh 預設、en、vi 本機；th 正式站）；測後還原 zh-TW、關分頁、清除輪次 81 殘留的 vite 程序（PID 20060）
