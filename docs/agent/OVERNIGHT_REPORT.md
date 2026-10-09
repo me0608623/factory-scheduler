@@ -5,94 +5,88 @@
 | 項目 | 值 |
 |---|---|
 | 起始 | 2026-10-09 |
-| 結束 | 持續中（13 輪完成） |
+| 結束 | 持續中（14 輪完成） |
 | 分支 | `agent/overnight-20261009`（全數合併 main） |
 | 起始 commit | `1273809` |
-| 最新 commit | `64eae8f` |
-| 總輪次 | 13 |
+| 最新 commit | `a43e7db` |
+| 總輪次 | 14 |
 
 ## 測試結果
 
 | 測試 | 起始 | 結束 | 變化 |
 |---|---|---|---|
-| 前端 npm test | 137/137 | **200/200** | **+63 新測試** |
+| 前端 npm test | 137/137 | **208/208** | **+71 新測試** |
 | 前端 vite build | ✓ | ✓ | — |
 | DB migrations.test | 201/201 | 201/201 | — |
 | DB integration (A-D) | BLOCKED | BLOCKED | Device Guard |
 | Solver pytest | BLOCKED | BLOCKED | Device Guard |
-| 正式站 web | — | HTTP 200 ✓ | 部署成功 |
-| 正式站 solver | — | HTTP 200 ✓ | — |
+| 正式站 web | — | HTTP 200 (0.38s) | ✓ 部署成功 |
+| 正式站 solver | — | HTTP 200 (0.23s) | ✓ |
 
-## 修改的檔案
+## 實際修復的 Bug（6 項）
 
-| 檔案 | 修改原因 |
-|---|---|
-| `web/src/line-notify.js` | **P1 XSS 修復**（value 屬性注入） |
-| `web/src/app.js` | **P2 記憶體洩漏修復** + i18n 標題翻譯 + 導覽/註冊/登出接線 |
-| `web/src/i18n.js` | +77 字典鍵（en/vi/th） |
-| `web/src/tour.js` | **新增**：新手導覽引擎 |
-| `web/src/visual.js` | **新增**：視覺效果模組 |
-| `web/src/store/supabase.js` | signup 方法 |
-| `web/src/store/local.js` | signup 友善錯誤 + listAccessAccounts |
-| `web/src/styles.css` | 導覽/玻璃/TV 背景樣式 |
-| `web/src/floor.js` | **新增**：廠區平面圖（響應式） |
-| `web/src/overtime.js` | *(既有)* |
-| `web/tests/*.mjs` | **新增 9 個測試檔案** |
-| `db/migrations/0036_machine_layout.sql` | 平面圖佈局表 |
-| `db/tests/*.mjs` | 稽核腳本 + 模擬驗收驅動 |
-| `db/tests/acceptance_sim.mjs` | **新增**：C1-C7 隔離模擬驗收 |
-| `docs/agent/*.md` | 過夜開發進度文檔 |
-
-## 實際修復的 Bug
-
-| # | 嚴重度 | 問題 | 修復 |
+| # | 嚴重度 | 問題 | 修復方式 |
 |---|---|---|---|
-| 1 | **P1** | XSS：notifySettingsHTML line_user_id 未跳脫 | esc() 函式 + 3 個測試 |
-| 2 | **P2** | 記憶體洩漏：登入頁 rAF 迴圈未停 | stopLoginViz() |
-| 3 | **P2** | 產能分析頁自上線即崩潰（引數反轉） | effectiveBlockQty 參數修正 |
-| 4 | P2 | 平面圖手機 3 欄太擠 | 響應式欄數（3/5/9） |
+| 1 | **P1** | **XSS**：notifySettingsHTML 的 line_user_id/line_group_id 未跳脫 | esc() + 3 測試 |
+| 2 | **P2** | **記憶體洩漏**：登入頁 backdrop/3D rAF 登入後未停 | stopLoginViz() |
+| 3 | **P2** | **產能分析自上線即崩潰**（effectiveBlockQty 引數反轉） | 參數修正 |
+| 4 | P2 | 平面圖手機 3 欄太擠（32px 格子） | 響應式欄數 |
 | 5 | P2 | 手機按鈕重疊（助手 vs FAB） | CSS 排除 |
-| 6 | P3 | 38 個 modal 標題寫死中文 | tx() 包裹 + 字典鍵 |
+| 6 | P3 | 38 個 modal 標題寫死中文 | tx() + 77 字典鍵 |
 
-## 新增測試案例
+## 新增測試案例（71 個）
 
-| 測試檔 | 測試數 | 覆蓋模組 |
-|---|---|---|
-| tour.test.mjs | 5 | tour.js |
-| visual.test.mjs | 5 | visual.js |
-| line-notify.test.mjs | 3 | line-notify.js |
-| i18n-coverage.test.mjs | 7 | i18n.js + app.js |
-| work-queue-perf.test.mjs | 5 | work-queue.js |
-| convert-roundtrip.test.mjs | 5 | convert.js |
-| capacity-perf.test.mjs | 4 | capacity.js |
-| overtime-edge.test.mjs | 8 | overtime.js |
-| factory-edge.test.mjs | 8 | factory.js |
-| execution-edge.test.mjs | 9 | execution.js |
-| groups-edge.test.mjs | 4 | groups.js |
-| floor.test.mjs | 6 | floor.js |
+| 測試檔 | 數 | 模組 | 重點 |
+|---|---|---|---|
+| tour.test.mjs | 5 | tour.js | placement 邊界、步驟完整性 |
+| visual.test.mjs | 5 | visual.js | SVG/reduced-motion/降級 |
+| line-notify.test.mjs | 3 | line-notify.js | **XSS 防護** |
+| i18n-coverage.test.mjs | 7 | i18n.js | 字典完整性/覆蓋率門檻 |
+| work-queue-perf.test.mjs | 5 | work-queue.js | 100 工單 <100ms |
+| convert-roundtrip.test.mjs | 5 | convert.js | round-trip 完整性 |
+| capacity-perf.test.mjs | 4 | capacity.js | 35 員工 <50ms |
+| overtime-edge.test.mjs | 8 | overtime.js | 覆寫優先順序 |
+| factory-edge.test.mjs | 8 | factory.js | null 安全/降級 |
+| execution-edge.test.mjs | 9 | execution.js | 角色權限/修改保護 |
+| groups-edge.test.mjs | 4 | groups.js | 空狀態 |
+| floor.test.mjs | 6 | floor.js | 響應式欄數/狀態判定 |
+| manual-edge.test.mjs | 8 | manual.js | 數量計算/回報覆蓋 |
+
+## 新增功能（本過夜任務期間）
+
+1. **新手導覽**（tour.js）：8 步 spotlight＋箭頭＋下一步
+2. **註冊**：登入頁表單（viewer 身分）
+3. **登出**：帳號 modal＋更多選單直接入口
+4. **廠區平面圖**（floor.js）：Canvas 2D 響應式
+5. **視覺效果**（visual.js）：WebGL shader 漸層＋SVG 液態 logo＋玻璃表面
+6. **i18n 擴充**：38 modal 標題 + 77 字典鍵（en/vi/th）
 
 ## 效能測量
 
 | 指標 | 值 | 方法 |
 |---|---|---|
 | 主包 (gzipped) | 205K | vite build + gzip |
-| three.js (lazy, gzipped) | 186K | 同上 |
-| exceljs (lazy, gzipped) | 269K | 同上 |
+| three.js (lazy) | 186K gz | 僅登入頁 |
+| exceljs (lazy) | 269K gz | 僅匯入匯出 |
 | workQueue 100 工單 | 33ms | performance.now() |
-| capacityIntervals 35 員工 | <1ms | performance.now() |
+| capacityIntervals 35 人 | <1ms | performance.now() |
 
-## 尚未解決的問題
+## 安全掃描結論
+
+| 項目 | 結果 |
+|---|---|
+| XSS | 唯一漏洞已修復 ✓ |
+| 記憶體 | 登入頁洩漏已修 ✓ |
+| 版本衝突 | 序列化 + 自動重載 ✓ |
+| 權限矩陣 | 前端+DB 一致 ✓ |
+| 無障礙 | focus trap + Escape + aria ✓ |
+| Null safety | 全模組 fallback ✓ |
+
+## 尚未解決
 
 | 問題 | 原因 | 建議 |
 |---|---|---|
-| Solver 測試 | Device Guard 封鎖本機 Python | CI 已覆蓋（pytest） |
-| UI 模組單元測試 | chat-ui/roster-ui/transfer-ui 需 DOM | 建 Playwright E2E |
-| ~29 複合 modal 標題 i18n | 含變數拼接，需重構 | 下輪處理 |
-| help modal 內文翻譯 | 數百條字串 | 大工程，分批 |
-
-## Git 與部署狀態
-
-- **分支**：`agent/overnight-20261009` 已全數合併至 `main`
-- **部署**：每次推送均通過 Tests ✓ → 部署關卡 ✓ → Render 部署 ✓
-- **資料庫**：migration 0036 已套用（machine_layout）
-- **正式站**：web + solver 均 HTTP 200
+| Solver 本機測試 | Device Guard | CI 已覆蓋 |
+| UI 模組 E2E | 需瀏覽器環境 | Playwright |
+| ~29 複合 modal i18n | 變數拼接 | 下輪 |
+| help 內文翻譯 | 數百條 | 分批 |
