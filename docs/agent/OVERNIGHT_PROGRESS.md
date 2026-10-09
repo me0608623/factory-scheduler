@@ -2,9 +2,9 @@
 
 ## 執行狀態
 - **分支**: `agent/overnight-20261009`（全數合併 main）
-- **最新 main**: `fbddecb`（輪次 62 推送；使用者開發 feat/floating-windows 中）
+- **最新 main**: `fbddecb`→本輪見 git log（輪次 64 推送；使用者開發 feat/floating-windows 中）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 63
+- **總輪次**: 64
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
@@ -185,3 +185,10 @@
 - 前端 257/257（輪次 62 已驗）；生產站沿用輪次 62 實測雙 200
 
 > 標頭勘誤（輪次 63 補記）：輪次 55–62 的標頭「最新 main／總輪次／main 總 commits」更新因 replace 圖樣未命中（單引號 vs 反引號）而**靜默失敗**，停滯在輪次 54 數字；「測試」節數字不受影響。本輪起改用帶命中驗證的腳本更新標頭。
+
+
+## 輪次 64（2026-10-09）— workWindows 日曆開窗直測（worktree 續行）
+
+- 使用者持續開發 feat/floating-windows（app.js/chat-ui.js/i18n.js/styles.css 有 WIP），本輪全程 worktree 隔離，僅動 general-work.test.mjs（零衝突）
+- **workWindows 直測 1 條 7 斷言**：平日兩窗非加班、週六未開回空、全開後週六視為加班、假日開窗視為加班、單日覆寫停工／開工都優先於星期設定、當日加班加第三窗（1020–1200）且必為加班
+- 前端測試：**257 → 258** PASS

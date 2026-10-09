@@ -134,3 +134,21 @@ test('雲端工作 RPC：權限、版本、空值、交叉占用及整次撤回'
     const del=await L.load();del.workAssignments=[];await L.sync(del);assert.equal((await B.load()).workAssignments.length,0);
   }finally{await db.close();}
 });
+
+test('workWindows：平日/週末/假日/單日覆寫/當日加班的開窗與加班旗標',()=>{
+  const S=state();
+  assert.deepEqual(workWindows(S,day),[{s:480,e:720,ot:false},{s:780,e:1020,ot:false}],'平日兩窗非加班');
+  assert.deepEqual(workWindows(S,'2025-01-04'),[],'週六未開（week[6]=false）');
+  S.cal.week=[true,true,true,true,true,true,true];
+  const sat=workWindows(S,'2025-01-04');
+  assert.equal(sat.length,2);assert.ok(sat.every(w=>w.ot),'週六開窗視為加班');
+  S.holidays={[day]:true};
+  assert.ok(workWindows(S,day).every(w=>w.ot),'假日開窗視為加班');
+  delete S.holidays;
+  S.cal.over[day]='rest';
+  assert.deepEqual(workWindows(S,day),[],'單日覆寫停工優先於星期');
+  S.cal.over[day]='work';S.cal.week=[false,false,false,false,false,false,false];
+  assert.equal(workWindows(S,day).length,2,'單日覆寫開工優先於星期');
+  S.dayOT={[day]:true};
+  assert.deepEqual(workWindows(S,day)[2],{s:1020,e:1200,ot:true},'當日加班加第三窗且必為加班');
+});
