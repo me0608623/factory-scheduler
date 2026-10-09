@@ -8,9 +8,9 @@
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
-- 前端: **248/248** PASS
+- 前端: **249/249** PASS
 - DB: **206/206** PASS
-- 合計: **454**
+- 合計: **455**
 
 ## Bug 修復（10 項）
 1. **P1** XSS（line-notify）
@@ -140,3 +140,12 @@
 - **移除 6 個被 git 追蹤的歷程補丁暫存腳本**（→ `e98213b`）：docs/ 下 add-btn.tmp.mjs、fix-orphan.tmp.cjs、form-modal.tmp.js、ro-form.tmp.cjs、ui-refactor.tmp.cjs、unconfirm.tmp.cjs——已確認無任何文件引用；wireframe HTML 與驗證截圖有被文件引用故保留
 - **TEST_STATUS.md 加歷史存檔標註**：該文為 9-26 快照（測試數 13/42/14、部署未選定皆已過時），標註指向現況來源；「尚未修復」兩項未經重測不宣稱已修或仍在
 - 前端測試維持 **248/248** PASS（本輪未動程式碼，仍重跑確認）
+
+## 輪次 59（2026-10-09）— 主動改善：renderFloor canvas stub 測試
+
+- floor 模組最後一個未測匯出 `renderFloor` 補上（→ `713ab77`）：以錄製式 2D context stub＋`getComputedStyle`/`document` 全域 stub 在 Node 測
+  - DPR 尺寸換算：pixelRatio=2 → canvas.width=1800、height=404、style.height=202px、ctx 以 (2,2) 縮放
+  - 狀態用色：故障紅 #DC2626、忙碌藍 #315FA7、閒置灰 #9AA3AF；閒置半透明 0.35、其他 0.85
+  - 副標文字：故障格顯示「故障」（**優先於負載時數**——此優先序即測試初版寫錤之處，已按原始碼行為修正 fixture）、忙碌格顯示負載「3h」
+  - 超長機台名截斷；正規化座標→螢幕座標矩形換算（0/40、450/40、0/121）與 hitFloor 命中
+- 前端測試：**248 → 249** PASS
