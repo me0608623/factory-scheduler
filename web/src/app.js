@@ -1331,7 +1331,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
       }else if(idx>=0)list.splice(idx,1);
       closeModal();
       const perm=table==="rush"?"rush.manage":table==="tf"?"transfers.manage":"worklog.manage";
-      commit({kind:"edit",title:"刪除"+TABLE_TITLES[table]+"一列",lines:[]},perm);
+      commit({kind:"edit",title:tx("刪除")+TABLE_TITLES[table]+"一列",lines:[]},perm);
       toast("已刪除");break;}
     case "tf-goto":{
       const o=transferOrders(S).find(x=>x.id===a.dataset.id);if(!o)break;
@@ -3797,7 +3797,7 @@ const workName=a=>workCatalog(S).find(w=>w.id===a.workId)?.name||'工作內容�
 const referenceOrder=id=>order(id)||S.workReferenceOrders?.find(o=>o.id===id);
 const timeValue=t=>{const [h,m]=t.split(':').map(Number);return h*60+m;};
 const textInput=(id,label,value,type='text',off='')=>'<div class="field"><label for="'+id+'">'+label+'</label><input class="inp" id="'+id+'" type="'+type+'" value="'+esc(value)+'" '+off+'></div>';
-MODALS['work-contents']=()=>({title:'工作內容 · 與設備分開管理',body:
+MODALS['work-contents']=()=>({title:tx('工作內容')+tx(' · 與設備分開管理'),body:
   '<div class="hint">三部分：工作內容（做什麼）、設備／工位（需要時才指定）、排班方塊（人員、時間及參考件數）。既有產品工序仍依原公式排程；下面的獨立工作不會自動算進工單完成量。</div>'+
   '<h4>產品工序工作內容</h4><div class="hint">'+[...new Set(S.products.flatMap(p=>p.steps.map(s=>s.proc)))].map(esc).join('、')+'</div><button class="btn" data-act="products">查看產品工序</button>'+
   '<h4>可獨立安排的工作內容</h4>'+workCatalog(S).filter(w=>inFactory(w,UI.factory)).map(w=>'<button class="rline" data-act="work-content-edit" data-id="'+esc(w.id)+'"><b>'+esc(w.name)+'</b><span>'+factoryName(w.factory)+' · '+(w.requiresResource?'需要設備／工位':'純人工，不需機台')+' · 核定 '+w.employeeIds.length+' 人</span></button>').join('')+
