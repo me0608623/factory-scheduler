@@ -63,7 +63,7 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 94（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
+- **總輪次**: 95（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
@@ -462,3 +462,9 @@
 - worktree 實跑 `vite build`：**通過**（7.14s）
 - 體檢：初始載入 ≈196KB gz（html 0.4＋css 15.4＋主包 180.2）——與「main 210K gz」時代相當；three（191.8KB gz）與 excel（275.9KB gz）維持 lazy 分包不進首屏 ✓
 - 主包 raw 505KB 觸發 Rollup advisory（>500KB）：win.js／主題導覽／i18n 317 鍵皆在主包。可選優化＝manualChunks 切分（P4，非必要——現況載入健康）
+
+
+## 輪次 95（2026-10-10 凌晨）— 夜間備份管線首驗
+
+- 以 GitHub API（唯讀）驗證「每日資料庫備份」workflow：**近三輪（#14/15/16）全 success**，排程約 UTC 22:30（台北 06:30），今晚批次約 5 小時後執行——管線健康
+- 順手盤點全部 11 個 workflow（皆 active）：Tests／Deployment smoke／Render 部署／每日備份／備份還原演練／隔離驗證／模擬驗收／匯入盤點／套用 migration／建立帳號（一次性）／修復帳號登入（一次性）——未觸發任何一個（紅線）
