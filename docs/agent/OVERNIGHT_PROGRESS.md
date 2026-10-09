@@ -63,11 +63,11 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 100（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
+- **總輪次**: 101（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
 - **正式站**: web 200 ✓ solver 200 ✓ staging 200 ✓
 
 ## 測試
-- 前端: **274/274** PASS
+- 前端: **275/275** PASS
 - DB: **206/206** PASS
 - 合計: **463**
 
@@ -507,3 +507,9 @@
 - 平行作業：worktree 隔離模式（自輪 62 起與使用者六個 feature 系列零衝突並行）
 
 **待使用者**：PR #7 審核合併（CI 綠）、setup_pending、DB 密碼輪換、LINE token、員工帳號實測。
+
+
+## 輪次 101（2026-10-10 凌晨）— FEATURE_TOURS 資料形狀守護
+
+- tour.test 補 1 條：FEATURE_TOUR_TOPICS 與 FEATURE_TOURS 鍵一致（孤兒主題偵測）、每主題 ≥2 步、每步 sel+title+text 齊全——守護使用者 feature-tours 新增的主題導覣資料形狀（與既有 TOUR_STEPS 測試同模式）
+- 前端 **274 → 275**
