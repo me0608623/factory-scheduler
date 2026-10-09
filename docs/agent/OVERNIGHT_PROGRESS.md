@@ -4,11 +4,11 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 67（65 為使用者系列）
+- **總輪次**: 68（65 為使用者系列）
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
-- 前端: **265/265** PASS
+- 前端: **267/267** PASS
 - DB: **206/206** PASS
 - 合計: **463**
 
@@ -215,3 +215,10 @@
 - 使用者展開新分支 feat/split-pane（工作樹乾淨），worktree 續行、僅動 overview.test.mjs（零衝突）
 - **orderCounters 直測**：未完成（五張扣已完成）、逾期（缺 due/pid 的 gray 不誤判、已完成不計）、今日到期（due===today 且未完成才計）三計數器各守其界；順帶斷言 done→green、無資料→gray
 - 前端測試：**264 → 265** PASS
+
+
+## 輪次 68（2026-10-09）— split-pane 合併驗證輪
+
+- 使用者合併 feat/split-pane（`68cc333`：抽屜改主內容分割/放大模式，對齊工作紀錄頁的區域切換機制；app.js+i18n+styles.css+2 條 layout-regression 測試）
+- worktree 同步後全套 **267/267** 驗證綠；新測試含 pane 模式反向覆寫 vg-glass 防護（`.ops-drawer.pane.vg-glass{position:relative}`）——與輪次 61 的通用守門測試相容（守門掃的是基底 class 依賴定位而無防護的情形，pane 有防護鏈故通過）
+- 生產站部署後實測：web 200 ✓ solver /health 200 ✓
