@@ -8,9 +8,9 @@
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
-- 前端: **243/243** PASS
+- 前端: **248/248** PASS
 - DB: **206/206** PASS
-- 合計: **449**
+- 合計: **454**
 
 ## Bug 修復（10 項）
 1. **P1** XSS（line-notify）
@@ -123,3 +123,13 @@
   - 需求入口：無崗位時 toast 擋下不開表單
   - 班別儲存 action：跨夜「22:00-次日02:00」合法保存（commit 觸發）、「25:00-26:00」非法擋下（時段格式提示）
 - 前端測試：**237 → 243** PASS；全部純渲染/純 action 斷言，無需 DOM
+
+## 輪次 57（2026-10-09）— 主動改善：未測匯出補強
+
+- 全模組掃描「export 了但測試沒引用」的函式，補 5 個有資料完整性價值的（→ `dcb804f`）：
+  - `blockToDb`/`blockFromDb`（排程方塊↔DB 列）：欄位往返逐一相等、pin 強制布林、缺 id 補合法 UUID v4
+  - `orderRoute`：連續重複廠別去重（1,1,2,1→1,2,1）；`orderFactories` 為全域去重（語意不同已分別斷言）
+  - `validDate`：真實日曆日檢查（2026-02-30／平年 02-29／2026-13-01 全擋）、閏年 02-29 成立、非字串擋
+  - `hitFloor`（平面圖命中測試）：邊界端點含命中、重疊區取第一個、外部與空陣列回 null
+  - `applyPreferences`：theme=auto 移除 data-app-theme、accent/font/density/motion/lang/--z 齊上、回正規化結果
+- 前端測試：**243 → 248** PASS（分散附屬於 convert-roundtrip/factory/transfers/floor/settings 五個對應模組測試檔）
