@@ -2941,16 +2941,16 @@ function maybeReload(){if(pendingReload&&!PV&&!UI.modal&&!drag&&!generalDrag){pe
 // ---------- 帳號與連線 ----------
 MODALS.account=()=>({title:tx('帳號與連線'),
   body:'<dl class="kv"><dt>'+tx('資料')+'</dt><dd>'+(STORE.kind==="local"?"本機（這台電腦的瀏覽器）":"雲端資料庫（Supabase）")+'</dd>'+
-    (STORE.kind==="supabase"?'<dt>帳號</dt><dd>'+esc(STORE.userName)+'</dd><dt>'+tx('角色')+'</dt><dd>'+esc(ROLE_NAME[STORE.role]||"未設定")+'</dd>':"")+
-    '<dt>排程計算</dt><dd>'+(SOLVER.up?"OR-Tools "+esc(SOLVER.version):"瀏覽器內的演算法（排程服務未連線）")+'</dd></dl>'+
-    (STORE.kind==="local"?'<div class="hint">要多人使用、手機和電視即時同步，請設定雲端資料庫（見 README）。</div>':""),
-  foot:(STORE.kind==="supabase"?'<button class="btn" data-act="password-open">設定登入密碼</button>'+(STORE.role==='boss'?'<button class="btn" data-act="access-accounts">管理帳號權限</button>':'')+'<button class="btn" data-act="logout">登出</button>':'<button class="btn danger" data-act="reset-local">清除這台電腦的資料</button>')+
-    '<div class="spacer"></div><button class="btn" data-act="solver-check">重新連線排程服務</button><button class="btn primary" data-act="close">'+tx('關閉')+'</button>'});
+    (STORE.kind==="supabase"?'<dt>'+tx('帳號')+'</dt><dd>'+esc(STORE.userName)+'</dd><dt>'+tx('角色')+'</dt><dd>'+esc(ROLE_NAME[STORE.role]||"未設定")+'</dd>':"")+
+    '<dt>'+tx('排程計算')+'</dt><dd>'+(SOLVER.up?"OR-Tools "+esc(SOLVER.version):"瀏覽器內的演算法（排程服務未連線）")+'</dd></dl>'+
+    (STORE.kind==="local"?'<div class="hint">'+tx('要多人使用、手機和電視即時同步，請設定雲端資料庫（見 README）。')+'</div>':""),
+  foot:(STORE.kind==="supabase"?'<button class="btn" data-act="password-open">'+tx('設定登入密碼')+'</button>'+(STORE.role==='boss'?'<button class="btn" data-act="access-accounts">'+tx('管理帳號權限')+'</button>':'')+'<button class="btn" data-act="logout">登出</button>':'<button class="btn danger" data-act="reset-local">'+tx('清除這台電腦的資料')+'</button>')+
+    '<div class="spacer"></div><button class="btn" data-act="solver-check">'+tx('重新連線排程服務')+'</button><button class="btn primary" data-act="close">'+tx('關閉')+'</button>'});
 MODALS.password=()=>({title:tx('設定登入密碼'),
-  body:'<div class="hint">收到邀請信或重設密碼信後，開啟信中連結登入，再在這裡設定新密碼。</div>'+
-    '<div class="field"><label for="new-password">新密碼（至少 12 個字元）</label><input class="inp" id="new-password" type="password" autocomplete="new-password" minlength="12"></div>'+
-    '<div class="field"><label for="confirm-password">再次輸入新密碼</label><input class="inp" id="confirm-password" type="password" autocomplete="new-password" minlength="12"></div>',
-  foot:'<button class="btn" data-act="account">'+tx('返回')+'</button><div class="spacer"></div><button class="btn primary" data-act="password-save">儲存新密碼</button>'});
+  body:'<div class="hint">'+tx('收到邀請信或重設密碼信後，開啟信中連結登入，再在這裡設定新密碼。')+'</div>'+
+    '<div class="field"><label for="new-password">'+tx('新密碼（至少 12 個字元）')+'</label><input class="inp" id="new-password" type="password" autocomplete="new-password" minlength="12"></div>'+
+    '<div class="field"><label for="confirm-password">'+tx('再次輸入新密碼')+'</label><input class="inp" id="confirm-password" type="password" autocomplete="new-password" minlength="12"></div>',
+  foot:'<button class="btn" data-act="account">'+tx('返回')+'</button><div class="spacer"></div><button class="btn primary" data-act="password-save">'+tx('儲存新密碼')+'</button>'});
 Object.assign(MODAL_ACT,{
   "logout":async()=>{await STORE.logout();location.reload();},
   "password-open":()=>openModal({t:"password"}),
@@ -2967,7 +2967,7 @@ Object.assign(MODAL_ACT,{
 });
 
 MODALS['access-accounts']=m=>({title:tx('權限管理'),body:m.loading?'<div class="hint">'+tx('讀取帳號中…')+'</div>':
-  '<div class="hint">點帳號設定職位與系統權限。職位決定預設值，可逐一開關實際功能。</div>'+m.accounts.map(x=>{
+  '<div class="hint">'+tx('點帳號設定職位與系統權限。職位決定預設值，可逐一開關實際功能。')+'</div>'+m.accounts.map(x=>{
     const emp=S.employees.find(e=>e.id===x.employeeId);
     const gs=emp?employeeGroups(S,emp.id).map(g=>g.group.name).join('、'):'';
     return '<button class="btn" data-act="access-account" data-id="'+esc(x.userId)+'" style="width:100%;height:auto;min-height:64px;justify-content:space-between;margin:8px 0;display:flex;flex-direction:column;align-items:flex-start;gap:4px"><span style="display:flex;justify-content:space-between;width:100%"><b>'+esc(x.displayName||'未命名帳號')+'</b><span class="tag">'+esc(ROLE_NAME[x.role]||x.role)+'</span></span><small style="color:var(--muted)">'+esc(x.email||'')+(emp?' · 員工：'+esc(emp.name):' · 未關聯員工')+(gs?' · 分組：'+esc(gs):'')+'</small></button>';}).join(''),
@@ -2975,7 +2975,7 @@ MODALS['access-accounts']=m=>({title:tx('權限管理'),body:m.loading?'<div cla
 MODALS['access-account']=m=>{const x=m.account,isBoss=x.role==='boss';return {title:tx('設定')+' '+esc(x.displayName||'帳號')+' 的權限',body:
   '<div class="hint">職位：'+esc(ROLE_NAME[x.role]||x.role)+'。'+(isBoss?'老闆永遠擁有全部功能，避免失去管理入口。':'以下開關會決定實際可用功能；日後可再次調整。'+(x.customized?'目前使用自訂權限。':'目前使用職位預設。'))+'</div>'+PERMISSIONS.map(([key,name,desc])=>
     '<label class="permission-row"><input type="checkbox" data-permission="'+key+'" '+(x.permissions?.[key]?'checked ':'')+(isBoss?'disabled ':'')+'><span><b>'+esc(name)+'</b><small>'+esc(desc)+'</small></span></label>').join(''),
-  foot:'<button class="btn" data-act="access-accounts">'+tx('返回')+'</button><div class="spacer"></div>'+(isBoss?'':(x.customized?'<button class="btn" data-act="access-reset">恢復職位預設</button>':'')+'<button class="btn primary" data-act="access-save">儲存權限</button>')};};
+  foot:'<button class="btn" data-act="access-accounts">'+tx('返回')+'</button><div class="spacer"></div>'+(isBoss?'':(x.customized?'<button class="btn" data-act="access-reset">'+tx('恢復職位預設')+'</button>':'')+'<button class="btn primary" data-act="access-save">'+tx('儲存權限')+'</button>')};};
 Object.assign(MODAL_ACT,{
   'access-accounts':async()=>{if(STORE.kind!=='supabase'||STORE.role!=='boss')return;openModal({t:'access-accounts',loading:true,accounts:[]});try{const accounts=await STORE.listAccessAccounts();if(UI.modal?.t==='access-accounts'){UI.modal.loading=false;UI.modal.accounts=accounts;renderModal();}}catch(e){toast(e.message);closeModal();}},
   'access-account':a=>{if(STORE.role!=='boss')return;const x=UI.modal?.accounts?.find(v=>v.userId===a.dataset.id);if(x)openModal({t:'access-account',account:structuredClone(x)});},
@@ -2984,7 +2984,7 @@ Object.assign(MODAL_ACT,{
 });
 
 MODALS['catalog-review']=()=>({title:tx(S.setupPending?'初次核對資料':'員工、設備與工單'),body:
-  (S.setupPending?'<div class="catalog-step"><b>核對完成前</b><span>今天仍可查看空班表；自動排班與故障重排維持關閉。</span></div>':'')+cardsHTML()+latestHTML(),
+  (S.setupPending?'<div class="catalog-step"><b>'+tx('核對完成前')+'</b><span>'+tx('今天仍可查看空班表；自動排班與故障重排維持關閉。')+'</span></div>':'')+cardsHTML()+latestHTML(),
   foot:'<button class="btn primary" data-act="close">'+tx('返回班表')+'</button>'});
 /* ---------- LINE 通知設定 ---------- */
 MODALS['line-notify']=()=>{
@@ -3015,33 +3015,33 @@ MODALS['schedule-diff']=m=>{
     return '<div class="rline"><span class="k">'+esc(o?o.code:"")+' '+esc(stepName(b))+'</span><span class="num">'+hm(b.s)+'-'+hm(b.e)+' '+esc(b.m)+(E?' '+esc(E.name):'')+'</span></div>';};
   if(!r)return {title:tx('排程比對'),body:
     '<div class="hint">'+tx('選兩個日期，比較排程差異。')+'</div>'+
-    '<div class="row2"><div class="field"><label for="diff-date1">日期 A</label><input class="inp" type="date" id="diff-date1" value="'+addDays(UI.date,-7)+'"></div>'+
-    '<div class="field"><label for="diff-date2">日期 B</label><input class="inp" type="date" id="diff-date2" value="'+UI.date+'"></div></div>',
-    foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="diff-run">比較</button>'};
+    '<div class="row2"><div class="field"><label for="diff-date1">'+tx('日期 A')+'</label><input class="inp" type="date" id="diff-date1" value="'+addDays(UI.date,-7)+'"></div>'+
+    '<div class="field"><label for="diff-date2">'+tx('日期 B')+'</label><input class="inp" type="date" id="diff-date2" value="'+UI.date+'"></div></div>',
+    foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="diff-run">'+tx('比較')+'</button>'};
   const st=r.summary;
   return {title:tx('排程比對')+'：'+md(r.d1)+' vs '+md(r.d2),body:
     '<div class="hint">'+st.total1+' 段 vs '+st.total2+' 段 · 共同 '+r.common+' 段 · '+st.machines1+' 台 vs '+st.machines2+' 台 · '+st.employees1+' 人 vs '+st.employees2+' 人</div>'+
     '<div class="field"><span class="lab">只在 '+md(r.d1)+'（被移除或改時間）</span><div class="result">'+(r.only1.map(item).join("")||'<div class="okbox">'+tx('無')+'</div>')+'</div></div>'+
     '<div class="field"><span class="lab">只在 '+md(r.d2)+'（新增或改時間）</span><div class="result">'+(r.only2.map(item).join("")||'<div class="okbox">'+tx('無')+'</div>')+'</div></div>',
-    foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button><button class="btn" data-act="schedule-diff">重選日期</button>'};
+    foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button><button class="btn" data-act="schedule-diff">'+tx('重選日期')+'</button>'};
 };
 /* ---------- 意見反饋 ---------- */
 const FEEDBACK_CATS=[['bug','問題／錯誤'],['feature','希望新增的功能'],['ux','操作不方便'],['other','其他']];
 MODALS['feedback']=()=>({title:tx('意見反饋'),body:
-  '<div class="hint">告訴我們哪裡有問題、或希望有什麼功能。送出後直接進入系統，開發者會盡快處理。</div>'+
+  '<div class="hint">'+tx('告訴我們哪裡有問題、或希望有什麼功能。送出後直接進入系統，開發者會盡快處理。')+'</div>'+
   '<div class="field"><label for="fb-cat">'+tx('類型')+'</label><select class="inp" id="fb-cat">'+FEEDBACK_CATS.map(([v,t])=>'<option value="'+v+'">'+t+'</option>').join('')+'</select></div>'+
-  '<div class="field"><label for="fb-msg">內容</label><textarea class="inp" id="fb-msg" rows="4" maxlength="2000" placeholder="'+tx('例如：手機上排程表很難滑、希望可以…')+'"></textarea></div>'+
-  '<a class="btn" href="mailto:me0608623@gmail.com?subject=[排程系統反饋]" style="text-decoration:none">用 Email 寄</a>',
-  foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="feedback-send">送出</button>'});
+  '<div class="field"><label for="fb-msg">'+tx('內容')+'</label><textarea class="inp" id="fb-msg" rows="4" maxlength="2000" placeholder="'+tx('例如：手機上排程表很難滑、希望可以…')+'"></textarea></div>'+
+  '<a class="btn" href="mailto:me0608623@gmail.com?subject=[排程系統反饋]" style="text-decoration:none">'+tx('用 Email 寄')+'</a>',
+  foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="feedback-send">'+tx('送出')+'</button>'});
 MODALS['feedback-list']=m=>m.loading?{title:tx('查看反饋'),body:'<div class="hint">'+tx('讀取中…')+'</div>'}:{title:tx('查看反饋')+'（最近 50 筆）',body:
   (m.items||[]).map(x=>'<div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0"><b>'+esc(x.author)+'</b> <span class="tag">'+esc(FEEDBACK_CATS.find(c=>c[0]===x.category)?.[1]||x.category)+'</span> <span class="tag '+(x.status==='resolved'?'ok':x.status==='read'?'mute':'warn')+'">'+(x.status==='new'?'新':x.status==='read'?'已讀':'已解決')+'</span><p style="margin:6px 0">'+esc(x.message)+'</p><small style="color:var(--muted)">'+esc((x.createdAt||'').replace('T',' ').slice(0,16))+(x.pageUrl?' · '+esc(x.pageUrl.replace(location.origin,'')):'')+'</small></div>').join('')||'<div class="hint">'+tx('還沒有反饋。')+'</div>',
   foot:'<button class="btn primary" data-act="close">'+tx('關閉')+'</button>'};
 MODALS['leave-request']=m=>({title:tx('新增請假詢問'),body:
   '<div class="hint">詢問送出後不會立刻成為正式請假，也不會觸發自動重排；必須由有「故障與請假」權限的人准假。</div>'+
-  '<div class="field"><label for="leave-request-employee">人員</label><select class="inp" id="leave-request-employee">'+shownEmployees().map(e=>'<option value="'+e.id+'">'+esc(e.name)+'</option>').join('')+'</select></div>'+
+  '<div class="field"><label for="leave-request-employee">'+tx('人員')+'</label><select class="inp" id="leave-request-employee">'+shownEmployees().map(e=>'<option value="'+e.id+'">'+esc(e.name)+'</option>').join('')+'</select></div>'+
   '<div class="field"><label for="leave-request-date">'+tx('日期')+'</label><input class="inp" id="leave-request-date" type="date" value="'+esc(m.date||UI.date)+'"></div>'+
-  '<div class="field"><label for="leave-request-note">一句說明</label><input class="inp" id="leave-request-note" maxlength="140" value="'+esc(m.note||'')+'"></div>',
-  foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="leave-request-save">送出詢問</button>'});
+  '<div class="field"><label for="leave-request-note">'+tx('一句說明')+'</label><input class="inp" id="leave-request-note" maxlength="140" value="'+esc(m.note||'')+'"></div>',
+  foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="leave-request-save">'+tx('送出詢問')+'</button>'});
 /* ---------- 員工月曆：單日休假／上班、整月每週固定班 ---------- */
 MODALS['person-day']=m=>{
   const E=emp(m.id);if(!E)return null;
@@ -3064,8 +3064,8 @@ MODALS['person-month']=m=>{
   const days=monthDates(UI.date).filter(Boolean).filter(d=>d>=todayStr());
   return {title:tx("{name} 整月班表設定",{name:esc(E.name)}),body:
     '<div class="hint">對象月份：'+UI.date.slice(0,7).replace('-',' 年 ')+' 月。勾「休假」的星期，整月都會設為休假；沒勾的代表上班（會取消那幾天已有的休假）。</div>'+
-    '<div class="field"><span class="lab">這個月哪些星期休假</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("pm-week",w,m.off.has(w),"週"+WD[w])).join("")+'</div></div>'+
-    (days.length?'<div class="hint">只會改 '+(days.length?md(days[0])+' ～ '+md(days[days.length-1]):'')+'（今天起，過去的紀錄不動）。當天已排工作的日期會先跳過，請到月曆點該日期逐一處理。</div>':'<div class="issue">這個月今天之後沒有日期可設定。</div>'),
+    '<div class="field"><span class="lab">'+tx('這個月哪些星期休假')+'</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("pm-week",w,m.off.has(w),"週"+WD[w])).join("")+'</div></div>'+
+    (days.length?'<div class="hint">只會改 '+(days.length?md(days[0])+' ～ '+md(days[days.length-1]):'')+'（今天起，過去的紀錄不動）。當天已排工作的日期會先跳過，請到月曆點該日期逐一處理。</div>':'<div class="issue">'+tx('這個月今天之後沒有日期可設定。')+'</div>'),
     foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="pm-save">套用到這個月</button>'};
 };
 Object.assign(MODAL_ACT,{
