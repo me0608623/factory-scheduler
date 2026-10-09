@@ -692,7 +692,7 @@ function appNavHTML(){
   const sync=SYNC.state==='busy'?'同步中':SYNC.state==='error'?'同步失敗':STORE?.kind==='supabase'?'雲端已同步':'存在這台電腦';
   return '<nav class="app-nav" aria-label="'+tx('主要功能')+'">'+
     
-    '<div class="side-brand"><span class="brand-mark"><span></span></span><span><b>產線排程</b><small>工廠工作台</small></span></div>'+
+    '<div class="side-brand"><span class="brand-mark"><span></span></span><span><b>產線排程</b><small>'+tx('工廠工作台')+'</small></span></div>'+
     '<button class="side-profile" data-act="settings" aria-pressed="'+(UI.drawer==='settings')+'"><span class="side-avatar">'+esc(account.slice(0,1).toUpperCase())+'</span><span><b>'+esc(account)+'</b><small>'+esc(role)+'</small></span><i>›</i></button>'+
     '<span class="side-section">排程</span>'+
     '<button class="app-nav-item nav-today" data-act="today" aria-pressed="'+(!UI.drawer)+'"><b>'+NAV_IC.today+'</b><span>'+tx('today')+'</span></button>'+item('orders',tx('orders'))+
@@ -785,7 +785,7 @@ function peopleDrawerHTML(){
 function outputDrawerHTML(){
   const machines=shownMachines(),data=productionSummary(S,UI.date,machines.map(x=>x.id));
   const rows=data.rows.map(r=>{const selected=UI.focus?.type==='machine'&&UI.focus.id===r.machine.id,ratio=r.planned?Math.min(100,r.actual/r.planned*100):0;
-    return '<button class="output-row'+(selected?' selected':'')+'" data-act="focus-machine" data-id="'+r.machine.id+'"><span><b>'+esc(r.machine.id+' '+r.machine.label)+'</b><strong>計畫 '+r.planned+(r.hasReport?'｜回報 '+r.actual:'')+'</strong></span>'+(r.hasReport?'<i class="output-track"><u style="width:100%"></u><em style="width:'+ratio+'%"></em></i>':'<small>尚未回報</small>')+'</button>';}).join('');
+    return '<button class="output-row'+(selected?' selected':'')+'" data-act="focus-machine" data-id="'+r.machine.id+'"><span><b>'+esc(r.machine.id+' '+r.machine.label)+'</b><strong>計畫 '+r.planned+(r.hasReport?'｜回報 '+r.actual:'')+'</strong></span>'+(r.hasReport?'<i class="output-track"><u style="width:100%"></u><em style="width:'+ratio+'%"></em></i>':'<small>'+tx('尚未回報')+'</small>')+'</button>';}).join('');
   return '<section class="output-total"><b>'+data.planned+'</b><span>'+mdw(UI.date)+' 計畫總件數</span></section><div class="drawer-list">'+(rows||'<div class="drawer-empty">此廠沒有機台資料</div>')+'</div><div class="drawer-hint">藍色為現場實際回報；沒有回報時不以 0 或估算值代替。</div>';
 }
 
@@ -949,7 +949,7 @@ function weekHTML(ctx={}){
     return '<div class="wfoot">'+lv.map(e=>'<span class="tag bad">'+esc(e.name)+' 假</span>').join("")+'</div>';}).join("");
   return '<section class="board" aria-label="'+tx('週排程')+'"><div class="board-h"><h2>'+(ctx.lanes?"本週對照（上排原本、下排調整後）":"本週總覽")+'</h2><div class="spacer"></div><div class="legend"><span>點日期或格子看當天細節</span><span><i style="background:var(--bad)"></i>故障</span></div></div>'+
     '<div class="scroller"><div class="wgrid" style="grid-template-columns:150px repeat(7,minmax(130px,1fr))"><div class="corner" style="height:auto"></div>'+heads+rows+
-    '<div class="wrow"><small>請假</small></div>'+foot+'</div></div></section>';
+    '<div class="wrow"><small>'+tx('請假')+'</small></div>'+foot+'</div></div></section>';
 }
 /* ===== 7. 拖曳（滑鼠與觸控都可以） ===== */
 let drag=null;
@@ -1651,7 +1651,7 @@ function resourceLoadHTML(){
     '<div class="hint">空檔只代表時間未被占用，不保證技能、物料、工序或交期允許排入；負荷高也不等於已確認的生產瓶頸。待確認名冊不推測可用產能。</div>'+
     (anomalies?'<div class="issue">有 '+report.invalidBlocks+' 段工作時間異常、'+report.missingResources+' 段缺少人員／機台對照、'+report.invalidWindows+' 個上班時段異常；統計可能不完整，請先檢查資料。</div>':'')+
     '<h4>機台／操作位置</h4><div class="load-list">'+rows(report.machines,false)+'</div>'+
-    '<h4>員工</h4><div class="load-list">'+rows(report.employees,true)+'</div>',
+    '<h4>'+tx('員工')+'</h4><div class="load-list">'+rows(report.employees,true)+'</div>',
     foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button>'};
 }
 const MODALS={
