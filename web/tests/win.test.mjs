@@ -34,3 +34,9 @@ test('clampRect：合理輸入原樣保留（四捨五入整數）', () => {
   assert.equal(c.y, 51);
   assert.equal(c.w, 470);
 });
+
+test('clampRect：左緣精確鉗制（至少露 60px，其餘可拖出左側）', () => {
+  const c = clampRect(-9999, 100, 470, 900, 1200, 800);
+  assert.equal(c.x, 6 - 470 + 60, 'x 應 = MARGIN - w + 60（w=470 → -404）');
+  assert.ok(c.x + 470 >= 60, '視窗右緣至少留 60px 在畫面內');
+});

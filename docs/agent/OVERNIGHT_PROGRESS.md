@@ -2,13 +2,13 @@
 
 ## 執行狀態
 - **分支**: `agent/overnight-20261009`（全數合併 main）
-- **最新 main**: `fbddecb`→本輪見 git log（輪次 64 推送；使用者開發 feat/floating-windows 中）
+- **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 64
+- **總輪次**: 66（65 為使用者系列）
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
-- 前端: **257/257** PASS
+- 前端: **264/264** PASS
 - DB: **206/206** PASS
 - 合計: **463**
 
@@ -201,3 +201,10 @@
 - 測試：win.test.mjs 5 條 clampRect；全套 262/262；build ✓；瀏覽器全場景驗證（拖曳/縮放/最大化/還原/關閉重開/重載恢復/resize 夾回/手機往返）；生產站實測最大化 1600×900 ✓
 - commit 782eabb（分支 feat/floating-windows → main 3229de0）
 - **下一輪待辦**：評估「更多功能」二級選單、甘特圖/平面圖是否值得改用同套浮動視窗機制
+
+
+## 輪次 66（2026-10-09）— 浮動視窗合併後驗證＋收尾補強
+
+- 使用者完成並合併 feat/floating-windows（`782eabb`：抽屜可拖曳/縮放/最大化、排程助理自由定位、win.js 200 行＋5 測試）；worktree 同步後全套 **263/263** 驗證綠
+- 補 win.test.mjs 第 6 條：左緣精確鉗制（x = MARGIN−w+60，視窗右緣至少留 60px 可抓回）→ **264/264**
+- 生產站部署後實測：web 200 ✓ solver /health 200 ✓（使用者 push 觸發的自動部署已上線且健康）
