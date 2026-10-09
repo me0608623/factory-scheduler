@@ -74,6 +74,7 @@ flowchart LR
 | 稽核 | `audit_log` | **每一筆資料的新增、修改、刪除都自動記下**：誰、什麼時候、改前、改後，屬於哪一次變更 |
 | 帳號 | `profiles` | 使用者的角色、對應哪位員工 |
 | 現場回報（第 2 階段） | `progress_reports` | 員工按開始、完成、做了幾件 |
+| 上線後陸續新增 | 見 `db/migrations/`（0007 起） | 工作內容與一般工作排班、輪班草稿（班別／崗位／需求）、跨廠加工與批次流轉、欠缺品項、員工分組與部門、機台平面圖佈局、備忘、請假詢問、使用者反饋、LINE 通知設定等（即時同步約 21 張表） |
 
 ## 4. 權限
 
@@ -107,23 +108,34 @@ flowchart LR
 
 ## 7. 部署
 
-| 元件 | 建議 | 備註 |
+| 元件 | 實際部署 | 備註 |
 |---|---|---|
-| 前端 | Vercel 或 Cloudflare Pages | 靜態網頁，免費方案即可 |
-| 資料庫 | Supabase 雲端（新加坡區） | 之後要自架也可以，資料格式就是 PostgreSQL |
-| 排程服務 | Google Cloud Run、Render 或 Fly.io（Docker） | OR-Tools 需要約 1GB 記憶體，計算時才用 CPU |
+| 前端 | **Render**（`factory-scheduler-web.onrender.com`，另有 staging） | 靜態網頁；push main 後 `tests.yml`＋`deploy-render.yml` 自動把關與部署 |
+| 資料庫 | Supabase 雲端 | 資料格式就是 PostgreSQL，之後要自架也可以 |
+| 排程服務 | **Render**（`factory-scheduler-solver.onrender.com`，Docker） | OR-Tools 需要約 1GB 記憶體，計算時才用 CPU |
 | 機密設定 | 環境變數 | Supabase service key、Anthropic API key、Google 服務帳號，**不放在前端** |
+
+## 7.5 前端模組地圖（web/src）
+
+| 分類 | 模組 | 說明 |
+|---|---|---|
+| 主畫面 | `app.js` | 排程看板、modal 系統、導覽側欄（可收合）、抽屜（浮動視窗／分割窗格兩模式） |
+| 功能 UI | `chat-ui.js`、`roster-ui.js`、`transfer-ui.js`、`win.js` | 排程助理聊天室、輪班 Excel 式班表、跨廠加工、Windows 式浮動視窗（拖曳/縮放/最大化） |
+| 領域邏輯 | `factory.js`、`manual.js`、`overtime.js`、`capacity.js`、`execution.js`、`transfers.js`、`rush.js`、`general-work.js`、`roster.js`、`worklog.js`、`groups.js`、`scenarios.js`、`plan-budget.js`、`resource-load.js`、`overview.js`、`work-queue.js` | 排程規則、現場回報狀態機、跨廠流轉、輪班檢核等（皆有測試） |
+| 資料層 | `store/local.js`、`store/supabase.js`、`convert.js` | 本機示範模式與雲端模式共用一套狀態轉換（快照往返） |
+| 週邊 | `i18n.js`（zh-TW/en/vi/th）、`visual.js`（WebGL/液態 Logo/玻璃效果）、`floor.js`（廠區平面圖 Canvas）、`tour.js`（新手導覽）、`line-notify.js`、`settings.js`、`chat-context.js`＋`chat-ledgers.js`（助理唯讀事實投影） | |
 
 ## 8. 階段
 
 | 階段 | 內容 | 狀態 |
 |---|---|---|
 | 0 | 原型、與老闆確認操作方式 | 完成 |
-| 1a | 資料庫結構、權限、稽核、備份 | 完成，36 項測試通過 |
-| 1b | OR-Tools 排程服務＋測試 | 完成，11 項測試通過 |
-| 1c | 前端改接資料庫與排程服務、登入、即時推送 | 前端已搬到 `web/`，本機模式接 OR-Tools 實測通過；Supabase 資料層用模擬資料庫測試通過，等真實專案接上 |
-| 1d | AI 助理（解釋方案、口語指令）、Excel／Google 試算表 | 之後 |
-| 2 | 現場回報進度、LINE 通知 | 之後 |
+| 1a | 資料庫結構、權限、稽核、備份 | 完成（本地 PGlite 測試 206 項） |
+| 1b | OR-Tools 排程服務＋測試 | 完成（CI 83 項） |
+| 1c | 前端改接資料庫與排程服務、登入、即時推送 | 完成（前端 267 項測試；正式站上線） |
+| 1d | AI 助理（解釋方案、口語指令）、Excel 匯入匯出 | 排程助理（唯讀問答＋語音播報）與 Excel 已上線；生成式建議之後 |
+| 2 | 現場回報進度、LINE 通知 | 現場回報已上線（開始／完成／數量／確認）；LINE 通知已上線待使用者設定 token |
+| 2.5 | 多語（zh-TW/en/vi/th）、平面圖、輪班草稿、跨廠加工、浮動視窗、新手導覽 | 已上線（2026-09~10 陸續） |
 
 ## 9. 需要準備的帳號
 

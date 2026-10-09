@@ -4,7 +4,7 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 68（65 為使用者系列）
+- **總輪次**: 69（65 為使用者系列）
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
@@ -222,3 +222,10 @@
 - 使用者合併 feat/split-pane（`68cc333`：抽屜改主內容分割/放大模式，對齊工作紀錄頁的區域切換機制；app.js+i18n+styles.css+2 條 layout-regression 測試）
 - worktree 同步後全套 **267/267** 驗證綠；新測試含 pane 模式反向覆寫 vg-glass 防護（`.ops-drawer.pane.vg-glass{position:relative}`）——與輪次 61 的通用守門測試相容（守門掃的是基底 class 依賴定位而無防護的情形，pane 有防護鏈故通過）
 - 生產站部署後實測：web 200 ✓ solver /health 200 ✓
+
+
+## 輪次 69（2026-10-09）— ARCHITECTURE.md 對齊現況
+
+- 使用者已自行解決輪次 68 的進度文件衝突（併入其分支紀錄 `26a7db6`）；worktree 續行
+- **docs/ARCHITECTURE.md 過時修正**：①部署表改實際狀態（Render web/staging/solver，push 後 CI 自動部署）②新增 §7.5 前端模組地圖（主畫面/功能 UI/領域邏輯/資料層/週邊五類）③階段表更新——1d 排程助理（唯讀問答＋語音）與 Excel 已上線、2 現場回報已上線＋LINE 待 token、新增 2.5 多語/平面圖/輪班/跨廠/浮動視窗等上線項；測試數 36/11 遠古數字改為 206/83/267 ④資料表補「上線後陸續新增」指標行（約 21 張表，指向 migrations 而非枚舉避免再過時）
+- 測試數量不變 **267/267**（純文件輪，仍重跑確認）
