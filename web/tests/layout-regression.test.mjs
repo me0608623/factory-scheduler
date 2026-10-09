@@ -111,3 +111,17 @@ test('核對流程：員工卡有「編輯資料」入口', () => {
   const seg = app.slice(app.indexOf('function reviewPageHTML'));
   assert.ok(seg.includes("data-act=\"emp\" data-id=\"'+esc(E.id)+'\""), 'review 步驟1缺少編輯資料入口');
 });
+
+test('功能解說：左側導覽獨立入口（更多正下方、同層級）', () => {
+  assert.ok(app.includes('class="app-nav-item nav-feature-tour" data-act="feature-tour"'), '缺少獨立導覽按鈕');
+  const moreIdx = app.indexOf("item('more',tx('more'))");
+  const tourIdx = app.indexOf('nav-feature-tour');
+  assert.ok(moreIdx > 0 && tourIdx > moreIdx && tourIdx - moreIdx < 200, '功能解說應緊跟在更多之後');
+});
+
+test('功能解說：主題選擇與逐步導覽接線', () => {
+  assert.ok(app.includes('MODALS["feature-topics"]'), '缺少主題選擇 modal');
+  assert.ok(app.includes('case "feature-topic"'), '缺少主題動作');
+  assert.ok(app.includes('FEATURE_TOURS[key]'), '主題動作應使用 FEATURE_TOURS');
+  assert.ok(app.includes('label:"功能解說",markDone:false'), '主題導覽不應寫入新手導覽完成旗標');
+});
