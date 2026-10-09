@@ -43,3 +43,21 @@ test('員工工作票只顯示目前與同一台設備的下一件',()=>{
   S.execution=[{blockId:'a',status:'done'}];
   assert.equal(workerTimeline(S,'e','2026-09-30',530).next.id,'b');
 });
+
+test('orderCounters：未完成、逾期、今日到期三計數各守自己的界',()=>{
+  const today='2026-10-09';
+  const orders=[
+    {id:'a',code:'A',pid:'p',due:'2026-10-07'},             // 逾期未完成 → late
+    {id:'b',code:'B',pid:'p',due:today},                    // 今日到期未完成 → dueToday
+    {id:'c',code:'C',pid:'p',due:'2026-10-20'},             // 未來
+    {id:'d',code:'D',pid:'p',due:'2026-10-07'},             // 逾期但已完成 → 不計 unfinished/late
+    {id:'e',code:'E'},                                      // 缺 due/pid → gray 不誤判 late
+  ];
+  const statusOf=o=>({a:{k:'part'},b:{k:''},c:{k:''},d:{k:'done'},e:null}[o.id]);
+  const c=orderCounters(orders,statusOf,today);
+  assert.equal(c.unfinished,4,'五張扣掉已完成一張');
+  assert.equal(c.late,1,'只有 a 逾期（d 已完成、e 缺資料不計）');
+  assert.equal(c.dueToday,1,'只有 b 今日到期且未完成');
+  assert.equal(c.rows.find(x=>x.order.id==='e').signal,'gray');
+  assert.equal(c.rows.find(x=>x.order.id==='d').signal,'green');
+});

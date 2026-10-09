@@ -4,11 +4,11 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 66（65 為使用者系列）
+- **總輪次**: 67（65 為使用者系列）
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
-- 前端: **264/264** PASS
+- 前端: **265/265** PASS
 - DB: **206/206** PASS
 - 合計: **463**
 
@@ -208,3 +208,10 @@
 - 使用者完成並合併 feat/floating-windows（`782eabb`：抽屜可拖曳/縮放/最大化、排程助理自由定位、win.js 200 行＋5 測試）；worktree 同步後全套 **263/263** 驗證綠
 - 補 win.test.mjs 第 6 條：左緣精確鉗制（x = MARGIN−w+60，視窗右緣至少留 60px 可抓回）→ **264/264**
 - 生產站部署後實測：web 200 ✓ solver /health 200 ✓（使用者 push 觸發的自動部署已上線且健康）
+
+
+## 輪次 67（2026-10-09）— orderCounters 計數器直測
+
+- 使用者展開新分支 feat/split-pane（工作樹乾淨），worktree 續行、僅動 overview.test.mjs（零衝突）
+- **orderCounters 直測**：未完成（五張扣已完成）、逾期（缺 due/pid 的 gray 不誤判、已完成不計）、今日到期（due===today 且未完成才計）三計數器各守其界；順帶斷言 done→green、無資料→gray
+- 前端測試：**264 → 265** PASS
