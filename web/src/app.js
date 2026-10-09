@@ -2944,7 +2944,7 @@ MODALS.account=()=>({title:tx('帳號與連線'),
     (STORE.kind==="supabase"?'<dt>'+tx('帳號')+'</dt><dd>'+esc(STORE.userName)+'</dd><dt>'+tx('角色')+'</dt><dd>'+esc(ROLE_NAME[STORE.role]||"未設定")+'</dd>':"")+
     '<dt>'+tx('排程計算')+'</dt><dd>'+(SOLVER.up?"OR-Tools "+esc(SOLVER.version):"瀏覽器內的演算法（排程服務未連線）")+'</dd></dl>'+
     (STORE.kind==="local"?'<div class="hint">'+tx('要多人使用、手機和電視即時同步，請設定雲端資料庫（見 README）。')+'</div>':""),
-  foot:(STORE.kind==="supabase"?'<button class="btn" data-act="password-open">'+tx('設定登入密碼')+'</button>'+(STORE.role==='boss'?'<button class="btn" data-act="access-accounts">'+tx('管理帳號權限')+'</button>':'')+'<button class="btn" data-act="logout">登出</button>':'<button class="btn danger" data-act="reset-local">'+tx('清除這台電腦的資料')+'</button>')+
+  foot:(STORE.kind==="supabase"?'<button class="btn" data-act="password-open">'+tx('設定登入密碼')+'</button>'+(STORE.role==='boss'?'<button class="btn" data-act="access-accounts">'+tx('管理帳號權限')+'</button>':'')+'<button class="btn" data-act="logout">'+tx('登出')+'</button>':'<button class="btn danger" data-act="reset-local">'+tx('清除這台電腦的資料')+'</button>')+
     '<div class="spacer"></div><button class="btn" data-act="solver-check">'+tx('重新連線排程服務')+'</button><button class="btn primary" data-act="close">'+tx('關閉')+'</button>'});
 MODALS.password=()=>({title:tx('設定登入密碼'),
   body:'<div class="hint">'+tx('收到邀請信或重設密碼信後，開啟信中連結登入，再在這裡設定新密碼。')+'</div>'+
@@ -3235,7 +3235,7 @@ function shortagePageHTML(){
       const dateTxt=v=>v&&!/^\d{4}-\d{2}-\d{2}$/.test(String(v))?'<span class="raw-txt">'+esc(String(v))+'</span>':"";
       return '<tr data-rowid="'+esc(r.id)+'" data-act="row-edit" data-table="rush" data-id="'+esc(r.id)+'" class="'+(r.archived?"archived":"")+'">'+
         '<td class="rowact">'+(r.archived
-          ?(ro?"":'<button class="rowdel restore" data-act="rush-unarchive" data-id="'+esc(r.id)+'">還原</button>')
+          ?(ro?"":'<button class="rowdel restore" data-act="rush-unarchive" data-id="'+esc(r.id)+'">'+tx('還原')+'</button>')
           :(ro?"":(UI.confirmRow==="del:"+r.id?'<button class="btn danger" data-act="rush-del" data-id="'+esc(r.id)+'">'+tx('再按一次刪除')+'</button>':'<button class="rowdel" data-act="rush-del" data-id="'+esc(r.id)+'">'+tx('刪除')+'</button>')))+'</td>'+
         '<td class="c-f1">'+dateTxt(r.f1?.shipDate)+editCellHTML("rush",r.id,"f1.shipDate","date",r.f1?.shipDate,ro)+'</td>'+
         cell("f1.vendor","text")+
@@ -3274,16 +3274,16 @@ function transferFlowPageHTML(){
     (UI.tfArchivedNote?'<span class="archived-n">'+esc(UI.tfArchivedNote)+'</span>':"")+
     '<span class="hint">'+tx('完成只認「已回一廠」已勾；每月一日自動歸檔逾期已完成。')+'</span></div>';
   const table='<div class="sheettable"><table><thead><tr>'+
-    '<th class="rowact"></th><th>'+tx('通知日期')+'</th><th>'+tx('加工編號')+'</th><th>加工序</th><th>全部可給數</th><th>可給二廠時間</th><th>急用</th><th>要求回一廠時間</th><th>現在貨在1樓</th><th>現在貨在3樓</th><th>已回一廠</th><th>'+tx('備註')+'</th></tr></thead><tbody>'+
+    '<th class="rowact"></th><th>'+tx('通知日期')+'</th><th>'+tx('加工編號')+'</th><th>'+tx('加工序')+'</th><th>'+tx('全部可給數')+'</th><th>'+tx('可給二廠時間')+'</th><th>'+tx('急用')+'</th><th>'+tx('要求回一廠時間')+'</th><th>'+tx('現在貨在1樓')+'</th><th>'+tx('現在貨在3樓')+'</th><th>已回一廠</th><th>'+tx('備註')+'</th></tr></thead><tbody>'+
     (list.map(o=>{
       const urgent=(o.urgentQty||0)>0||!!o.urgentDue;
       const cell=(k,ty,cls="")=>'<td class="'+cls+'">'+editCellHTML("tf",o.id,k,ty,getPath(o,k),ro)+'</td>';
-      const pend=k=>pendingDate(getPath(o,k))?'<span class="pending-tag">待確認格式</span>':"";
+      const pend=k=>pendingDate(getPath(o,k))?'<span class="pending-tag">'+tx('待確認格式')+'</span>':"";
       return '<tr data-rowid="'+esc(o.id)+'" data-act="row-edit" data-table="tf" data-id="'+esc(o.id)+'" class="'+(o.returned?"returned":"")+(o.archived?" archived":"")+(o.status==="cancelled"?" cancelled":"")+'">'+
         '<td class="rowact">'+(o.archived
-          ?(ro?"":'<button class="rowdel restore" data-act="tf-unarchive" data-id="'+esc(o.id)+'">還原</button>')
+          ?(ro?"":'<button class="rowdel restore" data-act="tf-unarchive" data-id="'+esc(o.id)+'">'+tx('還原')+'</button>')
           :(o.status==="cancelled"
-            ?(ro?"":'<button class="rowdel restore" data-act="tf-restore" data-id="'+esc(o.id)+'">還原</button>')
+            ?(ro?"":'<button class="rowdel restore" data-act="tf-restore" data-id="'+esc(o.id)+'">'+tx('還原')+'</button>')
             :(ro?"":(UI.confirmRow==="tfdel:"+o.id?'<button class="btn danger" data-act="tf-del" data-id="'+esc(o.id)+'">'+tx('再按一次刪除')+'</button>':'<button class="rowdel" data-act="tf-del" data-id="'+esc(o.id)+'">'+tx('刪除')+'</button>'))))+'</td>'+
         '<td>'+editCellHTML("tf",o.id,"notified","date",o.notified,ro)+pend("notified")+(o.status==="cancelled"?'<span class="pending-tag">'+tx('已取消')+'</span>':"")+'</td>'+
         '<td>'+esc(o.code)+'</td>'+
@@ -3331,7 +3331,7 @@ function printDaySchedule(){
   }
 
   const leaveHtml=leave.length?'<div class="leave-box"><h3>今日請假（'+leave.length+' 人）</h3>'+leave.map(e=>'<span>'+esc(e.name)+'</span>').join('')+'</div>':'';
-  const setupNote=S.setupPending?'<div class="warn-box">⚠ 名冊與工時尚待確認，此表僅供參考</div>':'';
+  const setupNote=S.setupPending?'<div class="warn-box">'+tx('⚠ 名冊與工時尚待確認，此表僅供參考')+'</div>':'';
 
   const html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+title+' 日班表 '+d+'</title><style>'+
   '*{box-sizing:border-box;margin:0;padding:0}'+
@@ -3350,7 +3350,7 @@ function printDaySchedule(){
   '</style></head><body>'+
   '<h1>'+title+' 日班表</h1>'+
   '<div class="sub">'+d+'（'+WD[parseD(d).getUTCDay()]+'） · '+(dayInfo(d).open?'上班日':'停工日')+(dayInfo(d).ot?' · 加班到 '+hm(otEnd):'')+'</div>'+
-  '<table><thead><tr><th style="width:14%">機台／工位</th><th style="width:10%">'+tx('員工')+'</th><th style="width:12%">時間</th><th style="width:20%">工單／工作</th><th style="width:8%">件數</th><th style="width:12%">'+tx('備註')+'</th></tr></thead><tbody>'+
+  '<table><thead><tr><th style="width:14%">'+tx('機台／工位')+'</th><th style="width:10%">'+tx('員工')+'</th><th style="width:12%">'+tx('時間')+'</th><th style="width:20%">'+tx('工單／工作')+'</th><th style="width:8%">'+tx('件數')+'</th><th style="width:12%">'+tx('備註')+'</th></tr></thead><tbody>'+
   rows+'</tbody></table>'+leaveHtml+setupNote+
   '<div class="footer">列印時間：'+new Date().toLocaleString('zh-TW')+' · 產線排程系統</div>'+
   '<scr'+'ipt>window.print()</scr'+'ipt></body></html>';
@@ -3455,27 +3455,27 @@ function analyticsPageHTML(){
   };
 
   const body='<div class="ana-grid">'+
-    '<div class="ana-card"><h3>機台稼動率（本月）</h3><div class="ana-list">'+
-      (machUtil.slice(0,10).map(m=>bar(m.label+' ('+m.id+')',m.pct,m.pct>70?'#39d353':m.pct>40?'#ffe14a':'#c62828')).join('')||'<div class="hint">尚無排程資料</div>')+
+    '<div class="ana-card"><h3>'+tx('機台稼動率（本月）')+'</h3><div class="ana-list">'+
+      (machUtil.slice(0,10).map(m=>bar(m.label+' ('+m.id+')',m.pct,m.pct>70?'#39d353':m.pct>40?'#ffe14a':'#c62828')).join('')||'<div class="hint">'+tx('尚無排程資料')+'</div>')+
     '</div></div>'+
-    '<div class="ana-card"><h3>員工加班時數（本月）</h3><div class="ana-list">'+
+    '<div class="ana-card"><h3>'+tx('員工加班時數（本月）')+'</h3><div class="ana-list">'+
       (empOT.slice(0,10).map(e=>'<div class="ana-row"><span class="ana-lab">'+esc(e.name)+'</span><span class="ana-val ot">'+e.otH+' 小時</span></div>').join('')||'<div class="hint">'+tx('本月無加班')+'</div>')+
     '</div></div>'+
-    '<div class="ana-card"><h3>工單狀態</h3><div class="ana-stats">'+
+    '<div class="ana-card"><h3>'+tx('工單狀態')+'</h3><div class="ana-stats">'+
       '<div class="ana-stat"><b>'+ordStats.done+'</b><span>'+tx('已完成')+'</span></div>'+
       '<div class="ana-stat ok"><b>'+ordStats.ok+'</b><span>'+tx('進行中')+'</span></div>'+
-      '<div class="ana-stat warn"><b>'+ordStats.part+'</b><span>部分完成</span></div>'+
+      '<div class="ana-stat warn"><b>'+ordStats.part+'</b><span>'+tx('部分完成')+'</span></div>'+
       '<div class="ana-stat bad"><b>'+ordStats.late+'</b><span>'+tx('逾期')+'</span></div>'+
       '<div class="ana-stat mute"><b>'+ordStats.unplaced+'</b><span>'+tx('未排')+'</span></div>'+
     '</div></div>'+
-    '<div class="ana-card"><h3>近 14 天排程量</h3><div class="ana-chart">'+
+    '<div class="ana-card"><h3>'+tx('近 14 天排程量')+'</h3><div class="ana-chart">'+
       daily.map(function(x){var h=Math.round(x.cnt/maxDaily*80);var t=md(x.date);return "<div class=\"ana-col\" title=\""+x.date+": "+x.cnt+"\"><div class=\"ana-bar2\" style=\"height:"+h+"px\"></div><span class=\"ana-dlabel\">"+t+"</span></div>";}).join("")+
     '</div></div>'+
-    '<div class="ana-card"><h3>人力概況</h3><div class="ana-stats">'+
-      '<div class="ana-stat"><b>'+mEmps.length+'</b><span>在職員工</span></div>'+
-      '<div class="ana-stat bad"><b>'+leaves.length+'</b><span>本月有請假</span></div>'+
-      '<div class="ana-stat mute"><b>'+leaveDays+'</b><span>請假天數合計</span></div>'+
-      '<div class="ana-stat"><b>'+mBlocks.length+'</b><span>本月排程段</span></div>'+
+    '<div class="ana-card"><h3>'+tx('人力概況')+'</h3><div class="ana-stats">'+
+      '<div class="ana-stat"><b>'+mEmps.length+'</b><span>'+tx('在職員工')+'</span></div>'+
+      '<div class="ana-stat bad"><b>'+leaves.length+'</b><span>'+tx('本月有請假')+'</span></div>'+
+      '<div class="ana-stat mute"><b>'+leaveDays+'</b><span>'+tx('請假天數合計')+'</span></div>'+
+      '<div class="ana-stat"><b>'+mBlocks.length+'</b><span>'+tx('本月排程段')+'</span></div>'+
     '</div></div>'+
   '</div>';
 
@@ -3592,7 +3592,7 @@ function reviewPageHTML(){
   const pendE=S.employees.filter(e=>e.reviewStatus==='pending').length;
   const pendM=S.machines.filter(m=>m.reviewStatus==='pending').length;
   const head='<div class="page-top"><div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">'+tx('backToday')+'</button><div class="page-title"><h1>'+tx('初次核對資料')+'</h1><span class="savestate '+SYNC.state+'">'+pageSaveState()+'</span></div></div>'+
-    '<p class="page-sub">核對完成前，自動排班與故障重排保持關閉。三個步驟逐一確認。</p></div>';
+    '<p class="page-sub">'+tx('核對完成前，自動排班與故障重排保持關閉。三個步驟逐一確認。')+'</p></div>';
   const steps='<div class="wiz-steps">'+
     [1,2,3].map(n=>'<button class="wiz-step'+(n===step?' on':'')+(n<step?' done':'')+'" data-act="review-step" data-v="'+n+'"'+(ro?' disabled':'')+'>步驟 '+n+'：'+['員工','設備／工位','技能與工時'][n-1]+(n===1&&pendE?'（待確認 '+pendE+'）':'')+(n===2&&pendM?'（待確認 '+pendM+'）':'')+'</button>').join('')+'</div>';
   let body='';
