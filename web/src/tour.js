@@ -18,17 +18,18 @@ export const TOUR_DONE_KEY = "fsched-tour-done";
 
 export function tourDone() { try { return !!localStorage.getItem(TOUR_DONE_KEY); } catch (e) { return true; } }
 
-export function startTour(steps, { tx = (k) => k, onFinish } = {}) {
+export function startTour(steps, { tx = (k) => k, onFinish, markDone = true, label } = {}) {
   document.querySelectorAll(".tour-spot,.tour-card").forEach((e) => e.remove());
   const visible = (sel) => { const el = document.querySelector(sel); return el && el.offsetParent !== null ? el : null; };
-  const list = steps.filter((s) => visible(s.sel)); // 隱藏中的步驟自動跳過（如手機上的聊天列）
+  // 有 pre（前置動作）的步驟保留——目標由 pre 開抽屜／切頁後才出現；其餘隱藏中自動跳過
+  const list = steps.filter((s) => s.pre || visible(s.sel));
   let i = 0;
   const spot = document.createElement("div");
   spot.className = "tour-spot";
   const card = document.createElement("div");
   card.className = "tour-card";
   card.setAttribute("role", "dialog");
-  card.setAttribute("aria-label", tx("新手導覽"));
+  card.setAttribute("aria-label", tx(label || "新手導覽"));
   document.body.append(spot, card);
   let onResize;
 
@@ -36,7 +37,7 @@ export function startTour(steps, { tx = (k) => k, onFinish } = {}) {
     removeEventListener("resize", onResize);
     removeEventListener("scroll", onResize, true);
     spot.remove(); card.remove();
-    try { localStorage.setItem(TOUR_DONE_KEY, "1"); } catch (e) {}
+    if (markDone) { try { localStorage.setItem(TOUR_DONE_KEY, "1"); } catch (e) {} }
     onFinish?.(finished);
   };
 
@@ -49,8 +50,16 @@ export function startTour(steps, { tx = (k) => k, onFinish } = {}) {
   const _render = () => {
     const st = list[i];
     if (!st) return stop(true);
-    const el = visible(st.sel);
-    if (!el) { i++; return _render(); }
+    let el = visible(st.sel);
+    if (!el && st.pre && !st._preTried) {
+      // 前置動作（開抽屜／切頁面）→ 等 UI 重繪後再定位；失敗視同跳過
+      st._preTried = true;
+      try { st.pre(); } catch (e) { /* ignore */ }
+      setTimeout(render, 320);
+      return;
+    }
+    if (!el) { st._preTried = false; i++; return _render(); }
+    st._preTried = false;
     try { el.scrollIntoView({ block: "center" }); } catch (e) { /* older engines */ }
     setTimeout(() => { try {
       const r = el.getBoundingClientRect(), v = { w: innerWidth, h: innerHeight };
@@ -97,3 +106,52 @@ export const TOUR_STEPS = [
   { sel: '[data-act="drawer"][data-v="more"]', title: "步驟：更多功能", text: "現場回報、輪班、權限、說明、登出都在這個選單。" },
   { sel: ".chat-launch", title: "步驟：排程助理", text: "不會用？直接問它：「誰請假？」「哪台機器故障？」（手機的表格頁會自動收起）" },
 ];
+
+// —— 功能解說：主題式逐步導覽（左側獨立入口）——
+// pre：點左側導覽開抽屜／切頁，目標出現後引擎自動定位；步驟隱藏時自動跳過。
+const navTo = (v) => () => { document.querySelector('[data-act="drawer"][data-v="' + v + '"]')?.click(); };
+export const FEATURE_TOUR_TOPICS = [
+  { key: "board",  icon: "today",   title: "排程表觀看" },
+  { key: "people", icon: "people",  title: "員工設定" },
+  { key: "orders", icon: "orders",  title: "工單設定" },
+  { key: "output", icon: "output",  title: "產量" },
+  { key: "worklog",icon: "worklog", title: "工作紀錄" },
+  { key: "notes",  icon: "notes",   title: "備忘" },
+  { key: "chat",   icon: "chat",    title: "排程助理" },
+];
+export const FEATURE_TOURS = {
+  board: [
+    { sel: ".workspace-heading", title: "排程看板", text: "每台機器一列、時間由左到右；彩色方塊代表員工的工作。" },
+    { sel: ".datenav", title: "切換日期", text: "‹ › 前後換天，點中間可直接選日期；「今天」一键回今天。" },
+    { sel: ".factory-switch", title: "切換廠別", text: "一廠、二廠分開看，或選跨廠看全部。" },
+  ],
+  people: [
+    { sel: '[data-act="drawer"][data-v="people"]', title: "員工設定入口", text: "點左側「人」開啟員工面板。" },
+    { sel: ".people-pills", title: "人員與狀態", text: "綠＝在班、紅＝請假、黃＝未確定；點人名看當月班表。", pre: navTo("people") },
+    { sel: ".people-calendar", title: "月曆式排班", text: "選「上班／休假／未確定」筆刷後點日期即可套用。", pre: navTo("people") },
+  ],
+  orders: [
+    { sel: '[data-act="drawer"][data-v="orders"]', title: "工單入口", text: "點左側「工單」查看全部工單狀態。" },
+    { sel: ".drawer-metrics", title: "工單總覽", text: "未完成、會晚、今日要交三個數字一眼掌握。", pre: navTo("orders") },
+    { sel: ".order-card", title: "單張工單", text: "綠黃紅灰燈號表示準時與風險；點卡片可聚焦到排程。", pre: navTo("orders") },
+    { sel: '[data-act="ord-new"]', title: "新增工單", text: "填工單號、數量、產品與期限，系統會建議排法。", pre: navTo("orders") },
+  ],
+  output: [
+    { sel: '[data-act="drawer"][data-v="output"]', title: "產量入口", text: "點左側「產量」看每台機器的計畫與實際。" },
+    { sel: ".output-row", title: "機器產量", text: "計畫件數與現場回報的實際件數對照；點列可聚焦機器。", pre: navTo("output") },
+  ],
+  worklog: [
+    { sel: '[data-act="drawer"][data-v="worklog"]', title: "工作紀錄入口", text: "點左側「工作紀錄」開啟完整紀錄頁。" },
+    { sel: ".sheettable", title: "紀錄表格", text: "日期、加工編號、合格與不良、工時都可線上編輯。", pre: navTo("worklog") },
+    { sel: ".pageback", title: "返回看板", text: "看完按「回今天」回到排程看板。", pre: navTo("worklog") },
+  ],
+  notes: [
+    { sel: '[data-act="drawer"][data-v="notes"]', title: "備忘入口", text: "點左側「備忘」張貼便條。" },
+    { sel: ".memo-grid", title: "便條牆", text: "點便條編輯；右上圓釘可釘選重要事項。", pre: navTo("notes") },
+  ],
+  chat: [
+    { sel: ".chat-launch", title: "排程助理", text: "點右下角藥丸展開助理，可直接用問的。" },
+    { sel: ".chat-panel header", title: "聊天視窗", text: "可拖曳標題列移動位置；語音鈕可自動唸出回答。", pre: () => { document.querySelector(".chat-launch")?.click(); } },
+    { sel: ".chat-quick", title: "快捷提問", text: "「誰請假？」「哪台機器故障？」一鍵送出。", pre: () => { document.querySelector(".chat-launch")?.click(); } },
+  ],
+};

@@ -22,7 +22,7 @@ import {validateWorkLog} from './worklog.js';
 import {notifySettingsHTML,sendLineNotify} from './line-notify.js';
 import { tx, I18N, SETTINGS_TEXT } from './i18n.js';
 import { liquidLogoSVG, mountBackdrop, mount3D, ensureVisualStyles } from './visual.js';
-import { startTour, TOUR_STEPS, tourDone } from './tour.js';
+import { startTour, TOUR_STEPS, tourDone, FEATURE_TOURS, FEATURE_TOUR_TOPICS } from './tour.js';
 import { floorCells, renderFloor, hitFloor } from './floor.js';
 import {rosterUI} from './roster-ui.js';
 import {installScheduleChat} from './chat-ui.js';
@@ -632,7 +632,9 @@ const NAV_IC={
   output:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 20V11h4v9M10 20V5h4v15M16 20v-7h4v7M3 20h18"/></svg>',
   notes:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 3h14v14l-4 4H5z"/><path d="M15 21v-4h4M8 8h8M8 12h8"/></svg>',
   more:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M8 4v6M8 14v6M16 14v6M16 4v6"/></svg>'
-,worklog:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 3h14v18l-4-2-3 2-3-2-4 2z"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4"/></svg>'};
+,worklog:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 3h14v18l-4-2-3 2-3-2-4 2z"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4"/></svg>',
+help:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+chat:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.6 9.6 0 0 1-2.9-.4L4 21l1.6-4a8.2 8.2 0 0 1-1.6-4.9 8.4 8.4 0 0 1 8.5-8.4 8.4 8.4 0 0 1 8.5 8.2z"/><path d="M8.5 10.5h7M8.5 13.5h4"/></svg>'};
 const LOGIC={leave:"假",fault:"修",move:"移",auto:"排",ot:"加",edit:"改",save:"存"};
 function hourPx(){return parseFloat(getComputedStyle(document.body).getPropertyValue("--hour"))||72;}
 
@@ -765,6 +767,7 @@ function appNavHTML(){
     '<button class="app-nav-item nav-today" data-act="today" aria-pressed="'+(!UI.drawer)+'"><b>'+NAV_IC.today+'</b><span>'+tx('today')+'</span></button>'+item('orders',tx('orders'))+
     '<span class="side-section">'+tx('現場回報')+'</span>'+item('people',tx('people'))+item('output',tx('output'))+item('worklog',tx('worklog'))+item('notes',tx('notes'))+
     '<span class="side-section">'+tx('設定')+'</span>'+item('more',tx('more'))+
+    '<button class="app-nav-item nav-feature-tour" data-act="feature-tour" title="'+tx('功能解說')+'" aria-label="'+tx('功能解說')+'"><b>'+NAV_IC.help+'</b><span>'+tx('功能解說')+'</span></button>'+
     '<div class="side-footer"><button class="side-health '+SYNC.state+'" data-act="sync"><i></i><span><b>'+tx('系統連線')+'</b><small>'+esc(sync)+'</small></span></button></div></nav>';
 }
 function isoWeek(ds){const d=parseD(ds);d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));const y=new Date(Date.UTC(d.getUTCFullYear(),0,1));return Math.ceil(((d-y)/864e5+1)/7);}
@@ -1471,6 +1474,8 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "manual-add":if(!readOnly&&!S.setupPending)openModal({t:"manual-add"});break;
     case "incident":if(canIncidents())openModal({t:"incident"});break;
     case "help":openModal({t:"help",sec:0});break;
+    case "feature-tour":openModal({t:"feature-topics"});break;
+    case "feature-topic":{const key=a.dataset.v,steps=FEATURE_TOURS[key];closeModal();if(steps)setTimeout(()=>startTour(steps,{tx,label:"功能解說",markDone:false}),300);break;}
     case "feedback":openModal({t:"feedback"});break;
     case "schedule-diff":openModal({t:"schedule-diff"});break;
     case "diff-run":{
@@ -2511,6 +2516,13 @@ MODALS.help=m=>{
     foot:(m.sec>0?'<button class="btn" data-act="help-sec" data-v="'+(m.sec-1)+'">‹ '+tx('上一步')+'</button>':"")+'<div class="spacer"></div>'+(m.sec<HELP.length-1?'<button class="btn primary" data-act="help-sec" data-v="'+(m.sec+1)+'">'+tx('下一步')+' ›</button>':'<button class="btn primary" data-act="close">'+tx('完成')+'</button>')};
 };
 MODAL_ACT["help-sec"]=a=>{UI.modal.sec=+a.dataset.v;const ov=$("#ov");renderModal();if(ov)$("#ov").scrollTop=0;};
+// 功能解說：主題選擇 → 逐步導覽（左側導覽列獨立入口，不動新手導覽）
+MODALS["feature-topics"]=()=>({title:tx('功能解說'),body:
+  '<div class="hint">'+tx('選一個主題，會在畫面上逐步指引：亮框標示目標、箭頭指向說明。')+'</div>'+
+  '<div class="more-grid" style="margin-top:12px">'+FEATURE_TOUR_TOPICS.map(t=>
+    '<button class="more-action" data-act="feature-topic" data-v="'+t.key+'" style="display:flex;align-items:center;gap:10px">'+
+    '<span style="width:22px;height:22px;display:inline-grid;place-items:center;color:var(--accent)">'+(NAV_IC[t.icon]||NAV_IC.help)+'</span>'+tx(t.title)+'</button>').join("")+'</div>',
+  foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button>'});
 function nextCode(){let n=S.orders.length+1;const used=new Set(S.orders.map(o=>o.code));while(used.has("W"+pad(n)))n++;return "W"+pad(n);}
 /* ===== 10. 視窗內的動作 ===== */
 function confirmStep(a,act){const m=UI.modal;if(m.confirm===act)return true;m.confirm=act;a.textContent="再按一次確認";return false;}
