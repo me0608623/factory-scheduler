@@ -289,3 +289,10 @@
 
 - 使用者修復 **TEST_STATUS 9-26 疑點①**（`ef89d07`：solver plans.py 新工單完成判定 late/part 時加診斷並降級為不可套用——W07 情境「延誤 1 仍可選」不再出現；回歸測試併入 test_edges.py，CI solver job 綠）——這正是輪次 60 列回 NEXT_TASKS 的項目，待辦僅剩疑點②（10 分鐘零碎工段，需產品決策：最短工作段規則 vs 換模成本）
 - worktree 同步後 web **272/272** 確認綠；生產站實測 web 200 ✓ solver /health 200 ✓
+
+
+## 輪次 78（2026-10-10）— 軟性切換成本完成→PR 審核
+
+- 分支 CI 初次失敗（reification 把同機換人誤罰、2 個 demo fixture NameError）→ 完整日誌修復：uses() OR + both() AND 兩段式 reification
+- 分支 CI 綠：solver 165 passed in 130.75s；A/B 故障情境生產權重下指標不變（溫和導引、交期零退化）、50000 權重確定性測試證明機制有效；效能 10/30/60≈10s
+- **PR #7** 交付人工審核（依約束不合併 main）；報告 docs/agent/OVERNIGHT_REPORT_SWITCHING.md；CI 加 -rP 使 A/B 數值可見
