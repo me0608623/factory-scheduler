@@ -4,7 +4,7 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 70（65 為使用者系列）
+- **總輪次**: 71（65 為使用者系列）
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
@@ -235,3 +235,11 @@
 
 - 使用者合併 fix/chat-panel-size（`f74cbd2`：聊天面板寬度不再繼承縮小後的根容器，chat-ui.js＋styles.css＋1 條 layout-regression 測試）
 - worktree 同步後全套 **268/268** 驗證綠；生產站實測 web 200 ✓ solver /health 200 ✓
+
+
+## 輪次 71（2026-10-09）— 手動稽核腳本主動驗證
+
+- 使用者活躍於 feat/master-data-page（app.js/i18n.js/layout-regression WIP），worktree 續行、本輪零衝突（純驗證＋docs）
+- **未進 CI 的兩個手動稽核腳本實跑**：`audit_i18n.mjs` exit 0——寫死中文 modal 標題 **0**（輪次 52 的 15 處 tx() 化守住）、HELP 章節標籤 0；`audit_buttons.mjs` exit 0
+- README/ARCHITECTURE 檢視：README 維運紀錄段（哪些 migration 已上正式庫）屬使用者手動狀態、不代改；其餘段落（測試跑法、部署、功能說明）現況正確
+- 測試數量不變 **268/268**
