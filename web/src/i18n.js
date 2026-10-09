@@ -42,6 +42,7 @@ export const UI_TEXT = {
   "刪除": { en: "Delete", vi: "Xóa", th: "ลบ" },
   "返回": { en: "Back", vi: "Quay lại", th: "ย้อนกลับ" },
   "確定": { en: "OK", vi: "Xác nhận", th: "ตกลง" },
+  "{date} · 手動排班": { en: "{date} · Manual schedule", vi: "{date} · Xếp lịch thủ công", th: "{date} · จัดตารางด้วยมือ" }, "手動排班預覽 · 需要處理": { en: "Manual preview · Needs attention", vi: "Xem trước · Cần xử lý", th: "พรีวิวจัดมือ · ต้องแก้ไข" }, "手動排班預覽 · 確認": { en: "Manual preview · Confirm", vi: "Xem trước · Xác nhận", th: "พรีวิวจัดมือ · ยืนยัน" }, "{date} 加班設定": { en: "{date} Overtime", vi: "{date} Tăng ca", th: "{date} ล่วงเวลา" }, "新增員工": { en: "Add employee", vi: "Thêm nhân viên", th: "เพิ่มพนักงาน" }, "新增機台": { en: "Add machine", vi: "Thêm máy", th: "เพิ่มเครื่องจักร" }, "工單 {code}": { en: "Order {code}", vi: "Đơn {code}", th: "ใบสั่งงาน {code}" }, "新增工單": { en: "Add order", vi: "Thêm đơn hàng", th: "เพิ่มใบสั่งงาน" }, "{date} 有 {n} 個問題": { en: "{date}: {n} issues", vi: "{date}: {n} vấn đề", th: "{date}: มี {n} ปัญหา" }, "Excel 匯入 · 請修正檔案": { en: "Excel import · Fix the file", vi: "Nhập Excel · Sửa file", th: "นำเข้า Excel · แก้ไขไฟล์" }, "Excel 匯入 · 確認取代資料": { en: "Excel import · Confirm replace", vi: "Nhập Excel · Xác nhận thay", th: "นำเข้า Excel · ยืนยันแทนที่" }, "{name} 請假": { en: "Leave: {name}", vi: "Nghỉ phép: {name}", th: "การลา: {name}" }, "{name} 整月班表設定": { en: "{name}: Monthly schedule", vi: "{name}: Lịch cả tháng", th: "{name}: ตารางทั้งเดือน" }, "新增 — {table}": { en: "Add — {table}", vi: "Thêm — {table}", th: "เพิ่ม — {table}" }, "編輯 — {table}": { en: "Edit — {table}", vi: "Sửa — {table}", th: "แก้ไข — {table}" }, "給二廠／回一廠": { en: "Send/Return", vi: "Giao/Nhận", th: "ส่ง/รับคืน" }, "工作紀錄": { en: "Work log", vi: "Nhật ký công việc", th: "บันทึกงาน" }, "工作內容設定": { en: "Work type settings", vi: "Cài đặt loại công việc", th: "ตั้งค่าประเภทงาน" }, "新增工作內容": { en: "Add work type", vi: "Thêm loại công việc", th: "เพิ่มประเภทงาน" }, "一般工作排班": { en: "General work schedule", vi: "Lịch công việc chung", th: "ตารางงานทั่วไป" }, "新增一般工作排班": { en: "Add general work", vi: "Thêm công việc chung", th: "เพิ่มงานทั่วไป" }, "方案比較　{n} 套": { en: "Plans: {n}", vi: "Phương án: {n}", th: "แผน: {n}" },
   "新手導覽": { en: "Guided tour", vi: "Hướng dẫn", th: "ไกด์" },
   "跳過導覽": { en: "Skip", vi: "Bỏ qua", th: "ข้าม" },
   "上一步": { en: "Back", vi: "Lùi", th: "ก่อนหน้า" },
@@ -315,6 +316,6 @@ export const UI_TEXT = {
   "每台電腦的畫面大小、顏色各自記住，不影響別人。": { en: "Scale and colors are remembered per computer and don't affect others.", vi: "Kích thước và màu màn hình được nhớ riêng cho từng máy, không ảnh hưởng người khác.", th: "ขนาดและสีของหน้าจอจะจำแยกตามเครื่อง ไม่กระทบผู้อื่น" },
 };
 
-export function tx(k) {
-  return SETTINGS_TEXT[I18N.lang]?.[k] || UI_TEXT[k]?.[I18N.lang] || SETTINGS_TEXT["zh-TW"][k] || k;
+export function tx(k, params) {
+  const s = SETTINGS_TEXT[I18N.lang]?.[k] || UI_TEXT[k]?.[I18N.lang] || SETTINGS_TEXT["zh-TW"][k] || k;  return params ? s.replace(/\{(\w+)\}/g, (m, n) => params[n] ?? m) : s;  // tx('鍵',{x:值})：佔位值由呼叫端自行跳脫
 }

@@ -13,12 +13,37 @@ jobs:
   fix:
     runs-on: ubuntu-latest
     steps:
+      - name: 以 supabase_auth_admin 角色模擬 GoTrue 登入查詢（找出出錯語句）
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          cat > /tmp/sim.sql <<'SQL'
+          begin;
+          set local role supabase_auth_admin;
+          \echo === 1) 使用者查詢 ===
+          select id from auth.users where email = :'email' and is_sso_user = false and is_anonymous = false;
+          \echo === 2) identity 查詢 ===
+          select i.id, i.provider from auth.identities i join auth.users u on u.id = i.user_id where u.email = :'email';
+          \echo === 3) 更新 last_sign_in_at ===
+          update auth.users set last_sign_in_at = now() where email = :'email';
+          \echo === 4) 建立 session ===
+          insert into auth.sessions (id, user_id, created_at, updated_at, not_after)
+          select gen_random_uuid(), id, now(), now(), now() + interval '1 hour' from auth.users where email = :'email' returning id;
+          \echo === 5) 建立 refresh token ===
+          insert into auth.refresh_tokens (user_id, session_id, created_at, updated_at, user_agent, ip)
+          select u.id, s.id, now(), now(), 'diag', '127.0.0.1' from auth.users u join auth.sessions s on s.user_id = u.id
+          where u.email = :'email' returning id;
+          rollback;
+          SQL
+          docker run --rm -e DATABASE_URL -e EMAIL="${{ inputs.email }}" \
+            -v /tmp/sim.sql:/sim.sql:ro postgres:17 \
+            sh -c 'psql "$DATABASE_URL" -v ON_ERROR_STOP=0 -v email="$EMAIL" -f /sim.sql'
       - name: 傾印 auth 結構描述（診斷用）
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           docker run --rm -e DATABASE_URL postgres:17 \
-            sh -c 'psql "$DATABASE_URL" -c "\d auth.users" -c "\d auth.identities" -c "select column_name from information_schema.columns where table_schema='"'"'auth'"'"' and table_name='"'"'sessions'"'"'"'
+            sh -c 'psql "$DATABASE_URL" -c "\d auth.refresh_tokens" -c "\d auth.sessions"'
       - name: 診斷與修復
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
