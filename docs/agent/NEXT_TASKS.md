@@ -20,12 +20,13 @@
 - [x] Solver pytest 已在 CI（tests.yml solver job，ubuntu + uv run --frozen pytest）— 原清單過時
 - [ ] 驗證 CP-SAT 模型在邊界案例的行為（空工單、單工單、全部逾期）
 - [ ] 效能基準（不同工單數量的解算時間）
+- 註：本機 uv 環境損壞（trampoline spawn 失敗），上述兩項只能在 CI 跑，暫緩
 
 ## Phase 4（效能）
 
 - [x] Bundle 分析（main 210K gz、three/excel lazy ✓）
 - [x] render() 500+ 方塊實測（→ 見 OVERNIGHT_PROGRESS 輪次 50）：空日 ~25ms、100 方塊 ~45ms、525 方塊 ~260ms，線性成長，可接受不需修
-- [ ] 檢查 localStorage 在本機模式大量資料下的限制
+- [x] localStorage 大量資料限制檢查（→ `3c44581`，main `5976fe0`）：寫入路徑全有 quota 防護＋友善錯誤；本次補讀取側（情境清單/單筆）對「儲存被停用、JSON 損毀」退回空值、歷史檔索引寫入失敗回滾不留孤兒；瀏覽器單 origin 約 5MB 上限、情境 20 筆上限、主資料單鍵整體覆寫（失敗不損舊值）
 
 ## 已確認安全（不需修復）
 

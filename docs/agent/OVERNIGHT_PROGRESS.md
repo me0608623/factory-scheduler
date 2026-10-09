@@ -2,15 +2,15 @@
 
 ## 執行狀態
 - **分支**: `agent/overnight-20261009`（全數合併 main）
-- **最新 main**: `375160e`
-- **main 總 commits**: 288
-- **總輪次**: 47
+- **最新 main**: `5976fe0`（輪次 51 代碼推送）
+- **main 總 commits**: 302（輪次 51 文件推送後）
+- **總輪次**: 51
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
-- 前端: **215/215** PASS
+- 前端: **223/223** PASS
 - DB: **206/206** PASS
-- 合計: **421**
+- 合計: **429**
 
 ## Bug 修復（10 項）
 1. **P1** XSS（line-notify）
@@ -52,3 +52,14 @@
   - 結論：可接受，不需修。真實工廠單日鮮少超過 100 方塊；手機 525 方塊估 2–3 倍（~0.5–0.8s）屬罕見極端
   - 測後已還原示範資料（localStorage 清除重建，demo:true）
 - NEXT_TASKS 修正：Solver pytest 其實已在 CI（tests.yml solver job）
+
+## 輪次 51（2026-10-09）— localStorage 限制檢查（Phase 4）
+
+- **檢查結論**：寫入路徑（sync/reportExecution/confirmExecution/saveScenario/saveLegacyArchive/updateProfile）原本就有 quota 防護與友善錯誤；主資料 `fsched-local-v1` 單鍵整體覆寫，寫入失敗時 localStorage 保留舊值不損資料。瀏覽器單 origin 約 5MB、情境上限 20 筆，本機示範規模下不易觸頂
+- **修補破口**（→ `3c44581`，main `5976fe0`）：
+  - `listScenarios`/`getScenario`/`saveScenario` 讀取側無防護 → 儲存被停用（SecurityError）或 JSON 損毀時退回空值不崩潰，損毀的情境鍵可在下次保存時恢復
+  - `saveLegacyArchive` 先寫資料再寫索引 → 索引寫入失敗時回滾刪除資料鍵，不留孤兒佔空間
+- 新增 `web/tests/local-storage.test.mjs` 5 測試（停用/損毀/quota/回滾/成功路徑）
+- 前端測試：**218 → 223** PASS
+- 附帶：上輪滯留 agent 分支的 2 個 docs commit（e60172a、c60bf16）已隨本輪 merge 進 main
+- Solver 邊界驗證維持暫緩：本機 uv 環境損壞（trampoline spawn 失敗），僅 CI 可跑
