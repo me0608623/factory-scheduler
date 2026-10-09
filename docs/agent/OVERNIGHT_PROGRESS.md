@@ -169,3 +169,11 @@
 - **新功能**：可收合側欄（78px↔244px、`fsched-nav-collapsed` 保存、收合後主內容 1507px@1600）
 - **驗證**：桌面 1600 / 平板 820 / 手機 390 全導覽項目定位正確、0 console 錯誤；256/256 測試、build 通過；生產站（部署後）實測 fixed x=1115 ✓
 - 新增 web/tests/layout-regression.test.mjs（7 條防回歸，含「防護規則不可含位移」的設計約束）
+
+## 輪次 62（2026-10-09）— 平行作業安全輪：worktree 隔離執行
+
+- **背景**：使用者活躍於 `fix/main-workspace` 分支（工作樹在該分支），本輪改用 git worktree（`Downloads/fs-agent-wt`）在隔離目錄 checkout agent 作業，全程不碰使用者工作樹；node_modules 以 junction 連結
+- **驗證**：worktree 內全套 **257/257** PASS（初次 9 檔失敗純因 worktree 缺 node_modules，非程式問題；pglite 已正確宣告於 web/package.json devDependencies）
+- **攜帶**：使用者未推的 `55304a5`（輪次 51 主工作區版面修復紀錄 docs）隨本輪以 `push agent:main` 快轉上 main
+- 生產站健康：web 200 ✓ solver /health 200 ✓（唯讀 GET）
+- 修正輪次 61 標頭 commit 計數（357→356）
