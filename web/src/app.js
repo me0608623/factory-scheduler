@@ -734,9 +734,9 @@ function cardsHTML(){
   const orows=ords.slice(0,4).map(orderRow).join("");
   const lrows=S.log.slice(0,3).map(logRow).join("")||'<div class="empty">還沒有紀錄</div>';
   return '<section class="cards" aria-label="'+tx('總覽')+'">'+
-  '<div class="card"><div class="card-h"><h2>員工</h2><span class="count">'+employees.length+' 人'+(onLeave.length?" · 今天 "+onLeave.length+" 人請假":"")+'</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="emp-new">＋新增</button>':"")+'</div>'+staffGroupFilterHTML()+'<div class="chips">'+(emps||'<div class="hint">此廠在此分組沒有員工；可切換廠別或選擇全部分組。</div>')+'</div></div>'+
-  '<div class="card"><div class="card-h"><h2>'+tx('設備／工位')+'</h2><span class="count">'+(machines.some(m=>m.catalogGroup)?new Set(machines.map(m=>m.catalogGroup||m.id)).size+' 組 · '+machines.length+' 個位置':machines.length+(S.setupPending?' 個待確認欄位':' 項'))+'</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="mach-new">＋新增</button>':"")+'</div><div class="hint">要設定做什麼工作，請按「更多功能」→「設定工作內容」；純人工不需要假機台。</div><div class="chips">'+machs+'</div></div>'+
-  '<div class="card"><div class="card-h"><h2>'+tx('工單')+'</h2><span class="count">'+orders.length+' 張</span>'+(canOrders()?'<button class="add" data-act="ord-new">＋新增</button>':"")+'</div><div class="olist">'+orows+'</div>'+
+  '<div class="card"><div class="card-h"><h2>員工</h2><span class="count">'+employees.length+' 人'+(onLeave.length?" · 今天 "+onLeave.length+" 人請假":"")+'</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="emp-new">'+tx('＋新增')+'</button>':"")+'</div>'+staffGroupFilterHTML()+'<div class="chips">'+(emps||'<div class="hint">此廠在此分組沒有員工；可切換廠別或選擇全部分組。</div>')+'</div></div>'+
+  '<div class="card"><div class="card-h"><h2>'+tx('設備／工位')+'</h2><span class="count">'+(machines.some(m=>m.catalogGroup)?new Set(machines.map(m=>m.catalogGroup||m.id)).size+' 組 · '+machines.length+' 個位置':machines.length+(S.setupPending?' 個待確認欄位':' 項'))+'</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="mach-new">'+tx('＋新增')+'</button>':"")+'</div><div class="hint">要設定做什麼工作，請按「更多功能」→「設定工作內容」；純人工不需要假機台。</div><div class="chips">'+machs+'</div></div>'+
+  '<div class="card"><div class="card-h"><h2>'+tx('工單')+'</h2><span class="count">'+orders.length+' 張</span>'+(canOrders()?'<button class="add" data-act="ord-new">'+tx('＋新增')+'</button>':"")+'</div><div class="olist">'+orows+'</div>'+
     '<div style="display:flex;gap:16px"><button class="more" data-act="orders">全部工單</button><button class="more" data-act="products">產品工序</button></div></div>'+
   '<div class="card"><div class="card-h"><h2>全廠紀錄</h2><span class="count">系統怎麼調整</span></div><div class="llist">'+lrows+'</div><button class="more" data-act="log">全部紀錄</button></div>'+
   '</section>';
@@ -761,7 +761,7 @@ function ordersDrawerHTML(){
   }).join('');
   return '<div class="drawer-metrics"><div><b>'+summary.unfinished+'</b><span>未完成</span></div><div class="bad"><b>'+summary.late+'</b><span>會晚</span></div><div class="warn"><b>'+summary.dueToday+'</b><span>今日要交</span></div></div>'+
     '<div class="traffic-legend"><span><i class="green"></i>準時</span><span><i class="yellow"></i>注意</span><span><i class="red"></i>會晚</span><span><i class="gray"></i>資料不足</span></div>'+
-    '<div class="drawer-list">'+(rows||'<div class="drawer-empty">目前沒有工單</div>')+'</div>'+(canOrders()?'<button class="drawer-primary" data-act="ord-new">＋新增工單</button>':'');
+    '<div class="drawer-list">'+(rows||'<div class="drawer-empty">目前沒有工單</div>')+'</div>'+(canOrders()?'<button class="drawer-primary" data-act="ord-new">'+tx('＋新增工單')+'</button>':'');
 }
 
 function monthDates(ds){
@@ -792,7 +792,7 @@ function outputDrawerHTML(){
 function memoLabel(m){const E=emp(m.employeeId),M=mach(m.machineId);return [m.author||STORE.userName||'未署名',M&&M.label,E&&E.name].filter(Boolean).join('・');}
 function notesDrawerHTML(){
   const memos=visibleMemos(S,factoryOf,UI.factory);
-  return '<div class="memo-grid">'+memos.map(m=>'<article class="memo-card'+(m.pinned?' pinned':'')+'" data-act="focus-memo" data-id="'+m.id+'"><button class="memo-pin" data-act="memo-pin" data-id="'+m.id+'" aria-label="'+(m.pinned?'取消釘選':'釘選')+'">'+(m.pinned?'●':'○')+'</button><b>'+esc(memoLabel(m))+'</b><p>'+esc(m.text)+'</p><small>'+esc((m.createdAt||'').slice(0,16).replace('T',' '))+'</small></article>').join('')+'</div>'+(!memos.length?'<div class="drawer-empty">目前沒有備忘</div>':'')+(canPermission('notes.manage')?'<button class="drawer-primary" data-act="memo-new">＋新增備忘</button>':'');
+  return '<div class="memo-grid">'+memos.map(m=>'<article class="memo-card'+(m.pinned?' pinned':'')+'" data-act="focus-memo" data-id="'+m.id+'"><button class="memo-pin" data-act="memo-pin" data-id="'+m.id+'" aria-label="'+(m.pinned?'取消釘選':'釘選')+'">'+(m.pinned?'●':'○')+'</button><b>'+esc(memoLabel(m))+'</b><p>'+esc(m.text)+'</p><small>'+esc((m.createdAt||'').slice(0,16).replace('T',' '))+'</small></article>').join('')+'</div>'+(!memos.length?'<div class="drawer-empty">目前沒有備忘</div>':'')+(canPermission('notes.manage')?'<button class="drawer-primary" data-act="memo-new">'+tx('＋新增備忘')+'</button>':'');
 }
 
 function settingChoices(key,items){
@@ -1663,7 +1663,7 @@ const MODALS={
       .filter(x=>x.remaining>0&&(UI.factory==="all"||factoryOf(x.st)===UI.factory));
   });
   if(!choices.length)return {title:tx('手動排班'),body:'<div class="hint">目前沒有可新增的工作：此廠工序已排滿，或尚未建立工單。可先新增工單，再回來安排人員與時段。</div>',
-    foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button><button class="btn primary" data-act="ord-new">＋新增工單</button>'};
+    foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button><button class="btn primary" data-act="ord-new">'+tx('＋新增工單')+'</button>'};
   if(!m.draft){const start=UI.date===todayStr()?Math.max(DAY0,Math.ceil(nowMin()/10)*10):DAY0;
     m.draft={choice:m.choice||choices[0].o.id+":"+choices[0].step,machine:"",employee:"",s:Math.min(start,DAY1-10),e:Math.min(DAY1,Math.min(start,DAY1-10)+60)};}
   const D=m.draft,chosen=choices.find(x=>x.o.id+":"+x.step===D.choice)||choices[0];
@@ -1808,7 +1808,7 @@ ord(m){
 orders(){
   const rows=[...shownOrders()].sort((a,b)=>a.due.localeCompare(b.due)||a.pri-b.pri).map(orderRow).join("")||'<div class="empty">此廠沒有工單</div>';
   return {title:tx('全部工單'),body:'<div class="olist">'+rows+'</div>',
-    foot:(S.demo&&canMaster()&&!readOnly?'<button class="btn danger" data-act="clear-demo">清除示範工單</button><div class="spacer"></div>':'')+(canOrders()?'<button class="btn primary" data-act="ord-new">＋新增工單</button>':"")};
+    foot:(S.demo&&canMaster()&&!readOnly?'<button class="btn danger" data-act="clear-demo">清除示範工單</button><div class="spacer"></div>':'')+(canOrders()?'<button class="btn primary" data-act="ord-new">'+tx('＋新增工單')+'</button>':"")};
 },
 /* ---------- 產品工序（標準公式） ---------- */
 products(m){
