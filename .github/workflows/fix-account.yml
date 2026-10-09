@@ -13,27 +13,32 @@ jobs:
   fix:
     runs-on: ubuntu-latest
     steps:
-      - name: 以 supabase_auth_admin 角色模擬 GoTrue 登入查詢（找出出錯語句）
+      - name: 登入痕跡與既有使用者比對（找出 500 根因）
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           cat > /tmp/sim.sql <<'SQL'
-          begin;
-          set local role supabase_auth_admin;
-          \echo === 1) 使用者查詢 ===
-          select id from auth.users where email = :'email' and is_sso_user = false and is_anonymous = false;
-          \echo === 2) identity 查詢 ===
-          select i.id, i.provider from auth.identities i join auth.users u on u.id = i.user_id where u.email = :'email';
-          \echo === 3) 更新 last_sign_in_at ===
-          update auth.users set last_sign_in_at = now() where email = :'email';
-          \echo === 4) 建立 session ===
-          insert into auth.sessions (id, user_id, created_at, updated_at, not_after)
-          select gen_random_uuid(), id, now(), now(), now() + interval '1 hour' from auth.users where email = :'email' returning id;
-          \echo === 5) 建立 refresh token ===
-          insert into auth.refresh_tokens (user_id, session_id, created_at, updated_at, user_agent, ip)
-          select u.id, s.id, now(), now(), 'diag', '127.0.0.1' from auth.users u join auth.sessions s on s.user_id = u.id
-          where u.email = :'email' returning id;
-          rollback;
+          \echo === A) 全部使用者數 ===
+          select count(*) as total_users from auth.users;
+          \echo === B) 我們帳號的登入痕跡（last_sign_in_at 有無被 GoTrue 更新） ===
+          select coalesce(last_sign_in_at::text, 'NULL') as last_sign_in_at,
+                 (select count(*) from auth.sessions s where s.user_id = u.id) as sessions,
+                 (select count(*) from auth.refresh_tokens r where r.user_id = u.id) as refresh_tokens
+          from auth.users u where email = :'email';
+          \echo === C) NULL 欄位比對（我們 vs 其他第一位使用者） ===
+          with ours as (select to_jsonb(u) j from auth.users u where email = :'email'),
+               other as (select to_jsonb(u) j from auth.users u where email <> :'email' order by created_at limit 1)
+          select coalesce(
+            (select string_agg(key || ': our=' || (ours.j->>key is null) || ' other=' || (other.j->>key is null), ', ')
+             from ours, other, jsonb_object_keys(ours.j) key
+             where (ours.j->>key is null) is distinct from (other.j->>key is null)),
+            'no-other-user-or-no-diff');
+          \echo === D) identity 形狀比對（email 值遮罩） ===
+          select 'OURS:   provider=' || i.provider || ' provider_id_len=' || length(i.provider_id) || ' data=' || (i.identity_data - 'email')::text
+          from auth.identities i join auth.users u on u.id = i.user_id where u.email = :'email'
+          union all
+          select 'OTHER:  provider=' || i.provider || ' provider_id_len=' || length(i.provider_id) || ' data=' || (i.identity_data - 'email')::text
+          from auth.identities i join auth.users u on u.id = i.user_id where u.email <> :'email' order by 1 limit 2;
           SQL
           docker run --rm -e DATABASE_URL -e EMAIL="${{ inputs.email }}" \
             -v /tmp/sim.sql:/sim.sql:ro postgres:17 \
