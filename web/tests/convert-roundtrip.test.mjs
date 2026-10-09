@@ -63,3 +63,12 @@ test('fromSnapshot：null execution 安全降級', () => {
   const back = fromSnapshot(snap);
   assert.deepEqual(back.execution, []);
 });
+
+test('fromSnapshot：null／undefined 輸入不丟例外', () => {
+  const a = fromSnapshot(null);
+  assert.ok(a, 'null 輸入回傳可用狀態');
+  const b = fromSnapshot(undefined);
+  assert.ok(b, 'undefined 輸入回傳可用狀態');
+  assert.deepEqual(a.execution, []);
+  assert.deepEqual(b.execution, []);
+});

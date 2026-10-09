@@ -63,6 +63,7 @@ export function toSnapshot(S, holidays = {}) {
 
 // ---------- 資料庫快照（schedule_snapshot()）→ 畫面 ----------
 export function fromSnapshot(snap) {
+  if (!snap) return fromSnapshot({});
   const c = snap.calendar || {};
   const over = {};
   for (const [d, open] of Object.entries(c.overrides || {})) over[d] = open ? "work" : "off";
