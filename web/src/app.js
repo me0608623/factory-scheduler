@@ -3429,8 +3429,8 @@ function tableFormModal(m){
       return '<div class="field"><label for="'+id+'">'+label+(req?" *":"")+'</label><input class="inp" id="'+id+'" data-fk="'+key+'" type="'+t+'" value="'+esc(val)+'"'+(m.ro?' disabled':'')+'></div>';
     }).join("");
   const foot=m.ro?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':'<button class="btn" data-act="close">'+tx('取消')+'</button>'+
-    (!isNew?'<button class="btn danger" data-act="tbl-del" data-table="'+table+'" data-id="'+esc(m.id||"")+'">'+(m.confirmDel?"再按一次刪除":"刪除")+'</button>':'')+
-    '<div class="spacer"></div><button class="btn primary" data-act="tbl-save" data-table="'+table+'"'+(m.saving?" disabled":"")+'>'+(m.saving?"儲存中…":"儲存")+'</button>';
+    (!isNew?'<button class="btn danger" data-act="tbl-del" data-table="'+table+'" data-id="'+esc(m.id||"")+'">'+(m.confirmDel?"再按一次刪除":tx("刪除"))+'</button>':'')+
+    '<div class="spacer"></div><button class="btn primary" data-act="tbl-save" data-table="'+table+'"'+(m.saving?" disabled":"")+'>'+(m.saving?"儲存中…":tx("儲存"))+'</button>';
   return {title:(isNew?"新增":"編輯")+" — "+TABLE_TITLES[table],body,foot};
 }
 MODALS['tbl-form']=tableFormModal;
