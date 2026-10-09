@@ -810,7 +810,7 @@ function cardsHTML(searchable=false){
   const orows=ords.slice(0,4).map(orderRow).join("");
   const lrows=S.log.slice(0,3).map(logRow).join("")||'<div class="empty">'+tx('還沒有紀錄')+'</div>';
   return '<section class="cards" aria-label="'+tx('總覽')+'">'+
-  '<div class="card"><div class="card-h"><h2>員工</h2><span class="count">'+filtered.length+' 人'+(q?"（搜尋自 "+employees.length+"）":onLeave.length?" · 今天 "+onLeave.length+" 人請假":"")+'</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="emp-new">'+tx('＋新增')+'</button>':"")+'</div>'+staffGroupFilterHTML()+(searchable?'<div class="field" style="margin:8px 0"><input class="inp" id="emp-search" type="search" placeholder="'+tx('搜尋姓名或代號')+'" value="'+esc(UI.empQuery||"")+'" autocomplete="off"></div>':'')+'<div class="chips" id="emp-chips">'+(emps||'<div class="hint">'+tx('此廠在此分組沒有員工；可切換廠別或選擇全部分組。')+'</div>')+'</div></div>'+
+  '<div class="card"><div class="card-h"><h2>'+tx('員工')+'</h2><span class="count">'+filtered.length+' 人'+(q?"（搜尋自 "+employees.length+"）":onLeave.length?" · 今天 "+onLeave.length+" 人請假":"")+'</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="emp-new">'+tx('＋新增')+'</button>':"")+'</div>'+staffGroupFilterHTML()+(searchable?'<div class="field" style="margin:8px 0"><input class="inp" id="emp-search" type="search" placeholder="'+tx('搜尋姓名或代號')+'" value="'+esc(UI.empQuery||"")+'" autocomplete="off"></div>':'')+'<div class="chips" id="emp-chips">'+(emps||'<div class="hint">'+tx('此廠在此分組沒有員工；可切換廠別或選擇全部分組。')+'</div>')+'</div></div>'+
   '<div class="card"><div class="card-h"><h2>'+tx('設備／工位')+'</h2><span class="count">'+(machines.some(m=>m.catalogGroup)?new Set(machines.map(m=>m.catalogGroup||m.id)).size+' 組 · '+machines.length+' 個位置':machines.length+(S.setupPending?' 個待確認欄位':' 項'))+'</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="mach-new">'+tx('＋新增')+'</button>':"")+'</div><div class="hint">'+tx('要設定做什麼工作，請按「更多功能」→「設定工作內容」；純人工不需要假機台。')+'</div><div class="chips">'+machs+'</div></div>'+
   '<div class="card"><div class="card-h"><h2>'+tx('工單')+'</h2><span class="count">'+orders.length+' 張</span>'+(canOrders()?'<button class="add" data-act="ord-new">'+tx('＋新增')+'</button>':"")+'</div><div class="olist">'+orows+'</div>'+
     '<div style="display:flex;gap:16px"><button class="more" data-act="orders">'+tx('全部工單')+'</button><button class="more" data-act="products">'+tx('產品工序')+'</button></div></div>'+
@@ -997,7 +997,7 @@ function blkHTML(b,px,bad,cls=""){
   const matched=!UI.focus||UI.focus.type==='order'&&b.oid===UI.focus.id||UI.focus.type==='employee'&&b.emp===UI.focus.id||UI.focus.type==='machine'&&b.m===UI.focus.id;
   return '<div class="blk'+(short?" short":"")+(bad?" bad":"")+(readOnly?" ro":"")+(cls?" "+cls:"")+(UI.focus?(matched?' ops-focus':' ops-dim'):'')+(recentManualMove===b.id?' just-applied':'')+'" data-bid="'+b.id+'" tabindex="0" role="button" aria-label="'+esc((E?E.name:"")+" "+label(b)+" "+hm(b.s)+"–"+hm(b.e))+'" title="'+esc(hm(b.s)+"–"+hm(b.e))+'" style="top:'+(px(b.s)+1)+'px;height:'+(h-2)+'px;background:'+empColor(b.emp)+'">'+
     '<div class="n">'+esc(E?E.name:"未指定")+'</div><div class="d">'+esc(o.code+" "+stepName(b)+" "+b.qty+"件")+'</div>'+(h>=58?'<div class="d num">'+hm(b.s)+"–"+hm(b.e)+'</div>':"")+
-    '<div class="flag">'+(cls==="chg"?'<span class="chgf">'+tx('變')+'</span>':cls==="willchg"?'<span class="chgf">'+tx('會動')+'</span>':"")+(o.pri===0?'<span class="warn" title="'+tx('特急')+'">'+tx('急')+'</span>':"")+(executionOf(S,b.id)?'<span class="pin" title="'+tx('已有現場回報，排程已鎖定')+'">'+(executionOf(S,b.id).status==='done'?'完':'做')+'</span>':b.pin?'<span class="pin" title="'+tx('手動固定')+'">釘</span>':"")+(bad?'<span class="warn" title="'+tx('有問題')+'">!</span>':"")+'</div>'+((readOnly||executionOf(S,b.id))?'':'<div class="resize-handle" data-resize="end" title="'+tx('拖曳調整結束時間')+'" aria-hidden="true"></div>')+'</div>';
+    '<div class="flag">'+(cls==="chg"?'<span class="chgf">'+tx('變')+'</span>':cls==="willchg"?'<span class="chgf">'+tx('會動')+'</span>':"")+(o.pri===0?'<span class="warn" title="'+tx('特急')+'">'+tx('急')+'</span>':"")+(executionOf(S,b.id)?'<span class="pin" title="'+tx('已有現場回報，排程已鎖定')+'">'+(executionOf(S,b.id).status==='done'?'完':'做')+'</span>':b.pin?'<span class="pin" title="'+tx('手動固定')+'">'+tx('釘')+'</span>':"")+(bad?'<span class="warn" title="'+tx('有問題')+'">!</span>':"")+'</div>'+((readOnly||executionOf(S,b.id))?'':'<div class="resize-handle" data-resize="end" title="'+tx('拖曳調整結束時間')+'" aria-hidden="true"></div>')+'</div>';
 }
 
 /* ----- 週檢視 ----- */
@@ -1759,7 +1759,7 @@ const MODALS={
     '<div class="hint">先選工單工序、機台與員工，再指定時段。新增後會先顯示預覽；若撞到其他工作，會建議順延，確認前不改排程。</div>'+
     '<div class="field"><label for="manual-choice">'+tx('要做的工作')+'</label><select class="inp" id="manual-choice">'+choices.map(x=>'<option value="'+esc(x.o.id+":"+x.step)+'"'+(x===chosen?' selected':'')+'>'+esc(x.o.code+' · '+factoryName(x.st.factory)+' '+x.st.proc+' · 剩餘 '+x.remaining+' 件')+'</option>').join('')+'</select></div>'+
     '<div class="row2"><div class="field"><label for="manual-machine">'+tx('機台')+'</label><select class="inp" id="manual-machine">'+machines.map(x=>'<option value="'+esc(x.id)+'"'+(x.id===D.machine?' selected':'')+'>'+esc(x.id+' '+x.label)+'</option>').join('')+'</select></div>'+
-    '<div class="field"><label for="manual-employee">員工</label><select class="inp" id="manual-employee">'+employees.map(x=>'<option value="'+esc(x.id)+'"'+(x.id===D.employee?' selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select></div></div>'+
+    '<div class="field"><label for="manual-employee">'+tx('員工')+'</label><select class="inp" id="manual-employee">'+employees.map(x=>'<option value="'+esc(x.id)+'"'+(x.id===D.employee?' selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select></div></div>'+
     '<div class="row2"><div class="field"><label for="manual-start">'+tx('開始')+'</label><select class="inp num" id="manual-start">'+times(D.s,DAY0,DAY1-10)+'</select></div>'+
     '<div class="field"><label for="manual-end">'+tx('結束')+'</label><select class="inp num" id="manual-end">'+times(D.e,DAY0+10,DAY1)+'</select></div></div>'+
     '<div class="pv-sum">'+hm(D.s)+'–'+hm(D.e)+'（'+(D.e-D.s)+' 分） · 依工序速率預計 '+qty+' 件；此站尚待排 '+chosen.remaining+' 件。'+(!isFinite(ready)?'前站尚未排完，暫時不能開始本站。':'')+'</div>'+
@@ -2830,7 +2830,7 @@ async function copyText(t){
   try{await navigator.clipboard.writeText(t);toast("已複製，到試算表 A1 貼上即可");}
   catch(e){openModal({t:"copybox",text:t});}
 }
-MODALS.copybox=m=>({title:tx('請手動複製'),body:'<textarea id="cbx" class="inp" style="height:240px;font-size:14px;font-family:var(--mono)" readonly>'+esc(m.text)+'</textarea><div class="hint">已全選，按 Ctrl+C（手機長按）複製。</div>'});
+MODALS.copybox=m=>({title:tx('請手動複製'),body:'<textarea id="cbx" class="inp" style="height:240px;font-size:14px;font-family:var(--mono)" readonly>'+esc(m.text)+'</textarea><div class="hint">'+tx('已全選，按 Ctrl+C（手機長按）複製。')+'</div>'});
 async function downloadCSV(){
   const csv="﻿"+allRows().map(r=>r.map(v=>{v=String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}).join(",")).join("\r\n");
   saveFile("排程明細_"+todayStr()+".csv",new Blob([csv],{type:"text/csv;charset=utf-8"}));
@@ -3066,7 +3066,7 @@ MODALS['person-month']=m=>{
     '<div class="hint">對象月份：'+UI.date.slice(0,7).replace('-',' 年 ')+' 月。勾「休假」的星期，整月都會設為休假；沒勾的代表上班（會取消那幾天已有的休假）。</div>'+
     '<div class="field"><span class="lab">'+tx('這個月哪些星期休假')+'</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("pm-week",w,m.off.has(w),"週"+WD[w])).join("")+'</div></div>'+
     (days.length?'<div class="hint">只會改 '+(days.length?md(days[0])+' ～ '+md(days[days.length-1]):'')+'（今天起，過去的紀錄不動）。當天已排工作的日期會先跳過，請到月曆點該日期逐一處理。</div>':'<div class="issue">'+tx('這個月今天之後沒有日期可設定。')+'</div>'),
-    foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="pm-save">套用到這個月</button>'};
+    foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="pm-save">'+tx('套用到這個月')+'</button>'};
 };
 Object.assign(MODAL_ACT,{
   "pd-set":a=>{UI.modal.leave=a.dataset.v==="leave";rerender();},
@@ -3214,20 +3214,20 @@ function shortagePageHTML(){
   const backedN=allRush.filter(r=>!shortageRowFlags(r).f2Empty).length;
   const lateN=allRush.filter(r=>shortageRowFlags(r).late).length;
   const head='<div class="statstrip">'+
-    '<div class="stat"><b>'+allRush.length+'</b><span>還缺幾筆</span></div>'+
-    '<div class="stat ok"><b>'+backedN+'</b><span>二廠已回幾筆</span></div>'+
-    '<div class="stat bad"><b>'+lateN+'</b><span>會晚幾筆</span></div></div>';
+    '<div class="stat"><b>'+allRush.length+'</b><span>'+tx('還缺幾筆')+'</span></div>'+
+    '<div class="stat ok"><b>'+backedN+'</b><span>'+tx('二廠已回幾筆')+'</span></div>'+
+    '<div class="stat bad"><b>'+lateN+'</b><span>'+tx('會晚幾筆')+'</span></div></div>';
   const today=todayStr();
   const eligible=(S.rushOrders||[]).filter(r=>!r.archived&&!shortageRowFlags(r).f2Empty&&r.f1?.shipDate&&r.f1.shipDate<today).length;
   const bar='<div class="archive-bar">'+
     (ro?"":'<button class="btn" data-act="rush-archive"'+(eligible?'':' disabled')+'>歸檔已補上'+(eligible?'（'+eligible+' 筆）':'')+'</button>')+
     '<label class="tf-toggle"><input type="checkbox" data-act-change="rush-showarchived"'+(showArch?" checked":"")+'"> 顯示已歸檔</label>'+
     ((S.rushOrders||[]).some(r=>r.archived)?'<span class="archived-n">已歸檔 '+(S.rushOrders||[]).filter(r=>r.archived).length+' 筆</span>':"")+
-    '<span class="hint">右欄已補且出貨日已過才可歸檔；歸檔不刪除。</span></div>';
+    '<span class="hint">'+tx('右欄已補且出貨日已過才可歸檔；歸檔不刪除。')+'</span></div>';
   const table='<div class="sheettable"><table><thead>'+
-    '<tr><th class="rowact"></th><th class="h-f1" colspan="5">一廠</th><th class="h-f2" colspan="6">二廠</th></tr>'+
-    '<tr><th class="rowact"></th><th class="h-f1">出貨日期</th><th class="h-f1">廠商</th><th class="h-f1">品號</th><th class="h-f1">欠貨數量</th><th class="h-f1">備註</th>'+
-    '<th class="h-f2">開工</th><th class="h-f2">預計完成</th><th class="h-f2">品號／製程</th><th class="h-f2">描述</th><th class="h-f2">數量</th><th class="h-f2">備註</th></tr></thead><tbody>'+
+    '<tr><th class="rowact"></th><th class="h-f1" colspan="5">'+tx('一廠')+'</th><th class="h-f2" colspan="6">'+tx('二廠')+'</th></tr>'+
+    '<tr><th class="rowact"></th><th class="h-f1">'+tx('出貨日期')+'</th><th class="h-f1">'+tx('廠商')+'</th><th class="h-f1">'+tx('品號')+'</th><th class="h-f1">'+tx('欠貨數量')+'</th><th class="h-f1">'+tx('備註')+'</th>'+
+    '<th class="h-f2">'+tx('開工')+'</th><th class="h-f2">'+tx('預計完成')+'</th><th class="h-f2">'+tx('品號／製程')+'</th><th class="h-f2">'+tx('描述')+'</th><th class="h-f2">'+tx('數量')+'</th><th class="h-f2">'+tx('備註')+'</th></tr></thead><tbody>'+
     (rows.map(r=>{
       const f=shortageRowFlags(r);
       const cell=(k,t)=>'<td class="'+(k.startsWith("f1.")?"c-f1":(f.f2Empty?"c-f2-empty":"c-f2"))+'">'+editCellHTML("rush",r.id,k,t,getPath(r,k),ro)+'</td>';
@@ -3236,16 +3236,16 @@ function shortagePageHTML(){
       return '<tr data-rowid="'+esc(r.id)+'" data-act="row-edit" data-table="rush" data-id="'+esc(r.id)+'" class="'+(r.archived?"archived":"")+'">'+
         '<td class="rowact">'+(r.archived
           ?(ro?"":'<button class="rowdel restore" data-act="rush-unarchive" data-id="'+esc(r.id)+'">還原</button>')
-          :(ro?"":(UI.confirmRow==="del:"+r.id?'<button class="btn danger" data-act="rush-del" data-id="'+esc(r.id)+'">再按一次刪除</button>':'<button class="rowdel" data-act="rush-del" data-id="'+esc(r.id)+'">'+tx('刪除')+'</button>')))+'</td>'+
+          :(ro?"":(UI.confirmRow==="del:"+r.id?'<button class="btn danger" data-act="rush-del" data-id="'+esc(r.id)+'">'+tx('再按一次刪除')+'</button>':'<button class="rowdel" data-act="rush-del" data-id="'+esc(r.id)+'">'+tx('刪除')+'</button>')))+'</td>'+
         '<td class="c-f1">'+dateTxt(r.f1?.shipDate)+editCellHTML("rush",r.id,"f1.shipDate","date",r.f1?.shipDate,ro)+'</td>'+
         cell("f1.vendor","text")+
         '<td class="c-f1">'+(item?''+esc(item)+'':'<span class="mute">—</span>')+'</td>'+
         cell("f1.shortQty","number")+cell("f1.note","text")+
         '<td class="'+(f.f2Empty?"c-f2-empty":"c-f2")+'">'+dateTxt(r.f2?.startDate)+editCellHTML("rush",r.id,"f2.startDate","date",r.f2?.startDate,ro)+(f.f2Empty?'<span class="pending-tag">'+tx('未排')+'</span>':'')+'</td>'+
-        '<td class="'+(f.f2Empty?"c-f2-empty":"c-f2")+'">'+dateTxt(r.f2?.dueDate)+editCellHTML("rush",r.id,"f2.dueDate","date",r.f2?.dueDate,ro)+(f.late?'<span class="late-txt">晚</span>':'')+'</td>'+
+        '<td class="'+(f.f2Empty?"c-f2-empty":"c-f2")+'">'+dateTxt(r.f2?.dueDate)+editCellHTML("rush",r.id,"f2.dueDate","date",r.f2?.dueDate,ro)+(f.late?'<span class="late-txt">'+tx('晚')+'</span>':'')+'</td>'+
         cell("f2.itemProcess","text")+cell("f2.desc","text")+cell("f2.qty","number")+cell("f2.note","text")+
         '</tr>';
-    }).join("")||'<tr><td colspan="12"><div class="empty">還沒有資料，按「＋加一列」開始記</div></td></tr>')+
+    }).join("")||'<tr><td colspan="12"><div class="empty">'+tx('還沒有資料，按「＋加一列」開始記')+'</div></td></tr>')+
     '</tbody></table></div>';
   return pageShell("欠缺品項","左邊一廠欠貨，右邊二廠何時補。同一列同一張單。",head+bar+table,ro,"rush-addrow");
 }
@@ -3272,9 +3272,9 @@ function transferFlowPageHTML(){
     '<label class="tf-toggle"><input type="checkbox" data-act-change="tf-showarchived"'+(showArch?" checked":"")+'"> 顯示已歸檔</label>'+
     (archN?'<span class="archived-n">已歸檔 '+archN+' 筆</span>':"")+
     (UI.tfArchivedNote?'<span class="archived-n">'+esc(UI.tfArchivedNote)+'</span>':"")+
-    '<span class="hint">完成只認「已回一廠」已勾；每月一日自動歸檔逾期已完成。</span></div>';
+    '<span class="hint">'+tx('完成只認「已回一廠」已勾；每月一日自動歸檔逾期已完成。')+'</span></div>';
   const table='<div class="sheettable"><table><thead><tr>'+
-    '<th class="rowact"></th><th>通知日期</th><th>加工編號</th><th>加工序</th><th>全部可給數</th><th>可給二廠時間</th><th>急用</th><th>要求回一廠時間</th><th>現在貨在1樓</th><th>現在貨在3樓</th><th>已回一廠</th><th>備註</th></tr></thead><tbody>'+
+    '<th class="rowact"></th><th>'+tx('通知日期')+'</th><th>'+tx('加工編號')+'</th><th>加工序</th><th>全部可給數</th><th>可給二廠時間</th><th>急用</th><th>要求回一廠時間</th><th>現在貨在1樓</th><th>現在貨在3樓</th><th>已回一廠</th><th>'+tx('備註')+'</th></tr></thead><tbody>'+
     (list.map(o=>{
       const urgent=(o.urgentQty||0)>0||!!o.urgentDue;
       const cell=(k,ty,cls="")=>'<td class="'+cls+'">'+editCellHTML("tf",o.id,k,ty,getPath(o,k),ro)+'</td>';
@@ -3284,7 +3284,7 @@ function transferFlowPageHTML(){
           ?(ro?"":'<button class="rowdel restore" data-act="tf-unarchive" data-id="'+esc(o.id)+'">還原</button>')
           :(o.status==="cancelled"
             ?(ro?"":'<button class="rowdel restore" data-act="tf-restore" data-id="'+esc(o.id)+'">還原</button>')
-            :(ro?"":(UI.confirmRow==="tfdel:"+o.id?'<button class="btn danger" data-act="tf-del" data-id="'+esc(o.id)+'">再按一次刪除</button>':'<button class="rowdel" data-act="tf-del" data-id="'+esc(o.id)+'">'+tx('刪除')+'</button>'))))+'</td>'+
+            :(ro?"":(UI.confirmRow==="tfdel:"+o.id?'<button class="btn danger" data-act="tf-del" data-id="'+esc(o.id)+'">'+tx('再按一次刪除')+'</button>':'<button class="rowdel" data-act="tf-del" data-id="'+esc(o.id)+'">'+tx('刪除')+'</button>'))))+'</td>'+
         '<td>'+editCellHTML("tf",o.id,"notified","date",o.notified,ro)+pend("notified")+(o.status==="cancelled"?'<span class="pending-tag">'+tx('已取消')+'</span>':"")+'</td>'+
         '<td>'+esc(o.code)+'</td>'+
         cell("seq","number")+cell("totalQty","number")+
@@ -3295,7 +3295,7 @@ function transferFlowPageHTML(){
         '<td class="chk"><input type="checkbox" data-act-change="tf-returned" data-id="'+esc(o.id)+'"'+(o.returned?" checked":"")+(ro?" disabled":"")+' aria-label="'+tx('已回一廠')+'"></td>'+
         cell("note","text")+
         '</tr>';
-    }).join("")||'<tr><td colspan="12"><div class="empty">還沒有資料，按「＋加一列」開始記</div></td></tr>')+
+    }).join("")||'<tr><td colspan="12"><div class="empty">'+tx('還沒有資料，按「＋加一列」開始記')+'</div></td></tr>')+
     '</tbody></table></div>';
   return pageShell("給二廠／回一廠","料送二廠加工，何時要回一廠。與欠缺品項分開。",bar+table,ro,"tf-addrow");
 }
@@ -3350,7 +3350,7 @@ function printDaySchedule(){
   '</style></head><body>'+
   '<h1>'+title+' 日班表</h1>'+
   '<div class="sub">'+d+'（'+WD[parseD(d).getUTCDay()]+'） · '+(dayInfo(d).open?'上班日':'停工日')+(dayInfo(d).ot?' · 加班到 '+hm(otEnd):'')+'</div>'+
-  '<table><thead><tr><th style="width:14%">機台／工位</th><th style="width:10%">員工</th><th style="width:12%">時間</th><th style="width:20%">工單／工作</th><th style="width:8%">件數</th><th style="width:12%">備註</th></tr></thead><tbody>'+
+  '<table><thead><tr><th style="width:14%">機台／工位</th><th style="width:10%">'+tx('員工')+'</th><th style="width:12%">時間</th><th style="width:20%">工單／工作</th><th style="width:8%">件數</th><th style="width:12%">'+tx('備註')+'</th></tr></thead><tbody>'+
   rows+'</tbody></table>'+leaveHtml+setupNote+
   '<div class="footer">列印時間：'+new Date().toLocaleString('zh-TW')+' · 產線排程系統</div>'+
   '<scr'+'ipt>window.print()</scr'+'ipt></body></html>';
@@ -3635,7 +3635,7 @@ function workLogPageHTML(){
   const all=[...(S.workLog||[])].sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
   const rows=filter?all.filter(r=>r.date===filter):all;
   const table='<div class="sheettable"><table><thead><tr>'+
-    '<th class="rowact"></th><th>'+tx('日期')+'</th><th>加工編號</th><th>合格數</th><th>不良</th><th>開工（時：分）</th><th>完工（時：分）</th><th>修模時間</th><th>加工者</th><th>備註</th></tr></thead><tbody>'+
+    '<th class="rowact"></th><th>'+tx('日期')+'</th><th>'+tx('加工編號')+'</th><th>合格數</th><th>不良</th><th>開工（時：分）</th><th>完工（時：分）</th><th>修模時間</th><th>加工者</th><th>'+tx('備註')+'</th></tr></thead><tbody>'+
     (rows.map(r=>{
       const cell=(k,ty)=>'<td>'+editCellHTML("wl",r.id,k,ty,getPath(r,k),ro)+'</td>';
       const hm=(h,m,base)=>{
@@ -3646,7 +3646,7 @@ function workLogPageHTML(){
         return '<button class="cellbtn" data-act="cell-edit" data-cell="wl" data-id="'+esc(r.id)+'" data-key="'+base+'H" data-type="hour">'+esc(txt)+'</button>';
       };
       return '<tr data-rowid="'+esc(r.id)+'" data-act="row-edit" data-table="wl" data-id="'+esc(r.id)+'">'+
-        '<td class="rowact">'+(ro?"":(UI.confirmRow==="wldel:"+r.id?'<button class="btn danger" data-act="wl-del" data-id="'+esc(r.id)+'">再按一次刪除</button>':'<button class="rowdel" data-act="wl-del" data-id="'+esc(r.id)+'">'+tx('刪除')+'</button>'))+'</td>'+
+        '<td class="rowact">'+(ro?"":(UI.confirmRow==="wldel:"+r.id?'<button class="btn danger" data-act="wl-del" data-id="'+esc(r.id)+'">'+tx('再按一次刪除')+'</button>':'<button class="rowdel" data-act="wl-del" data-id="'+esc(r.id)+'">'+tx('刪除')+'</button>'))+'</td>'+
         cell("date","date")+cell("code","text")+cell("goodQty","number")+cell("badQty","number")+
         '<td class="hmcell">'+hm(r.startH,r.startM,"start")+'</td>'+
         '<td class="hmcell">'+hm(r.endH,r.endM,"end")+'</td>'+
