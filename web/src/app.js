@@ -2125,8 +2125,8 @@ function pvPanelHTML(o){
   }else ai='<div class="hint">AI 助理下一階段由伺服器提供。</div>';
   const strip='<section class="pv" aria-label="'+tx('預覽')+'">'+
    '<div class="pv-h"><span class="pv-badge">'+(PV.savedScenario?'保存情境':'預覽中')+'</span><div class="pv-t"><b>'+esc(PV.title)+'</b><small>'+(PV.savedScenario?'只讀比較；正式班表與現場進度不會變更。':'還沒套用，排程不會變。左邊甘特表＝選中的那套；差異色塊＝綠新增／黃搬動／虛線會移走。　計算：'+planEngineLabel(o.solverMethod,PV.engine))+'</small></div><div class="spacer"></div>'+
-   (canScenarios()&&!PV.savedScenario?'<button class="btn" data-act="scenario-save">保存試排情境</button>':'')+
-   '<button class="btn" data-act="pv-cancel">'+(PV.savedScenario?'結束查看':'取消')+'</button><button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>用這套</button></div>'+
+   (canScenarios()&&!PV.savedScenario?'<button class="btn" data-act="scenario-save">'+tx('保存試排情境')+'</button>':'')+
+   '<button class="btn" data-act="pv-cancel">'+(PV.savedScenario?'結束查看':'取消')+'</button><button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+tx('用這套')+'</button></div>'+
    '<div class="pv-row"><div class="seg" role="group" aria-label="預覽圖與下方排程表顯示"><button data-act="pv-mode" data-v="cmp" aria-pressed="'+(PV.mode==="cmp")+'">對照</button><button data-act="pv-mode" data-v="new" aria-pressed="'+(PV.mode==="new")+'">調整後</button><button data-act="pv-mode" data-v="orig" aria-pressed="'+(PV.mode==="orig")+'">原本</button></div>'+
    '<span class="hint">'+(PV.mode==="cmp"?"灰虛線＝原本位置，彩色＝調整後（綠新增、黃搬動）":PV.mode==="new"?"只看調整後：綠框＝新增的工作，黃框＝搬動的工作":"只看原本；紅虛線＝會被移走的工作")+'</span><div class="spacer"></div>'+
    '<div class="pv-dates"><span class="hint">影響的日期</span>'+(dates.map(ds=>'<button class="pv-date" data-act="pv-date" data-v="'+ds+'" aria-pressed="'+(ds===UI.date)+'"><b class="num">'+md(ds)+'</b><small>'+WD[parseD(ds).getUTCDay()]+' · '+d.dates[ds]+' 處</small></button>').join("")||'<span class="hint">無</span>')+'</div></div>'+
@@ -2897,7 +2897,7 @@ Object.assign(MODAL_ACT,{
 
 MODALS['catalog-review']=()=>({title:S.setupPending?'初次核對資料':'員工、設備與工單',body:
   (S.setupPending?'<div class="catalog-step"><b>核對完成前</b><span>今天仍可查看空班表；自動排班與故障重排維持關閉。</span></div>':'')+cardsHTML()+latestHTML(),
-  foot:'<button class="btn primary" data-act="close">返回班表</button>'});
+  foot:'<button class="btn primary" data-act="close">'+tx('返回班表')+'</button>'});
 /* ---------- LINE 通知設定 ---------- */
 MODALS['line-notify']=()=>{
   const settings=S.lineNotify||{};
@@ -3512,14 +3512,14 @@ function reviewPageHTML(){
         return '<div class="wiz-card"><div class="wiz-main"><b class="wiz-name">'+esc(E.name)+'</b>'+
           '<div class="wiz-meta"><span>代號 '+esc(E.sourceCode||'—')+'</span>'+(gs?'<span>分組 '+esc(gs)+'</span>':'<span>未分組</span>')+'</div>'+
           (E.reviewStatus==='pending'?'<div class="wiz-pending">待確認</div>':'<div class="wiz-ok">已核對</div>')+'</div>'+
-          '<div class="wiz-acts">'+(ro?'':'<button class="btn primary wiz-big" data-act="review-mark" data-kind="emp" data-id="'+esc(E.id)+'" data-v="ok">對</button><button class="btn danger wiz-big" data-act="review-mark" data-kind="emp" data-id="'+esc(E.id)+'" data-v="no">不對</button>')+'</div></div>';
+          '<div class="wiz-acts">'+(ro?'':'<button class="btn primary wiz-big" data-act="review-mark" data-kind="emp" data-id="'+esc(E.id)+'" data-v="ok">'+tx('對')+'</button><button class="btn danger wiz-big" data-act="review-mark" data-kind="emp" data-id="'+esc(E.id)+'" data-v="no">不對</button>')+'</div></div>';
       }).join('')||'<div class="empty">此篩選沒有員工</div>')+'</div>';
   }else if(step===2){
     body='<div class="wiz-cards">'+(S.machines.map(M=>{
       return '<div class="wiz-card"><div class="wiz-main"><b class="wiz-name">'+esc(M.label||M.id)+'</b>'+
         '<div class="wiz-meta"><span>'+esc(M.id)+'</span>'+(M.catalogSide?'<span>'+esc(M.catalogSide)+'側</span>':'')+'</div>'+
         (M.reviewStatus==='pending'?'<div class="wiz-pending">待確認</div>':'<div class="wiz-ok">已核對</div>')+'</div>'+
-        '<div class="wiz-acts">'+(ro?'':'<button class="btn primary wiz-big" data-act="review-mark" data-kind="mach" data-id="'+esc(M.id)+'" data-v="ok">對</button><button class="btn danger wiz-big" data-act="review-mark" data-kind="mach" data-id="'+esc(M.id)+'" data-v="no">不對</button>')+'</div></div>';
+        '<div class="wiz-acts">'+(ro?'':'<button class="btn primary wiz-big" data-act="review-mark" data-kind="mach" data-id="'+esc(M.id)+'" data-v="ok">'+tx('對')+'</button><button class="btn danger wiz-big" data-act="review-mark" data-kind="mach" data-id="'+esc(M.id)+'" data-v="no">不對</button>')+'</div></div>';
     }).join(''))+'</div>';
   }else{
     body='<div class="wiz-cards">'+(S.employees.map(E=>{
@@ -3532,7 +3532,7 @@ function reviewPageHTML(){
   const allDone=!pendE&&!pendM;
   const foot='<div class="wiz-foot">'+(step>1&&!ro?'<button class="btn wiz-big" data-act="review-step" data-v="'+(step-1)+'">上一步</button>':'')+
     (step<3&&!ro?'<button class="btn primary wiz-big" data-act="review-step" data-v="'+(step+1)+'">下一步</button>':'')+
-    (step===3&&!ro?'<button class="btn primary wiz-big" data-act="review-done"'+(allDone?'':' disabled')+'>核對完成</button>':'')+'</div>';
+    (step===3&&!ro?'<button class="btn primary wiz-big" data-act="review-done"'+(allDone?'':' disabled')+'>'+tx('核對完成')+'</button>':'')+'</div>';
   return '<div class="fullpage wiz">'+head+steps+body+foot+'</div>';
 }
 function workLogPageHTML(){
@@ -3635,7 +3635,7 @@ function visualDemoPageHTML(){
         '<div class="brand" style="color:#EAF0FF"><span class="brand-mark"><span></span></span>'+liquidLogoSVG("產線排程")+'</div>'+
         '<div class="field"><label>帳號（Email）</label><input class="inp" placeholder="user@example.com"></div>'+
         '<div class="field"><label>密碼</label><input class="inp" type="password" placeholder="••••••"></div>'+
-        '<button class="btn primary" type="button" style="justify-content:center;height:52px">登入</button>'+
+        '<button class="btn primary" type="button" style="justify-content:center;height:52px">'+tx('登入')+'</button>'+
       '</form></div>'+
     '<p class="hint">漸層＋點陣背景（WebGL shader）、液態 Logo（SVG 形變）、玻璃卡片（backdrop-filter）。滑鼠移動有光暈視差。</p>';
 }
@@ -3706,7 +3706,7 @@ MODALS['work-queue']=()=>{
     rows.map(r=>'<article class="load-row"><b>'+esc(r.code+' · '+r.proc)+'</b> '+(r.overdue?'<span class="tag bad">已過交期</span>':'')+
       '<div class="hint">期限 '+esc(r.due)+' · 已排 '+r.planned+' 件 · 尚待排 '+r.remaining+' 件'+(r.shortfall?' · 回報短少 '+r.shortfall+' 件':'')+'</div>'+
       r.reasons.map(t=>'<div class="hint">'+esc(t)+'</div>').join('')+
-      (r.canArrange&&!readOnly?'<button class="btn" data-act="queue-arrange" data-id="'+esc(r.oid)+'" data-step="'+r.step+'">安排此工序</button>':'')+'</article>').join('')+
+      (r.canArrange&&!readOnly?'<button class="btn" data-act="queue-arrange" data-id="'+esc(r.oid)+'" data-step="'+r.step+'">'+tx('安排此工序')+'</button>':'')+'</article>').join('')+
       (!rows.length?'<div class="okbox">此範圍目前没有未排量或已回報短少。這不等於工作已實際完成。</div>':''),foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button>'};
 };
 async function openScenarioList(){
@@ -3751,7 +3751,7 @@ MODALS.execution=()=>{
   const managerBody=!worker?blocks.map(b=>{const r=executionOf(S,b.id);return '<article class="load-row"><b>'+esc((order(b.oid)?.code||'?')+' · '+stepName(b))+'</b>'+
       '<div class="hint">'+esc(emp(b.emp)?.name||'未指定')+' · '+esc(mach(b.m)?.label||b.m)+' · 原定 '+hm(b.s)+'–'+hm(b.e)+' · '+b.qty+' 件</div>'+
       '<div class="hint">'+reportStatus(r)+(r?' · 累計 '+r.qtyDone+' 件 · 差異 '+(r.qtyDone-b.qty)+' 件':'')+'</div>'+
-      (canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending?'<button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">查看／回報進度</button>':'')+'</article>';}).join(''):'';
+      (canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending?'<button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">'+tx('查看／回報進度')+'</button>':'')+'</article>';}).join(''):'';
   return {title:tx('現場回報')+' · '+mdw(UI.date),body:
     '<div class="hint">開始、做了幾件、完工都另外保存實際事實。完工少做的件數會回到未排工作，下一次重排會補足；不會悄悄改掉原定產能。</div>'+
     (worker&&!STORE.employeeId?'<div class="issue">帳號尚未綁定員工，請由管理員綁定後使用。</div>':'')+
@@ -3770,7 +3770,7 @@ MODALS['execution-report']=m=>{
     (r&&r.status!=='done'?'<div class="field"><label for="execution-qty">'+tx('累計已做件數')+'</label><input class="inp" id="execution-qty" type="number" min="'+r.qtyDone+'" max="'+b.qty+'" step="1" value="'+r.qtyDone+'"></div>':'')+
     (r?.status==='done'?'<div class="hint">已完成 '+r.qtyDone+' 件；相對原定差異 '+(r.qtyDone-b.qty)+' 件。此版不提供修改已完成回報。</div>':''),
     foot:'<div class="work-report-actions">'+(allowed&&r?.status!=='done'?
-      (m.pendingRequest?'<button class="btn danger" data-act="report-work" data-v="retry">重試上一筆回報</button>':
+      (m.pendingRequest?'<button class="btn danger" data-act="report-work" data-v="retry">'+tx('重試上一筆回報')+'</button>':
         '<button class="btn primary" data-act="report-work" data-v="start" '+(r?'disabled':'')+'>'+tx('開工')+'</button>'+
         '<button class="btn" data-act="report-work" data-v="quantity" '+(!r?'disabled':'')+'>'+tx('做了幾件')+'</button>'+
         '<button class="btn success" data-act="report-work" data-v="finish" '+(!r?'disabled':'')+'>'+tx('完工')+'</button>'):'')+'<button class="btn" data-act="close">'+tx('關閉')+'</button></div>'};
@@ -3800,7 +3800,7 @@ const timeValue=t=>{const [h,m]=t.split(':').map(Number);return h*60+m;};
 const textInput=(id,label,value,type='text',off='')=>'<div class="field"><label for="'+id+'">'+label+'</label><input class="inp" id="'+id+'" type="'+type+'" value="'+esc(value)+'" '+off+'></div>';
 MODALS['work-contents']=()=>({title:tx('工作內容')+tx(' · 與設備分開管理'),body:
   '<div class="hint">三部分：工作內容（做什麼）、設備／工位（需要時才指定）、排班方塊（人員、時間及參考件數）。既有產品工序仍依原公式排程；下面的獨立工作不會自動算進工單完成量。</div>'+
-  '<h4>產品工序工作內容</h4><div class="hint">'+[...new Set(S.products.flatMap(p=>p.steps.map(s=>s.proc)))].map(esc).join('、')+'</div><button class="btn" data-act="products">查看產品工序</button>'+
+  '<h4>產品工序工作內容</h4><div class="hint">'+[...new Set(S.products.flatMap(p=>p.steps.map(s=>s.proc)))].map(esc).join('、')+'</div><button class="btn" data-act="products">'+tx('查看產品工序')+'</button>'+
   '<h4>可獨立安排的工作內容</h4>'+workCatalog(S).filter(w=>inFactory(w,UI.factory)).map(w=>'<button class="rline" data-act="work-content-edit" data-id="'+esc(w.id)+'"><b>'+esc(w.name)+'</b><span>'+factoryName(w.factory)+' · '+(w.requiresResource?'需要設備／工位':'純人工，不需機台')+' · 核定 '+w.employeeIds.length+' 人</span></button>').join('')+
   (!workCatalog(S).length?'<div class="empty">尚未建立獨立工作內容；不會從 1023 欄名推測技能或產能。</div>':'')+
   '<div class="hint">1023 的工作／設備／規格對照在「歷史排程 → 製作項目名冊」查看；未確認欄位保持待確認。</div>',
@@ -3894,7 +3894,7 @@ function workGridHTML(title,lanes){
     '<div class="zone lunch" style="top:'+px(720)+'px;height:'+(px(780)-px(720))+'px">午休</div>'+
     (!di.ot?'<div class="zone ot-off" style="top:'+px(1020)+'px;height:'+(px(1200)-px(1020))+'px">未開加班</div>':'')+
     (l.production||[]).map(b=>blkHTML(b,px,issuesOf(b).length)).join('')+(l.general||[]).map(a=>workBlockHTML(a,px)).join('')+'</div>').join('');
-  return '<section class="board" aria-label="'+title+'"><div class="board-h"><h2>'+title+' · '+mdw(d)+'</h2><div class="spacer"></div>'+(!readOnly&&!S.setupPending?'<button class="btn primary" data-act="general-add">＋一般工作排班</button>':'')+'</div><div class="hint" style="padding:10px">一般工作方塊可拖曳及拉底邊；放開先預覽，確認前不改班表。純人工占用完整人員時間；參考件數不算作工單已完成。產品工序方塊請在「設備／工位」檢視調整。</div>'+
+  return '<section class="board" aria-label="'+title+'"><div class="board-h"><h2>'+title+' · '+mdw(d)+'</h2><div class="spacer"></div>'+(!readOnly&&!S.setupPending?'<button class="btn primary" data-act="general-add">'+tx('＋一般工作排班')+'</button>':'')+'</div><div class="hint" style="padding:10px">一般工作方塊可拖曳及拉底邊；放開先預覽，確認前不改班表。純人工占用完整人員時間；參考件數不算作工單已完成。產品工序方塊請在「設備／工位」檢視調整。</div>'+
     (lanes.length?'<div class="scroller"><div class="grid" style="grid-template-columns:64px repeat('+lanes.length+',minmax(180px,1fr))"><div class="corner"></div>'+lanes.map(l=>'<div class="colhead"><span class="N">'+esc(l.name)+'</span></div>').join('')+'<div class="times">'+times+'</div>'+cols+'</div></div>':'<div class="empty">尚未有可安排的工作內容。請按「更多功能」→「設定工作內容」，先核定工作、人員與所需設備。</div>')+'</section>';
 }
 function generalLanes(){
