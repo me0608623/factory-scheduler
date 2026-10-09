@@ -756,9 +756,9 @@ function topHTML(){
 
 function appNavHTML(){
   const item=(page,label)=>'<button class="app-nav-item nav-'+page+'" data-act="drawer" data-v="'+page+'" aria-pressed="'+(UI.drawer===page)+'" title="'+esc(label)+'"><b>'+NAV_IC[page]+'</b><span>'+label+'</span></button>';
-  const account=STORE&&STORE.kind==='supabase'?(STORE.userName||STORE.session?.user?.email||'帳號'):'本機模式';
-  const role=ROLE_NAME[STORE?.role]||'本機管理者';
-  const sync=SYNC.state==='busy'?'同步中':SYNC.state==='error'?'同步失敗':STORE?.kind==='supabase'?'雲端已同步':'存在這台電腦';
+  const account=STORE&&STORE.kind==='supabase'?(STORE.userName||STORE.session?.user?.email||tx('帳號')):tx('本機模式');
+  const role=ROLE_NAME[STORE?.role]||tx('本機管理者');
+  const sync=SYNC.state==='busy'?tx('同步中'):SYNC.state==='error'?tx('同步失敗'):STORE?.kind==='supabase'?tx('雲端已同步'):tx('存在這台電腦');
   return '<nav class="app-nav" aria-label="'+tx('主要功能')+'">'+
     
     '<div class="side-brand"><span class="brand-mark"><span></span></span><span><b>產線排程</b><small>'+tx('工廠工作台')+'</small></span><button class="nav-collapse" data-act="nav-toggle" aria-label="'+(UI.navCollapsed?tx('展開導覽'):tx('收合導覽'))+'" title="'+(UI.navCollapsed?tx('展開導覽'):tx('收合導覽'))+'">'+(UI.navCollapsed?'›':'‹')+'</button></div>'+
@@ -1298,7 +1298,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "factory":{const v=a.dataset.v==="all"?"all":Number(a.dataset.v);setFactory(v);render();if(v==="all")openModal({t:'transfer-board'});break;}
     case "groups":openModal({t:'groups'});break;
     case "tour":{closeModal();UI.drawer=null;render();setTimeout(()=>startTour(TOUR_STEPS,{tx}),350);break;}
-    case "logout":(async a=>{if(STORE.kind!=="supabase"){toast("本機模式沒有登入帳號");return;}closeModal();
+    case "logout":(async a=>{if(STORE.kind!=="supabase"){toast(tx('本機模式沒有登入帳號'));return;}closeModal();
       try{await STORE.logout();toast("已登出");}catch(e){toast("登出失敗："+e.message);}
       showLogin();})();break;
     case "access":{if(STORE.role!=='boss'){toast("只有老闆可以管理權限");break;}openModal({t:'access-accounts',loading:true,accounts:[]});(async()=>{try{const accounts=await STORE.listAccessAccounts();if(UI.modal?.t==='access-accounts'){UI.modal.loading=false;UI.modal.accounts=accounts;renderModal();}}catch(e){toast(e.message);closeModal();}})();break;}
@@ -1489,7 +1489,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "feedback-send":async a=>{const msg=$("#fb-msg")?.value.trim()||"",cat=$("#fb-cat")?.value||"other";if(!msg){toast("請寫一些內容");return;}a.disabled=true;try{const {error}=await STORE.sb.from("feedback").insert({author_name:STORE.userName||"未命名",category:cat,message:msg,page_url:location.href,user_id:STORE.session?.user?.id});if(error)throw error;closeModal();toast("感謝！意見已送出，我們會盡快處理。"+(STORE.role==="boss"?" 到「更多功能→查看反饋」看全部。":""));}catch(e){a.disabled=false;toast(e.message);}};break;
     case "feedback-list":{if(STORE.role!=="boss"){toast("只有老闆可以查看全部反饋");break;}if(STORE.kind==="local"){toast("查看反饋需要雲端模式；本機示範資料沒有反饋紀錄");break;}openModal({t:"feedback-list",loading:true,items:[]});(async()=>{try{const {data}=await STORE.sb.rpc("list_feedback",{p_limit:50});if(UI.modal?.t==="feedback-list"){UI.modal.loading=false;UI.modal.items=data||[];renderModal();}}catch(e){toast(e.message);closeModal();}})();break;}
     case "undo":undo();break;
-    case "sync":if(SYNC.state==="error")queueSync(null);else toast(STORE.kind==="local"?"資料存在這台電腦的瀏覽器":"已和雲端資料庫同步");break;
+    case "sync":if(SYNC.state==="error")queueSync(null);else toast(STORE.kind==="local"?tx('資料存在這台電腦的瀏覽器'):tx('已和雲端資料庫同步'));break;
     case "account":openModal({t:"account"});break;
     case "export":openModal({t:"export"});break;
     case "erp-export":{
@@ -2873,7 +2873,7 @@ function saveFile(name,blob){
 // ---------- 同步狀態 ----------
 function syncChipHTML(){
   if(!STORE)return "";
-  const txt=SYNC.state==="busy"?"同步中…":SYNC.state==="error"?"同步失敗，按這裡重試":STORE.kind==="local"?"已存在這台電腦":"已同步";
+  const txt=SYNC.state==="busy"?tx('同步中')+"…":SYNC.state==="error"?tx('同步失敗，按這裡重試'):STORE.kind==="local"?tx('已存在這台電腦'):tx('已同步');
   return '<button class="btn sync-chip '+SYNC.state+'" id="syncchip" data-act="sync" title="'+esc(SYNC.msg||"")+'">'+IC.save+'<span class="lbl">'+txt+'</span></button>';
 }
 function updateSyncChip(){const el=$("#syncchip");if(el)el.outerHTML=syncChipHTML();}
