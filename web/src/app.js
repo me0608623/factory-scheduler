@@ -1357,7 +1357,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case 'exec-confirm':{
       if(!canPermission('execution.manage')){toast('只有老闆或組長可以確認完工');break;}
       const r=(S.execution||[]).find(x=>x.blockId===a.dataset.id);
-      if(!r||r.status!=='done'){toast('這項工作還未報完工');break;}
+      if(!r||r.status!=='done'){toast(tx('這項工作還未報完工'));break;}
       a.disabled=true;
       // 只有伺服器確認成功才改畫面；失敗一律保持待確認，避免 ERP 匯出讀到沒存住的狀態
       STORE.confirmExecution(a.dataset.id,true).then(async()=>{
@@ -3783,7 +3783,7 @@ async function reportWork(button){
   if(!m.pendingRequest&&(!Number.isInteger(qty)||qty<(r?.qtyDone||0)||qty>b.qty)){toast('累計件數不可倒退或超過原定件數');return;}
   m.pendingRequest ||= {id:uid(),blockId:b.id,action,qtyDone:qty,expectedRevision:r?.revision||0};
   m.busy=true;button.disabled=true;
-  try{await syncChain;await STORE.reportExecution(m.pendingRequest);await reloadFromStore();m.pendingRequest=null;undoStack=[];toast('進度已保存');}
+  try{await syncChain;await STORE.reportExecution(m.pendingRequest);await reloadFromStore();m.pendingRequest=null;undoStack=[];toast(tx('進度已保存'));}
   catch(e){
     const confirmed=e.rejected||e.conflict;
     toast(confirmed?e.message:'沒存到：網路或伺服器沒有確認這筆回報，請按「重試上一筆回報」');
