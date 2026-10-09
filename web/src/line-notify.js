@@ -22,13 +22,14 @@ export async function sendLineNotify(solverUrl, jwt, event, message) {
 }
 
 export function notifySettingsHTML(current) {
+  const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const s = current || { enabled: false, line_user_id: '', line_group_id: '', events: {} };
   return '<div class="field"><label class="setting-toggle" style="display:flex;align-items:center;gap:10px">' +
     '<input type="checkbox" id="ln-enabled"' + (s.enabled ? ' checked' : '') + '><span><b>啟用 LINE 通知</b></span></label></div>' +
     '<div class="field"><label for="ln-user">LINE User ID（選填）</label>' +
-    '<input class="inp" id="ln-user" value="' + (s.line_user_id || '') + '" placeholder="U1234567890abcdef..." autocomplete="off"></div>' +
+    '<input class="inp" id="ln-user" value="' + esc(s.line_user_id || '') + '" placeholder="U1234567890abcdef..." autocomplete="off"></div>' +
     '<div class="field"><label for="ln-group">LINE 群組 ID（選填）</label>' +
-    '<input class="inp" id="ln-group" value="' + (s.line_group_id || '') + '" placeholder="C1234567890..." autocomplete="off"></div>' +
+    '<input class="inp" id="ln-group" value="' + esc(s.line_group_id || '') + '" placeholder="C1234567890..." autocomplete="off"></div>' +
     '<div class="field"><span class="lab">要通知的事件</span><div class="toggles">' +
     LINE_EVENTS.map(([k, name, desc]) =>
       '<label class="permission-row"><input type="checkbox" data-ln-event="' + k + '"' +
