@@ -759,8 +759,8 @@ function ordersDrawerHTML(){
     const detail=signal==='gray'?'資料不足，暫不自動判斷':status.k==='done'?'實際件數已達工單量':status.k==='part'?'有未排或完工短少':status.k==='late'?'預計逾期':status.k==='elapsed'?'排定時間已過，待回報':'照目前排程可完成';
     return '<button class="order-card'+(selected?' selected':'')+'" data-act="focus-order" data-id="'+esc(o.id)+'"><i class="deadline '+signal+'"></i><span><b>'+esc(o.code)+'　'+esc(p?.name||'未設定產品')+' '+o.qty+'件</b><mark class="order-phase '+signal+'">'+phase+'</mark><small>'+esc(detail)+'</small>'+(o.note?'<small class="order-note">備註：'+esc(String(o.note).slice(0,40))+'</small>':'')+'</span><strong>'+esc(o.due?md(o.due):'—')+'</strong></button>';
   }).join('');
-  return '<div class="drawer-metrics"><div><b>'+summary.unfinished+'</b><span>未完成</span></div><div class="bad"><b>'+summary.late+'</b><span>會晚</span></div><div class="warn"><b>'+summary.dueToday+'</b><span>今日要交</span></div></div>'+
-    '<div class="traffic-legend"><span><i class="green"></i>準時</span><span><i class="yellow"></i>注意</span><span><i class="red"></i>會晚</span><span><i class="gray"></i>資料不足</span></div>'+
+  return '<div class="drawer-metrics"><div><b>'+summary.unfinished+'</b><span>'+tx('未完成')+'</span></div><div class="bad"><b>'+summary.late+'</b><span>'+tx('會晚')+'</span></div><div class="warn"><b>'+summary.dueToday+'</b><span>'+tx('今日要交')+'</span></div></div>'+
+    '<div class="traffic-legend"><span><i class="green"></i>'+tx('準時')+'</span><span><i class="yellow"></i>注意</span><span><i class="red"></i>'+tx('會晚')+'</span><span><i class="gray"></i>資料不足</span></div>'+
     '<div class="drawer-list">'+(rows||'<div class="drawer-empty">目前沒有工單</div>')+'</div>'+(canOrders()?'<button class="drawer-primary" data-act="ord-new">'+tx('＋新增工單')+'</button>':'');
 }
 
@@ -870,7 +870,7 @@ function moreDrawerHTML(){
 }
 function statusTag(o){
   const st=orderStatus(o);
-  return st.k==="late"?'<span class="tag bad">會延誤</span>':st.k==="ok"?'<span class="tag ok">預計準時</span>':st.k==="done"?'<span class="tag mute">已回報完成</span>':st.k==='elapsed'?'<span class="tag warn">預定時段已過 · 待回報</span>':'<span class="tag warn">未排</span>';
+  return st.k==="late"?'<span class="tag bad">會延誤</span>':st.k==="ok"?'<span class="tag ok">'+tx('預計準時')+'</span>':st.k==="done"?'<span class="tag mute">'+tx('已回報完成')+'</span>':st.k==='elapsed'?'<span class="tag warn">預定時段已過 · 待回報</span>':'<span class="tag warn">'+tx('未排')+'</span>';
 }
 const priTag=o=>o.pri===0?'<span class="tag bad">特急</span> ':o.pri===1?'<span class="tag warn">急</span> ':"";
 function orderRow(o){const p=prod(o.pid),route=orderRoute(o,S.products).map(factoryName).join(' → ');
@@ -1841,8 +1841,8 @@ blk(m){
   const body='<dl class="kv"><dt>'+tx('產品')+'</dt><dd>'+esc(p.name)+"　第 "+(b.step+1)+" 站／共 "+p.steps.length+" 站："+esc(p.steps[b.step].proc)+'</dd><dt>'+tx('數量')+'</dt><dd class="num">'+b.qty+' 件</dd><dt>'+tx('時間')+'</dt><dd class="num">'+mdw(b.date)+" "+hm(b.s)+"–"+hm(b.e)+"（"+(b.e-b.s)+' 分）</dd><dt>'+tx('機台')+'</dt><dd>'+esc(M.id+" "+M.label)+'</dd><dt>'+tx('人員')+'</dt><dd>'+esc(E?E.name:"未指定")+'</dd><dt>'+tx('期限')+'</dt><dd>'+mdw(o.due)+"　"+statusTag(o)+'</dd></dl>'+
    (iss.length?'<div class="issues">'+iss.map(t=>'<div class="issue">'+esc(t)+'</div>').join("")+'</div>':'<div class="okbox">沒有問題</div>')+
    (executionOf(S,b.id)?'<div class="hint">已有現場回報，這段排程已鎖定，不可拖曳、改量、解除固定或刪除。</div><button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">'+tx('查看現場回報')+'</button>':'')+
-   (ro?"":'<div class="field"><span class="lab">換人</span><div class="toggles">'+empT+'</div></div>'+
-   '<div class="field"><span class="lab">換機台</span><div class="toggles">'+machT+'</div></div>'+
+   (ro?"":'<div class="field"><span class="lab">'+tx('換人')+'</span><div class="toggles">'+empT+'</div></div>'+
+   '<div class="field"><span class="lab">'+tx('換機台')+'</span><div class="toggles">'+machT+'</div></div>'+
    '<div class="row2"><div class="field"><label for="f-bs">'+tx('開始時間')+'</label><select class="inp num" id="f-bs">'+opts+'</select></div>'+
    '<div class="field"><label for="f-be">'+tx('結束時間')+'</label><select class="inp num" id="f-be">'+endOpts+'</select></div></div>'+
    '<div class="hint">調整時段後請按「預覽調整」。工作長度改變會依工序速率重估這段的件數，未排入的剩餘件數仍留在工單中。</div>'+
@@ -2067,7 +2067,7 @@ function ganttHTML(o){
       '<div class="g-track'+(showBefore&&showAfter?"":" single")+'">'+days.map((ds,i)=>dayInfo(ds).open?"":'<span class="g-offbg" style="left:'+(i/N*100)+'%;width:'+(100/N)+'%"></span>').join("")+
       (showBefore?'<div class="g-lane bef">'+bars(bef(id),"bef")+'</div>':"")+(showAfter?'<div class="g-lane aft">'+bars(aft(id),"aft")+'</div>':"")+
       '<span class="g-due" style="left:'+x(O.due,DAY1)+'%" title="'+tx('期限')+'"></span></div>'+
-      '<div class="g-delta '+cls+'"><b>'+delta+'</b>'+(late?'<span class="tag bad">超過期限</span>':'<span class="tag ok">準時</span>')+'</div></div>';}).join("");
+      '<div class="g-delta '+cls+'"><b>'+delta+'</b>'+(late?'<span class="tag bad">超過期限</span>':'<span class="tag ok">'+tx('準時')+'</span>')+'</div></div>';}).join("");
   return '<div class="gantt">'+head+rows+'</div><div class="legend" style="margin-top:8px">'+
     (showBefore?'<span><i style="background:var(--line)"></i>原本</span>':"")+
     (showAfter?'<span><i style="background:#FFE14D"></i>調整後（顏色＝員工）</span>':"")+
@@ -3153,7 +3153,7 @@ function shortagePageHTML(){
         cell("f1.vendor","text")+
         '<td class="c-f1">'+(item?''+esc(item)+'':'<span class="mute">—</span>')+'</td>'+
         cell("f1.shortQty","number")+cell("f1.note","text")+
-        '<td class="'+(f.f2Empty?"c-f2-empty":"c-f2")+'">'+dateTxt(r.f2?.startDate)+editCellHTML("rush",r.id,"f2.startDate","date",r.f2?.startDate,ro)+(f.f2Empty?'<span class="pending-tag">未排</span>':'')+'</td>'+
+        '<td class="'+(f.f2Empty?"c-f2-empty":"c-f2")+'">'+dateTxt(r.f2?.startDate)+editCellHTML("rush",r.id,"f2.startDate","date",r.f2?.startDate,ro)+(f.f2Empty?'<span class="pending-tag">'+tx('未排')+'</span>':'')+'</td>'+
         '<td class="'+(f.f2Empty?"c-f2-empty":"c-f2")+'">'+dateTxt(r.f2?.dueDate)+editCellHTML("rush",r.id,"f2.dueDate","date",r.f2?.dueDate,ro)+(f.late?'<span class="late-txt">晚</span>':'')+'</td>'+
         cell("f2.itemProcess","text")+cell("f2.desc","text")+cell("f2.qty","number")+cell("f2.note","text")+
         '</tr>';
@@ -3197,7 +3197,7 @@ function transferFlowPageHTML(){
           :(o.status==="cancelled"
             ?(ro?"":'<button class="rowdel restore" data-act="tf-restore" data-id="'+esc(o.id)+'">還原</button>')
             :(ro?"":(UI.confirmRow==="tfdel:"+o.id?'<button class="btn danger" data-act="tf-del" data-id="'+esc(o.id)+'">再按一次刪除</button>':'<button class="rowdel" data-act="tf-del" data-id="'+esc(o.id)+'">'+tx('刪除')+'</button>'))))+'</td>'+
-        '<td>'+editCellHTML("tf",o.id,"notified","date",o.notified,ro)+pend("notified")+(o.status==="cancelled"?'<span class="pending-tag">已取消</span>':"")+'</td>'+
+        '<td>'+editCellHTML("tf",o.id,"notified","date",o.notified,ro)+pend("notified")+(o.status==="cancelled"?'<span class="pending-tag">'+tx('已取消')+'</span>':"")+'</td>'+
         '<td>'+esc(o.code)+'</td>'+
         cell("seq","number")+cell("totalQty","number")+
         '<td>'+rawCell("tf",o.id,"expectedSend",o.expectedSend,o.expectedSendRaw,ro)+pend("expectedSend")+'</td>'+
@@ -3374,11 +3374,11 @@ function analyticsPageHTML(){
       (empOT.slice(0,10).map(e=>'<div class="ana-row"><span class="ana-lab">'+esc(e.name)+'</span><span class="ana-val ot">'+e.otH+' 小時</span></div>').join('')||'<div class="hint">'+tx('本月無加班')+'</div>')+
     '</div></div>'+
     '<div class="ana-card"><h3>工單狀態</h3><div class="ana-stats">'+
-      '<div class="ana-stat"><b>'+ordStats.done+'</b><span>已完成</span></div>'+
-      '<div class="ana-stat ok"><b>'+ordStats.ok+'</b><span>進行中</span></div>'+
+      '<div class="ana-stat"><b>'+ordStats.done+'</b><span>'+tx('已完成')+'</span></div>'+
+      '<div class="ana-stat ok"><b>'+ordStats.ok+'</b><span>'+tx('進行中')+'</span></div>'+
       '<div class="ana-stat warn"><b>'+ordStats.part+'</b><span>部分完成</span></div>'+
-      '<div class="ana-stat bad"><b>'+ordStats.late+'</b><span>逾期</span></div>'+
-      '<div class="ana-stat mute"><b>'+ordStats.unplaced+'</b><span>未排</span></div>'+
+      '<div class="ana-stat bad"><b>'+ordStats.late+'</b><span>'+tx('逾期')+'</span></div>'+
+      '<div class="ana-stat mute"><b>'+ordStats.unplaced+'</b><span>'+tx('未排')+'</span></div>'+
     '</div></div>'+
     '<div class="ana-card"><h3>近 14 天排程量</h3><div class="ana-chart">'+
       daily.map(function(x){var h=Math.round(x.cnt/maxDaily*80);var t=md(x.date);return "<div class=\"ana-col\" title=\""+x.date+": "+x.cnt+"\"><div class=\"ana-bar2\" style=\"height:"+h+"px\"></div><span class=\"ana-dlabel\">"+t+"</span></div>";}).join("")+
