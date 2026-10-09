@@ -249,3 +249,12 @@
 
 - 使用者合併 feat/master-data-page（`8390732`：「員工、設備與工單」改完整管理頁，修正誤導初次核對頁問題；app.js＋i18n＋3 條 layout-regression 測試，含隔離 LocalStore 的瀏覽器驗證）
 - worktree 同步後全套 **271/271** 驗證綠；生產站實測 web 200 ✓ solver /health 200 ✓
+
+
+## 輪次 73（2026-10-10）— 平面圖 i18n＋solver 邊界測試（分支 agent/overnight-1010）
+
+- 基準：web 271/271、db 201/201 全綠
+- **平面圖 canvas 文字 i18n**：floor.js「故障」tx() 化；app.js tooltip/toast「當日無排程」tx() 化；+2 i18n 鍵；floor.test.mjs +1 防回歸（canvas 故障字串必走 tx()）。機台名稱與摘要屬使用者資料、依設計不翻譯
+- **solver 邊界案例進 CI**：test_edges.py 4 條——空工單（空排程且驗證通過）、單工單（最後一站必被排到）、全部逾期（仍需產出可行解）、全空工廠；本機 uv/python 損壞由 CI 驗證，**solver job 綠**
+- web 272/272、db 201/201、build ✓；生產 web/solver 雙 200
+- commit 6dd3739
