@@ -453,6 +453,15 @@ def make_plans(req: PlanRequest) -> dict:
             for o in a.snap.orders:
                 if o.code in no_late and fin[o.id]["k"] != "ok":
                     diagnostics.append(f"條件未滿足：{o.code} 仍會超過期限；可試「可以加班」或調整其他條件")
+        if req.event.type == "order" and a.new_order:
+            # 插單事件：新工單本身逾期或排不完 → 方案降級為不可套用並說明原因
+            # （TEST_STATUS 2026-09-26 疑點①：逾期方案不應與可行方案並列為可直接套用）
+            nf = _finish(a.snap, blocks).get(a.new_order)
+            ncode = next((o.code for o in a.snap.orders if o.id == a.new_order), a.new_order)
+            if nf and nf["k"] == "late":
+                diagnostics.append(f"{ncode} 會超過期限（完成日 {nf['date']}）；可試「可以加班」或調整期限")
+            elif nf and nf["k"] == "part":
+                diagnostics.append(f"{ncode} 無法排完所有數量；可試「可以加班」或調整期限")
         applicable = (res is None or res.status in ("OPTIMAL", "FEASIBLE")) and not diagnostics
         eff = copy.deepcopy(a.effects)
         if overtime_days:
