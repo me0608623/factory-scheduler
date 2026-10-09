@@ -55,3 +55,12 @@ test('FEATURE_TOURS：每主題至少 2 步、每步 sel+title+text 齊全，且
   const extra = Object.keys(FEATURE_TOURS).filter(k => !FEATURE_TOUR_TOPICS.some(t => t.key === k));
   assert.deepEqual(extra, [], 'FEATURE_TOURS 有主題未列在 TOPICS 清單：' + extra.join(','));
 });
+
+test('導覽內文（TOUR_STEPS＋FEATURE_TOURS 的 title/text）必須全部有字典鍵（i18n 棘輪）', async () => {
+  const { UI_TEXT } = await import('../src/i18n.js');
+  const all = [];
+  for (const [, steps] of Object.entries(FEATURE_TOURS)) for (const s of steps) { all.push(s.title); all.push(s.text); }
+  for (const s of TOUR_STEPS) { all.push(s.title); all.push(s.text); }
+  const missing = all.filter(t => !UI_TEXT[t]);
+  assert.deepEqual(missing, [], '導覽內文缺字典鍵：' + JSON.stringify(missing));
+});
