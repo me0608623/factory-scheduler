@@ -319,6 +319,9 @@ export const UI_TEXT = {
   "最大化／還原": { en: "Maximize / restore", vi: "Phóng to / khôi phục", th: "ขยายใหญ่ / คืนค่า" },
   "最大化視窗": { en: "Maximize window", vi: "Phóng to cửa sổ", th: "ขยายหน้าต่าง" },
   "還原視窗": { en: "Restore window", vi: "Khôi phục cửa sổ", th: "คืนขนาดหน้าต่าง" },
+  "放大": { en: "Enlarge", vi: "Phóng to", th: "ขยาย" },
+  "還原": { en: "Restore", vi: "Khôi phục", th: "คืนค่า" },
+  "拖曳調整寬度": { en: "Drag to resize", vi: "Kéo để đổi rộng", th: "ลากเพื่อปรับความกว้าง" },
 };
 
 export function tx(k, params) {

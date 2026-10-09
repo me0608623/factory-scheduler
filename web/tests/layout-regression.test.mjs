@@ -66,3 +66,16 @@ test('不變量：與 vg-glass 併用且依賴定位的基底 class 必須有特
   }
   assert.deepEqual(risky, [], '這些組合會被注入的 position:relative 蓋掉定位，需加 .X.vg-glass 防護或 inline position：' + risky.join('、'));
 });
+
+test('分割窗格：CSS 有 pane-splitter 與 pane 覆寫（含 vg-glass 特異度）', () => {
+  assert.match(css, /\.pane-splitter\{[^}]*cursor:col-resize/, '缺少分隔線規則');
+  assert.match(css, /\.ops-drawer\.pane\.vg-glass\{position:relative\}/, 'pane 模式需覆寫 vg-glass 的 fixed 防護');
+  assert.match(css, /\.wrap\.has-drawer\.zoomed \.main-col,\s*\.wrap\.has-drawer\.zoomed \.pane-splitter\{display:none\}/, '放大模式需隱藏排程欄與分隔線');
+});
+
+test('分割窗格：app.js 有 drawer-zoom、分隔線與寬度保存', () => {
+  assert.ok(app.includes('case "drawer-zoom"'), '缺少 drawer-zoom 動作');
+  assert.ok(app.includes('fsched-pane-w'), '缺少寬度保存');
+  assert.ok(app.includes('pane-splitter'), '缺少分隔線標記');
+  assert.ok(app.includes('has-drawer'), '缺少 wrap.has-drawer 容器 class');
+});
