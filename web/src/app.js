@@ -3375,10 +3375,10 @@ function initFloor(){
   const at=e=>{const r=canvas.getBoundingClientRect();return hitFloor(rects,e.clientX-r.left,e.clientY-r.top);};
   canvas.onmousemove=e=>{const hit=at(e);
     if(hit){tip.style.display='block';tip.style.left=Math.min(e.clientX+12,innerWidth-220)+'px';tip.style.top=(e.clientY+14)+'px';
-      tip.innerHTML='<b>'+esc(hit.cell.label)+'</b>（'+esc(hit.cell.process||'—')+'）<br>'+(hit.cell.detail?esc(hit.cell.detail):'當日無排程');}
+      tip.innerHTML='<b>'+esc(hit.cell.label)+'</b>（'+esc(hit.cell.process||'—')+'）<br>'+(hit.cell.detail?esc(hit.cell.detail):tx('當日無排程'));}
     else tip.style.display='none';};
   canvas.onmouseleave=()=>tip.style.display='none';
-  canvas.onclick=e=>{const hit=at(e);if(hit)toast(hit.cell.label+'：'+(hit.cell.detail||'當日無排程'));};
+  canvas.onclick=e=>{const hit=at(e);if(hit)toast(hit.cell.label+'：'+(hit.cell.detail||tx('當日無排程')));};
 }
 
 function analyticsPageHTML(){

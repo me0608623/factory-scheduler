@@ -326,6 +326,8 @@ export const UI_TEXT = {
   "編輯資料": { en: "Edit data", vi: "Sửa dữ liệu", th: "แก้ไขข้อมูล" },
   "完整資料管理：員工可搜尋、依廠別與分組篩選、新增、編輯與刪除；設備與工單同頁管理": { en: "Full data management: search, filter by plant/group, add, edit and delete employees; machines and orders on the same page", vi: "Quản lý đầy đủ: tìm kiếm, lọc theo xưởng/nhóm, thêm, sửa, xóa nhân viên; máy móc và đơn hàng cùng trang", th: "จัดการข้อมูลครบ: ค้นหา กรองตามโรง/กลุ่ม เพิ่ม แก้ไข ลบพนักงาน เครื่องจักรและใบสั่งงานในหน้าเดียวกัน" },
   "沒有符合的員工": { en: "No matching employees", vi: "Không có nhân viên phù hợp", th: "ไม่พบพนักงานที่ตรง" },
+  "故障": { en: "Fault", vi: "Hỏng", th: "เสีย" },
+  "當日無排程": { en: "No schedule today", vi: "Không có lịch hôm nay", th: "ไม่มีตารางวันนี้" },
 };
 
 export function tx(k, params) {

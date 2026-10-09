@@ -2,6 +2,7 @@
 // 狀態：故障（紅）＞ 當日有排程（藍）＞ 閒置（灰）。唯讀視圖，不吃任何寫入。
 // 座標：machine_layout 的 x/y 為 0–100 的廠內正規化座標；沒有佈局資料時自動按工序分組排列。
 // 手機：欄數由呼叫端依寬度決定（cols），格子帶自身 w/h（正規化單位）；觸控以點擊 toast 取代 hover。
+import { tx } from './i18n.js';
 
 const STATUS_COLOR = { fault: "#DC2626", busy: "#315FA7", idle: "#9AA3AF" };
 
@@ -74,7 +75,7 @@ export function renderFloor(canvas, cells, opts = {}) {
     const maxChars = Math.max(2, Math.floor(cellW / (fMain * 0.9)));
     g.fillText(c.label.slice(0, maxChars), x + cellW / 2, y + cellH * 0.42);
     g.fillStyle = ink; g.font = `${fSub}px sans-serif`;
-    g.fillText(c.status === "fault" ? "故障" : c.loadMin ? Math.round(c.loadMin / 60) + "h" : "", x + cellW / 2, y + cellH * 0.74);
+    g.fillText(c.status === "fault" ? tx("故障") : c.loadMin ? Math.round(c.loadMin / 60) + "h" : "", x + cellW / 2, y + cellH * 0.74);
     rects.push({ cell: c, x, y, w: cellW, h: cellH });
   }
   return rects;

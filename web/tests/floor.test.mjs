@@ -1,4 +1,5 @@
 import test from 'node:test';
+import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import { floorCells, hitFloor, renderFloor } from '../src/floor.js';
 
@@ -114,4 +115,10 @@ test('renderFloor：DPR 尺寸換算、狀態用色與故障文字、截斷、�
     assert.equal(hitFloor(rects,45,70).cell.id,'a');
     assert.equal(hitFloor(rects,455,50).cell.id,'b');
   }finally{globalThis.getComputedStyle=prevGCS;globalThis.document=prevDoc;}
+});
+
+test('floor：畫布「故障」標籤走 tx()（canvas 文字 i18n）', () => {
+  const src = fs.readFileSync(new URL('../src/floor.js', import.meta.url), 'utf8');
+  assert.ok(src.includes('tx("故障")'), 'canvas 內「故障」應包 tx()');
+  assert.ok(!/"故障"\s*:/.test(src.replace(/tx\("故障"\)/g, '')), '不應殘留未翻譯的故障字串');
 });
