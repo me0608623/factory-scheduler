@@ -9,7 +9,7 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 75（65/66/69/74 為使用者系列，編號重疊以內容區分）
+- **總輪次**: 77（65/66/69/74/75/76 為使用者系列，編號重疊以內容區分）
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
@@ -283,3 +283,9 @@
 - 回歸：test_edges.py +1（qty500/due 隔日，凡逾期方案必不適用且帶說明）；CI 三 job 綠（solver 83 既有＋5 新全過，test_rush_order_insert 準時情境不受影響）
 - 剩餘唯一未結項：疑點②（10 分鐘零碎段）——需「最短工作段規則 vs 換模成本」的產品決策，屬人類確認事項
 - commit 0ea3809
+
+
+## 輪次 77（2026-10-09）— 9-26 疑點①修復驗證輪
+
+- 使用者修復 **TEST_STATUS 9-26 疑點①**（`ef89d07`：solver plans.py 新工單完成判定 late/part 時加診斷並降級為不可套用——W07 情境「延誤 1 仍可選」不再出現；回歸測試併入 test_edges.py，CI solver job 綠）——這正是輪次 60 列回 NEXT_TASKS 的項目，待辦僅剩疑點②（10 分鐘零碎工段，需產品決策：最短工作段規則 vs 換模成本）
+- worktree 同步後 web **272/272** 確認綠；生產站實測 web 200 ✓ solver /health 200 ✓
