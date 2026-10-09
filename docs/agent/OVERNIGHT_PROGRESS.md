@@ -9,7 +9,7 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 81（65/66/69/74/75/76 為使用者系列，編號重疊以內容區分）
+- **總輪次**: 82（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
@@ -318,3 +318,10 @@
 - **結果全過、互動全程 0 JS 錯誤**：①首載主畫面完整（導覽側欄含可收合鈕與功能解說、排程板 5 機台＋時間軸＋假日提示、一般工作區、聊天 FAB、新手導覽對話框自動出現）②「人」抽屜以分割窗格模式開啟（`ops-drawer pane vg-glass`、position:relative、右側 470px）——分割窗格＋vg-glass 鏈在真實瀏覽器如預期 ③「功能解說」（新主題式導覽）開啟正常 ④廠區平面圖 canvas 渲染（320×97）正常；截圖存證
 - 已知問題重現與解法再驗證：Playwright getByRole 點擊被覆蓋層攔逾時 → 頁內 evaluate 以 data-act/文字找按鈕 .click() 最可靠（與記憶教訓一致）
 - 測後清理：關閉測試分頁、停 dev server；測試數量不變 **274/274**（本輪無程式碼變更）
+
+
+## 輪次 82（2026-10-10）— PR #7 交付審核觀察輪
+
+- 使用者將軟性切換成本整理為 **PR #7**（feat/soft-switching-cost：根因分析——10 分鐘短段是 CP-SAT 合法且近零成本差的選擇、非 to_real() bug；OR-then-AND reified 公式＋必要情況不罰＋PRESETS 權重校準；switching.py 量測模組＋19 條測試＋CI A/B 證據），分支 CI 全綠等待人工審核——本循環不代併
+- 注意：該分支早於 feature-tours 合併點，PR 合併時 tour.js／layout-regression／進度文件需解衝突（其報告已列待辦）
+- 生產站實測 web 200 ✓ solver /health 200 ✓；main 現況 **274/274**（輪次 80 已驗）
