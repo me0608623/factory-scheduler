@@ -8,6 +8,24 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
   const launch=root.querySelector('.chat-launch'),panel=root.querySelector('.chat-panel'),log=root.querySelector('.chat-log'),input=root.querySelector('textarea'),submit=root.querySelector('[type="submit"]'),ttsBtn=root.querySelector('.chat-tts');
   // 浮動定位（桌面）：藥丸本身與聊天窗標題皆為拖曳把手；點一下仍開關聊天、拖動則移動位置。
   // 位置存 fsched-float-chat；雙擊把手回預設（右下角）；手機維持 CSS 錨定不啟用。
+  let chatFloat=null;
+  // 面板邊緣錨定與垂直可見性：靠近左緣時面板改從根左緣向右展開；展開空間不足時下移藥丸
+  const positionPanel=()=>{
+    if(window.matchMedia('(max-width:800px)').matches){
+      // 手機：回到 CSS 錨定（清掉桌面浮動的 inline 定位與錨定 class）
+      root.classList.remove('panel-left','float-win');
+      root.style.left=root.style.top=root.style.right=root.style.bottom='';
+      return;
+    }
+    const r=root.getBoundingClientRect();
+    const panelW=Math.min(430,Math.max(320,Math.min(400,innerWidth-24)));
+    root.classList.toggle('panel-left',r.x+r.width-panelW<8);
+    if(!panel.hidden){
+      const ph=Math.min(550,innerHeight*0.8,innerHeight-90);
+      const minY=Math.min(innerHeight-r.height-8,ph+66);
+      if(r.y<minY){root.style.top=minY+'px';if(chatFloat)chatFloat.state.geom.y=Math.round(minY);}
+    }
+  };
   {
     const chatHead=panel.querySelector('header');
     // 強制收縮後量自然尺寸，避免安裝當下 block 填滿寬度造成預設位置偏移
@@ -15,11 +33,13 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
     launch.style.width='fit-content';
     const w=launch.offsetWidth||150,h=launch.offsetHeight||52;
     launch.style.width=prevW;
-    floatWindow(root,{key:'fsched-float-chat',defaults:{x:Math.max(8,innerWidth-w-18),y:Math.max(8,innerHeight-h-18),w,h},handle:launch,moveOnly:true,dragOnButton:true});
+    chatFloat=floatWindow(root,{key:'fsched-float-chat',defaults:{x:Math.max(8,innerWidth-w-18),y:Math.max(8,innerHeight-h-18),w,h},handle:launch,moveOnly:true,dragOnButton:true});
     chatHead.addEventListener('pointerdown',ev=>{
       if(ev.target.closest('button')||window.matchMedia('(max-width:800px)').matches)return;
       launch.dispatchEvent(new PointerEvent('pointerdown',{clientX:ev.clientX,clientY:ev.clientY,bubbles:false}));
     });
+    addEventListener('resize',()=>positionPanel());
+    addEventListener('pointerup',()=>{if(!panel.hidden)setTimeout(positionPanel,0);},{passive:true});
   }
   // 語音播報：用瀏覽器內建語音（zh-TW 優先），不把回答送到任何服務
   let ttsAuto=false;try{ttsAuto=localStorage.getItem('fsched-chat-tts')==='1';}catch{}
@@ -38,7 +58,7 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
   const hide=()=>{panel.hidden=true;launch.setAttribute('aria-expanded','false');launch.focus();};
   const scopeStamp=()=>stamp()+'|'+from.value+'|'+to.value;
   const refresh=()=>{const v=view();root.hidden=!enabled();if(v.date!==lastViewDate){from.value=to.value=v.date;lastViewDate=v.date;}};
-  from.onchange=to.onchange=()=>refresh();  launch.onclick=()=>{refresh();panel.hidden=!panel.hidden;launch.setAttribute('aria-expanded',String(!panel.hidden));if(!panel.hidden)input.focus();};
+  from.onchange=to.onchange=()=>refresh();  launch.onclick=()=>{refresh();panel.hidden=!panel.hidden;launch.setAttribute('aria-expanded',String(!panel.hidden));positionPanel();if(!panel.hidden)input.focus();};
   root.querySelector('.chat-close').onclick=hide;
   panel.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();hide();}});
   root.querySelector('.chat-clear').onclick=()=>{generation++;log.replaceChildren();messages=[];lastStamp='';busy=false;submit.disabled=false;input.value='';input.focus();};

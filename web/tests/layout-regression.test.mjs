@@ -9,6 +9,7 @@ const src = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'sr
 const css = fs.readFileSync(path.join(src, 'styles.css'), 'utf8');
 const app = fs.readFileSync(path.join(src, 'app.js'), 'utf8');
 const visual = fs.readFileSync(path.join(src, 'visual.js'), 'utf8');
+const chatUI = fs.readFileSync(path.join(src, 'chat-ui.js'), 'utf8');
 
 test('visual.js 注入的 .vg-glass 仍宣告 position:relative（耦合前提存在）', () => {
   assert.ok(/\.vg-glass\{[^}]*position:relative/.test(visual.replace(/\s+/g, ' ')),
@@ -78,4 +79,15 @@ test('分割窗格：app.js 有 drawer-zoom、分隔線與寬度保存', () => {
   assert.ok(app.includes('fsched-pane-w'), '缺少寬度保存');
   assert.ok(app.includes('pane-splitter'), '缺少分隔線標記');
   assert.ok(app.includes('has-drawer'), '缺少 wrap.has-drawer 容器 class');
+});
+
+test('聊天面板尺寸與浮動按鈕分離（不以 100% 繼承根容器寬）', () => {
+  const m = css.match(/\.chat-panel\{([^}]*)\}/);
+  assert.ok(m, '缺少 .chat-panel 規則');
+  assert.doesNotMatch(m[1], /width:min\(430px,100%\)/, '面板寬度不可用 100%（會繼承縮小後的根容器）');
+  assert.match(m[1], /width:400px/, '預設寬 400px');
+  assert.match(m[1], /min-width:320px/, '最小寬 320px');
+  assert.match(m[1], /height:min\(550px,80vh\)/, '預設高 550px、最大 80vh');
+  assert.match(css, /#schedule-chat\.panel-left \.chat-panel\{left:0;right:auto\}/, '缺少左緣錨定規則');
+  assert.ok(chatUI.includes('positionPanel'), '缺少 positionPanel 邊緣調整');
 });

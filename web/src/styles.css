@@ -595,7 +595,13 @@ body.tv .blk .d{font-size:16px}
 #schedule-chat{position:fixed;left:max(18px,env(safe-area-inset-left));right:max(18px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));z-index:90;font-size:14px;pointer-events:none}
 .chat-launch{display:block;margin-left:auto;pointer-events:auto;border:1px solid var(--line);border-radius:28px;background:var(--accent);color:var(--accent-ink);padding:14px 20px;box-shadow:var(--shadow)}
 /* Percentage uses the fixed inset box, excluding the page scrollbar unlike vw. */
-.chat-panel{position:absolute;right:0;bottom:60px;width:min(430px,100%);height:min(650px,calc(100dvh - 104px));pointer-events:auto;background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden}
+/* 聊天面板尺寸明確與浮動按鈕分離：以 viewport 為基準（100% 會繼承縮小後的根容器寬，造成窄視窗） */
+.chat-panel{position:absolute;right:0;bottom:60px;width:400px;min-width:320px;max-width:min(430px,calc(100vw - 24px));height:min(550px,80vh);pointer-events:auto;background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden}
+#schedule-chat.panel-left .chat-panel{left:0;right:auto}
+@media (max-width:800px){
+  /* 手機：根容器回到 CSS 全寬錨定，面板改用百分比確保不超出（100vw 會忽略捲軸寬） */
+  .chat-panel{width:min(400px,100%);max-width:100%;height:min(550px,80vh)}
+}
 .chat-panel header{display:flex;flex-shrink:0;gap:8px;align-items:center;padding:12px;border-bottom:1px solid var(--line)}
 
 .chat-panel header strong{flex:1}
