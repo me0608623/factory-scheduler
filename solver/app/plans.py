@@ -17,6 +17,7 @@ from typing import Callable
 
 from .model import PRESETS, Result, Weights, configured_workers, solve
 from .schemas import Block, Event, Fault, Hints, Now, Order, PlanRequest, Snapshot
+from .switching import switching_metrics
 from .timeline import abs_min, add_days, s2d, Timeline
 from .validate import check
 
@@ -311,6 +312,8 @@ def describe(base: Snapshot, a: Applied, blocks: list[Block], res: Result | None
     metrics = {"late": [o.code for o in late], "late_days": late_days, "moved": len(changed),
                "other_days": len([b for b in changed if b.date != a.date]), "gain_h": gain_h,
                "ot_h": ot_h, "dates": dates, "factories": affected_factories}
+    # 切換與零碎段指標（軟性切換成本：量測不影響求解；規則見 app/switching.py）
+    metrics.update(switching_metrics(a.snap, blocks))
 
     # 一句話總結
     parts = []
@@ -333,6 +336,8 @@ def describe(base: Snapshot, a: Applied, blocks: list[Block], res: Result | None
         parts.append("、".join(names.get(w, w) for w in who) + " 的班表有變")
     if ot_h > 0:
         parts.append(f"加班 +{ot_h} 小時")
+    if metrics.get("short_avoidable"):
+        parts.append(f"{metrics['short_avoidable']} 個可避免的零碎短段")
     summary = "；".join(parts) + "。"
 
     # 每站的變動說明
