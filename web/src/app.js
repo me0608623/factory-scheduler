@@ -735,8 +735,8 @@ function cardsHTML(){
   const lrows=S.log.slice(0,3).map(logRow).join("")||'<div class="empty">還沒有紀錄</div>';
   return '<section class="cards" aria-label="總覽">'+
   '<div class="card"><div class="card-h"><h2>員工</h2><span class="count">'+employees.length+' 人'+(onLeave.length?" · 今天 "+onLeave.length+" 人請假":"")+'</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="emp-new">＋新增</button>':"")+'</div>'+staffGroupFilterHTML()+'<div class="chips">'+(emps||'<div class="hint">此廠在此分組沒有員工；可切換廠別或選擇全部分組。</div>')+'</div></div>'+
-  '<div class="card"><div class="card-h"><h2>設備／工位</h2><span class="count">'+(machines.some(m=>m.catalogGroup)?new Set(machines.map(m=>m.catalogGroup||m.id)).size+' 組 · '+machines.length+' 個位置':machines.length+(S.setupPending?' 個待確認欄位':' 項'))+'</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="mach-new">＋新增</button>':"")+'</div><div class="hint">要設定做什麼工作，請按「更多功能」→「設定工作內容」；純人工不需要假機台。</div><div class="chips">'+machs+'</div></div>'+
-  '<div class="card"><div class="card-h"><h2>工單</h2><span class="count">'+orders.length+' 張</span>'+(canOrders()?'<button class="add" data-act="ord-new">＋新增</button>':"")+'</div><div class="olist">'+orows+'</div>'+
+  '<div class="card"><div class="card-h"><h2>'+tx('設備／工位')+'</h2><span class="count">'+(machines.some(m=>m.catalogGroup)?new Set(machines.map(m=>m.catalogGroup||m.id)).size+' 組 · '+machines.length+' 個位置':machines.length+(S.setupPending?' 個待確認欄位':' 項'))+'</span>'+(canMaster()&&UI.factory!=="all"?'<button class="add" data-act="mach-new">＋新增</button>':"")+'</div><div class="hint">要設定做什麼工作，請按「更多功能」→「設定工作內容」；純人工不需要假機台。</div><div class="chips">'+machs+'</div></div>'+
+  '<div class="card"><div class="card-h"><h2>'+tx('工單')+'</h2><span class="count">'+orders.length+' 張</span>'+(canOrders()?'<button class="add" data-act="ord-new">＋新增</button>':"")+'</div><div class="olist">'+orows+'</div>'+
     '<div style="display:flex;gap:16px"><button class="more" data-act="orders">全部工單</button><button class="more" data-act="products">產品工序</button></div></div>'+
   '<div class="card"><div class="card-h"><h2>全廠紀錄</h2><span class="count">系統怎麼調整</span></div><div class="llist">'+lrows+'</div><button class="more" data-act="log">全部紀錄</button></div>'+
   '</section>';
@@ -1838,7 +1838,7 @@ blk(m){
   const empT=S.employees.filter(X=>factoryOf(X)===factoryOf(M)).map(X=>{const can=X.skills.includes(b.m);const free=slotFree(b.date,b.m,X,b.s,b.e,b.id);
     return tg("b-emp",X.id,X.id===b.emp,esc(X.name)+'<small>'+(X.id===b.emp?"目前":!can?"不會此機":free?"有空":"沒空")+'</small>',"");}).join("");
   const machT=S.machines.filter(X=>X.proc===p.steps[b.step].proc&&X.products.includes(o.pid)&&factoryOf(X)===factoryOf(p.steps[b.step])).map(X=>tg("b-mach",X.id,X.id===b.m,'<span class="num">'+esc(X.id)+'</span><small>'+esc(X.label)+'</small>')).join("");
-  const body='<dl class="kv"><dt>產品</dt><dd>'+esc(p.name)+"　第 "+(b.step+1)+" 站／共 "+p.steps.length+" 站："+esc(p.steps[b.step].proc)+'</dd><dt>數量</dt><dd class="num">'+b.qty+' 件</dd><dt>時間</dt><dd class="num">'+mdw(b.date)+" "+hm(b.s)+"–"+hm(b.e)+"（"+(b.e-b.s)+' 分）</dd><dt>機台</dt><dd>'+esc(M.id+" "+M.label)+'</dd><dt>人員</dt><dd>'+esc(E?E.name:"未指定")+'</dd><dt>期限</dt><dd>'+mdw(o.due)+"　"+statusTag(o)+'</dd></dl>'+
+  const body='<dl class="kv"><dt>'+tx('產品')+'</dt><dd>'+esc(p.name)+"　第 "+(b.step+1)+" 站／共 "+p.steps.length+" 站："+esc(p.steps[b.step].proc)+'</dd><dt>'+tx('數量')+'</dt><dd class="num">'+b.qty+' 件</dd><dt>'+tx('時間')+'</dt><dd class="num">'+mdw(b.date)+" "+hm(b.s)+"–"+hm(b.e)+"（"+(b.e-b.s)+' 分）</dd><dt>'+tx('機台')+'</dt><dd>'+esc(M.id+" "+M.label)+'</dd><dt>'+tx('人員')+'</dt><dd>'+esc(E?E.name:"未指定")+'</dd><dt>'+tx('期限')+'</dt><dd>'+mdw(o.due)+"　"+statusTag(o)+'</dd></dl>'+
    (iss.length?'<div class="issues">'+iss.map(t=>'<div class="issue">'+esc(t)+'</div>').join("")+'</div>':'<div class="okbox">沒有問題</div>')+
    (executionOf(S,b.id)?'<div class="hint">已有現場回報，這段排程已鎖定，不可拖曳、改量、解除固定或刪除。</div><button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">查看現場回報</button>':'')+
    (ro?"":'<div class="field"><span class="lab">換人</span><div class="toggles">'+empT+'</div></div>'+
@@ -2852,8 +2852,8 @@ function maybeReload(){if(pendingReload&&!PV&&!UI.modal&&!drag&&!generalDrag){pe
 
 // ---------- 帳號與連線 ----------
 MODALS.account=()=>({title:tx('帳號與連線'),
-  body:'<dl class="kv"><dt>資料</dt><dd>'+(STORE.kind==="local"?"本機（這台電腦的瀏覽器）":"雲端資料庫（Supabase）")+'</dd>'+
-    (STORE.kind==="supabase"?'<dt>帳號</dt><dd>'+esc(STORE.userName)+'</dd><dt>角色</dt><dd>'+esc(ROLE_NAME[STORE.role]||"未設定")+'</dd>':"")+
+  body:'<dl class="kv"><dt>'+tx('資料')+'</dt><dd>'+(STORE.kind==="local"?"本機（這台電腦的瀏覽器）":"雲端資料庫（Supabase）")+'</dd>'+
+    (STORE.kind==="supabase"?'<dt>帳號</dt><dd>'+esc(STORE.userName)+'</dd><dt>'+tx('角色')+'</dt><dd>'+esc(ROLE_NAME[STORE.role]||"未設定")+'</dd>':"")+
     '<dt>排程計算</dt><dd>'+(SOLVER.up?"OR-Tools "+esc(SOLVER.version):"瀏覽器內的演算法（排程服務未連線）")+'</dd></dl>'+
     (STORE.kind==="local"?'<div class="hint">要多人使用、手機和電視即時同步，請設定雲端資料庫（見 README）。</div>':""),
   foot:(STORE.kind==="supabase"?'<button class="btn" data-act="password-open">設定登入密碼</button>'+(STORE.role==='boss'?'<button class="btn" data-act="access-accounts">管理帳號權限</button>':'')+'<button class="btn" data-act="logout">登出</button>':'<button class="btn danger" data-act="reset-local">清除這台電腦的資料</button>')+
@@ -3765,7 +3765,7 @@ MODALS['execution-report']=m=>{
   const r=executionOf(S,b.id),allowed=canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending&&!PV;
   const actual=t=>t?new Date(t).toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}):'—';
   return {title:tx('回報')+' '+(order(b.oid)?.code||'?')+' · '+stepName(b),body:
-    '<dl class="kv"><dt>原定</dt><dd>'+mdw(b.date)+' '+hm(b.s)+'–'+hm(b.e)+' · '+b.qty+' 件</dd><dt>狀態</dt><dd>'+reportStatus(r)+'</dd><dt>實際開始</dt><dd>'+esc(actual(r?.startedAt))+'</dd><dt>實際完成</dt><dd>'+esc(actual(r?.finishedAt))+'</dd></dl>'+
+    '<dl class="kv"><dt>原定</dt><dd>'+mdw(b.date)+' '+hm(b.s)+'–'+hm(b.e)+' · '+b.qty+' 件</dd><dt>'+tx('狀態')+'</dt><dd>'+reportStatus(r)+'</dd><dt>實際開始</dt><dd>'+esc(actual(r?.startedAt))+'</dd><dt>實際完成</dt><dd>'+esc(actual(r?.finishedAt))+'</dd></dl>'+
     '<div class="hint">'+(r?'已鎖定排程，不可拖曳、改量、解除固定或刪除。':'按開始後會鎖定此段工作。')+' 件數填累計，不是這次增加量；完成會記錄實際時間，不用原定結束時間代替。</div>'+
     (r&&r.status!=='done'?'<div class="field"><label for="execution-qty">'+tx('累計已做件數')+'</label><input class="inp" id="execution-qty" type="number" min="'+r.qtyDone+'" max="'+b.qty+'" step="1" value="'+r.qtyDone+'"></div>':'')+
     (r?.status==='done'?'<div class="hint">已完成 '+r.qtyDone+' 件；相對原定差異 '+(r.qtyDone-b.qty)+' 件。此版不提供修改已完成回報。</div>':''),
@@ -3861,7 +3861,7 @@ function previewGeneral(D){
   openModal({t:'general-preview',draft:structuredClone(D),issues});
 }
 MODALS['general-preview']=m=>({title:tx('一般工作排班預覽'),body:
-  '<dl class="kv"><dt>工作內容</dt><dd>'+esc(workName(m.draft))+'</dd><dt>執行員工</dt><dd>'+esc(emp(m.draft.emp)?.name||'未指定')+'</dd><dt>設備／工位</dt><dd>'+esc(mach(m.draft.resourceId)?.label||'不需機台')+'</dd><dt>時段</dt><dd>'+esc(m.draft.date)+' '+hm(m.draft.s)+'–'+hm(m.draft.e)+'（'+(m.draft.e-m.draft.s)+' 分）</dd></dl>'+
+  '<dl class="kv"><dt>工作內容</dt><dd>'+esc(workName(m.draft))+'</dd><dt>執行員工</dt><dd>'+esc(emp(m.draft.emp)?.name||'未指定')+'</dd><dt>'+tx('設備／工位')+'</dt><dd>'+esc(mach(m.draft.resourceId)?.label||'不需機台')+'</dd><dt>'+tx('時段')+'</dt><dd>'+esc(m.draft.date)+' '+hm(m.draft.s)+'–'+hm(m.draft.e)+'（'+(m.draft.e-m.draft.s)+' 分）</dd></dl>'+
   '<div class="hint">不改產品工序與其他工作。件數只作參考，不推定實際完成或產能。</div>'+
   transferPlanWarnings(S,m.draft).map(t=>'<div class="issue">'+esc(t)+'。可保存為預排；實際加工完成仍須先點收。</div>').join('')+
   (m.issues.length?m.issues.map(t=>'<div class="issue">'+esc(t)+'</div>').join(''):'<div class="okbox">檢查通過；確認後才會存入排程。</div>'),
