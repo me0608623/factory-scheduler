@@ -222,3 +222,9 @@
 - 使用者合併 feat/split-pane（`68cc333`：抽屜改主內容分割/放大模式，對齊工作紀錄頁的區域切換機制；app.js+i18n+styles.css+2 條 layout-regression 測試）
 - worktree 同步後全套 **267/267** 驗證綠；新測試含 pane 模式反向覆寫 vg-glass 防護（`.ops-drawer.pane.vg-glass{position:relative}`）——與輪次 61 的通用守門測試相容（守門掃的是基底 class 依賴定位而無防護的情形，pane 有防護鏈故通過）
 - 生產站部署後實測：web 200 ✓ solver /health 200 ✓
+
+## 輪次 69（2026-10-09）— 聊天面板窄視窗修復
+- 根因：浮動化後 #schedule-chat 根容器縮成藥丸寬（112px），面板 width:min(430px,100%) 的 100%=根容器 → 112px 窄條（標題直排、輸入 37px）
+- 修正：面板寬 400/min320/max min(430,vw-24)、高 min(550,80vh)，與浮動按鈕尺寸分離；positionPanel() 左緣自動換錨＋垂直保護＋resize/pointerup 重算；手機百分比寬
+- 驗證：桌面 400×550、輸入 325px、左緣錨定完整可見、收合重開維持、平板 820、手機 339px 不溢出；268/268＋build；生產站實測 400×550 ✓
+- commit f74cbd2（fix/chat-panel-size → main 9b5f94b）
