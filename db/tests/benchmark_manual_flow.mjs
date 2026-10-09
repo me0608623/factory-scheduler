@@ -25,6 +25,8 @@ await db.exec(`
   create schema auth; create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb default '{}');
   create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
 `);
+// 0021 起 migration 在非 realtime 檔名內也有 alter publication——先建 shim，與 migrations.test.mjs 相同
+try { await db.exec("create publication supabase_realtime"); } catch (e) {}
 for (const name of fs.readdirSync(path.join(root, "migrations")).sort()) {
   try { await db.exec(fs.readFileSync(path.join(root, "migrations", name), "utf8")); }
   catch (error) { if (!name.includes("realtime")) throw error; }
