@@ -17,14 +17,14 @@
 
 ## Phase 3（Solver 驗證）— 本機受限
 
-- [ ] 在 CI 跑 Solver 回歸測試（pytest）— 需非 Windows 環境
+- [x] Solver pytest 已在 CI（tests.yml solver job，ubuntu + uv run --frozen pytest）— 原清單過時
 - [ ] 驗證 CP-SAT 模型在邊界案例的行為（空工單、單工單、全部逾期）
 - [ ] 效能基準（不同工單數量的解算時間）
 
 ## Phase 4（效能）
 
 - [x] Bundle 分析（main 210K gz、three/excel lazy ✓）
-- [ ] 檢查 render() 在大量排程方塊（500+）下的效能
+- [x] render() 500+ 方塊實測（→ 見 OVERNIGHT_PROGRESS 輪次 50）：空日 ~25ms、100 方塊 ~45ms、525 方塊 ~260ms，線性成長，可接受不需修
 - [ ] 檢查 localStorage 在本機模式大量資料下的限制
 
 ## 已確認安全（不需修復）
