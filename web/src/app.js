@@ -1775,7 +1775,7 @@ mach(m){
    '<div class="field"><span class="lab">所屬廠別</span><div class="toggles">'+FACTORIES.map(f=>tg("m-mach-factory",f,factoryOf(D)===f,factoryName(f),"",rm)).join("")+'</div></div>'+
    '<div class="field"><label for="f-proc">'+tx('設備工序／工作內容（可自行輸入）')+'</label><input class="inp" id="f-proc" data-bind="proc" list="process-names" value="'+esc(D.proc)+'" '+(rm?'disabled':'')+'><datalist id="process-names">'+processNames().map(p=>'<option value="'+esc(p)+'"></option>').join('')+'</datalist><div class="hint">名稱由使用者設定，不限於示範工序；純人工請使用「工作內容」。</div></div>'+
    '<div class="field"><span class="lab">允許加工的產品／品號</span><div class="toggles">'+S.products.map(p=>tg("m-prod",p.id,D.products.includes(p.id),esc(p.name)+'<small>'+esc(p.steps.map(s=>s.proc).join("→"))+'</small>',"",rm)).join("")+'</div><div class="hint">這是使用者建立的產品清單，不代表 1023 已核定模具。模具尚未獨立建模。</div>'+(rm?'':'<button class="btn" data-act="mach-products">新增／編輯產品與工序</button><div class="hint">請先儲存本視窗修改，再切換產品設定。</div>')+'</div>'+
-   '<div class="field"><span class="lab">誰會操作</span><div class="chips">'+(S.employees.filter(E=>E.skills.includes(D.id)).map(E=>'<span class="emp"><span class="sw" style="background:'+COLORS[E.color%COLORS.length]+'">'+esc(E.name[0])+'</span>'+esc(E.name)+'</span>').join("")||'<span class="hint">還沒有人會操作（到員工設定勾選）</span>')+'</div></div>'+
+   '<div class="field"><span class="lab">誰會操作</span><div class="chips">'+(S.employees.filter(E=>E.skills.includes(D.id)).map(E=>'<span class="emp"><span class="sw" style="background:'+COLORS[E.color%COLORS.length]+'">'+esc(E.name[0])+'</span>'+esc(E.name)+'</span>').join("")||'<span class="hint">'+tx('還沒有人會操作（到員工設定勾選）')+'</span>')+'</div></div>'+
    (m.fromInc?"":faultBox);
   const foot=rm?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':
    (m.id?'<button class="btn danger" data-act="m-mach-del">刪除機台</button>':'')+'<div class="spacer"></div><button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="m-mach-save">'+tx('儲存')+'</button>';
@@ -1922,7 +1922,7 @@ export(){
     foot:'<button class="btn" data-act="close">'+tx('取消')+'</button>'+(canArchive()&&legacy.dates.length?'<button class="btn primary" data-act="legacy-save"'+(m.saving?' disabled':'')+'>'+(m.saving?'儲存中…':'存為歷史排程')+'</button>':'')};
 },
 "legacy-history"(m){
-  if(m.loading)return {title:tx('歷史排程'),body:'<div class="hint">正在讀取…</div>'};
+  if(m.loading)return {title:tx('歷史排程'),body:'<div class="hint">'+tx('正在讀取…')+'</div>'};
   if(m.error)return {title:tx('歷史排程'),body:'<div class="issues"><div class="issue">'+esc(m.error)+'</div></div>'};
   if(!m.archive)return {title:tx('歷史排程'),body:'<div class="hint">尚未存入舊版排程。請到 Excel 選擇含「1廠」「2廠」的檔案。</div>',foot:'<button class="btn" data-act="export">選擇 Excel</button>'};
   const legacy=m.legacy,day=legacy?.days[m.date],names=m.archives;
@@ -2878,7 +2878,7 @@ Object.assign(MODAL_ACT,{
   "solver-check":async()=>{await SOLVER.check();renderModal();toast(SOLVER.up?"已連上 OR-Tools 排程服務":"排程服務沒有回應："+SOLVER.url);}
 });
 
-MODALS['access-accounts']=m=>({title:tx('權限管理'),body:m.loading?'<div class="hint">讀取帳號中…</div>':
+MODALS['access-accounts']=m=>({title:tx('權限管理'),body:m.loading?'<div class="hint">'+tx('讀取帳號中…')+'</div>':
   '<div class="hint">點帳號設定職位與系統權限。職位決定預設值，可逐一開關實際功能。</div>'+m.accounts.map(x=>{
     const emp=S.employees.find(e=>e.id===x.employeeId);
     const gs=emp?employeeGroups(S,emp.id).map(g=>g.group.name).join('、'):'';
@@ -2926,7 +2926,7 @@ MODALS['schedule-diff']=m=>{
   const item=b=>{const o=order(b.oid),E=emp(b.emp);
     return '<div class="rline"><span class="k">'+esc(o?o.code:"")+' '+esc(stepName(b))+'</span><span class="num">'+hm(b.s)+'-'+hm(b.e)+' '+esc(b.m)+(E?' '+esc(E.name):'')+'</span></div>';};
   if(!r)return {title:tx('排程比對'),body:
-    '<div class="hint">選兩個日期，比較排程差異。</div>'+
+    '<div class="hint">'+tx('選兩個日期，比較排程差異。')+'</div>'+
     '<div class="row2"><div class="field"><label for="diff-date1">日期 A</label><input class="inp" type="date" id="diff-date1" value="'+addDays(UI.date,-7)+'"></div>'+
     '<div class="field"><label for="diff-date2">日期 B</label><input class="inp" type="date" id="diff-date2" value="'+UI.date+'"></div></div>',
     foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="diff-run">比較</button>'};
@@ -2945,8 +2945,8 @@ MODALS['feedback']=()=>({title:tx('意見反饋'),body:
   '<div class="field"><label for="fb-msg">內容</label><textarea class="inp" id="fb-msg" rows="4" maxlength="2000" placeholder="例如：手機上排程表很難滑、希望可以…"></textarea></div>'+
   '<a class="btn" href="mailto:me0608623@gmail.com?subject=[排程系統反饋]" style="text-decoration:none">用 Email 寄</a>',
   foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="feedback-send">送出</button>'});
-MODALS['feedback-list']=m=>m.loading?{title:tx('查看反饋'),body:'<div class="hint">讀取中…</div>'}:{title:tx('查看反饋')+'（最近 50 筆）',body:
-  (m.items||[]).map(x=>'<div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0"><b>'+esc(x.author)+'</b> <span class="tag">'+esc(FEEDBACK_CATS.find(c=>c[0]===x.category)?.[1]||x.category)+'</span> <span class="tag '+(x.status==='resolved'?'ok':x.status==='read'?'mute':'warn')+'">'+(x.status==='new'?'新':x.status==='read'?'已讀':'已解決')+'</span><p style="margin:6px 0">'+esc(x.message)+'</p><small style="color:var(--muted)">'+esc((x.createdAt||'').replace('T',' ').slice(0,16))+(x.pageUrl?' · '+esc(x.pageUrl.replace(location.origin,'')):'')+'</small></div>').join('')||'<div class="hint">還沒有反饋。</div>',
+MODALS['feedback-list']=m=>m.loading?{title:tx('查看反饋'),body:'<div class="hint">'+tx('讀取中…')+'</div>'}:{title:tx('查看反饋')+'（最近 50 筆）',body:
+  (m.items||[]).map(x=>'<div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0"><b>'+esc(x.author)+'</b> <span class="tag">'+esc(FEEDBACK_CATS.find(c=>c[0]===x.category)?.[1]||x.category)+'</span> <span class="tag '+(x.status==='resolved'?'ok':x.status==='read'?'mute':'warn')+'">'+(x.status==='new'?'新':x.status==='read'?'已讀':'已解決')+'</span><p style="margin:6px 0">'+esc(x.message)+'</p><small style="color:var(--muted)">'+esc((x.createdAt||'').replace('T',' ').slice(0,16))+(x.pageUrl?' · '+esc(x.pageUrl.replace(location.origin,'')):'')+'</small></div>').join('')||'<div class="hint">'+tx('還沒有反饋。')+'</div>',
   foot:'<button class="btn primary" data-act="close">'+tx('關閉')+'</button>'};
 MODALS['leave-request']=m=>({title:tx('新增請假詢問'),body:
   '<div class="hint">詢問送出後不會立刻成為正式請假，也不會觸發自動重排；必須由有「故障與請假」權限的人准假。</div>'+
@@ -3371,7 +3371,7 @@ function analyticsPageHTML(){
       (machUtil.slice(0,10).map(m=>bar(m.label+' ('+m.id+')',m.pct,m.pct>70?'#39d353':m.pct>40?'#ffe14a':'#c62828')).join('')||'<div class="hint">尚無排程資料</div>')+
     '</div></div>'+
     '<div class="ana-card"><h3>員工加班時數（本月）</h3><div class="ana-list">'+
-      (empOT.slice(0,10).map(e=>'<div class="ana-row"><span class="ana-lab">'+esc(e.name)+'</span><span class="ana-val ot">'+e.otH+' 小時</span></div>').join('')||'<div class="hint">本月無加班</div>')+
+      (empOT.slice(0,10).map(e=>'<div class="ana-row"><span class="ana-lab">'+esc(e.name)+'</span><span class="ana-val ot">'+e.otH+' 小時</span></div>').join('')||'<div class="hint">'+tx('本月無加班')+'</div>')+
     '</div></div>'+
     '<div class="ana-card"><h3>工單狀態</h3><div class="ana-stats">'+
       '<div class="ana-stat"><b>'+ordStats.done+'</b><span>已完成</span></div>'+
@@ -3594,7 +3594,7 @@ MODALS.groups=()=>({title:tx('員工分組／部門'),body:
   '<div class="hint">分組與廠別、機台技能分開。一人可加入多組，分組可跨部門或跨廠；這不會自動修改所屬廠別或授予機台技能。原檔分組是來源紀錄，不代表已核定現在的人力配置。</div>'+
   (S.groups||[]).map(g=>{const ms=S.groupMembers.filter(m=>m.groupId===g.id),pending=ms.filter(m=>m.reviewStatus==='pending').length;
     return '<button class="btn" style="display:flex;width:100%;margin:10px 0;justify-content:space-between;height:auto;min-height:46px" data-act="group-edit" data-id="'+esc(g.id)+'"><span>'+esc(g.name)+(g.department?' · '+esc(g.department):'')+'</span><span>'+esc(g.homeFactory?factoryName(g.homeFactory):'跨廠')+' · '+ms.length+' 人'+(pending?' · '+pending+' 待核對':'')+'</span></button>';
-  }).join('')+((S.groups||[]).length?'':'<div class="hint">還沒有分組，可建立第一個分組。</div>'),
+  }).join('')+((S.groups||[]).length?'':'<div class="hint">'+tx('還沒有分組，可建立第一個分組。')+'</div>'),
   foot:(canGroups()?'<button class="btn primary" data-act="group-new">＋新增分組</button>':'')+'<button class="btn" data-act="close">'+tx('關閉')+'</button>'});
 MODALS['staff-group']=m=>{
   if(!m.draft){const old=S.groups.find(g=>g.id===m.id);m.draft=old?JSON.parse(JSON.stringify(old)):{id:uid(),name:'',department:'',homeFactory:UI.factory==='all'?null:UI.factory,sourceRef:null};
@@ -3715,8 +3715,8 @@ async function openScenarioList(){
 }
 MODALS['scenario-list']=m=>({title:tx('保存的試排情境'),body:
   '<div class="hint">情境與正式班表分開保存，只供原本／調整後對照，不提供直接套用。雲端只列出此帳號保存的情境，最多 20 份。</div>'+
-  (m.loading?'<div class="hint">讀取中…</div>':m.error?'<div class="issue">'+esc(m.error)+'</div>':
-    (m.items||[]).map(s=>'<button class="btn" style="width:100%;height:auto;min-height:48px;margin:8px 0" data-act="scenario-view" data-id="'+esc(s.id)+'">'+esc(s.name)+' · '+esc(s.created_at.slice(0,10))+'</button>').join('')||'<div class="hint">還沒有保存的情境。</div>'),
+  (m.loading?'<div class="hint">'+tx('讀取中…')+'</div>':m.error?'<div class="issue">'+esc(m.error)+'</div>':
+    (m.items||[]).map(s=>'<button class="btn" style="width:100%;height:auto;min-height:48px;margin:8px 0" data-act="scenario-view" data-id="'+esc(s.id)+'">'+esc(s.name)+' · '+esc(s.created_at.slice(0,10))+'</button>').join('')||'<div class="hint">'+tx('還沒有保存的情境。')+'</div>'),
   foot:'<button class="btn" data-act="scenario-save">保存目前排程</button><button class="btn" data-act="close">'+tx('關閉')+'</button>'});
 MODALS['scenario-save']=m=>({title:tx('保存試排情境'),body:'<div class="hint">只保存比較資料，不套用、不寫入正式班表。之後排程、名冊、技能或現場進度改變，會提示這份情境與現況不同。</div>'+
   '<div class="field"><label for="scenario-name">情境名稱</label><input class="inp" id="scenario-name" maxlength="80" value="'+esc(m.name||'')+'"></div>',
