@@ -2,15 +2,15 @@
 
 ## 執行狀態
 - **分支**: `agent/overnight-20261009`（全數合併 main）
-- **最新 main**: `5976fe0`（輪次 51 代碼推送）
-- **main 總 commits**: 302（輪次 51 文件推送後）
-- **總輪次**: 51
+- **最新 main**: `b079185`（輪次 52 推送；另含使用者平行 commit `1f624dd` fix-account 除錯）
+- **main 總 commits**: 315（輪次 52 文件推送後）
+- **總輪次**: 52
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
-- 前端: **223/223** PASS
+- 前端: **225/225** PASS
 - DB: **206/206** PASS
-- 合計: **429**
+- 合計: **431**
 
 ## Bug 修復（10 項）
 1. **P1** XSS（line-notify）
@@ -25,7 +25,7 @@
 10. **P3** 看板 tooltip 中文
 
 ## i18n 覆蓋
-- **UI_TEXT**: 243 鍵（en/vi/th）
+- **UI_TEXT**: 317 鍵（en/vi/th，唯一鍵實算；舊紀錄 302 為概數）
 - **SETTINGS_TEXT**: 24 鍵 × 4 語言
 - **覆蓋**: modal/form/dt/heading/button/tooltip/aria/placeholder/option/hint/empty/status/flag
 - **tx() 呼叫**: 227 個（225 有字典鍵）
@@ -63,3 +63,13 @@
 - 前端測試：**218 → 223** PASS
 - 附帶：上輪滯留 agent 分支的 2 個 docs commit（e60172a、c60bf16）已隨本輪 merge 進 main
 - Solver 邊界驗證維持暫緩：本機 uv 環境損壞（trampoline spawn 失敗），僅 CI 可跑
+
+## 輪次 52（2026-10-09）— 複合變數 modal 標題 i18n 結案（P3）
+
+- **tx() 新增佔位參數**：`tx('鍵',{x:值})` 以 `{x}` 替換（值由呼叫端自行跳脫；zh-TW fallback 即原文鍵代入後輸出，與原字串組裝完全一致）
+- **15 處寫死中文標題全數 tx() 化**（→ `645ac29`，main `b079185`）：手動排班日期標題、手動排班預覽×2、加班設定、員工/機台/工單新增與編輯標題、`{date} 有 {n} 個問題`、Excel 匯入×2、`{name} 請假`、`{name} 整月班表設定`、三頁表格新增/編輯、工作內容設定×2、一般工作排班×2、方案比較 drawer
+- **UI_TEXT +22 鍵 → 317 唯一鍵**（en/vi/th 三語齊）；補 TABLE_TITLES 缺的 `給二廠／回一廠`、`工作紀錄`；發現字典既有 `刪除` 重複鍵（合法、後者生效，未動）
+- 新增 2 條防回歸測試（佔位替換含 zh fallback／22 鍵三語齊全）；`title:tx(` 覆蓋數 59→66
+- 前端測試：**223 → 225** PASS
+- 剩餘：操作紀錄 log 標題（歷史資料層，NEXT_TASKS 已註明非 modal 範圍）、CSS 死碼清理（P3）
+- 環境注意：使用者平行在 agent/main 上活動（faf88bb、1f624dd fix-account 500 除錯），本輪 merge 一併帶上 main；後續輪次同步需先 fetch 看 main 是否前進
