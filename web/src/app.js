@@ -1611,7 +1611,7 @@ function rerender(){syncInputs();renderModal();}
 const tg=(act,v,on,txt,extra="",disabled=false)=>'<button class="tg '+extra+'" data-act="'+act+'" data-v="'+esc(v)+'" aria-pressed="'+!!on+'"'+(disabled?' disabled':'')+'>'+txt+'</button>';
 const RK={early:"提早",swap:"換人",mach:"換機台",delay:"延後",push:"順延",chain:"連動",fail:"要處理",late:"延誤",info:"說明"};
 function resultHTML(lines){
-  if(!lines||!lines.length)return '<div class="okbox">不用調整，其他排程都沒變</div>';
+  if(!lines||!lines.length)return '<div class="okbox">'+tx('不用調整，其他排程都沒變')+'</div>';
   return '<div class="result">'+lines.map(l=>'<div class="rline"><span class="k '+l.k+'">'+(RK[l.k]||"")+'</span><span>'+esc(l.t)+'</span></div>').join("")+'</div>';
 }
 function futureOf(b){return bEnd(b)>nowAbs();}
@@ -1696,7 +1696,7 @@ const MODALS={
   const main='<div class="pv-sum"><b>'+esc(P.movedLabel)+'</b>：'+esc(P.source)+' → '+esc(P.target)+(P.newQty!==undefined?'；預計 '+P.newQty+' 件':'')+(P.remaining?'；此站還有 '+P.remaining+' 件未排':'')+'</div>';
   const suggest=displaced.length?'<div class="field"><span class="lab">建議順延到最早可用時間</span><div class="result">'+displaced.map(t=>'<div class="rline"><span class="k push">'+tx('順延')+'</span><span>'+esc(t)+'</span></div>').join("")+'</div></div>':'';
   const pins=!P.problems.length&&P.unpinned.length?'<div class="issues">'+P.unpinned.map(x=>'<div class="issue">'+esc(x.label)+' 已固定（釘）。確認後會解除固定並移動它；取消則保持原樣。</div>').join("")+'</div>':'';
-  const impact='<div class="field"><span class="lab">連帶影響的工作（'+others.length+' 道工序）</span>'+(others.length?'<div class="result">'+others.map(x=>'<div class="rline"><span class="k '+(x.next[0]&&x.prev[0]&&bAbs(x.next[0])>bAbs(x.prev[0])?"delay":"info")+'">'+esc(x.code)+'</span><span>'+esc(x.step+"："+place(x.prev)+" → "+place(x.next))+'</span></div>').join("")+'</div>':'<div class="okbox">其他工作不變</div>')+'</div>';
+  const impact='<div class="field"><span class="lab">連帶影響的工作（'+others.length+' 道工序）</span>'+(others.length?'<div class="result">'+others.map(x=>'<div class="rline"><span class="k '+(x.next[0]&&x.prev[0]&&bAbs(x.next[0])>bAbs(x.prev[0])?"delay":"info")+'">'+esc(x.code)+'</span><span>'+esc(x.step+"："+place(x.prev)+" → "+place(x.next))+'</span></div>').join("")+'</div>':'<div class="okbox">'+tx('其他工作不變')+'</div>')+'</div>';
   const due='<div class="field"><span class="lab">受影響工單的交期</span><div class="result">'+P.statuses.map(x=>{
     const bad=["late","part","none"].includes(x.status);
     const msg=x.status==="late"?"逾期，預計 "+mdw(x.finish):x.status==="part"||x.status==="none"?"尚未排完":"未逾期"+(x.finish?"，預計 "+mdw(x.finish):"");
@@ -1871,7 +1871,7 @@ logone(m){
 },
 issues(){
   const bad=S.blocks.filter(b=>b.date===UI.date).map(b=>({b,iss:issuesOf(b)})).filter(x=>x.iss.length);
-  if(!bad.length)return {title:tx('沒有問題'),body:'<div class="okbox">今天的排程都沒有衝突</div>'};
+  if(!bad.length)return {title:tx('沒有問題'),body:'<div class="okbox">'+tx('今天的排程都沒有衝突')+'</div>'};
   return {title:mdw(UI.date)+" 有 "+bad.length+" 個問題",
     body:'<div class="result">'+bad.map(x=>'<div class="rline" style="flex-wrap:wrap"><span style="flex:1;min-width:200px">'+esc(label(x.b)+"（"+x.b.m+" "+hm(x.b.s)+"）")+'<br><span style="color:var(--bad)">'+esc(x.iss.join("、"))+'</span></span><button class="btn" data-act="blk-open" data-v="'+x.b.id+'">'+tx('處理')+'</button></div>').join("")+'</div>',
     foot:readOnly?"":'<button class="btn primary" data-act="fix-all">'+tx('讓系統自動修正全部')+'</button>'};
@@ -2038,7 +2038,7 @@ function peopleOf(o){
 const itemTxt=b=>{const o=order(b.oid);return mdw(b.date)+" "+hm(b.s)+"–"+hm(b.e)+"　"+b.m+" 機台　"+(o?o.code:"")+" "+stepName(b)+" "+b.qty+"件";};
 function peopleHTML(o){
   const P=peopleOf(o);
-  if(!P.length)return '<div class="okbox">沒有人的班表改變</div>';
+  if(!P.length)return '<div class="okbox">'+tx('沒有人的班表改變')+'</div>';
   return '<div class="people">'+P.map(p=>'<div class="person"><div class="person-h"><span class="sw" style="background:'+p.color+'">'+esc(p.name[0])+'</span><b>'+esc(p.name)+'</b>'+
     (p.n.out?'<span class="tag bad">拿掉 '+p.n.out+'</span>':"")+(p.n.in?'<span class="tag ok">新增 '+p.n.in+'</span>':"")+'</div>'+
     p.items.map(x=>'<div class="pitem '+x.t+'"><span class="k '+(x.t==="in"?"swap":"fail")+'">'+(x.t==="in"?"新增":"拿掉")+'</span><span class="num">'+esc(itemTxt(x.b))+'</span></div>').join("")+'</div>').join("")+'</div>';
