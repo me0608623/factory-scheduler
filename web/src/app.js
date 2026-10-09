@@ -3723,12 +3723,12 @@ Object.assign(MODAL_ACT,{
 // 視覺效果展示頁（?view=visual-demo）：登入畫面同款背景＋液態 logo＋玻璃卡，驗證與截圖用
 function visualDemoPageHTML(){
   ensureVisualStyles();
-  return '<div class="page-top"><div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">'+tx('backToday')+'</button><div class="page-title"><h1>視覺效果</h1></div></div></div>'+
+  return '<div class="page-top"><div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">'+tx('backToday')+'</button><div class="page-title"><h1>'+tx('視覺效果')+'</h1></div></div></div>'+
     '<div id="vd-stage" style="position:relative;height:520px;border-radius:14px;overflow:hidden">'+
       '<form class="login-card vg-glass" id="loginf-demo" style="position:relative;z-index:1;margin:90px auto;max-width:420px;pointer-events:none">'+
         '<div class="brand" style="color:#EAF0FF"><span class="brand-mark"><span></span></span>'+liquidLogoSVG("產線排程")+'</div>'+
-        '<div class="field"><label>帳號（Email）</label><input class="inp" placeholder="user@example.com"></div>'+
-        '<div class="field"><label>密碼</label><input class="inp" type="password" placeholder="••••••"></div>'+
+        '<div class="field"><label>'+tx('帳號（Email）')+'</label><input class="inp" placeholder="user@example.com"></div>'+
+        '<div class="field"><label>'+tx('密碼')+'</label><input class="inp" type="password" placeholder="••••••"></div>'+
         '<button class="btn primary" type="button" style="justify-content:center;height:52px">'+tx('登入')+'</button>'+
       '</form></div>'+
     '<p class="hint">漸層＋點陣背景（WebGL shader）、液態 Logo（SVG 形變）、玻璃卡片（backdrop-filter）。滑鼠移動有光暈視差。</p>';
@@ -3765,7 +3765,7 @@ function showLogin(err="",email="",signup=false){
     '<button class="btn" type="button" id="lg-reset">'+tx('忘記密碼／設定邀請帳號密碼')+'</button>'+
     '<button class="btn" type="button" id="lg-signup">'+tx('註冊新帳號')+'</button>'+
     (signup?'<div class="hint">註冊後為「檢視」身分；要排程權限請找老闆在「權限管理」開放。若本站採邀請制，註冊被拒時請找管理者邀請。</div>':'')+
-    '<div class="hint">帳號由管理者邀請。收到邀請信，先開啟信中的連結，再到「帳號與連線」設定密碼。</div></form></main>';
+    '<div class="hint">'+tx('帳號由管理者邀請。收到邀請信，先開啟信中的連結，再到「帳號與連線」設定密碼。')+'</div></form></main>';
   vizBg = mountBackdrop(document.getElementById("login-bg"),{interactive:true});
   mountViz3D(document.getElementById("login-bg"));
   $("#loginf").addEventListener("submit",async e=>{
@@ -3801,7 +3801,7 @@ MODALS['work-queue']=()=>{
       '<div class="hint">期限 '+esc(r.due)+' · 已排 '+r.planned+' 件 · 尚待排 '+r.remaining+' 件'+(r.shortfall?' · 回報短少 '+r.shortfall+' 件':'')+'</div>'+
       r.reasons.map(t=>'<div class="hint">'+esc(t)+'</div>').join('')+
       (r.canArrange&&!readOnly?'<button class="btn" data-act="queue-arrange" data-id="'+esc(r.oid)+'" data-step="'+r.step+'">'+tx('安排此工序')+'</button>':'')+'</article>').join('')+
-      (!rows.length?'<div class="okbox">此範圍目前没有未排量或已回報短少。這不等於工作已實際完成。</div>':''),foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button>'};
+      (!rows.length?'<div class="okbox">'+tx('此範圍目前没有未排量或已回報短少。這不等於工作已實際完成。')+'</div>':''),foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button>'};
 };
 async function openScenarioList(){
   if(!canScenarios())return;openModal({t:'scenario-list',loading:true});const m=UI.modal;
@@ -3811,10 +3811,10 @@ MODALS['scenario-list']=m=>({title:tx('保存的試排情境'),body:
   '<div class="hint">情境與正式班表分開保存，只供原本／調整後對照，不提供直接套用。雲端只列出此帳號保存的情境，最多 20 份。</div>'+
   (m.loading?'<div class="hint">'+tx('讀取中…')+'</div>':m.error?'<div class="issue">'+esc(m.error)+'</div>':
     (m.items||[]).map(s=>'<button class="btn" style="width:100%;height:auto;min-height:48px;margin:8px 0" data-act="scenario-view" data-id="'+esc(s.id)+'">'+esc(s.name)+' · '+esc(s.created_at.slice(0,10))+'</button>').join('')||'<div class="hint">'+tx('還沒有保存的情境。')+'</div>'),
-  foot:'<button class="btn" data-act="scenario-save">保存目前排程</button><button class="btn" data-act="close">'+tx('關閉')+'</button>'});
+  foot:'<button class="btn" data-act="scenario-save">'+tx('保存目前排程')+'</button><button class="btn" data-act="close">'+tx('關閉')+'</button>'});
 MODALS['scenario-save']=m=>({title:tx('保存試排情境'),body:'<div class="hint">只保存比較資料，不套用、不寫入正式班表。之後排程、名冊、技能或現場進度改變，會提示這份情境與現況不同。</div>'+
-  '<div class="field"><label for="scenario-name">情境名稱</label><input class="inp" id="scenario-name" maxlength="80" value="'+esc(m.name||'')+'"></div>',
-  foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="scenario-confirm">確認保存情境</button>'});
+  '<div class="field"><label for="scenario-name">'+tx('情境名稱')+'</label><input class="inp" id="scenario-name" maxlength="80" value="'+esc(m.name||'')+'"></div>',
+  foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="scenario-confirm">'+tx('確認保存情境')+'</button>'});
 async function saveScenarioFromModal(button){
   if(!canScenarios())return;const m=UI.modal;if(m.t!=='scenario-save')return;
   try{m.name=$('#scenario-name').value;const item=m.item||makeScenario(m.name,m.base,m.candidate,{description:m.description,date:m.date});m.item=item;
@@ -3837,7 +3837,7 @@ const reportStatus=r=>!r?'尚未開始':r.status==='done'?'已回報完成':'進
 MODALS.execution=()=>{
   const worker=reportingRole()==='worker';
   const blocks=S.blocks.filter(b=>b.date===UI.date&&inFactory(mach(b.m),UI.factory)&&(!worker||b.emp===STORE.employeeId)).sort((a,b)=>a.s-b.s);
-  const ticket=(b,caption)=>{if(!b)return '<article class="worker-ticket empty"><span>'+caption+'</span><b>沒有排定工作</b></article>';
+  const ticket=(b,caption)=>{if(!b)return '<article class="worker-ticket empty"><span>'+caption+'</span><b>'+tx('沒有排定工作')+'</b></article>';
     const r=executionOf(S,b.id);return '<article class="worker-ticket '+(r?.status==='running'?'running':'')+'"><span>'+caption+'</span><b>'+esc(order(b.oid)?.code||'?')+' · '+esc(stepName(b))+'</b><strong>'+esc(mach(b.m)?.label||b.m)+'</strong><time>'+hm(b.s)+'–'+hm(b.e)+'</time><small>'+reportStatus(r)+' · 計畫 '+b.qty+' 件</small>'+
       (canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending?'<button class="btn primary" data-act="report-open" data-id="'+esc(b.id)+'">'+(r?.status==='running'?'繼續回報':'查看工作')+'</button>':'')+'</article>';};
   const line=worker?workerTimeline(S,STORE.employeeId,UI.date,UI.date===todayStr()?nowMin():DAY0):null;
@@ -3848,18 +3848,18 @@ MODALS.execution=()=>{
       (canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending?'<button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">'+tx('查看／回報進度')+'</button>':'')+'</article>';}).join(''):'';
   return {title:tx('現場回報')+' · '+mdw(UI.date),body:
     '<div class="hint">開始、做了幾件、完工都另外保存實際事實。完工少做的件數會回到未排工作，下一次重排會補足；不會悄悄改掉原定產能。</div>'+
-    (worker&&!STORE.employeeId?'<div class="issue">帳號尚未綁定員工，請由管理員綁定後使用。</div>':'')+
-    (S.setupPending?'<div class="issue">來源名冊與工時待確認，不能回報。</div>':'')+
+    (worker&&!STORE.employeeId?'<div class="issue">'+tx('帳號尚未綁定員工，請由管理員綁定後使用。')+'</div>':'')+
+    (S.setupPending?'<div class="issue">'+tx('來源名冊與工時待確認，不能回報。')+'</div>':'')+
     workerBody+managerBody+
-    (!blocks.length?'<div class="hint">這個日期與範圍沒有可回報的排班；待確認的原表文字不是正式工作方塊。</div>':''),
+    (!blocks.length?'<div class="hint">'+tx('這個日期與範圍沒有可回報的排班；待確認的原表文字不是正式工作方塊。')+'</div>':''),
     foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button>'};
 };
 MODALS['execution-report']=m=>{
-  const b=S.blocks.find(b=>b.id===m.id);if(!b)return {title:tx('現場回報'),body:'<div class="issue">工作已變動，請重新載入。</div>'};
+  const b=S.blocks.find(b=>b.id===m.id);if(!b)return {title:tx('現場回報'),body:'<div class="issue">'+tx('工作已變動，請重新載入。')+'</div>'};
   const r=executionOf(S,b.id),allowed=canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending&&!PV;
   const actual=t=>t?new Date(t).toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}):'—';
   return {title:tx('回報')+' '+(order(b.oid)?.code||'?')+' · '+stepName(b),body:
-    '<dl class="kv"><dt>原定</dt><dd>'+mdw(b.date)+' '+hm(b.s)+'–'+hm(b.e)+' · '+b.qty+' 件</dd><dt>'+tx('狀態')+'</dt><dd>'+reportStatus(r)+'</dd><dt>實際開始</dt><dd>'+esc(actual(r?.startedAt))+'</dd><dt>實際完成</dt><dd>'+esc(actual(r?.finishedAt))+'</dd></dl>'+
+    '<dl class="kv"><dt>'+tx('原定')+'</dt><dd>'+mdw(b.date)+' '+hm(b.s)+'–'+hm(b.e)+' · '+b.qty+' 件</dd><dt>'+tx('狀態')+'</dt><dd>'+reportStatus(r)+'</dd><dt>'+tx('實際開始')+'</dt><dd>'+esc(actual(r?.startedAt))+'</dd><dt>'+tx('實際完成')+'</dt><dd>'+esc(actual(r?.finishedAt))+'</dd></dl>'+
     '<div class="hint">'+(r?'已鎖定排程，不可拖曳、改量、解除固定或刪除。':'按開始後會鎖定此段工作。')+' 件數填累計，不是這次增加量；完成會記錄實際時間，不用原定結束時間代替。</div>'+
     (r&&r.status!=='done'?'<div class="field"><label for="execution-qty">'+tx('累計已做件數')+'</label><input class="inp" id="execution-qty" type="number" min="'+r.qtyDone+'" max="'+b.qty+'" step="1" value="'+r.qtyDone+'"></div>':'')+
     (r?.status==='done'?'<div class="hint">已完成 '+r.qtyDone+' 件；相對原定差異 '+(r.qtyDone-b.qty)+' 件。此版不提供修改已完成回報。</div>':''),
@@ -3894,21 +3894,21 @@ const timeValue=t=>{const [h,m]=t.split(':').map(Number);return h*60+m;};
 const textInput=(id,label,value,type='text',off='')=>'<div class="field"><label for="'+id+'">'+label+'</label><input class="inp" id="'+id+'" type="'+type+'" value="'+esc(value)+'" '+off+'></div>';
 MODALS['work-contents']=()=>({title:tx('工作內容'),body:
   '<div class="hint">三部分：工作內容（做什麼）、設備／工位（需要時才指定）、排班方塊（人員、時間及參考件數）。既有產品工序仍依原公式排程；下面的獨立工作不會自動算進工單完成量。</div>'+
-  '<h4>產品工序工作內容</h4><div class="hint">'+[...new Set(S.products.flatMap(p=>p.steps.map(s=>s.proc)))].map(esc).join('、')+'</div><button class="btn" data-act="products">'+tx('查看產品工序')+'</button>'+
-  '<h4>可獨立安排的工作內容</h4>'+workCatalog(S).filter(w=>inFactory(w,UI.factory)).map(w=>'<button class="rline" data-act="work-content-edit" data-id="'+esc(w.id)+'"><b>'+esc(w.name)+'</b><span>'+factoryName(w.factory)+' · '+(w.requiresResource?'需要設備／工位':'純人工，不需機台')+' · 核定 '+w.employeeIds.length+' 人</span></button>').join('')+
-  (!workCatalog(S).length?'<div class="empty">尚未建立獨立工作內容；不會從 1023 欄名推測技能或產能。</div>':'')+
+  '<h4>'+tx('產品工序工作內容')+'</h4><div class="hint">'+[...new Set(S.products.flatMap(p=>p.steps.map(s=>s.proc)))].map(esc).join('、')+'</div><button class="btn" data-act="products">'+tx('查看產品工序')+'</button>'+
+  '<h4>'+tx('可獨立安排的工作內容')+'</h4>'+workCatalog(S).filter(w=>inFactory(w,UI.factory)).map(w=>'<button class="rline" data-act="work-content-edit" data-id="'+esc(w.id)+'"><b>'+esc(w.name)+'</b><span>'+factoryName(w.factory)+' · '+(w.requiresResource?'需要設備／工位':'純人工，不需機台')+' · 核定 '+w.employeeIds.length+' 人</span></button>').join('')+
+  (!workCatalog(S).length?'<div class="empty">'+tx('尚未建立獨立工作內容；不會從 1023 欄名推測技能或產能。')+'</div>':'')+
   '<div class="hint">1023 的工作／設備／規格對照在「歷史排程 → 製作項目名冊」查看；未確認欄位保持待確認。</div>',
-  foot:(canWorkContents()?'<button class="btn primary" data-act="work-content-new">新增工作內容</button>':'')+'<button class="btn" data-act="close">'+tx('關閉')+'</button>'});
+  foot:(canWorkContents()?'<button class="btn primary" data-act="work-content-new">'+tx('新增工作內容')+'</button>':'')+'<button class="btn" data-act="close">'+tx('關閉')+'</button>'});
 MODALS['work-content-edit']=m=>{
   m.draft ||= structuredClone(workCatalog(S).find(w=>w.id===m.id)||{id:uid(),name:'',factory:UI.factory==='all'?1:UI.factory,requiresResource:false,employeeIds:[],resourceIds:[],reviewStatus:'confirmed'});
   const D=m.draft,off=canWorkContents()?'':'disabled';
   const picks=(items,key,label)=>'<div class="field"><span class="lab">'+label+'</span>'+items.filter(x=>factoryOf(x)===D.factory).map(x=>'<label><input type="checkbox" id="gw-'+key+'-'+esc(x.id)+'" data-key="'+key+'" data-id="'+esc(x.id)+'" '+(D[key].includes(x.id)?'checked':'')+' '+off+'> '+esc(x.name||x.label)+(x.reviewStatus==='pending'?' · 待確認':'')+'</label>').join('')+'</div>';
   return {title:tx(m.id?'工作內容設定':'新增工作內容'),body:textInput('gw-name','工作內容名稱',D.name,'text',off)+
     '<div class="field"><label for="gw-factory">'+tx('所屬廠別')+'</label><select class="inp" id="gw-factory" '+off+'>'+FACTORIES.map(f=>'<option value="'+f+'" '+(D.factory===f?'selected':'')+'>'+factoryName(f)+'</option>').join('')+'</select></div>'+
-    '<div class="field"><label for="gw-kind">工作方式</label><select class="inp" id="gw-kind" '+off+'><option value="manual" '+(!D.requiresResource?'selected':'')+'>'+tx('純人工，不需要機台')+'</option><option value="resource" '+(D.requiresResource?'selected':'')+'>'+tx('需要設備／工位')+'</option></select></div>'+
+    '<div class="field"><label for="gw-kind">'+tx('工作方式')+'</label><select class="inp" id="gw-kind" '+off+'><option value="manual" '+(!D.requiresResource?'selected':'')+'>'+tx('純人工，不需要機台')+'</option><option value="resource" '+(D.requiresResource?'selected':'')+'>'+tx('需要設備／工位')+'</option></select></div>'+
     '<div class="hint">核定人員與設備由你明確勾選，不依原表顏色、名字位置或分組自動認定。設備工作另須具操作技能。</div>'+
-    picks(S.employees,'employeeIds','核定可做此工作的人員')+(D.requiresResource?picks(S.machines,'resourceIds','允許使用的設備／工位'):'<div class="hint">純人工工作占用整段員工時間，不能一邊顧機台一邊做。</div>'),
-    foot:'<button class="btn" data-act="close">'+tx('取消')+'</button>'+(canWorkContents()?'<button class="btn primary" data-act="gw-content-save">儲存工作內容</button>':'')};
+    picks(S.employees,'employeeIds','核定可做此工作的人員')+(D.requiresResource?picks(S.machines,'resourceIds','允許使用的設備／工位'):'<div class="hint">'+tx('純人工工作占用整段員工時間，不能一邊顧機台一邊做。')+'</div>'),
+    foot:'<button class="btn" data-act="close">'+tx('取消')+'</button>'+(canWorkContents()?'<button class="btn primary" data-act="gw-content-save">'+tx('儲存工作內容')+'</button>':'')};
 };
 function readGeneralFields(){
   const m=UI.modal,D=m?.draft;if(!D)return;
@@ -3942,11 +3942,11 @@ MODALS['general-edit']=m=>{
     '<div class="hint">先選工作內容、人員與時間。純人工不需要設備；參考件數與工單不會充當工序產能或工單完成量。'+(ro?'目前只供查看。':'確認前不更動排程。')+'</div>'+
     select('gw-work','工作內容',workCatalog(S).filter(w=>inFactory(w,UI.factory)),D.workId)+
     select('gw-employee','執行員工',S.employees.filter(e=>w?.employeeIds.includes(e.id)),D.emp)+
-    (w?.requiresResource?select('gw-resource','設備／工位',S.machines.filter(m=>w.resourceIds.includes(m.id)),D.resourceId):'<div class="hint">工作位置：不需機台（純人工）</div>')+
+    (w?.requiresResource?select('gw-resource','設備／工位',S.machines.filter(m=>w.resourceIds.includes(m.id)),D.resourceId):'<div class="hint">'+tx('工作位置：不需機台（純人工）')+'</div>')+
     textInput('gw-date','工作日期',D.date,'date',off)+'<div class="row2">'+textInput('gw-start','工作開始',hm(D.s),'time',off)+textInput('gw-end','工作結束',hm(D.e),'time',off)+'</div>'+
     textInput('gw-qty',D.transferBatchId?'跨廠計畫件數（必填）':'參考件數（可留空）',D.qty??'','number',off)+
     select('gw-transfer','跨廠加工批次（可不選）',transferOrders(S).flatMap(o=>o.batches.map(b=>({id:b.id,name:o.code+'／'+b.code+' · '+o.itemCode}))),D.transferBatchId)+
-    (D.transferBatchId?'<div class="field"><label for="gw-stage">跨廠工作階段</label><select class="inp" id="gw-stage" '+off+'><option value="process" '+(D.transferStage!=='return'?'selected':'')+'>加工廠加工</option><option value="return" '+(D.transferStage==='return'?'selected':'')+'>回廠點收後工作</option></select></div>':'')+
+    (D.transferBatchId?'<div class="field"><label for="gw-stage">'+tx('跨廠工作階段')+'</label><select class="inp" id="gw-stage" '+off+'><option value="process" '+(D.transferStage!=='return'?'selected':'')+'>加工廠加工</option><option value="return" '+(D.transferStage==='return'?'selected':'')+'>回廠點收後工作</option></select></div>':'')+
     select('gw-order','參考工單（可不選）',S.orders.concat((S.workReferenceOrders||[]).filter(o=>!S.orders.some(x=>x.id===o.id))),D.orderId)+textInput('gw-note','工作備註',D.note,'text',off),
     foot:(existing&&!ro?'<button class="btn danger" data-act="gw-remove-preview">移除此段工作</button>':'')+'<button class="btn" data-act="close">'+tx('取消')+'</button>'+(!ro?'<button class="btn primary" data-act="gw-preview">預覽工作排班</button>':'')};
 };
