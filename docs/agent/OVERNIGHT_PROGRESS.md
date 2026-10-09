@@ -51,7 +51,7 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 87（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
+- **總輪次**: 88（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
 - **正式站**: web 200 ✓ solver 200 ✓
 
 ## 測試
@@ -403,3 +403,10 @@
 
 - 文件已 87+ 輪、巨大難導航——頂部新增「輪次索引」（39 條：輪號→一句摘要），由標題與首行重點自動生成
 - 另查最後一個未跑的 db 腳本 integration_solver_apply.mjs：其 spawn uv run python（本機 uv 損壞跑不了），且它已有 publication shim 與正確註解（環境限制、非腳本 bug），維持原樣
+
+
+## 輪次 88（2026-10-10）— staging 首驗＋新手導覽七步走查
+
+- **staging 站首次驗證**：factory-scheduler-web-staging.onrender.com → **200** ✓（此前從未檢查過）
+- **新手導覽七步完整走查**（本機瀏覽器，清除 fsched-tour-done 後重載觸發）：從「切換日期」起連點下一步至「更多功能」，第七次點擊後對話框與聚焦框正確移除——完成路徑乾淨；計數讀值的跳動（1→4→6）是取樣撞上 render() 整頁 DOM 重建的時序現象，非導覽缺陷
+- 附帶確認：evaluate 多語句需包 IIFE 且避免可選鏈（傳輸層限制）
