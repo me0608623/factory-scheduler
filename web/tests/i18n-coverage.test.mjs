@@ -29,7 +29,7 @@ test('tx：查不到的鍵回原文（zh-TW 安全 fallback）', () => {
   assert.ok(tx, 'tx 函式存在');
 });
 
-test('modal 標題覆蓋率 ≥ 60%（防回歸：新增標題須加字典）', () => {
+test('modal 標題覆蓋率 ≥ 95%（2026-10-10 實測 100%，棘輪鎖住；新增標題須加字典）', () => {
   // 已翻譯（title:tx('...')）＋未翻譯（title:'中文'）→ 算總覆蓋率
   const translatedCount = (app.match(/title:tx\(/g) || []).length;
   const untranslated = [...app.matchAll(/title:\s*['"]([^'"]*[\u4e00-\u9fff][^'"]*)['"]/g)].map(m => m[1]);
@@ -37,7 +37,7 @@ test('modal 標題覆蓋率 ≥ 60%（防回歸：新增標題須加字典）', 
   const total = translatedCount + untranslated.length;
   const covered = translatedCount + untranslatedButDict;
   const pct = total ? Math.round((covered / total) * 100) : 100;
-  assert.ok(pct >= 60, `modal 標題翻譯覆蓋率 ${pct}%（${covered}/${total}）低於 60% 門檻`);
+  assert.ok(pct >= 95, `modal 標題翻譯覆蓋率 ${pct}%（${covered}/${total}）低於 95% 門檻`);
 });
 
 test('更多抽屜項目標籤全部有字典鍵', () => {
