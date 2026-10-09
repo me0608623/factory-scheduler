@@ -1259,13 +1259,13 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
       if(o.batches.length||o.events.length){toast("這筆已有批次或流轉紀錄，不能刪；改為「取消」保留歷史");break;}
       if(UI.confirmRow!=="tfdel:"+o.id){UI.confirmRow="tfdel:"+o.id;render();break;}
       UI.confirmRow=null;o.status="cancelled";
-      commit({kind:"edit",title:"取消加工單 "+o.code+"（保留紀錄）",lines:[]},"transfers.manage");
+      commit({kind:"edit",title:tx('取消加工單')+" "+o.code+"（保留紀錄）",lines:[]},"transfers.manage");
       toast("已取消（台帳不可刪，可勾「顯示已取消」再還原）");break;}
     case "tf-restore":{
       if(!canPermission("transfers.manage"))break;
       const o=transferOrders(S).find(x=>x.id===a.dataset.id);if(!o)break;
       o.status="active";
-      commit({kind:"edit",title:"還原加工單 "+o.code,lines:[]},"transfers.manage");
+      commit({kind:"edit",title:tx('還原加工單')+" "+o.code,lines:[]},"transfers.manage");
       toast("已還原");break;}
     case "tf-showcancelled":{UI.tfShowCancelled=!UI.tfShowCancelled;render();break;}
     case "tf-archive":{
@@ -1273,20 +1273,20 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
       const rows=transferOrders(S).filter(o=>o.returned&&!o.archived);
       if(!rows.length){toast("沒有可歸檔的列：完成只認「已回一廠」已勾");break;}
       for(const o of rows)o.archived=true;
-      commit({kind:"edit",title:"歸檔已完成加工單 "+rows.length+" 筆",lines:[]},"transfers.manage");
+      commit({kind:"edit",title:tx('歸檔已完成加工單')+" "+rows.length+" 筆",lines:[]},"transfers.manage");
       toast("已歸檔 "+rows.length+" 筆；可在「顯示已歸檔」查看或還原");break;}
     case "tf-unarchive":{
       if(!canPermission("transfers.manage"))break;
       const o=transferOrders(S).find(x=>x.id===a.dataset.id);if(!o)break;
       o.archived=false;
-      commit({kind:"edit",title:"還原加工單 "+o.code,lines:[]},"transfers.manage");break;}
+      commit({kind:"edit",title:tx('還原加工單')+" "+o.code,lines:[]},"transfers.manage");break;}
     case "rush-archive":{
       if(!canPermission("rush.manage"))break;
       const today=todayStr();
       const rows=(S.rushOrders||[]).filter(r=>!r.archived&&!shortageRowFlags(r).f2Empty&&r.f1?.shipDate&&r.f1.shipDate<today);
       if(!rows.length){toast("沒有可歸檔的列：右欄要已補且出貨日已過");break;}
       for(const r of rows)r.archived=true;
-      commit({kind:"edit",title:"歸檔已補上的欠缺品項 "+rows.length+" 筆",lines:[]},"rush.manage");
+      commit({kind:"edit",title:tx('歸檔已補上的欠缺品項')+" "+rows.length+" 筆",lines:[]},"rush.manage");
       toast("已歸檔 "+rows.length+" 筆；可在「顯示已歸檔」查看或還原");break;}
     case "rush-unarchive":{
       if(!canPermission("rush.manage"))break;
@@ -2490,7 +2490,7 @@ Object.assign(MODAL_ACT,{
     const lines=aff.length?repair(aff,"leave"):[];
     S.blocks=S.blocks.filter(b=>b.emp!==E.id||!futureOf(b));
     S.employees=S.employees.filter(x=>x!==E);
-    commit({kind:"edit",title:"刪除員工 "+E.name,lines},"master.manage");
+    commit({kind:"edit",title:tx('刪除員工')+" "+E.name,lines},"master.manage");
     lines.length?showResult():closeModal();
   },
   "m-proc":a=>{UI.modal.draft.proc=a.dataset.v;rerender();},
@@ -2561,7 +2561,7 @@ Object.assign(MODAL_ACT,{
     S.blocks=S.blocks.filter(b=>b.m!==M.id);
     S.machines=S.machines.filter(x=>x!==M);
     S.employees.forEach(E=>{E.skills=E.skills.filter(x=>x!==M.id);});
-    commit({kind:"edit",title:"刪除機台 "+M.id,lines},"master.manage");
+    commit({kind:"edit",title:tx('刪除機台')+" "+M.id,lines},"master.manage");
     lines.length?showResult():closeModal();
   },
   "o-prod":a=>{if(!canOrders())return;UI.modal.draft.pid=a.dataset.v;rerender();},
@@ -2596,7 +2596,7 @@ Object.assign(MODAL_ACT,{
     const O=order(UI.modal.id);pushUndo();
     if(readOnly&&S.blocks.some(b=>b.oid===O.id)){undoStack.pop();toast("這張工單已有排程；刪除前還需要「調整與自動排程」權限");return;}
     S.blocks=S.blocks.filter(b=>b.oid!==O.id);S.orders=S.orders.filter(x=>x!==O);
-    commit({kind:"order",title:"刪除工單 "+O.code,lines:[]},"orders.manage");closeModal();
+    commit({kind:"order",title:tx('刪除工單')+" "+O.code,lines:[]},"orders.manage");closeModal();
   },
   "clear-demo":a=>{
     if(!canMaster()||readOnly)return;
@@ -2637,10 +2637,10 @@ Object.assign(MODAL_ACT,{
     commit({kind:"edit",title:"刪除 "+label(b)+"（"+mdw(b.date)+" "+hm(b.s)+"）",lines:[]});closeModal();
   },
   "b-fix":()=>{const b=S.blocks.find(x=>x.id===UI.modal.id);pushUndo();b.pin=false;const t=label(b);const lines=repair([b],"fix");
-    commit({kind:"auto",title:"系統重排 "+t,lines});showResult();},
+    commit({kind:"auto",title:tx('系統重排')+" "+t,lines});showResult();},
   "blk-open":a=>openModal({t:"blk",id:a.dataset.v}),
   "fix-all":()=>{pushUndo();const bad=S.blocks.filter(b=>b.date===UI.date&&issuesOf(b).length);bad.forEach(b=>b.pin=false);
-    const lines=repair(bad,"fix");commit({kind:"auto",title:"自動修正 "+mdw(UI.date)+" 的 "+bad.length+" 個問題",lines});showResult();},
+    const lines=repair(bad,"fix");commit({kind:"auto",title:tx('自動修正')+" "+mdw(UI.date)+" 的 "+bad.length+" 個問題",lines});showResult();},
   "auto-run":()=>runAuto(),
   "m-undo":()=>{undo();closeModal();},
   "x-copy-day":()=>copyText(dayTSV()),
@@ -2667,7 +2667,7 @@ Object.assign(MODAL_ACT,{
     if(JSON.stringify(S)!==m.base){closeModal();toast("排程已更新，請重新選擇 Excel 檔案預覽");return;}
     if(readOnly&&S.blocks.length){toast("匯入會清空既有排程；還需要「調整與自動排程」權限");return;}
     pushUndo();S={...S,...m.data,blocks:[],demo:false};
-    commit({kind:"edit",title:"Excel 批次匯入："+S.employees.length+" 位員工、"+S.machines.length+" 台機台、"+S.products.length+" 種產品、"+S.orders.length+" 張工單",lines:[{k:"info",t:"已清空原排程，請重新執行自動排程"}]},"master.manage");
+    commit({kind:"edit",title:tx('Excel 匯出／匯入')+"："+S.employees.length+" 位員工、"+S.machines.length+" 台機台、"+S.products.length+" 種產品、"+S.orders.length+" 張工單",lines:[{k:"info",t:"已清空原排程，請重新執行自動排程"}]},"master.manage");
     closeModal();toast("Excel 匯入完成。請建立新排程","自動排程",runAuto);
   },
   "legacy-save":async()=>{
@@ -3111,7 +3111,7 @@ function tfAutoArchive(){
     if(o.returned&&!o.archived&&o.due&&o.due<first){o.archived=true;n++;}
   }
   try{localStorage.setItem("fsched-tf-archive-month",month);}catch{}
-  if(n)commit({kind:"edit",title:"每月自動歸檔 "+n+" 筆已完成加工單",lines:[]},"transfers.manage");
+  if(n)commit({kind:"edit",title:tx('每月自動歸檔')+" "+n+" 筆已完成加工單",lines:[]},"transfers.manage");
   return n;
 }
 function shortagePageHTML(){
