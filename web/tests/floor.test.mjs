@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { floorCells, hitFloor } from '../src/floor.js';
+import { floorCells, hitFloor, renderFloor } from '../src/floor.js';
 
 const day = '2026-10-05';
 const S = {
@@ -78,4 +78,40 @@ test('hitFloor：邊界端點命中、重疊取第一個、外部與空陣列回
   assert.equal(hitFloor(rects,26,15),rects[0],'重疊區取第一個');
   assert.equal(hitFloor(rects,50,10),null);
   assert.equal(hitFloor([],1,1),null);
+});
+
+test('renderFloor：DPR 尺寸換算、狀態用色與故障文字、截斷、回傳矩形可命中',()=>{
+  const prevGCS=globalThis.getComputedStyle,prevDoc=globalThis.document;
+  globalThis.getComputedStyle=()=>({getPropertyValue:()=>''});
+  globalThis.document={documentElement:{}};
+  const ops=[],fills=[],alphas=[],texts=[];
+  const ctx={scale:(...a)=>ops.push(['scale',...a]),
+    set fillStyle(v){fills.push(v);},get fillStyle(){return fills.at(-1);},
+    set globalAlpha(v){alphas.push(v);},get globalAlpha(){return alphas.at(-1);},
+    set font(v){ops.push(['font',v]);},get font(){return '';},
+    strokeStyle:'',textAlign:'',
+    beginPath:()=>{},roundRect:(...a)=>ops.push(['roundRect',...a]),fill:()=>ops.push(['fill']),
+    stroke:()=>ops.push(['stroke']),fillText:(t,x,y)=>texts.push([t,x,y])};
+  const canvas={clientWidth:900,style:{},getContext:()=>ctx,width:0,height:0};
+  try{
+    const cells=[
+      {id:'a',label:'超長機台名稱測試',process:'切',status:'fault',detail:'',loadMin:180,x:0,y:0,w:10,h:8},
+      {id:'b',label:'B',process:'磨',status:'idle',detail:'',loadMin:0,x:50,y:0,w:10,h:8},
+      {id:'c',label:'C',process:'切',status:'busy',detail:'',loadMin:180,x:0,y:9,w:10,h:8}];
+    const rects=renderFloor(canvas,cells,{pixelRatio:2});
+    assert.equal(canvas.width,1800,'W×DPR');
+    assert.equal(canvas.height,404,'H=(40+2列×9×9)×DPR');
+    assert.equal(canvas.style.height,'202px');
+    assert.ok(ops.some(o=>o[0]==='scale'&&o[1]===2&&o[2]===2),'ctx 以 DPR 縮放');
+    assert.ok(fills.includes('#DC2626'),'故障格用紅');
+    assert.ok(fills.includes('#315FA7'),'忙碌格用藍');
+    assert.ok(fills.includes('#9AA3AF'),'閒置格用灰');
+    assert.ok(alphas.includes(0.35)&&alphas.includes(0.85),'閒置半透明、忙碌/故障較實');
+    assert.ok(texts.some(([t])=>t==='故障'),'故障格標故障');
+    assert.ok(texts.some(([t])=>t==='3h'),'負載 180 分鐘顯示 3h');
+    assert.ok(texts.every(([t])=>t.length<=8),'超長名稱有截斷');
+    assert.deepEqual(rects.map(r=>({x:r.x,y:r.y})),[{x:0,y:40},{x:450,y:40},{x:0,y:121}],'正規化座標→螢幕座標');
+    assert.equal(hitFloor(rects,45,70).cell.id,'a');
+    assert.equal(hitFloor(rects,455,50).cell.id,'b');
+  }finally{globalThis.getComputedStyle=prevGCS;globalThis.document=prevDoc;}
 });
