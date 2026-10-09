@@ -1,0 +1,49 @@
+# 一次性：診斷並修復測試帳號登入（instance_id 補值 + bcrypt 雜湊驗證）。
+name: 修復帳號登入（一次性）
+
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: '帳號 Email（小寫）'
+        required: true
+        type: string
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 診斷與修復
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+          PW: ${{ secrets.BOSS_TEST_PW }}
+        run: |
+          [ -n "$PW" ] || { echo "✗ 缺少 BOSS_TEST_PW secret（雜湊驗證需要）"; exit 1; }
+          cat > /tmp/fix_user.sql <<'SQL'
+          -- 1) 診斷：目前欄位狀態
+          select email,
+                 coalesce(instance_id::text, 'NULL') as instance_id,
+                 coalesce(is_sso_user::text, 'NULL') as is_sso_user,
+                 coalesce(banned_until::text, 'NULL') as banned_until,
+                 aud, role,
+                 (email_confirmed_at is not null) as confirmed
+          from auth.users where email = :'email';
+          -- 2) 修復：instance_id 補 GoTrue 標準值、明確非 SSO
+          update auth.users
+          set instance_id = coalesce(instance_id, '00000000-0000-0000-0000-000000000000'::uuid),
+              is_sso_user = coalesce(is_sso_user, false)
+          where email = :'email';
+          -- 3) 驗證：資料庫端 bcrypt 比對（輸出只有 true/false）
+          select (encrypted_password = crypt(:'pw', encrypted_password)) as pw_match
+          from auth.users where email = :'email';
+          -- 4) 修復後狀態
+          select email,
+                 coalesce(instance_id::text, 'NULL') as instance_id,
+                 is_sso_user::text as is_sso_user
+          from auth.users where email = :'email';
+          SQL
+          docker run --rm -e DATABASE_URL -e PW -e EMAIL="${{ inputs.email }}" \
+            -v /tmp/fix_user.sql:/fix_user.sql:ro postgres:17 \
+            sh -c 'psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -v email="$EMAIL" -v pw="$PW" -f /fix_user.sql' \
+            || { echo "✗ 失敗"; exit 1; }
+          echo "✓ 診斷與修復完成"
