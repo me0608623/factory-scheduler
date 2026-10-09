@@ -2634,7 +2634,7 @@ Object.assign(MODAL_ACT,{
   "b-del":a=>{
     const m=UI.modal;if(!m.confirmDel){m.confirmDel=true;a.textContent="再按一次確認刪除";return;}
     const b=S.blocks.find(x=>x.id===m.id);pushUndo();S.blocks=S.blocks.filter(x=>x!==b);
-    commit({kind:"edit",title:"刪除 "+label(b)+"（"+mdw(b.date)+" "+hm(b.s)+"）",lines:[]});closeModal();
+    commit({kind:"edit",title:tx("刪除")+" "+label(b)+"（"+mdw(b.date)+" "+hm(b.s)+"）",lines:[]});closeModal();
   },
   "b-fix":()=>{const b=S.blocks.find(x=>x.id===UI.modal.id);pushUndo();b.pin=false;const t=label(b);const lines=repair([b],"fix");
     commit({kind:"auto",title:"系統重排 "+t,lines});showResult();},
