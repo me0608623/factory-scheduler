@@ -3604,16 +3604,16 @@ function reviewPageHTML(){
       '<div class="wiz-cards">'+(list.map(E=>{
         const gs=employeeGroups(S,E.id).map(x=>x.group.name).join('、');
         return '<div class="wiz-card"><div class="wiz-main"><b class="wiz-name">'+esc(E.name)+'</b>'+
-          '<div class="wiz-meta"><span>代號 '+esc(E.sourceCode||'—')+'</span>'+(gs?'<span>分組 '+esc(gs)+'</span>':'<span>未分組</span>')+'</div>'+
-          (E.reviewStatus==='pending'?'<div class="wiz-pending">待確認</div>':'<div class="wiz-ok">已核對</div>')+'</div>'+
-          '<div class="wiz-acts">'+(ro?'':'<button class="btn primary wiz-big" data-act="review-mark" data-kind="emp" data-id="'+esc(E.id)+'" data-v="ok">'+tx('對')+'</button><button class="btn danger wiz-big" data-act="review-mark" data-kind="emp" data-id="'+esc(E.id)+'" data-v="no">不對</button><button class="btn wiz-big" data-act="emp" data-id="'+esc(E.id)+'" title="'+tx('編輯資料')+'">'+tx('編輯資料')+'</button>')+'</div></div>';
-      }).join('')||'<div class="empty">此篩選沒有員工</div>')+'</div>';
+          '<div class="wiz-meta"><span>代號 '+esc(E.sourceCode||'—')+'</span>'+(gs?'<span>分組 '+esc(gs)+'</span>':'<span>'+tx('未分組')+'</span>')+'</div>'+
+          (E.reviewStatus==='pending'?'<div class="wiz-pending">'+tx('待確認')+'</div>':'<div class="wiz-ok">'+tx('已核對')+'</div>')+'</div>'+
+          '<div class="wiz-acts">'+(ro?'':'<button class="btn primary wiz-big" data-act="review-mark" data-kind="emp" data-id="'+esc(E.id)+'" data-v="ok">'+tx('對')+'</button><button class="btn danger wiz-big" data-act="review-mark" data-kind="emp" data-id="'+esc(E.id)+'" data-v="no">'+tx('不對')+'</button><button class="btn wiz-big" data-act="emp" data-id="'+esc(E.id)+'" title="'+tx('編輯資料')+'">'+tx('編輯資料')+'</button>')+'</div></div>';
+      }).join('')||'<div class="empty">'+tx('此篩選沒有員工')+'</div>')+'</div>';
   }else if(step===2){
     body='<div class="wiz-cards">'+(S.machines.map(M=>{
       return '<div class="wiz-card"><div class="wiz-main"><b class="wiz-name">'+esc(M.label||M.id)+'</b>'+
         '<div class="wiz-meta"><span>'+esc(M.id)+'</span>'+(M.catalogSide?'<span>'+esc(M.catalogSide)+'側</span>':'')+'</div>'+
-        (M.reviewStatus==='pending'?'<div class="wiz-pending">待確認</div>':'<div class="wiz-ok">已核對</div>')+'</div>'+
-        '<div class="wiz-acts">'+(ro?'':'<button class="btn primary wiz-big" data-act="review-mark" data-kind="mach" data-id="'+esc(M.id)+'" data-v="ok">'+tx('對')+'</button><button class="btn danger wiz-big" data-act="review-mark" data-kind="mach" data-id="'+esc(M.id)+'" data-v="no">不對</button>')+'</div></div>';
+        (M.reviewStatus==='pending'?'<div class="wiz-pending">'+tx('待確認')+'</div>':'<div class="wiz-ok">'+tx('已核對')+'</div>')+'</div>'+
+        '<div class="wiz-acts">'+(ro?'':'<button class="btn primary wiz-big" data-act="review-mark" data-kind="mach" data-id="'+esc(M.id)+'" data-v="ok">'+tx('對')+'</button><button class="btn danger wiz-big" data-act="review-mark" data-kind="mach" data-id="'+esc(M.id)+'" data-v="no">'+tx('不對')+'</button>')+'</div></div>';
     }).join(''))+'</div>';
   }else{
     body='<div class="wiz-cards">'+(S.employees.map(E=>{
@@ -3635,7 +3635,7 @@ function workLogPageHTML(){
   const all=[...(S.workLog||[])].sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
   const rows=filter?all.filter(r=>r.date===filter):all;
   const table='<div class="sheettable"><table><thead><tr>'+
-    '<th class="rowact"></th><th>'+tx('日期')+'</th><th>'+tx('加工編號')+'</th><th>合格數</th><th>不良</th><th>開工（時：分）</th><th>完工（時：分）</th><th>修模時間</th><th>加工者</th><th>'+tx('備註')+'</th></tr></thead><tbody>'+
+    '<th class="rowact"></th><th>'+tx('日期')+'</th><th>'+tx('加工編號')+'</th><th>'+tx('合格數')+'</th><th>'+tx('不良')+'</th><th>'+tx('開工（時：分）')+'</th><th>'+tx('完工（時：分）')+'</th><th>'+tx('修模時間')+'</th><th>'+tx('加工者')+'</th><th>'+tx('備註')+'</th></tr></thead><tbody>'+
     (rows.map(r=>{
       const cell=(k,ty)=>'<td>'+editCellHTML("wl",r.id,k,ty,getPath(r,k),ro)+'</td>';
       const hm=(h,m,base)=>{
@@ -3652,19 +3652,19 @@ function workLogPageHTML(){
         '<td class="hmcell">'+hm(r.endH,r.endM,"end")+'</td>'+
         cell("reworkMin","number")+cell("worker","text")+cell("note","text")+
         '</tr>';
-    }).join("")||'<tr><td colspan="10"><div class="empty">還沒有資料，按下方加一列</div></td></tr>')+
+    }).join("")||'<tr><td colspan="10"><div class="empty">'+tx('還沒有資料，按下方加一列')+'</div></td></tr>')+
     '</tbody></table></div>';
-  const filterBar='<div class="wl-filter"><label for="wl-date">依日期篩</label><input type="date" id="wl-date" value="'+esc(filter)+'" data-act-change="wl-filter"><button class="btn" data-act="wl-clearfilter">'+tx('清除')+'</button></div>';
+  const filterBar='<div class="wl-filter"><label for="wl-date">'+tx('依日期篩')+'</label><input type="date" id="wl-date" value="'+esc(filter)+'" data-act-change="wl-filter"><button class="btn" data-act="wl-clearfilter">'+tx('清除')+'</button></div>';
   return pageShell("工作紀錄","",filterBar+table,ro,"wl-addrow");
 }
 
 MODALS['memo-edit']=m=>({title:tx('新增備忘'),body:
-  '<div class="hint">備忘只提醒現場，不會直接修改排程。</div>'+
+  '<div class="hint">'+tx('備忘只提醒現場，不會直接修改排程。')+'</div>'+
   '<div class="row2"><div class="field"><label for="memo-machine">'+tx('機台（可不選）')+'</label><select class="inp" id="memo-machine"><option value="">'+tx('不指定')+'</option>'+shownMachines().map(x=>'<option value="'+x.id+'">'+esc(x.id+' '+x.label)+'</option>').join('')+'</select></div>'+
-  '<div class="field"><label for="memo-employee">人員（可不選）</label><select class="inp" id="memo-employee"><option value="">'+tx('不指定')+'</option>'+shownEmployees().map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('')+'</select></div></div>'+
-  '<div class="field"><label for="memo-text">一句話</label><input class="inp" id="memo-text" maxlength="140" value="'+esc(m.text||'')+'"></div>'+
-  '<label class="permission-row"><input id="memo-pinned" type="checkbox"><span><b>釘選</b><small>固定顯示在其他備忘前面</small></span></label>',
-  foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="memo-save">儲存備忘</button>'});
+  '<div class="field"><label for="memo-employee">'+tx('人員（可不選）')+'</label><select class="inp" id="memo-employee"><option value="">'+tx('不指定')+'</option>'+shownEmployees().map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('')+'</select></div></div>'+
+  '<div class="field"><label for="memo-text">'+tx('一句話')+'</label><input class="inp" id="memo-text" maxlength="140" value="'+esc(m.text||'')+'"></div>'+
+  '<label class="permission-row"><input id="memo-pinned" type="checkbox"><span><b>'+tx('釘選')+'</b><small>'+tx('固定顯示在其他備忘前面')+'</small></span></label>',
+  foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="memo-save">'+tx('儲存備忘')+'</button>'});
 
 async function resolveLeaveRequest(button){
   if(!canIncidents())return;button.disabled=true;
@@ -3689,21 +3689,21 @@ MODALS.groups=()=>({title:tx('員工分組／部門'),body:
   (S.groups||[]).map(g=>{const ms=S.groupMembers.filter(m=>m.groupId===g.id),pending=ms.filter(m=>m.reviewStatus==='pending').length;
     return '<button class="btn" style="display:flex;width:100%;margin:10px 0;justify-content:space-between;height:auto;min-height:46px" data-act="group-edit" data-id="'+esc(g.id)+'"><span>'+esc(g.name)+(g.department?' · '+esc(g.department):'')+'</span><span>'+esc(g.homeFactory?factoryName(g.homeFactory):'跨廠')+' · '+ms.length+' 人'+(pending?' · '+pending+' 待核對':'')+'</span></button>';
   }).join('')+((S.groups||[]).length?'':'<div class="hint">'+tx('還沒有分組，可建立第一個分組。')+'</div>'),
-  foot:(canGroups()?'<button class="btn primary" data-act="group-new">＋新增分組</button>':'')+'<button class="btn" data-act="close">'+tx('關閉')+'</button>'});
+  foot:(canGroups()?'<button class="btn primary" data-act="group-new">'+tx('＋新增分組')+'</button>':'')+'<button class="btn" data-act="close">'+tx('關閉')+'</button>'});
 MODALS['staff-group']=m=>{
   if(!m.draft){const old=S.groups.find(g=>g.id===m.id);m.draft=old?JSON.parse(JSON.stringify(old)):{id:uid(),name:'',department:'',homeFactory:UI.factory==='all'?null:UI.factory,sourceRef:null};
     m.members=JSON.parse(JSON.stringify(S.groupMembers.filter(x=>x.groupId===m.draft.id)));}
   const D=m.draft,ro=!canGroups(),off=ro?' disabled':'';
-  const body='<div class="field"><label for="group-name">分組名稱</label><input class="inp" id="group-name" data-bind="name" maxlength="80" value="'+esc(D.name)+'"'+off+'></div>'+
-    '<div class="field"><label for="group-department">'+tx('部門（可不填）')+'</label><input class="inp" id="group-department" data-bind="department" maxlength="80" value="'+esc(D.department||'')+'"'+off+'><div class="hint">部門可自行命名；同一員工可以加入不同部門的分組，不另外建立重複員工。</div></div>'+
-    '<div class="field"><label for="group-factory">分組所屬範圍</label><select class="inp" id="group-factory" data-bind="homeFactory"'+off+'>'+[['all',tx('跨廠')],[1,'1 廠'],[2,'2 廠']].map(([id,t])=>'<option value="'+id+'"'+((D.homeFactory??'all')==id?' selected':'')+'>'+t+'</option>').join('')+'</select><div class="hint">分組範圍是管理標籤，不會限制加入人員；跨廠實際排班仍須符合現行技能與廠別規則。</div></div>'+
+  const body='<div class="field"><label for="group-name">'+tx('分組名稱')+'</label><input class="inp" id="group-name" data-bind="name" maxlength="80" value="'+esc(D.name)+'"'+off+'></div>'+
+    '<div class="field"><label for="group-department">'+tx('部門（可不填）')+'</label><input class="inp" id="group-department" data-bind="department" maxlength="80" value="'+esc(D.department||'')+'"'+off+'><div class="hint">'+tx('部門可自行命名；同一員工可以加入不同部門的分組，不另外建立重複員工。')+'</div></div>'+
+    '<div class="field"><label for="group-factory">'+tx('分組所屬範圍')+'</label><select class="inp" id="group-factory" data-bind="homeFactory"'+off+'>'+[['all',tx('跨廠')],[1,'1 廠'],[2,'2 廠']].map(([id,t])=>'<option value="'+id+'"'+((D.homeFactory??'all')==id?' selected':'')+'>'+t+'</option>').join('')+'</select><div class="hint">'+tx('分組範圍是管理標籤，不會限制加入人員；跨廠實際排班仍須符合現行技能與廠別規則。')+'</div></div>'+
     (D.sourceRef?'<div class="hint">分組來源：'+esc(D.sourceRef)+'</div>':'')+
     FACTORIES.map(f=>'<div class="field"><span class="lab">'+factoryName(f)+' · 組員</span><div class="toggles">'+S.employees.filter(e=>factoryOf(e)===f).map(e=>{const mem=m.members.find(x=>x.employeeId===e.id);
       return '<button class="tg" data-act="group-member" data-v="'+esc(e.id)+'" aria-pressed="'+!!mem+'"'+off+'>'+esc(e.name)+(e.sourceCode?' '+esc(e.sourceCode):'')+(mem?'<small>'+memberStatus(mem.reviewStatus)+'</small>':'')+'</button>';
     }).join('')+'</div></div>').join('')+
     m.members.filter(x=>x.reviewStatus==='pending').map(x=>'<div class="hint">'+esc(emp(x.employeeId)?.name)+'：原檔別名的分組尚待核對；不會自動合併身份。'+(ro?'':'<button class="btn" data-act="group-confirm" data-v="'+esc(x.employeeId)+'">'+tx('僅確認分組')+'</button>')+'</div>').join('');
   return {title:m.id?'分組設定':'新增分組',body,foot:ro?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':
-    (m.id?'<button class="btn danger" data-act="group-retire">停用分組</button>':'')+'<div class="spacer"></div><button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="group-save">儲存分組</button>'};
+    (m.id?'<button class="btn danger" data-act="group-retire">'+tx('停用分組')+'</button>':'')+'<div class="spacer"></div><button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="group-save">'+tx('儲存分組')+'</button>'};
 };
 Object.assign(MODAL_ACT,{
   'group-member':a=>{if(!canGroups())return;syncInputs();const m=UI.modal,id=a.dataset.v,i=m.members.findIndex(x=>x.employeeId===id);
