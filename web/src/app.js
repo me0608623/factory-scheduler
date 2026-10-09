@@ -1719,7 +1719,7 @@ ot(m){
     return '<div class="ot-person"><div class="ot-person-title"><b>'+esc(e.name)+'</b><small>固定星期：'+(base?'可加班':'不加班')+(value===null?'':' · 今天臨時調整')+(e.leaves.includes(d)?' · 請假':'')+'</small></div>'+
       '<div class="toggles"><button class="tg" data-act="ot-person" data-id="'+esc(e.id)+'" data-v="1" aria-label="'+esc(e.name)+' 今天可加班" aria-pressed="'+!!yes+'">今天可加班</button>'+
       '<button class="tg" data-act="ot-person" data-id="'+esc(e.id)+'" data-v="0" aria-label="'+esc(e.name)+' 今天不加班" aria-pressed="'+!yes+'">今天不加班</button>'+
-      (value===null?'':'<button class="btn" data-act="ot-reset" data-id="'+esc(e.id)+'" aria-label="'+esc(e.name)+' 恢復固定設定">恢復固定設定</button>')+'</div></div>';
+      (value===null?'':'<button class="btn" data-act="ot-reset" data-id="'+esc(e.id)+'" aria-label="'+esc(e.name)+' 恢復固定設定">'+tx('恢復固定設定')+'</button>')+'</div></div>';
   }).join("");
   return {title:mdw(d)+" 加班設定",body:
     '<div class="field"><span class="lab">今天是否開放加班</span><div class="toggles">'+tg("ot-day","1",m.open,"開放加班")+tg("ot-day","0",!m.open,"不開放")+'</div></div>'+
@@ -1767,14 +1767,14 @@ mach(m){
    (faults.length?faults.map(x=>'<div class="rline"><span class="k fail">故障</span><span style="flex:1">'+hm(x.f.s)+'–'+hm(x.f.e)+(x.f.note?"　"+esc(x.f.note):"")+'</span>'+(x.f.fixed?'<span class="tag ok">已修復</span>':absOf(x.f.date,x.f.e)<=nowAbs()?'<span class="tag mute">已結束</span>':'<button class="btn good" data-act="m-fix" data-v="'+x.i+'">'+tx('修好了')+'</button>')+'</div>').join(""):'<div class="okbox">正常運作</div>')+'</div>'+
    '<div class="field"><span class="lab">報故障：從幾點開始、壞多久</span><div class="row2"><select class="inp num" id="f-fs">'+opts+'</select><input class="inp" id="f-note" placeholder="'+tx('原因（可不填')+'" value="'+esc(m.note)+'"></div>'+
    '<div class="toggles">'+durs.map(([v,t])=>tg("m-fd",v,m.fd===v,t)).join("")+'</div>'+
-   '<button class="btn danger" data-act="m-fault" style="height:56px;font-size:19px;justify-content:center">確認故障，讓系統自動調整</button></div>':"";
+   '<button class="btn danger" data-act="m-fault" style="height:56px;font-size:19px;justify-content:center">'+tx('確認故障，讓系統自動調整')+'</button></div>':"";
   const body=(D.sourceRef?'<div class="hint">原檔來源：'+esc(D.sourceRef)+'。'+(D.reviewStatus==='pending'?'此欄可能代表機台或工作站，用途與工序待確認。':'')+'</div>':'')+(m.fromInc?faultBox:"")+
    (D.catalogGroup?'<div class="hint">來源資源群組：'+esc(D.catalogGroup)+(D.catalogSide?' · '+esc(D.catalogSide)+'側操作位置':'')+'。僅作來源對照，尚未確認共用產能。</div>':'')+
    (m.id?'':'<div class="field"><label for="f-id">'+tx('代號（例：f）')+'</label><input class="inp num" id="f-id" data-bind="id" value="'+esc(D.id)+'" maxlength="4" autocomplete="off"></div>')+
    '<div class="field"><label for="f-label">'+tx('名稱')+'</label><input class="inp" id="f-label" data-bind="label" value="'+esc(D.label)+'" '+(rm?"disabled":"")+' autocomplete="off"></div>'+
    '<div class="field"><span class="lab">所屬廠別</span><div class="toggles">'+FACTORIES.map(f=>tg("m-mach-factory",f,factoryOf(D)===f,factoryName(f),"",rm)).join("")+'</div></div>'+
    '<div class="field"><label for="f-proc">'+tx('設備工序／工作內容（可自行輸入）')+'</label><input class="inp" id="f-proc" data-bind="proc" list="process-names" value="'+esc(D.proc)+'" '+(rm?'disabled':'')+'><datalist id="process-names">'+processNames().map(p=>'<option value="'+esc(p)+'"></option>').join('')+'</datalist><div class="hint">名稱由使用者設定，不限於示範工序；純人工請使用「工作內容」。</div></div>'+
-   '<div class="field"><span class="lab">允許加工的產品／品號</span><div class="toggles">'+S.products.map(p=>tg("m-prod",p.id,D.products.includes(p.id),esc(p.name)+'<small>'+esc(p.steps.map(s=>s.proc).join("→"))+'</small>',"",rm)).join("")+'</div><div class="hint">這是使用者建立的產品清單，不代表 1023 已核定模具。模具尚未獨立建模。</div>'+(rm?'':'<button class="btn" data-act="mach-products">新增／編輯產品與工序</button><div class="hint">請先儲存本視窗修改，再切換產品設定。</div>')+'</div>'+
+   '<div class="field"><span class="lab">允許加工的產品／品號</span><div class="toggles">'+S.products.map(p=>tg("m-prod",p.id,D.products.includes(p.id),esc(p.name)+'<small>'+esc(p.steps.map(s=>s.proc).join("→"))+'</small>',"",rm)).join("")+'</div><div class="hint">這是使用者建立的產品清單，不代表 1023 已核定模具。模具尚未獨立建模。</div>'+(rm?'':'<button class="btn" data-act="mach-products">'+tx('新增／編輯產品與工序')+'</button><div class="hint">請先儲存本視窗修改，再切換產品設定。</div>')+'</div>'+
    '<div class="field"><span class="lab">誰會操作</span><div class="chips">'+(S.employees.filter(E=>E.skills.includes(D.id)).map(E=>'<span class="emp"><span class="sw" style="background:'+COLORS[E.color%COLORS.length]+'">'+esc(E.name[0])+'</span>'+esc(E.name)+'</span>').join("")||'<span class="hint">'+tx('還沒有人會操作（到員工設定勾選）')+'</span>')+'</div></div>'+
    (m.fromInc?"":faultBox);
   const foot=rm?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':
@@ -1824,7 +1824,7 @@ products(m){
       '<label class="field" style="gap:2px"><span class="hint">幾件可傳下站</span><input class="inp num" type="number" min="0" data-bind="'+pi+'.steps.'+si+'.batch" value="'+s.batch+'" '+(ro?"disabled":"")+'></label>'+
       (ro?"":'<button class="iconbtn x" data-act="p-delstep" data-v="'+pi+'.'+si+'" aria-label="刪除這站">×</button>')+'</div>').join("")+'</div>'+
     (ro?"":'<button class="more" data-act="p-addstep" data-v="'+pi+'">＋加一站</button>')+'</div>').join("")+
-   (ro?"":'<button class="btn" data-act="p-add">＋新增產品</button>');
+   (ro?"":'<button class="btn" data-act="p-add">'+tx('＋新增產品')+'</button>');
   return {title:tx('產品工序（標準公式）'),body,foot:ro?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="p-save">'+tx('儲存')+'</button>'};
 },
 /* ---------- 單一方塊 ---------- */
@@ -1840,7 +1840,7 @@ blk(m){
   const machT=S.machines.filter(X=>X.proc===p.steps[b.step].proc&&X.products.includes(o.pid)&&factoryOf(X)===factoryOf(p.steps[b.step])).map(X=>tg("b-mach",X.id,X.id===b.m,'<span class="num">'+esc(X.id)+'</span><small>'+esc(X.label)+'</small>')).join("");
   const body='<dl class="kv"><dt>'+tx('產品')+'</dt><dd>'+esc(p.name)+"　第 "+(b.step+1)+" 站／共 "+p.steps.length+" 站："+esc(p.steps[b.step].proc)+'</dd><dt>'+tx('數量')+'</dt><dd class="num">'+b.qty+' 件</dd><dt>'+tx('時間')+'</dt><dd class="num">'+mdw(b.date)+" "+hm(b.s)+"–"+hm(b.e)+"（"+(b.e-b.s)+' 分）</dd><dt>'+tx('機台')+'</dt><dd>'+esc(M.id+" "+M.label)+'</dd><dt>'+tx('人員')+'</dt><dd>'+esc(E?E.name:"未指定")+'</dd><dt>'+tx('期限')+'</dt><dd>'+mdw(o.due)+"　"+statusTag(o)+'</dd></dl>'+
    (iss.length?'<div class="issues">'+iss.map(t=>'<div class="issue">'+esc(t)+'</div>').join("")+'</div>':'<div class="okbox">沒有問題</div>')+
-   (executionOf(S,b.id)?'<div class="hint">已有現場回報，這段排程已鎖定，不可拖曳、改量、解除固定或刪除。</div><button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">查看現場回報</button>':'')+
+   (executionOf(S,b.id)?'<div class="hint">已有現場回報，這段排程已鎖定，不可拖曳、改量、解除固定或刪除。</div><button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">'+tx('查看現場回報')+'</button>':'')+
    (ro?"":'<div class="field"><span class="lab">換人</span><div class="toggles">'+empT+'</div></div>'+
    '<div class="field"><span class="lab">換機台</span><div class="toggles">'+machT+'</div></div>'+
    '<div class="row2"><div class="field"><label for="f-bs">'+tx('開始時間')+'</label><select class="inp num" id="f-bs">'+opts+'</select></div>'+
@@ -1867,14 +1867,14 @@ logone(m){
     sec("系統怎麼調",resultHTML(l.lines))+
     (l.alts&&l.alts.length?sec("當時比較的方案",'<div class="result">'+l.alts.map(t=>'<div class="rline"><span>'+esc(t)+'</span></div>').join("")+'</div>'):"");
   return {title:esc(l.title),body,
-    foot:(isLast?'<button class="btn" data-act="m-undo">'+IC.undo+'復原這次調整</button>':'')+'<div class="spacer"></div><button class="btn primary" data-act="close">知道了</button>'};
+    foot:(isLast?'<button class="btn" data-act="m-undo">'+IC.undo+'復原這次調整</button>':'')+'<div class="spacer"></div><button class="btn primary" data-act="close">'+tx('知道了')+'</button>'};
 },
 issues(){
   const bad=S.blocks.filter(b=>b.date===UI.date).map(b=>({b,iss:issuesOf(b)})).filter(x=>x.iss.length);
   if(!bad.length)return {title:tx('沒有問題'),body:'<div class="okbox">今天的排程都沒有衝突</div>'};
   return {title:mdw(UI.date)+" 有 "+bad.length+" 個問題",
-    body:'<div class="result">'+bad.map(x=>'<div class="rline" style="flex-wrap:wrap"><span style="flex:1;min-width:200px">'+esc(label(x.b)+"（"+x.b.m+" "+hm(x.b.s)+"）")+'<br><span style="color:var(--bad)">'+esc(x.iss.join("、"))+'</span></span><button class="btn" data-act="blk-open" data-v="'+x.b.id+'">處理</button></div>').join("")+'</div>',
-    foot:readOnly?"":'<button class="btn primary" data-act="fix-all">讓系統自動修正全部</button>'};
+    body:'<div class="result">'+bad.map(x=>'<div class="rline" style="flex-wrap:wrap"><span style="flex:1;min-width:200px">'+esc(label(x.b)+"（"+x.b.m+" "+hm(x.b.s)+"）")+'<br><span style="color:var(--bad)">'+esc(x.iss.join("、"))+'</span></span><button class="btn" data-act="blk-open" data-v="'+x.b.id+'">'+tx('處理')+'</button></div>').join("")+'</div>',
+    foot:readOnly?"":'<button class="btn primary" data-act="fix-all">'+tx('讓系統自動修正全部')+'</button>'};
 },
 /* ---------- 自動排程 ---------- */
 auto(){
@@ -2316,7 +2316,7 @@ function latestHTML(){
   return '<section class="latest"><span class="pv-badge">最新變更</span><div class="latest-t"><b>'+esc(l.title)+'</b><div>'+esc(l.sum)+'</div>'+
     (l.people&&l.people.length?'<div class="chips" style="margin-top:6px">'+l.people.map(p=>'<span class="tag warn" style="font-size:14px;padding:3px 10px">'+esc(p.name)+' 班表有變</span>').join("")+'</div>':"")+
     '<small class="hint num">'+(dt.getMonth()+1)+"/"+dt.getDate()+" "+pad(dt.getHours())+":"+pad(dt.getMinutes())+'</small></div>'+
-    '<div class="latest-b"><button class="btn" data-act="logone" data-id="'+l.id+'">看細節</button><button class="btn ghost" data-act="seen" data-id="'+l.id+'">知道了</button></div></section>';
+    '<div class="latest-b"><button class="btn" data-act="logone" data-id="'+l.id+'">看細節</button><button class="btn ghost" data-act="seen" data-id="'+l.id+'">'+tx('知道了')+'</button></div></section>';
 }
 MODAL_ACT.seen=a=>{try{localStorage.setItem("fsched-seen",a.dataset.id);}catch(e){}render();};
 /* ---------- 突發狀況（一個入口） ---------- */
