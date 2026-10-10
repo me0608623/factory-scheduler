@@ -4,7 +4,7 @@
 - 真正的機台切換（同機台相鄰、不同 (工單,工序)）
 - 真正的員工切換（同人連續時段、不同 (工單,工序)）
 - 零碎短段：necessary（整個工序剩量本來就短／故障迫近／固定不可動）
-  vs avoidable（長工序被切出的短頭短尾，原則上有更連續的排法）
+  vs avoidable（長工序的待檢查短段候選，尚未證明有更連續的可行排法）
 
 同一工序（同 order+step）因午休、下班、跨日、故障產生的多個顯示方塊，
 彼此相鄰時「不」計為切換（自然分段，非換模）。
@@ -42,22 +42,24 @@ def switching_metrics(snap, blocks) -> dict:
                 continue  # 防禦：重疊資料不計
             machine_switches += 1
 
-    # ---- 員工切換：同人連續（起點不同）時段的工序變化 ----
-    # 同時開始的多機並行 = 顧機台不是切換；同工序分段不算。
+    # ---- 員工切換：重疊顧機先合成占用群，再比較不重疊群的工作 ----
+    # 半開區間：首尾相接是先後工作；起點不同的重疊、巢狀顧機都不算切換。
     employee_switches = 0
     by_emp: dict[str, list] = {}
     for b in blocks:
         if b.employee:
             by_emp.setdefault(b.employee, []).append(b)
     for eid, bs in by_emp.items():
-        bs.sort(key=lambda b: (b.date, b.start))
-        dedup: list = []
+        bs.sort(key=lambda b: (b.date, b.start, b.end, b.order, b.step))
+        groups: list = []
         for b in bs:
-            if dedup and dedup[-1].date == b.date and dedup[-1].start == b.start:
-                continue  # 並行顧機
-            dedup.append(b)
-        for prev, cur in zip(dedup, dedup[1:]):
-            if _op_key(prev) != _op_key(cur):
+            if groups and groups[-1][0] == b.date and b.start < groups[-1][1]:
+                groups[-1][1] = max(groups[-1][1], b.end)
+                groups[-1][2].add(_op_key(b))
+            else:
+                groups.append([b.date, b.end, {_op_key(b)}])
+        for prev, cur in zip(groups, groups[1:]):
+            if prev[2].isdisjoint(cur[2]):
                 employee_switches += 1
 
     # ---- 零碎短段分類：以 (order, step) 為一個工序單位 ----
@@ -69,12 +71,11 @@ def switching_metrics(snap, blocks) -> dict:
     short_avoidable = 0
     for key, pieces in ops_pieces.items():
         op_total = sum(p.end - p.start for p in pieces)
-        pinned = any(p.pinned for p in pieces)
         for p in pieces:
             if p.end - p.start >= SHORT_PIECE_MIN:
                 continue
             # 必要：整個工序本來就短（剩量少）、被固定、或片段緊貼故障邊界
-            if op_total <= SHORT_PIECE_MIN or pinned or _touches_fault(p, faults_by_machine.get(p.machine, [])):
+            if op_total <= SHORT_PIECE_MIN or p.pinned or _touches_fault(p, faults_by_machine.get(p.machine, [])):
                 short_necessary += 1
             else:
                 short_avoidable += 1
