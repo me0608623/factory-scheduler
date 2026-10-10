@@ -643,7 +643,8 @@ body:has(#ov:not([hidden])) #schedule-chat{z-index:15}
 .chat-speak{font-size:13px;margin:6px 0 0}
 .chat-notice{color:var(--muted);font-size:13px;margin:2px 0}
 /* ---------- 整頁三張表：欠缺品項 ／ 給二廠－回一廠 ／ 工作紀錄 ---------- */
-:root{--pg-f1-head:#ffe14a;--pg-f1-cell:#fff4a8;--pg-f2-head:#39d353;--pg-f2-cell:#b6f5bf;--pg-bad:#c62828;--pg-line:#d7dbe2;--pg-bg:#f4f5f7;  --row-matched:#e6f4ea;--row-returned:#e6f4ea;--row-archived:#e9ebef;
+:root{--pg-f1-head:#ffe14a;--pg-f1-cell:#fff4a8;--pg-f2-head:#39d353;--pg-f2-cell:#b6f5bf;--pg-bad:#c62828;--pg-line:#d7dbe2;--pg-bg:#f4f5f7;
+  --row-matched:#e6f4ea;--row-returned:#e6f4ea;--row-archived:#e9ebef;
   --wiz-pending-bg:#fef7e0;--wiz-pending-ink:#9a5200;--wiz-ok-bg:#e6f4ea;--wiz-ok-ink:#14672d;--wiz-foot-bg:rgba(244,245,247,.96);}
 body.pvmode ~ *{}
 .page-links{display:flex;gap:8px;margin-left:auto}
@@ -762,8 +763,9 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
 .people-calendar .calendar-day.leave{background:#fce8e6}
 .people-calendar .calendar-day.leave b{color:#c62828}
 /* 深色模式：三張表的表頭與儲存格改為深色版。
-   自動模式的深色變數必須包在 prefers-color-scheme:dark 內：auto 時 root 無 data-theme/data-app-theme 屬性，
-   :not(:light) 仍會命中，淺色系統的手機就會出現深色區塊（本 bug 根因）。 */
+   自動模式的深色變數必須包在 prefers-color-scheme:dark 內：auto 時 root 無
+   data-theme/data-app-theme 屬性，:not(:light) 仍會命中，淺色系統的手機就會
+   出現深色區塊（本 bug 根因）。 */
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]):not([data-app-theme="light"]){
     --pg-f1-head:#5a4a05;--pg-f1-cell:#2d2503;--pg-f2-head:#1a5c2e;--pg-f2-cell:#0d2e17;
@@ -794,9 +796,6 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
 .wiz-name{color:var(--ink)}
 .wiz-meta{color:var(--muted)}
 .wiz-steps .wiz-step{color:var(--ink)}
-
-
-
 .late-txt{color:var(--pg-bad)}
 .raw-txt{color:var(--pg-bad)}
 .pending-tag{color:var(--pg-bad);border-color:var(--pg-bad)}
