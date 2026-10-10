@@ -63,7 +63,7 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 167（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
+- **總輪次**: 168（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
 - **正式站**: web 200 ✓ solver 200 ✓ staging 200 ✓
 
 ## 測試
@@ -893,3 +893,9 @@
 ## 輪次 167（2026-10-10 晚間）— 穩態巡檢（使用者新手機修復）
 
 - 使用者開新分支 fix/mobile-drawer-zoom（手機抽屜縮放修復，styles.css WIP）——worktree 隔離續行；三站 200；PR #7 仍唯一開啟
+
+
+## 輪次 168（2026-10-10 晚間）— 穩態巡檢（mobile-drawer-zoom 已推分支待併）
+
+- 使用者完成手機抽屜放大修復（6f7095f：≤800px 全寬生效、in-flow 取代主工作區）——已推 fix/mobile-drawer-zoom 分支未併 main（分支 CI 驗證模式）；不代併
+- 三站 200；PR #7 仍唯一開啟
