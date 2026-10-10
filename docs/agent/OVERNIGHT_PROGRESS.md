@@ -63,11 +63,11 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 165（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
+- **總輪次**: 166（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
 - **正式站**: web 200 ✓ solver 200 ✓ staging 200 ✓
 
 ## 測試
-- 前端: **281/281** PASS
+- 前端: **286/286** PASS
 - DB: **206/206** PASS
 - 合計: **463**
 
@@ -882,3 +882,9 @@
 ## 輪次 165（2026-10-10 晚間）— 穩態巡檢（使用者續修 light-theme）
 
 - 使用者回到 fix/light-theme-dark-blocks 續修（styles.css 有 staged＋unstaged 修改，分支新增 5dffdf6）；worktree 隔離續行；三站 200
+
+
+## 輪次 166（2026-10-10 晚間）— PR #8 合併驗證輪（light-theme 修復上線）
+
+- 使用者以 **PR #8** 合併 fix/light-theme-dark-blocks（含 7834150 最小差異重套——去除行尾攪動 1851→60 行邏輯不變，工程紀律佳）
+- worktree 同步後全套 **286/286** 綠（+5＝theme-scope 測試檔 78 行）；三站 200；待併僅剩 **PR #7**
