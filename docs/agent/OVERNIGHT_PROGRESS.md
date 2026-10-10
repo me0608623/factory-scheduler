@@ -1152,3 +1152,8 @@
 ## 輪次 216（2026-10-11 晚間）— 穩態巡檢
 
 - 三站 200；無平行活動；待併四項不變；系統無已知待修項
+## 輪次 78（2026-10-10）— 軟性切換成本完成→PR 審核
+
+- 分支 CI 初次失敗（reification 把同機換人誤罰、2 個 demo fixture NameError）→ 完整日誌修復：uses() OR + both() AND 兩段式 reification
+- 分支 CI 綠：solver 165 passed in 130.75s；A/B 故障情境生產權重下指標不變（溫和導引、交期零退化）、50000 權重確定性測試證明機制有效；效能 10/30/60≈10s
+- **PR #7** 交付人工審核（依約束不合併 main）；報告 docs/agent/OVERNIGHT_REPORT_SWITCHING.md；CI 加 -rP 使 A/B 數值可見

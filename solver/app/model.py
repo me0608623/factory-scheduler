@@ -29,12 +29,24 @@ class Weights:
     comp: int = 1         # 完成時間越早越好
     dev: int = 0          # 開始時間跟原本差幾分鐘
     change: int = 0       # 換人或換機台
+    # 軟性切換成本（相對權重，非實際換模分鐘或金額）：
+    # 同工單相鄰兩站換員工 / 換掉兩站共通機台的懲罰。0 = 基準模式（不影響求解）。
+    sw_emp: int = 0
+    sw_mach: int = 0
+
+
+def _switch_cost_enabled(w: Weights) -> bool:
+    """SOLVER_SWITCH_COST=0 可整體關閉（基準模式 / A/B 對照用）。"""
+    try:
+        return os.environ.get("SOLVER_SWITCH_COST", "1") != "0" and (w.sw_emp or w.sw_mach)
+    except Exception:
+        return bool(w.sw_emp or w.sw_mach)
 
 
 PRESETS: dict[str, Weights] = {
-    "min_change": Weights(tard=1000, comp=1, dev=20, change=3000),     # 少動為主
-    "keep_assign": Weights(tard=1000, comp=1, dev=20, change=60000),   # 盡量不換人不換機
-    "on_time": Weights(tard=1000, comp=10, dev=1, change=50),          # 準時、提早優先
+    "min_change": Weights(tard=1000, comp=1, dev=20, change=3000, sw_emp=400, sw_mach=200),     # 少動為主
+    "keep_assign": Weights(tard=1000, comp=1, dev=20, change=60000, sw_emp=1200, sw_mach=400),  # 盡量不換人不換機
+    "on_time": Weights(tard=1000, comp=10, dev=1, change=50, sw_emp=150, sw_mach=80),           # 準時、提早優先
 }
 
 
@@ -580,6 +592,68 @@ def solve(
             terms.append(weights.change * (1 - X[key, op.ref_pair]))
         elif weights.change and op.forced_change:
             terms.append(weights.change)
+
+    # 軟性切換成本：同工單相鄰兩站（k-1 → k）換掉共通員工 / 共通機台的懲罰。
+    # 只在有選擇時罰（該站只有一種人選或機台 → 屬必要配置，不計），權重為 0
+    # 或 SOLVER_SWITCH_COST=0 時完全不加項，模型與基準一致。
+    if _switch_cost_enabled(weights):
+        def uses(key, pred, tag):
+            """「這站選的組合滿足 pred」的布林（對滿足 pred 的候選 OR）。"""
+            v = m.new_bool_var(f"uses_{tag}_{key[0]}_{key[1]}")
+            lits = [X[key, pr] for pr in ops[key].pairs if pred(pr)]
+            if lits:
+                m.add_max_equality(v, lits)
+            return v, bool(lits)
+
+        def both(a, b, tag):
+            """a ∧ b 的 reified 布林。"""
+            v = m.new_bool_var(tag)
+            m.add(v >= a + b - 1)
+            m.add_implication(v, a)
+            m.add_implication(v, b)
+            return v
+
+        for o in snap.orders:
+            p = prods.get(o.product)
+            if not p:
+                continue
+            for k in range(1, len(p.steps)):
+                prev, cur = ops.get((o.id, k - 1)), ops.get((o.id, k))
+                if not prev or not cur:
+                    continue
+                if weights.sw_emp:
+                    prev_emps = {pr[1] for pr in prev.pairs}
+                    cur_emps = {pr[1] for pr in cur.pairs}
+                    shared = prev_emps & cur_emps
+                    # 兩站員工集合本來就無交集 → 路由必然換人（技能限制），不罰
+                    if shared and len(cur_emps) > 1:
+                        keep = m.new_bool_var(f"same_emp_{o.id}_{k}")
+                        lits = []
+                        for e in sorted(shared):
+                            # 同員工不論在哪台機器：兩站各自「用到 e」的 OR 再 AND
+                            pe, ok1 = uses(prev.key, lambda pr, e=e: pr[1] == e, f"emp_prev")
+                            ce, ok2 = uses(cur.key, lambda pr, e=e: pr[1] == e, f"emp_cur")
+                            if ok1 and ok2:
+                                lits.append(both(pe, ce, f"same_emp_{o.id}_{k}_{e}"))
+                        if lits:
+                            m.add_max_equality(keep, lits)
+                            terms.append(weights.sw_emp * (1 - keep))
+                if weights.sw_mach:
+                    prev_machs = {pr[0] for pr in prev.pairs}
+                    cur_machs = {pr[0] for pr in cur.pairs}
+                    shared_m = prev_machs & cur_machs
+                    # 相鄰兩站通常是不同工序 → 不同機台集合屬路由本質，不罰
+                    if shared_m and len(cur_machs) > 1:
+                        keep_m = m.new_bool_var(f"same_mach_{o.id}_{k}")
+                        lits_m = []
+                        for mid in sorted(shared_m):
+                            pm, ok1 = uses(prev.key, lambda pr, mid=mid: pr[0] == mid, f"mach_prev")
+                            cm, ok2 = uses(cur.key, lambda pr, mid=mid: pr[0] == mid, f"mach_cur")
+                            if ok1 and ok2:
+                                lits_m.append(both(pm, cm, f"same_mach_{o.id}_{k}_{mid}"))
+                        if lits_m:
+                            m.add_max_equality(keep_m, lits_m)
+                            terms.append(weights.sw_mach * (1 - keep_m))
     m.minimize(sum(terms) if terms else 0)
 
     solver = cp_model.CpSolver()
