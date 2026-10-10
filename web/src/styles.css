@@ -940,3 +940,16 @@ body.tv .wrap{background:transparent}
 /* 功能解說主題選擇：雙欄、過多主題時可捲動；極窄螢幕單欄 */
 .feature-topics{max-height:min(62vh,560px);overflow:auto;margin-top:10px;padding:2px 6px 2px 2px;overscroll-behavior:contain}
 @media (max-width:480px){#ov .feature-topics .more-grid{grid-template-columns:1fr 1fr;gap:6px}}
+
+
+@media (max-width:800px){
+  /* 手機放大（⤢）：與桌面同機制——抽屜進入文件流、隱藏排程欄，內容取代主工作區。
+     進文件流讓上方導覷列自然保留；底部導覷 z70 與 wrap 的 padding-bottom（含
+     safe-area）確保不被遮擋；長內容隨頁面捲動。特異度 (0,5,0) 蓋過
+     .ops-drawer.pane.vg-glass 的 position 與手機 sheet 的固定定位。 */
+  .wrap.has-drawer.zoomed .main-col,
+  .wrap.has-drawer.zoomed .pane-splitter{display:none}
+  .wrap.has-drawer.zoomed .ops-drawer.pane{position:relative;top:auto;left:auto;right:auto;bottom:auto;width:auto;height:auto;max-height:none;min-height:calc(100dvh - 230px);border:1px solid var(--line);border-top:2px solid var(--line);border-radius:14px;box-shadow:0 4px 18px rgba(12,25,40,.12);z-index:1}
+  .wrap.has-drawer.zoomed .ops-drawer.pane .ops-drawer-b{max-height:none}
+
+}
