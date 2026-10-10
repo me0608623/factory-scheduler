@@ -63,7 +63,7 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 181（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
+- **總輪次**: 182（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
 - **正式站**: web 200 ✓ solver 200 ✓ staging 200 ✓
 
 ## 測試
@@ -965,3 +965,9 @@
 ## 輪次 181（2026-10-11 凌晨）— 穩態巡檢（使用者新手機修復）
 
 - 使用者開新分支 fix/mobile-addrow-fab（手機加一列 FAB 修復，app.js/styles.css/layout-regression WIP）——worktree 隔離續行；三站 200；待併三項＋新分支進行中
+
+
+## 輪次 182（2026-10-11 凌晨）— mobile-addrow-fab 已推分支待併
+
+- 使用者完成手機加一列 FAB 修復（f2efb76：重複加號與文字溢出——pageShell 共用修正，＋22 行回歸測試）——已推 fix/mobile-addrow-fab 分支**未併 main**；不代併
+- main 現況 286/286 綠；三站 200；待併四項：PR #7＋mobile-drawer-zoom＋table-sort-marks＋mobile-addrow-fab
