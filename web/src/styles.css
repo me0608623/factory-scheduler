@@ -643,7 +643,8 @@ body:has(#ov:not([hidden])) #schedule-chat{z-index:15}
 .chat-speak{font-size:13px;margin:6px 0 0}
 .chat-notice{color:var(--muted);font-size:13px;margin:2px 0}
 /* ---------- 整頁三張表：欠缺品項 ／ 給二廠－回一廠 ／ 工作紀錄 ---------- */
-:root{--pg-f1-head:#ffe14a;--pg-f1-cell:#fff4a8;--pg-f2-head:#39d353;--pg-f2-cell:#b6f5bf;--pg-bad:#c62828;--pg-line:#d7dbe2;--pg-bg:#f4f5f7;}
+:root{--pg-f1-head:#ffe14a;--pg-f1-cell:#fff4a8;--pg-f2-head:#39d353;--pg-f2-cell:#b6f5bf;--pg-bad:#c62828;--pg-line:#d7dbe2;--pg-bg:#f4f5f7;  --row-matched:#e6f4ea;--row-returned:#e6f4ea;--row-archived:#e9ebef;
+  --wiz-pending-bg:#fef7e0;--wiz-pending-ink:#9a5200;--wiz-ok-bg:#e6f4ea;--wiz-ok-ink:#14672d;--wiz-foot-bg:rgba(244,245,247,.96);}
 body.pvmode ~ *{}
 .page-links{display:flex;gap:8px;margin-left:auto}
 .pagelink{min-height:44px;font-weight:800}
@@ -748,11 +749,11 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
 .wiz-card.skills{display:block}
 .wiz-name{display:block;font-size:22px;font-weight:800;line-height:1.2;margin-bottom:8px}
 .wiz-meta{display:flex;flex-direction:column;gap:8px;color:var(--muted);font-size:15px}
-.wiz-pending{display:inline-block;background:#fef7e0;color:#b06000;border-radius:6px;padding:2px 10px;font-weight:800;font-size:13.5px;margin-top:8px}
-.wiz-ok{display:inline-block;background:#e6f4ea;color:#1e8e3e;border-radius:6px;padding:2px 10px;font-weight:800;font-size:13.5px;margin-top:8px}
+.wiz-pending{display:inline-block;background:var(--wiz-pending-bg);color:var(--wiz-pending-ink);border-radius:6px;padding:2px 10px;font-weight:800;font-size:13.5px;margin-top:8px}
+.wiz-ok{display:inline-block;background:var(--wiz-ok-bg);color:var(--wiz-ok-ink);border-radius:6px;padding:2px 10px;font-weight:800;font-size:13.5px;margin-top:8px}
 .wiz-acts{display:flex;gap:8px}
 .wiz-big{min-height:44px;min-width:88px;font-size:16px;font-weight:800}
-.wiz-foot{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;gap:12px;padding:12px 16px;background:rgba(244,245,247,.96);border-top:1px solid var(--pg-line);z-index:6}
+.wiz-foot{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;gap:12px;padding:12px 16px;background:var(--wiz-foot-bg);border-top:1px solid var(--pg-line);z-index:6}
 .wiz .fullpage{padding-bottom:96px}
 @media (max-width:760px){.wiz-card{flex-direction:column;align-items:stretch}.wiz-acts{width:100%}.wiz-acts .wiz-big{flex:1}}
 .cellbtn.raw{color:var(--pg-bad);font-weight:700}
@@ -760,19 +761,27 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
 .people-calendar .calendar-day.working{background:#e9f9ee}
 .people-calendar .calendar-day.leave{background:#fce8e6}
 .people-calendar .calendar-day.leave b{color:#c62828}
-/* 深色模式：三張表的表頭與儲存格改為深色版 */
-:root:not([data-theme="light"]):not([data-app-theme="light"]){
-  --pg-f1-head:#5a4a05;--pg-f1-cell:#2d2503;--pg-f2-head:#1a5c2e;--pg-f2-cell:#0d2e17;
-  --pg-bad:#FF6F6F;--pg-line:#34424F;--pg-bg:#0E141A;
+/* 深色模式：三張表的表頭與儲存格改為深色版。
+   自動模式的深色變數必須包在 prefers-color-scheme:dark 內：auto 時 root 無 data-theme/data-app-theme 屬性，
+   :not(:light) 仍會命中，淺色系統的手機就會出現深色區塊（本 bug 根因）。 */
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]):not([data-app-theme="light"]){
+    --pg-f1-head:#5a4a05;--pg-f1-cell:#2d2503;--pg-f2-head:#1a5c2e;--pg-f2-cell:#0d2e17;
+    --pg-bad:#FF6F6F;--pg-line:#34424F;--pg-bg:#0E141A;
+    --row-matched:#123020;--row-returned:#123020;--row-archived:#1a1e24;
+    --wiz-pending-bg:#382A0D;--wiz-pending-ink:#F2B64A;--wiz-ok-bg:#123020;--wiz-ok-ink:#4DD08B;--wiz-foot-bg:rgba(14,20,26,.96);
+  }
 }
 :root[data-theme="dark"]:not([data-app-theme="light"]),:root[data-app-theme="dark"]{
   --pg-f1-head:#5a4a05;--pg-f1-cell:#2d2503;--pg-f2-head:#1a5c2e;--pg-f2-cell:#0d2e17;
   --pg-bad:#FF6F6F;--pg-line:#34424F;--pg-bg:#0E141A;
-}
+  --row-matched:#123020;--row-returned:#123020;--row-archived:#1a1e24;
+  --wiz-pending-bg:#382A0D;--wiz-pending-ink:#F2B64A;--wiz-ok-bg:#123020;--wiz-ok-ink:#4DD08B;--wiz-foot-bg:rgba(14,20,26,.96);
+  }
 .sheettable thead th{background:var(--surface2)}
-.sheettable tr.matched td{background:#123020}
-.sheettable tr.archived td{background:#1a1e24}
-.sheettable tr.returned td{background:#123020}
+.sheettable tr.matched td{background:var(--row-matched)}
+.sheettable tr.archived td{background:var(--row-archived)}
+.sheettable tr.returned td{background:var(--row-returned)}
 .sheettable td.c-f2-empty{background:var(--surface)}
 .cellbtn{color:inherit}
 .rowdel{color:var(--bad)}
@@ -785,9 +794,9 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
 .wiz-name{color:var(--ink)}
 .wiz-meta{color:var(--muted)}
 .wiz-steps .wiz-step{color:var(--ink)}
-.wiz-pending{background:#382A0D;color:#F2B64A}
-.wiz-ok{background:#123020;color:#4DD08B}
-.wiz-foot{background:rgba(14,20,26,.96)}
+
+
+
 .late-txt{color:var(--pg-bad)}
 .raw-txt{color:var(--pg-bad)}
 .pending-tag{color:var(--pg-bad);border-color:var(--pg-bad)}
@@ -839,7 +848,9 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
   .addrow-mobile{display:none}
 }
 /* 深色模式填寫窗 */
-:root:not([data-theme="light"]):not([data-app-theme="light"]) .sheettable tbody tr:hover td,
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]):not([data-app-theme="light"]) .sheettable tbody tr:hover td{background:color-mix(in srgb,var(--accent) 8%,transparent)}
+}
 :root[data-theme="dark"]:not([data-app-theme="light"]) .sheettable tbody tr:hover td{background:color-mix(in srgb,var(--accent) 8%,transparent)}
 
 /* 手機浮動加一列按鈕（FAB）：固定右下角、隨捲動可見 */
@@ -866,11 +877,13 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
 .people-calendar .calendar-day.unconfirmed{background:#E3F2FD !important}
 .people-calendar .calendar-day.unconfirmed b{color:#1565C0;font-weight:900}
 .people-calendar .calendar-day.unconfirmed i{background:#1E88E5;width:14px;height:14px}
-/* 深色模式 */
-:root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.working,
-:root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.unconfirmed{background:#1E5799 !important}
-:root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.working b,
-:root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.unconfirmed b{color:#90CAF9}
+/* 深色模式（自動：僅系統深色；手動：data-theme/data-app-theme=dark） */
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.working,
+  :root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.unconfirmed{background:#1E5799 !important}
+  :root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.working b,
+  :root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.unconfirmed b{color:#90CAF9}
+}
 :root[data-theme="dark"] .people-calendar .calendar-day.working,
 :root[data-theme="dark"] .people-calendar .calendar-day.unconfirmed{background:#1E5799 !important}
 :root[data-theme="dark"] .people-calendar .calendar-day.working b,
@@ -882,9 +895,11 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
 .people-calendar .calendar-day.asking b{color:#B8860B;font-weight:900}
 .people-calendar .calendar-day.asking i{background:#FFC107;width:14px;height:14px}
 /* 深色模式未確定 */
-:root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.asking,
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.asking{background:#3D3313 !important}
+  :root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.asking b{color:#FFE082}
+}
 :root[data-theme="dark"] .people-calendar .calendar-day.asking{background:#3D3313 !important}
-:root:not([data-theme="light"]):not([data-app-theme="light"]) .people-calendar .calendar-day.asking b,
 :root[data-theme="dark"] .people-calendar .calendar-day.asking b{color:#FFE082}
 
 /* —— TV 大螢幕模式：品牌藍靜態漸層背景（無動畫，適合長時間顯示）—— */
