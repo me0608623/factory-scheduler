@@ -273,9 +273,9 @@ body.nav-collapsed .side-health span{display:none}
 .times div.half{font-size:12px;font-weight:500;opacity:.6}
 .col{position:relative;border-left:1px solid var(--line2);background-image:linear-gradient(var(--line2) 1px,transparent 1px);background-size:100% calc(var(--hour) / 2)}
 .zone{position:absolute;left:0;right:0;pointer-events:none;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--muted);background-image:repeating-linear-gradient(135deg,var(--hatch) 0 8px,transparent 8px 16px)}
-.zone.lunch{background-color:var(--lunch)}
-.zone.ot{background-color:var(--ot);color:var(--warn)}
-.zone.ot.closed{background-color:var(--off);color:var(--muted)}
+.zone.lunch{background-color:transparent;background-image:none}
+.zone.ot{background-color:transparent;background-image:none;color:var(--warn)}
+.zone.ot.closed,.zone.ot-off{background-color:transparent;background-image:none;color:var(--muted)}
 .zone.off{background-color:var(--off)}
 .zone.fault{background-color:var(--bad-bg);color:var(--bad);border-top:3px solid var(--bad);border-bottom:3px solid var(--bad);z-index:1}
 .nowline{position:absolute;left:0;right:0;height:0;border-top:3px solid var(--bad);z-index:3;pointer-events:none}

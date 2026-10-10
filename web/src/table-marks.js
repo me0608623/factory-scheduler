@@ -30,6 +30,10 @@ export function setMark(table, id, mark) {
 }
 export function marksAll() { return { ...load() }; }
 
+export function changeMarkColor(draft, color, currentNote) {
+  return { ...draft, c: color, n: String(currentNote ?? draft.n ?? '').slice(0, 200) };
+}
+
 // 列屬性：class（mk-c 色帶）＋標註圖示按鈕（注入 rowact 欄）
 export function markRowAttrs(table, id, extraCls = "") {
   const m = markOf(table, id);

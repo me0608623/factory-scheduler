@@ -13,7 +13,7 @@ import { workQueue } from './work-queue.js';
 import { makeScenario, scenarioStale, validateScenario, scenarioKey } from './scenarios.js';
 import { reflowAllWindows } from './win.js';
 import { applySort, sortTh, sortBar, TF_SORT, RUSH_SORT, WL_SORT } from './table-sort.js';
-import { markOf, setMark, markRowAttrs, markBtns, MARK_COLORS } from './table-marks.js';
+import { markOf, setMark, markRowAttrs, markBtns, MARK_COLORS, changeMarkColor } from './table-marks.js';
 import { executionOf, canReport, assertExecutionProtected } from './execution.js';
 import { workCatalog,assignments,occupiedWork,assignmentIssues,validateGeneralWork } from './general-work.js';
 import { legacyFieldMap } from './legacy-field-map.js';
@@ -1236,7 +1236,7 @@ document.addEventListener("click",e=>{
     case "sort-col":{const t=a.dataset.t,k=a.dataset.k;const cols=t==="tf"?TF_SORT:t==="rush"?RUSH_SORT:WL_SORT;const st=UI.tableSort[t];UI.tableSort[t]=(st&&st.key===k)?{key:k,dir:st.dir==="asc"?"desc":"asc"}:{key:k,dir:"asc"};saveTableSort();render();break;}
     case "sort-reset":{UI.tableSort[a.dataset.t]=null;saveTableSort();render();break;}
     case "row-mark":{const t=a.dataset.t,id=a.dataset.id;const m=markOf(t,id);openModal({t:"row-mark",tb:t,id,draft:{c:m?.c||"",n:m?.n||""}});break;}
-    case "mk-color":{UI.modal.draft.c=a.dataset.v;renderModal();break;}
+    case "mk-color":{UI.modal.draft=changeMarkColor(UI.modal.draft,a.dataset.v,$("#mk-note")?.value);renderModal();break;}
     case "mk-clear":{const t=a.dataset.t,id=a.dataset.id;if(!setMark(t,id,null))toast("這台裝置無法保存標記設定");closeModal();render();break;}
     case "mk-save":{const d=UI.modal;const n=($("#mk-note")?.value||"").trim().slice(0,200);const c=d.draft.c;if(!c&&!n){toast("請選顏色或填寫標註");break;}if(!setMark(d.tb,d.id,{c,n}))toast("這台裝置無法保存標記（已套用於本次畫面）");closeModal();render();break;}
     case "nav-toggle":UI.navCollapsed=!UI.navCollapsed;try{localStorage.setItem("fsched-nav-collapsed",UI.navCollapsed?"1":"0");}catch(e){}render();break;
@@ -3268,7 +3268,7 @@ function shortagePageHTML(){
       const cell=(k,t)=>'<td class="'+(k.startsWith("f1.")?"c-f1":(f.f2Empty?"c-f2-empty":"c-f2"))+'">'+editCellHTML("rush",r.id,k,t,getPath(r,k),ro)+'</td>';
       const item=String(r.f1?.desc||"").trim();
       const dateTxt=v=>v&&!/^\d{4}-\d{2}-\d{2}$/.test(String(v))?'<span class="raw-txt">'+esc(String(v))+'</span>':"";
-      return '<tr data-rowid="'+esc(r.id)+'" data-act="row-edit" data-table="rush" data-id="'+esc(r.id)+'" class="'+(r.archived?"archived":"")+markRowAttrs("rush",r.id).cls+'">'+
+      return '<tr data-rowid="'+esc(r.id)+'" data-act="row-edit" data-table="rush" data-id="'+esc(r.id)+'" class="'+markRowAttrs("rush",r.id,r.archived?"archived":"").cls+'">'+
         '<td class="rowact">'+markBtns("rush",r.id,tx)+(r.archived
           ?(ro?"":'<button class="rowdel restore" data-act="rush-unarchive" data-id="'+esc(r.id)+'">'+tx('還原')+'</button>')
           :(ro?"":(UI.confirmRow==="del:"+r.id?'<button class="btn danger" data-act="rush-del" data-id="'+esc(r.id)+'">'+tx('再按一次刪除')+'</button>':'<button class="rowdel" data-act="rush-del" data-id="'+esc(r.id)+'">'+tx('刪除')+'</button>')))+'</td>'+
@@ -3314,7 +3314,7 @@ function transferFlowPageHTML(){
       const urgent=(o.urgentQty||0)>0||!!o.urgentDue;
       const cell=(k,ty,cls="")=>'<td class="'+cls+'">'+editCellHTML("tf",o.id,k,ty,getPath(o,k),ro)+'</td>';
       const pend=k=>pendingDate(getPath(o,k))?'<span class="pending-tag">'+tx('待確認格式')+'</span>':"";
-      return '<tr data-rowid="'+esc(o.id)+'" data-act="row-edit" data-table="tf" data-id="'+esc(o.id)+'" class="'+(o.returned?"returned":"")+(o.archived?" archived":"")+(o.status==="cancelled"?" cancelled":"")+markRowAttrs("tf",o.id).cls+'">'+
+      return '<tr data-rowid="'+esc(o.id)+'" data-act="row-edit" data-table="tf" data-id="'+esc(o.id)+'" class="'+markRowAttrs("tf",o.id,[o.returned?"returned":"",o.archived?"archived":"",o.status==="cancelled"?"cancelled":""].filter(Boolean).join(' ')).cls+'">'+
         '<td class="rowact">'+markBtns("tf",o.id,tx)+(o.archived
           ?(ro?"":'<button class="rowdel restore" data-act="tf-unarchive" data-id="'+esc(o.id)+'">'+tx('還原')+'</button>')
           :(o.status==="cancelled"

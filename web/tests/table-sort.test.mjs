@@ -20,6 +20,14 @@ test('排序：日期升降冪＋空值恆排尾', () => {
   assert.deepEqual(applySort(data, { ...spec, dir: 'desc' }).map(r => r.id), ['e', 'a', 'b', 'c']);
 });
 
+test('工時空白、部分填寫與非法時間在升降冪都排最後；午夜仍為有效值', () => {
+  const data = [{id:'missing',h:null,m:null},{id:'partial',h:9,m:''},{id:'morning',h:9,m:30},{id:'midnight',h:0,m:0}];
+  for (const [h,m] of [[null,null],['',''],[' ',0],[8,null],[undefined,0],[24,0],[9,60],[false,0]]) assert.equal(timeVal(h,m),null);
+  const spec={key:'start',type:'time',get:r=>timeVal(r.h,r.m)};
+  assert.deepEqual(applySort(data,{...spec,dir:'asc'}).map(r=>r.id),['midnight','morning','missing','partial']);
+  assert.deepEqual(applySort(data,{...spec,dir:'desc'}).map(r=>r.id),['morning','midnight','missing','partial']);
+});
+
 test('排序：時間（時:分合成值）與數量數值比較', () => {
   assert.equal(timeVal(9, 30), 570);
   const nums = [{ id: 'a', n: 120 }, { id: 'b', n: 15 }, { id: 'c', n: null }];

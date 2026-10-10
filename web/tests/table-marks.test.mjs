@@ -9,7 +9,23 @@ globalThis.localStorage = {
   setItem: (k, v) => { store[k] = String(v); },
   removeItem: k => { delete store[k]; },
 };
-const { markOf, setMark, markRowAttrs, markBtns, MARK_COLORS } = await import('../src/table-marks.js');
+const { markOf, setMark, markRowAttrs, markBtns, MARK_COLORS, changeMarkColor } = await import('../src/table-marks.js');
+
+test('輸入標註後多次換色、套用保存，文字不遺失', () => {
+  let draft={c:'',n:''};
+  draft=changeMarkColor(draft,'r','保留這句 QA');
+  draft=changeMarkColor(draft,'b',draft.n);
+  setMark('wl','color-note',draft);
+  assert.deepEqual(markOf('wl','color-note'),{c:'b',n:'保留這句 QA'});
+  setMark('wl','color-note',null);
+});
+
+test('標記与歸檔、已回廠、取消各自為獨立 class token', () => {
+  setMark('tf','status-mark',{c:'y',n:'QA'});
+  const cls=markRowAttrs('tf','status-mark','returned archived cancelled').cls;
+  assert.deepEqual(new Set(cls.split(/\s+/)),new Set(['mk-y','mk-noted','returned','archived','cancelled']));
+  setMark('tf','status-mark',null);
+});
 
 test('標記 CRUD：以 table:id 為鍵，排序/重繪後仍對應', () => {
   setMark('tf', 'o1', { c: 'r', n: '急件' });

@@ -8,7 +8,12 @@ export function dateVal(v) {
   const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
   return m ? +(m[1] + m[2] + m[3]) : null;   // YYYYMMDD 數值比較；無效 → null（兩個方向都墊底）
 }
-export function timeVal(h, m) { const H = +h, M = +m; return Number.isFinite(H) && Number.isFinite(M) ? H * 60 + M : null; }
+export function timeVal(h, m) {
+  // 只在時、分皆有值且有效時排序；部分填寫也保持「未知」，不補成午夜。
+  if ([h, m].some(v => v == null || typeof v === 'boolean' || String(v).trim() === '')) return null;
+  const H = +h, M = +m;
+  return Number.isInteger(H) && H >= 0 && H <= 23 && Number.isInteger(M) && M >= 0 && M <= 59 ? H * 60 + M : null;
+}
 export function numVal(v) { if (v == null || v === "") return null; const n = +v; return Number.isFinite(n) ? n : null; }
 
 export function cmpBy(type, a, b) {
