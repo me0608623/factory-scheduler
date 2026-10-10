@@ -673,10 +673,23 @@ function render(){ I18N.lang=UI.prefs.language; ensureVisualStyles();
   if(UI.page==='floor')initFloor();
   if(UI.page==='visual-demo')initVisualDemo();
   initFloatWins();
+  watchHeader();
   if(UI.page==='catalog')initCatalogPage();
   if(UI.modal)renderModal();
   if(UI.editCell){const el=$(".cellinp");if(el){el.focus();if(el.select)el.select();}}
   scheduleChat?.refresh();
+}
+let _hdrRO=null;
+function updateHeaderVar(){
+  const top=document.querySelector(".top");
+  if(!top)return;
+  try{document.documentElement.style.setProperty("--hdr-h",Math.round(top.getBoundingClientRect().bottom)+"px");}catch(e){}
+}
+if(typeof ResizeObserver!=="undefined"&&!_hdrRO){_hdrRO=new ResizeObserver(updateHeaderVar);}
+function watchHeader(){
+  const top=document.querySelector(".top");
+  if(_hdrRO){_hdrRO.disconnect();if(top)_hdrRO.observe(top);}
+  updateHeaderVar();
 }
 let _winResizeBound=false;
 function initCatalogPage(){
@@ -707,7 +720,7 @@ function initFloatWins(){
       const wrap=sp.closest(".wrap");if(!wrap)return;
       const aside=wrap.querySelector(".ops-drawer");
       const startX=ev.clientX,startW=aside.getBoundingClientRect().width;
-      sp.classList.add("dragging");sp.setPointerCapture?.(ev.pointerId);
+      sp.classList.add("dragging");try{sp.setPointerCapture?.(ev.pointerId);}catch(e){}
       const move=e=>{
         const w=Math.min(Math.max(startW+(e.clientX-startX),280),Math.min(900,Math.max(320,innerWidth-420)));
         wrap.style.setProperty("--pane-w",w+"px");UI.paneW=w;

@@ -123,19 +123,29 @@ body.nav-collapsed .side-health span{display:none}
 
 /* ===== 抽屜內嵌分割窗格（桌面 >800px）：一般=左右分割＋可拖分隔線；放大=取代排程表 ===== */
 @media (min-width:801px){
-  .wrap.has-drawer{flex-direction:row;align-items:stretch}
+  /* 桌面分割：左排程保留原始高度捲動；右抽屜以「可視高度」為準——
+     不再被排程表 stretch 拉長（原本 pane 被拉到 1400+px 而 body 卡在
+     max-height=100dvh-190px，pane 下半出現大片空殼=使用者回報的空白）。
+     --hdr-h 由 app.js 以 ResizeObserver 量測 .top 實際高度寫入。 */
+  .wrap.has-drawer:not(.zoomed){flex-direction:row;align-items:flex-start}
   .wrap.has-drawer .main-col{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:14px}
-  .pane-splitter{flex:0 0 9px;cursor:col-resize;position:relative;z-index:6;touch-action:none;border-radius:5px}
+  .pane-splitter{flex:0 0 9px;cursor:col-resize;position:relative;z-index:6;touch-action:none;border-radius:5px;align-self:stretch}
   .pane-splitter::after{content:"";position:absolute;inset:0 3px;background:var(--line2);border-radius:3px;transition:background .15s}
   .pane-splitter:hover::after,.pane-splitter.dragging::after,.pane-splitter:focus-visible::after{background:var(--accent)}
-  .ops-drawer.pane{position:relative;flex:0 0 var(--pane-w,470px);width:var(--pane-w,470px);height:auto;top:auto;right:auto;bottom:auto;left:auto;box-shadow:none;border-left:0;border:1px solid var(--line);border-radius:14px}
-  .ops-drawer.pane.vg-glass{position:relative}
-  .ops-drawer.pane .ops-drawer-b{max-height:calc(100dvh - 190px)}
-  .wrap.has-drawer.zoomed{flex-direction:column}
+  .wrap.has-drawer:not(.zoomed) .ops-drawer.pane.vg-glass{
+    position:sticky;top:var(--hdr-h,150px);
+    align-self:flex-start;flex:0 0 var(--pane-w,470px);width:var(--pane-w,470px);
+    height:auto;max-height:calc(100dvh - var(--hdr-h,150px) - 16px);
+    display:flex;flex-direction:column;
+    box-shadow:none;border-left:0;border:1px solid var(--line);border-radius:14px}
+  .wrap.has-drawer:not(.zoomed) .ops-drawer-h{flex:0 0 auto}
+  .wrap.has-drawer:not(.zoomed) .ops-drawer-b{flex:1 1 auto;min-height:0;max-height:none;overflow-y:auto}
+  /* 放大：抽屜回到文件流佔滿主內容區（不再 sticky），body 內部捲動 */
+  .wrap.has-drawer.zoomed{flex-direction:column;align-items:stretch}
   .wrap.has-drawer.zoomed .main-col,
   .wrap.has-drawer.zoomed .pane-splitter{display:none}
-  .wrap.has-drawer.zoomed .ops-drawer.pane{flex:1 1 auto;width:100%;min-height:calc(100dvh - 150px)}
-  .wrap.has-drawer.zoomed .ops-drawer.pane .ops-drawer-b{max-height:calc(100dvh - 240px)}
+  .wrap.has-drawer.zoomed .ops-drawer.pane{position:relative;top:auto;flex:1 1 auto;width:100%;min-height:calc(100dvh - 150px);display:flex;flex-direction:column}
+  .wrap.has-drawer.zoomed .ops-drawer-b{flex:1 1 auto;min-height:0;max-height:none;overflow-y:auto}
 }
 @media (max-width:800px){.pane-splitter{display:none}}
 .win-titlebtn{flex:none;width:34px;height:34px;border:1px solid var(--line);border-radius:8px;background:var(--surface2);color:var(--muted);font-size:15px;font-weight:900;cursor:pointer;display:grid;place-items:center;margin-left:6px}

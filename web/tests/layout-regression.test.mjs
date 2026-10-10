@@ -70,7 +70,8 @@ test('不變量：與 vg-glass 併用且依賴定位的基底 class 必須有特
 
 test('分割窗格：CSS 有 pane-splitter 與 pane 覆寫（含 vg-glass 特異度）', () => {
   assert.match(css, /\.pane-splitter\{[^}]*cursor:col-resize/, '缺少分隔線規則');
-  assert.match(css, /\.ops-drawer\.pane\.vg-glass\{position:relative\}/, 'pane 模式需覆寫 vg-glass 的 fixed 防護');
+  assert.match(css, /not\(\.zoomed\) \.ops-drawer\.pane\.vg-glass\{[\s\S]{0,120}position:sticky/, 'pane 模式需覆寫 vg-glass 的 fixed 防護（sticky 版）');
+  assert.match(css, /has-drawer\.zoomed \.ops-drawer\.pane\{position:relative/, '放大模式 pane 回文件流');
   assert.match(css, /\.wrap\.has-drawer\.zoomed \.main-col,\s*\.wrap\.has-drawer\.zoomed \.pane-splitter\{display:none\}/, '放大模式需隱藏排程欄與分隔線');
 });
 
@@ -153,4 +154,14 @@ test('功能解說導覽圖示有背景漸層（b 預設白字，無背景=白�
   assert.match(css, /\.nav-feature-tour b\{background:linear-gradient/, '缺少 nav-feature-tour b 背景');
   for (const c of ['nav-today','nav-orders','nav-people','nav-output','nav-notes','nav-worklog','nav-more','nav-feature-tour'])
     assert.ok(css.includes('.'+c+' b{background:'), c+' 缺背景');
+});
+
+test('桌面抽屜高度：pane sticky 且以可視高度為準（不被排程表 stretch 拉長）', () => {
+  assert.match(css, /has-drawer:not\(\.zoomed\)\{flex-direction:row;align-items:flex-start/, '分割不 stretch');
+  assert.match(css, /position:sticky;top:var\(--hdr-h,\d+px\)/, 'pane sticky 於 --hdr-h');
+  assert.match(css, /max-height:calc\(100dvh - var\(--hdr-h,\d+px\) - 16px\)/, 'pane 上限＝可視高度');
+  assert.match(css, /\.ops-drawer-b\{flex:1 1 auto;min-height:0;max-height:none;overflow-y:auto\}/, 'body flex 捲動且無 max-height');
+  assert.ok(!/\.ops-drawer\.pane \.ops-drawer-b\{max-height:calc\(100dvh - 190px\)/.test(css), '不得殘留舊 max-height');
+  assert.ok(app.includes('updateHeaderVar') && app.includes('ResizeObserver'), '缺少 --hdr-h 動態量測');
+  assert.ok(app.includes('try{sp.setPointerCapture'), 'setPointerCapture 需容錯（合成指標會拋錯中斷拖曳）');
 });
