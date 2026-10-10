@@ -673,10 +673,23 @@ function render(){ I18N.lang=UI.prefs.language; ensureVisualStyles();
   if(UI.page==='floor')initFloor();
   if(UI.page==='visual-demo')initVisualDemo();
   initFloatWins();
+  watchHeader();
   if(UI.page==='catalog')initCatalogPage();
   if(UI.modal)renderModal();
   if(UI.editCell){const el=$(".cellinp");if(el){el.focus();if(el.select)el.select();}}
   scheduleChat?.refresh();
+}
+let _hdrRO=null;
+function updateHeaderVar(){
+  const top=document.querySelector(".top");
+  if(!top)return;
+  try{document.documentElement.style.setProperty("--hdr-h",Math.round(top.getBoundingClientRect().bottom)+"px");}catch(e){}
+}
+if(typeof ResizeObserver!=="undefined"&&!_hdrRO){_hdrRO=new ResizeObserver(updateHeaderVar);}
+function watchHeader(){
+  const top=document.querySelector(".top");
+  if(_hdrRO){_hdrRO.disconnect();if(top)_hdrRO.observe(top);}
+  updateHeaderVar();
 }
 let _winResizeBound=false;
 function initCatalogPage(){
@@ -707,7 +720,7 @@ function initFloatWins(){
       const wrap=sp.closest(".wrap");if(!wrap)return;
       const aside=wrap.querySelector(".ops-drawer");
       const startX=ev.clientX,startW=aside.getBoundingClientRect().width;
-      sp.classList.add("dragging");sp.setPointerCapture?.(ev.pointerId);
+      sp.classList.add("dragging");try{sp.setPointerCapture?.(ev.pointerId);}catch(e){}
       const move=e=>{
         const w=Math.min(Math.max(startW+(e.clientX-startX),280),Math.min(900,Math.max(320,innerWidth-420)));
         wrap.style.setProperty("--pane-w",w+"px");UI.paneW=w;
@@ -1214,7 +1227,7 @@ document.addEventListener("click",e=>{
     case "drawer":if(a.dataset.v==="worklog"){UI.page="worklog";UI.drawer=null;try{history.replaceState(null,"","?view=worklog");}catch{}render();window.scrollTo(0,0);flashReturnRow();break;}UI.drawer=UI.drawer===a.dataset.v?null:a.dataset.v;UI.page=null;UI.focus=null;render();requestAnimationFrame(()=>$('.ops-drawer')?.focus());break;
     case "settings":UI.drawer='settings';UI.page=null;UI.focus=null;render();requestAnimationFrame(()=>$('.ops-drawer')?.focus());break;
     case "drawer-close":UI.drawer=null;UI.drawerZoom=false;UI.focus=null;render();break;
-    case "drawer-zoom":UI.drawerZoom=!UI.drawerZoom;render();break;
+    case "drawer-zoom":UI.drawerZoom=!UI.drawerZoom;render();requestAnimationFrame(()=>{try{document.querySelector(".ops-drawer")?.scrollIntoView({block:"start"});}catch(e){}});break;
     case "nav-toggle":UI.navCollapsed=!UI.navCollapsed;try{localStorage.setItem("fsched-nav-collapsed",UI.navCollapsed?"1":"0");}catch(e){}render();break;
     case "setting-set":updateDeviceSetting(a.dataset.key,a.dataset.v);break;
     case "setting-toggle":toggleDeviceSetting(a);break;

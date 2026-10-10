@@ -118,3 +118,24 @@ test('屬性棘輪：不得有純中文靜態 aria-label／title／placeholder�
   }
   assert.deepEqual(bad, [], '純中文 aria-label（讀屏三語使用者仍聽中文）：\n' + bad.join('\n'));
 });
+
+test('可見中文文字節點棘輪：真實未翻譯數凍結為 2（品牌與程式碼假象）', () => {
+  // 掃描法同 NEXT_TASKS 輪 104；排除 HELP 陣列區（資料層，渲染時以完整字串走 tx，
+  // 完整鍵已由「help 內文全部是 UI_TEXT 鍵」測試把關）與 settings.js 雙語三元式
+  const start = app.indexOf('const HELP=[');
+  const end = app.indexOf('\n];', start);
+  const code = app.slice(0, start) + app.slice(end);
+  const lines = code.split('\n');
+  const hits = [];
+  lines.forEach((l, i) => {
+    if (l.includes('tx(')) return;
+    if (/settingChoices|en\?'/.test(l)) return;               // 雙語三元
+    for (const m of l.matchAll(/>([^<>']*[一-鿿][^<>']*)</g)) {
+      const s = m[1].trim();
+      if (s && s.length <= 40) hits.push({ s: s.slice(0, 30), line: i + 1 });
+    }
+  });
+  // 已知保留：品牌「產線排程」（logo 文字，刻意不翻）
+  const genuine = hits.filter(h => h.s !== '產線排程' && !h.s.startsWith('0?'));  // L2146 三元程式碼假象
+  assert.equal(genuine.length, 0, `發現新的未翻譯文字節點：${JSON.stringify(genuine.slice(0, 3))}`);
+});

@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { boot } from "./app.js";
 import { LocalStore } from "./store/local.js";
 import { SupabaseStore } from "./store/supabase.js";
+import { tx } from "./i18n.js";
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -16,5 +17,5 @@ const store = !localQa && url && anon ? new SupabaseStore(createClient(url, anon
 boot(store, authLinkType).catch((e) => {
   console.error(e);
   document.getElementById("app").innerHTML =
-    '<main class="login"><div class="login-card"><b>啟動失敗</b><div class="issue">' + String(e.message || e) + "</div></div></main>";
+    '<main class="login"><div class="login-card"><b>'+tx('啟動失敗')+'</b><div class="issue">' + String(e.message || e) + "</div></div></main>";
 });
