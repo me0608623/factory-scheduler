@@ -1693,7 +1693,7 @@ async function changeLegacyHistorySource(id){
   }catch(e){m.loading=false;m.error=e.message;}
   if(UI.modal===m)renderModal();
 }
-function setPath(o,path,v){const k=path.split(".");let t=o;for(let i=0;i<k.length-1;i++)t=t[isNaN(k[i])?k[i]:+k[i]];t[k[k.length-1]]=v;}
+function setPath(o,path,v){const k=path.split(".");let t=o;for(let i=0;i<k.length-1;i++){const key=isNaN(k[i])?k[i]:+k[i];t[key] ||= isNaN(k[i+1])?{}:[];t=t[key];}t[k[k.length-1]]=v;}
 function syncInputs(){
   const m=UI.modal;if(!m||!m.draft)return;
   document.querySelectorAll("#modal-root [data-bind]").forEach(el=>{
@@ -3564,17 +3564,20 @@ function openTableForm(table,id){
   const ro=!canPermission(perm);
   openModal({t:"tbl-form",table,id:id||null,draft:row?structuredClone(row):null,saving:false,ro});
 }
-function saveTableForm(button){
+async function saveTableForm(button){
   const m=UI.modal;if(m?.t!=="tbl-form"||m.saving)return;
-  const table=m.table,D=m.draft||{};
+  const table=m.table,D=structuredClone(m.draft||{});
+  const perm=table==="rush"?"rush.manage":table==="tf"?"transfers.manage":"worklog.manage";
+  if(!canPermission(perm)){toast("沒有修改權限；沒存到");return;}
   for(const el of document.querySelectorAll("[data-fk]")){
     const key=el.dataset.fk;
     if(el.type==="checkbox")setPath(D,key,el.checked);
-    else if(el.tagName==="SELECT"||el.type==="number"){const v=el.value.trim();setPath(D,key,v===""?null:Math.round(+v));}
+    else if(el.tagName==="SELECT"||el.type==="number"){const v=el.value.trim();setPath(D,key,v===""?null:Number(v));}
     else setPath(D,key,el.value.trim()||null);
   }
   const list=table==="rush"?(S.rushOrders||[]):table==="tf"?transferOrders(S):(S.workLog||[]);
-  const perm=table==="rush"?"rush.manage":table==="tf"?"transfers.manage":"worklog.manage";
+  const original=list.slice();
+  m.draft=D;
   m.saving=true;renderModal();
   try{
     if(table==="tf"){
@@ -3603,13 +3606,12 @@ function saveTableForm(button){
       validateWorkLog(S.workLog);
     }
     closeModal();
-    commit({kind:"edit",title:(m.id?"更新":"新增")+TABLE_TITLES[table]+"一列",lines:[]},perm);
+    const saved=await commit({kind:"edit",title:(m.id?"更新":"新增")+TABLE_TITLES[table]+"一列",lines:[]},perm);
     UI.flashNewRow=D.id;
-    toast("已儲存");
+    if(saved)toast("已儲存");
   }catch(e){
     m.saving=false;
-    if(!m.id&&list[0]===D)list.shift();
-    else if(m.id){const idx=list.findIndex(r=>r.id===m.id);if(idx>=0&&m.draft)list[idx]=m.draft;}
+    list.splice(0,list.length,...original);
     renderModal();
     toast(e.message+"；沒存到");
   }
