@@ -87,8 +87,8 @@ export function startTour(steps, { tx = (k) => k, onFinish, markDone = true, lab
   card.addEventListener("click", (e) => {
     const b = e.target.closest("[data-tour]");
     if (!b) return;
-    if (b.dataset.tour === "next") { i++; i >= list.length ? stop(true) : render(); }
-    else if (b.dataset.tour === "prev") { i = Math.max(0, i - 1); render(); }
+    if (b.dataset.tour === "next") { list.forEach((s) => { s._preTried = false; }); i++; i >= list.length ? stop(true) : render(); }
+    else if (b.dataset.tour === "prev") { list.forEach((s) => { s._preTried = false; }); i = Math.max(0, i - 1); render(); }
     else stop(false);
   });
   render();
@@ -155,3 +155,41 @@ export const FEATURE_TOURS = {
     { sel: ".chat-quick", title: "快捷提問", text: "「誰請假？」「哪台機器故障？」一鍵送出。", pre: () => { document.querySelector(".chat-launch")?.click(); } },
   ],
 };
+
+// —— 功能解說第二波：欠缺品項／給二廠回一廠／更多 ——
+const pageTo = (v) => () => { document.querySelector('[data-act="page"][data-v="' + v + '"]')?.click(); };
+FEATURE_TOUR_TOPICS.push(
+  { key: "shortage", icon: "shortage", title: "欠缺品項" },
+  { key: "transfer", icon: "transfer", title: "給二廠／回一廠" },
+  { key: "more",     icon: "more",     title: "更多" },
+);
+Object.assign(FEATURE_TOURS, {
+  shortage: [
+    { sel: ".pagelink.shortage", title: "欠缺品項入口", text: "點上方「欠缺品項」開啟專頁。" },
+    { sel: ".page-title h1", title: "欠貨與補貨對照", text: "左邊一廠欠貨，右邊二廠何時補；同一列是同一張單。", pre: pageTo("shortage") },
+    { sel: ".statstrip", title: "統計列", text: "未補、已補與逾期數量一眼掌握。", pre: pageTo("shortage") },
+    { sel: ".addrow-head", title: "新增資料", text: "「＋加一列」新增一筆欠缺品項。", pre: pageTo("shortage") },
+    { sel: ".sheettable", title: "查看與修改", text: "點儲存格直接修改；狀態欄顯示待補／已補／逾期。", pre: pageTo("shortage") },
+    { sel: ".tf-toggle", title: "篩選與歸檔", text: "勾選切換「顯示已歸檔」；完成的事項可歸檔保存。", pre: pageTo("shortage") },
+  ],
+  transfer: [
+    { sel: ".pagelink.transfer", title: "給二廠／回一廠入口", text: "點上方「給二廠／回一廠」開啟跨廠加工專頁。" },
+    { sel: ".page-title h1", title: "跨廠加工單", text: "料送二廠加工、何時回一廠；與欠缺品項分開管理。", pre: pageTo("transfer") },
+    { sel: ".sheettable", title: "單據與進度", text: "每一列一張跨廠單：交料日、點收、預計回廠與進度都在列上編輯。", pre: pageTo("transfer") },
+    { sel: ".addrow-head", title: "建立單據", text: "「＋加一列」建立新的跨廠加工單。", pre: pageTo("transfer") },
+    { sel: ".tf-toggle", title: "歸檔與紀錄", text: "切換已歸檔查看歷史單據；完成的單可還原或刪除。", pre: pageTo("transfer") },
+  ],
+  more: [
+    { sel: '[data-act="drawer"][data-v="more"]', title: "更多選單", text: "左側「更多」收納管理與現場功能。" },
+    { sel: ".ops-drawer-h h2", title: "選單已展開", text: "以下逐項介紹（依你的權限顯示）。", pre: navTo("more") },
+    { sel: '[data-act="manual-add"]', title: "＋手動排班", text: "選工單、機台、人與時段，手動加一塊工作。", pre: navTo("more") },
+    { sel: '[data-act="auto"]', title: "自動排班", text: "系統一次算好多種排法供預覽比較。", pre: navTo("more") },
+    { sel: '[data-act="incident"]', title: "故障／請假", text: "登記機台故障或人員請假，系統自動重排。", pre: navTo("more") },
+    { sel: '[data-act="rosters"]', title: "輪班表", text: "每日人力與班別安排。", pre: navTo("more") },
+    { sel: '[data-act="master"]', title: "員工、設備與工單", text: "基本資料管理：搜尋、新增、編輯、刪除。", pre: navTo("more") },
+    { sel: '[data-act="settings"]', title: "設定", text: "語言、主題、畫面比例等個人設定。", pre: navTo("more") },
+    { sel: '[data-act="tv"]', title: "大螢幕", text: "工廠電視模式：字大、隱藏管理按鈕。", pre: navTo("more") },
+    { sel: '[data-act="help"]', title: "操作說明", text: "完整說明文件與新手導覽。", pre: navTo("more") },
+    { sel: '[data-act="account"]', title: "帳號與登出", text: "雲端模式的帳號管理（本機模式不顯示）。", pre: navTo("more") },
+  ],
+});

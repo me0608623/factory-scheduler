@@ -125,3 +125,18 @@ test('功能解說：主題選擇與逐步導覽接線', () => {
   assert.ok(app.includes('FEATURE_TOURS[key]'), '主題動作應使用 FEATURE_TOURS');
   assert.ok(app.includes('label:"功能解說",markDone:false'), '主題導覽不應寫入新手導覽完成旗標');
 });
+
+test('功能解說第二波：欠缺品項／給二廠／更多 三主題', () => {
+  const tour = fs.readFileSync(path.join(src, 'tour.js'), 'utf8');
+  assert.ok(tour.includes('key: "shortage"') && tour.includes('key: "transfer"') && tour.includes('key: "more"'), '三主題未齊');
+  for (const k of ['shortage', 'transfer', 'more']) {
+    assert.ok(tour.includes(`FEATURE_TOURS.${k}`) || tour.includes(`${k}: [`) || tour.includes(`${k}:`), `主題 ${k} 缺步驟`);
+  }
+  assert.ok(tour.includes('pageTo("shortage")') && tour.includes('pageTo("transfer")'), '跨頁 pre 未接');
+  assert.ok(tour.includes('navTo("more")'), '更多主題未接開選單 pre');
+});
+
+test('功能解說主題選單：捲動容器與樣式', () => {
+  assert.ok(app.includes('class="feature-topics"'), '缺少捲動容器');
+  assert.match(css, /\.feature-topics\{[^}]*overflow:auto/, '缺少 overflow:auto');
+});

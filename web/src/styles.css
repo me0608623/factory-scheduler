@@ -912,3 +912,7 @@ body.tv .wrap{background:transparent}
 .tour-arrow.tour-up{top:-20px;border-bottom-color:var(--accent,#315FA7)}
 .tour-arrow.tour-down{bottom:-20px;border-top-color:var(--accent,#315FA7)}
 @media(prefers-reduced-motion:reduce){.tour-spot{transition:none}}
+
+/* 功能解說主題選擇：雙欄、過多主題時可捲動；極窄螢幕單欄 */
+.feature-topics{max-height:min(62vh,560px);overflow:auto;margin-top:10px;padding:2px 6px 2px 2px;overscroll-behavior:contain}
+@media (max-width:480px){#ov .feature-topics .more-grid{grid-template-columns:1fr 1fr;gap:6px}}
