@@ -97,6 +97,31 @@ def test_metric_employee_parallel_machines_not_switch():
 
 # ---------- 求解層 ----------
 
+def test_metric_pinned_sibling_does_not_exempt_movable_short():
+    blocks = [_blk("o1", 0, "m", "e1", 480, 540, pinned=True),
+              _blk("o1", 0, "m", "e1", 550, 560)]
+    result = switching_metrics(_snap([_mach()]), blocks)
+    assert result["short_necessary"] == 0
+    assert result["short_avoidable"] == 1
+
+
+def test_metric_staggered_nested_parallel_tending_is_order_independent():
+    from itertools import permutations
+    blocks = [_blk("A", 0, "m1", "e1", 480, 600),
+              _blk("B", 0, "m2", "e1", 490, 510),
+              _blk("A", 0, "m3", "e1", 520, 550),
+              _blk("C", 0, "m1", "e1", 600, 660)]
+    snap = _snap([_mach("m1"), _mach("m2"), _mach("m3")])
+    for perm in permutations(blocks):
+        assert switching_metrics(snap, perm)["employee_switches"] == 1
+
+
+def test_metric_parallel_group_continuing_operation_is_not_switch():
+    blocks = [_blk("A", 0, "m1", "e1", 480, 600),
+              _blk("B", 0, "m2", "e1", 490, 610),
+              _blk("B", 0, "m2", "e1", 610, 670)]
+    assert switching_metrics(_snap([_mach("m1"), _mach("m2")]), blocks)["employee_switches"] == 0
+
 def _two_step_factory(two_cut_machines=False):
     """兩位員工都會兩種工序 → sw_emp 有選擇空間；sw_mach 用 cut+cut。"""
     steps = [Step(process="cut", rate=1, batch=0)]

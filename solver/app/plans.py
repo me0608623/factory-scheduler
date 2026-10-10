@@ -337,7 +337,7 @@ def describe(base: Snapshot, a: Applied, blocks: list[Block], res: Result | None
     if ot_h > 0:
         parts.append(f"加班 +{ot_h} 小時")
     if metrics.get("short_avoidable"):
-        parts.append(f"{metrics['short_avoidable']} 個可避免的零碎短段")
+        parts.append(f"{metrics['short_avoidable']} 個需檢查的零碎短段")
     summary = "；".join(parts) + "。"
 
     # 每站的變動說明
