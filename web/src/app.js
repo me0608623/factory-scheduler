@@ -3185,10 +3185,10 @@ function pageShell(title,subtitle,bodyHtml,ro,addAct,extraHead){
     '<div class="page-top">'+
     '<div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">'+tx('backToday')+'</button>'+
     '<div class="page-title"><h1>'+esc(title)+'</h1><span class="savestate '+SYNC.state+'">'+pageSaveState()+'</span></div>'+
-    (ro?"":(addAct?'<button class="btn addrow-head" data-act="'+addAct+'">＋'+tx('addrow')+'</button>':""))+'</div>'+
+    (ro?"":(addAct?'<button class="btn addrow-head" data-act="'+addAct+'">'+tx('addrow')+'</button>':""))+'</div>'+
     (subtitle?'<p class="page-sub">'+esc(subtitle)+'</p>':"")+'</div>'+
     bodyHtml+
-    (ro?"":(addAct?'<button class="btn addrow-mobile" data-act="'+addAct+'">＋'+tx('addrow')+'</button>':""))+
+    (ro?"":(addAct?'<button class="btn addrow-mobile" data-act="'+addAct+'" aria-label="'+tx('addrow')+'" title="'+tx('addrow')+'">＋</button>':""))+
     '</div>';
 }
 function tfArchiveMonth(){const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0");}

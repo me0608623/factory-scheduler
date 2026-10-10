@@ -148,3 +148,25 @@ test('即時頻道：重複訂閱與登出必須先移除舊頻道（re-login �
   const clr = sb.slice(sb.indexOf('_clearSession()'), sb.indexOf('_clearSession()') + 700);
   assert.ok(clr.includes('removeChannel(this.channel)'), '_clearSession() 要移除頻道');
 });
+
+test('加一列：pageShell 不重複加號（i18n addrow 已含＋）', () => {
+  const m = app.match(/addrow-head" data-act="[^"]*">([^<]*)</);
+  assert.ok(m, '找不到 addrow-head');
+  assert.ok(!m[1].includes('＋'), 'desktop 按鈕不應額外硬編＋（i18n 已含）');
+  const fab = app.match(/addrow-mobile" data-act="[^"]*" aria-label="[^"]*"[^>]*>([^<]*)</);
+  assert.ok(fab, '找不到 addrow-mobile');
+  assert.equal(fab[1], '＋', 'FAB 只顯示單一＋');
+  assert.ok(/aria-label="[\+]?['"]?\+tx\('addrow'\)/.test(app) || app.includes("aria-label=\"'+tx('addrow')+'\""), 'FAB 有完整 aria-label');
+});
+
+test('加一列 FAB：56px 圓形固定定位、safe-area、不隨表格捲動', () => {
+  const m = css.match(/\.addrow-mobile\{display:flex;position:fixed[^}]+\}/);
+  assert.ok(m, 'FAB 規則存在');
+  assert.match(m[0], /width:56px;height:56px/, '56×56');
+  assert.match(m[0], /border-radius:50%/, '圓形');
+  assert.match(m[0], /overflow:hidden/, '防溢出');
+  assert.match(m[0], /white-space:nowrap/, '不換行');
+  assert.match(m[0], /env\(safe-area-inset-bottom/, 'safe-area');
+  // 不重複的 display:none!important
+  assert.ok(!/addrow-mobile\{display:none!important\}/.test(css), '不應有 display:none!important 重複規則');
+});
