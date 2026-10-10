@@ -140,3 +140,11 @@ test('功能解說主題選單：捲動容器與樣式', () => {
   assert.ok(app.includes('class="feature-topics"'), '缺少捲動容器');
   assert.match(css, /\.feature-topics\{[^}]*overflow:auto/, '缺少 overflow:auto');
 });
+
+test('即時頻道：重複訂閱與登出必須先移除舊頻道（re-login 後 .on() 不再拋錯）', () => {
+  const sb = fs.readFileSync(path.join(src, 'store', 'supabase.js'), 'utf8');
+  const sub = sb.slice(sb.indexOf('subscribe(onChange)'), sb.indexOf('subscribe(onChange)') + 400);
+  assert.ok(sub.includes('removeChannel(this.channel)'), 'subscribe() 重複呼叫前要 removeChannel');
+  const clr = sb.slice(sb.indexOf('_clearSession()'), sb.indexOf('_clearSession()') + 700);
+  assert.ok(clr.includes('removeChannel(this.channel)'), '_clearSession() 要移除頻道');
+});

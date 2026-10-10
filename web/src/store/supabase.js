@@ -97,6 +97,10 @@ export class SupabaseStore {
 
   _clearSession() {
     this.session=null;this.role=null;this.permissions={};this.userName='';this.employeeId=null;
+    // 登出要一併移除即時頻道：sb.channel(同名) 會回傳同一實例，
+    // 下一個工作階段若對「已訂閱」的頻道再 .on() 會拋
+    // 「cannot add postgres_changes callbacks after subscribe()」並中斷登入後的啟動。
+    if(this.channel){try{this.sb.removeChannel(this.channel);}catch(e){}this.channel=null;}
   }
 
   _watchAuthSession() {
@@ -340,6 +344,9 @@ export class SupabaseStore {
 
   // ---------- 即時推送 ----------
   subscribe(onChange) {
+    // 冪等：重複呼叫（如 re-login 後 start() 再跑）先移除舊頻道，
+    // 否則對已訂閱頻道再 .on() 會拋錯（見 _clearSession 註解）。
+    if(this.channel){try{this.sb.removeChannel(this.channel);}catch(e){}this.channel=null;}
     const ch = this.sb.channel("schedule-changes");
     for (const t of ["schedule_state", "change_sets", "machine_faults", "leaves", "employee_overtime_days", "orders", "calendar_days", "work_execution","work_contents","work_assignments","transfer_orders","rush_orders","work_log","staff_rosters","leave_requests","schedule_memos","machine_layout","employees","machines","products","calendar_weekly"]) {
       ch.on("postgres_changes", { event: "*", schema: "public", table: t }, () => onChange(t));
