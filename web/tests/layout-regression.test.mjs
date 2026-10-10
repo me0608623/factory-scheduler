@@ -148,3 +148,9 @@ test('即時頻道：重複訂閱與登出必須先移除舊頻道（re-login �
   const clr = sb.slice(sb.indexOf('_clearSession()'), sb.indexOf('_clearSession()') + 700);
   assert.ok(clr.includes('removeChannel(this.channel)'), '_clearSession() 要移除頻道');
 });
+
+test('功能解說導覽圖示有背景漸層（b 預設白字，無背景=白上白不可見）', () => {
+  assert.match(css, /\.nav-feature-tour b\{background:linear-gradient/, '缺少 nav-feature-tour b 背景');
+  for (const c of ['nav-today','nav-orders','nav-people','nav-output','nav-notes','nav-worklog','nav-more','nav-feature-tour'])
+    assert.ok(css.includes('.'+c+' b{background:'), c+' 缺背景');
+});
