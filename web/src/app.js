@@ -634,7 +634,9 @@ const NAV_IC={
   more:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M8 4v6M8 14v6M16 14v6M16 4v6"/></svg>'
 ,worklog:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 3h14v18l-4-2-3 2-3-2-4 2z"/><path d="M8.5 8h7M8.5 12h7M8.5 16h4"/></svg>',
 help:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
-chat:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.6 9.6 0 0 1-2.9-.4L4 21l1.6-4a8.2 8.2 0 0 1-1.6-4.9 8.4 8.4 0 0 1 8.5-8.4 8.4 8.4 0 0 1 8.5 8.2z"/><path d="M8.5 10.5h7M8.5 13.5h4"/></svg>'};
+chat:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.6 9.6 0 0 1-2.9-.4L4 21l1.6-4a8.2 8.2 0 0 1-1.6-4.9 8.4 8.4 0 0 1 8.5-8.4 8.4 8.4 0 0 1 8.5 8.2z"/><path d="M8.5 10.5h7M8.5 13.5h4"/></svg>',
+shortage:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>',
+transfer:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>'};
 const LOGIC={leave:"假",fault:"修",move:"移",auto:"排",ot:"加",edit:"改",save:"存"};
 function hourPx(){return parseFloat(getComputedStyle(document.body).getPropertyValue("--hour"))||72;}
 
@@ -2519,9 +2521,9 @@ MODAL_ACT["help-sec"]=a=>{UI.modal.sec=+a.dataset.v;const ov=$("#ov");renderModa
 // 功能解說：主題選擇 → 逐步導覽（左側導覽列獨立入口，不動新手導覽）
 MODALS["feature-topics"]=()=>({title:tx('功能解說'),body:
   '<div class="hint">'+tx('選一個主題，會在畫面上逐步指引：亮框標示目標、箭頭指向說明。')+'</div>'+
-  '<div class="more-grid" style="margin-top:12px">'+FEATURE_TOUR_TOPICS.map(t=>
+  '<div class="feature-topics"><div class="more-grid">'+FEATURE_TOUR_TOPICS.map(t=>
     '<button class="more-action" data-act="feature-topic" data-v="'+t.key+'" style="display:flex;align-items:center;gap:10px">'+
-    '<span style="width:22px;height:22px;display:inline-grid;place-items:center;color:var(--accent)">'+(NAV_IC[t.icon]||NAV_IC.help)+'</span>'+tx(t.title)+'</button>').join("")+'</div>',
+    '<span style="width:22px;height:22px;display:inline-grid;place-items:center;color:var(--accent)">'+(NAV_IC[t.icon]||NAV_IC.help)+'</span>'+tx(t.title)+'</button>').join("")+'</div></div>',
   foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button>'});
 function nextCode(){let n=S.orders.length+1;const used=new Set(S.orders.map(o=>o.code));while(used.has("W"+pad(n)))n++;return "W"+pad(n);}
 /* ===== 10. 視窗內的動作 ===== */
