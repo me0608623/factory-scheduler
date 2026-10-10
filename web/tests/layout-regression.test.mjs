@@ -148,3 +148,13 @@ test('即時頻道：重複訂閱與登出必須先移除舊頻道（re-login �
   const clr = sb.slice(sb.indexOf('_clearSession()'), sb.indexOf('_clearSession()') + 700);
   assert.ok(clr.includes('removeChannel(this.channel)'), '_clearSession() 要移除頻道');
 });
+
+test('手機放大：zoomed 規則必須在 max-width:800px media 內（覆蓋 681-800 死區）', () => {
+  const m = css.match(/@media \(max-width:800px\)\{[\s\S]*?\n\}/g) || [];
+  const mobileZoom = m.some(b => b.includes('.wrap.has-drawer.zoomed .ops-drawer.pane'));
+  assert.ok(mobileZoom, '缺少手機 zoomed in-flow 規則（須包在 max-width:800px）');
+  // 不得殘留在 680 media 內
+  const m680 = css.match(/@media \(max-width:680px\)\{[\s\S]*?\n  \}/g) || [];
+  assert.ok(!m680.some(b => b.includes('zoomed')), 'zoomed 規則不可只放在 680px media（681-800 會失效）');
+  assert.match(css, /\.wrap\.has-drawer\.zoomed \.ops-drawer\.pane\{position:relative/, 'zoomed 必須切換為 in-flow');
+});
