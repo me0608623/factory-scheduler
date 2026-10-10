@@ -273,9 +273,9 @@ body.nav-collapsed .side-health span{display:none}
 .times div.half{font-size:12px;font-weight:500;opacity:.6}
 .col{position:relative;border-left:1px solid var(--line2);background-image:linear-gradient(var(--line2) 1px,transparent 1px);background-size:100% calc(var(--hour) / 2)}
 .zone{position:absolute;left:0;right:0;pointer-events:none;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--muted);background-image:repeating-linear-gradient(135deg,var(--hatch) 0 8px,transparent 8px 16px)}
-.zone.lunch{background-color:var(--lunch)}
-.zone.ot{background-color:var(--ot);color:var(--warn)}
-.zone.ot.closed{background-color:var(--off);color:var(--muted)}
+.zone.lunch{background-color:transparent;background-image:none}
+.zone.ot{background-color:transparent;background-image:none;color:var(--warn)}
+.zone.ot.closed,.zone.ot-off{background-color:transparent;background-image:none;color:var(--muted)}
 .zone.off{background-color:var(--off)}
 .zone.fault{background-color:var(--bad-bg);color:var(--bad);border-top:3px solid var(--bad);border-bottom:3px solid var(--bad);z-index:1}
 .nowline{position:absolute;left:0;right:0;height:0;border-top:3px solid var(--bad);z-index:3;pointer-events:none}
@@ -953,3 +953,28 @@ body.tv .wrap{background:transparent}
   .wrap.has-drawer.zoomed .ops-drawer.pane .ops-drawer-b{max-height:none}
 
 }
+/* ===== 表格排序 + 整列標記（table-sort/table-marks） ===== */
+th.sortable{padding:0}
+.sortbtn{display:inline-flex;align-items:center;gap:4px;width:100%;min-height:40px;padding:6px 8px;border:0;background:transparent;color:inherit;font:inherit;font-weight:800;cursor:pointer;justify-content:inherit}
+th.sortable.on .sortbtn{color:var(--accent)}
+.sortbtn i{font-style:normal;font-size:12px;opacity:.85}
+.sortbtn:hover{color:var(--accent)}
+.sortbar{display:none}
+@media (max-width:800px){
+  .sortbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 0 6px;font-weight:700}
+  .sortbar .inp{min-height:40px;padding:4px 8px;font-size:14px}
+}
+/* 整列人工標記：左色帶＋半透明底（疊在歸檔/完成等業務色之上，不遮蔽） */
+tr.mk-y>td{--mk:#F5C518}
+tr.mk-r>td{--mk:#E5484D}
+tr.mk-g>td{--mk:#30A46C}
+tr.mk-b>td{--mk:#3E82F7}
+tr[class*=" mk-"]>td,tr.mk-y>td,tr.mk-r>td,tr.mk-g>td,tr.mk-b>td{background-image:linear-gradient(color-mix(in srgb,var(--mk) 20%,transparent),color-mix(in srgb,var(--mk) 20%,transparent));box-shadow:inset 4px 0 0 var(--mk)}
+tr.mk-noted>td:first-child::after{content:"✎";position:absolute}
+.mkbtn{position:relative;border:1px solid var(--line);border-radius:6px;background:var(--surface2);color:var(--mk,#B48A00);min-width:30px;min-height:34px;font-size:13px;line-height:1;cursor:pointer;padding:0 4px;margin-right:4px;text-shadow:0 0 2px rgba(0,0,0,.25)}
+.mkbtn .mknote{position:absolute;right:-4px;top:-6px;font-size:11px;color:var(--accent);font-style:normal}
+/* 標記設定介面 */
+.mk-swatches{display:flex;gap:10px;flex-wrap:wrap}
+.mk-swatch{min-width:64px;min-height:44px;border-radius:10px;border:2px solid transparent;font-weight:900;cursor:pointer;color:#20252C}
+.mk-swatch.sw-y{background:#F5C518}.mk-swatch.sw-r{background:#E5484D;color:#fff}.mk-swatch.sw-g{background:#30A46C;color:#fff}.mk-swatch.sw-b{background:#3E82F7;color:#fff}
+.mk-swatch.on{border-color:var(--ink);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 40%,transparent)}

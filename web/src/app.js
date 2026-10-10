@@ -12,6 +12,8 @@ import { resourceLoad } from "./resource-load.js";
 import { workQueue } from './work-queue.js';
 import { makeScenario, scenarioStale, validateScenario, scenarioKey } from './scenarios.js';
 import { reflowAllWindows } from './win.js';
+import { applySort, sortTh, sortBar, TF_SORT, RUSH_SORT, WL_SORT } from './table-sort.js';
+import { markOf, setMark, markRowAttrs, markBtns, MARK_COLORS, changeMarkColor } from './table-marks.js';
 import { executionOf, canReport, assertExecutionProtected } from './execution.js';
 import { workCatalog,assignments,occupiedWork,assignmentIssues,validateGeneralWork } from './general-work.js';
 import { legacyFieldMap } from './legacy-field-map.js';
@@ -66,6 +68,9 @@ let readOnly=false, undoStack=[];
 let recentManualMove=null;
 const UI={date:null,view:"day",layout:'resource',factory:1,group:'all',modal:null,zoom:1,theme:"light",drawer:null,focus:null,prefs:structuredClone(DEFAULT_PREFERENCES),page:null,returnTo:null,leaveBrush:null,brushStart:null,editCell:null,confirmRow:null,workLogDate:null,navCollapsed:false,drawerZoom:false,paneW:470};
 try{UI.navCollapsed=localStorage.getItem("fsched-nav-collapsed")==="1";}catch(e){}
+try{UI.tableSort=JSON.parse(localStorage.getItem("fsched-table-sort-v1")||"{}")||{};}catch(e){UI.tableSort={};}
+function saveTableSort(){try{localStorage.setItem("fsched-table-sort-v1",JSON.stringify(UI.tableSort));}catch(e){}}
+function tableSorted(rows,table,cols){const st=UI.tableSort[table];if(!st||!st.key)return rows;const col=cols.find(c=>c.key===st.key);return col?applySort(rows,{...col,dir:st.dir}):rows;}
 try{const pw=parseInt(localStorage.getItem("fsched-pane-w"),10);if(pw>=280&&pw<=900)UI.paneW=pw;}catch(e){}
 const paneWClamped=()=>Math.min(Math.max(UI.paneW||470,280),Math.min(900,Math.max(320,innerWidth-420)));
 function loadFactory(){try{UI.factory=factoryPreference(localStorage.getItem("fsched-factory"));}catch(e){}}
@@ -1228,6 +1233,12 @@ document.addEventListener("click",e=>{
     case "settings":UI.drawer='settings';UI.page=null;UI.focus=null;render();requestAnimationFrame(()=>$('.ops-drawer')?.focus());break;
     case "drawer-close":UI.drawer=null;UI.drawerZoom=false;UI.focus=null;render();break;
     case "drawer-zoom":UI.drawerZoom=!UI.drawerZoom;render();requestAnimationFrame(()=>{try{document.querySelector(".ops-drawer")?.scrollIntoView({block:"start"});}catch(e){}});break;
+    case "sort-col":{const t=a.dataset.t,k=a.dataset.k;const cols=t==="tf"?TF_SORT:t==="rush"?RUSH_SORT:WL_SORT;const st=UI.tableSort[t];UI.tableSort[t]=(st&&st.key===k)?{key:k,dir:st.dir==="asc"?"desc":"asc"}:{key:k,dir:"asc"};saveTableSort();render();break;}
+    case "sort-reset":{UI.tableSort[a.dataset.t]=null;saveTableSort();render();break;}
+    case "row-mark":{const t=a.dataset.t,id=a.dataset.id;const m=markOf(t,id);openModal({t:"row-mark",tb:t,id,draft:{c:m?.c||"",n:m?.n||""}});break;}
+    case "mk-color":{UI.modal.draft=changeMarkColor(UI.modal.draft,a.dataset.v,$("#mk-note")?.value);renderModal();break;}
+    case "mk-clear":{const t=a.dataset.t,id=a.dataset.id;if(!setMark(t,id,null))toast("這台裝置無法保存標記設定");closeModal();render();break;}
+    case "mk-save":{const d=UI.modal;const n=($("#mk-note")?.value||"").trim().slice(0,200);const c=d.draft.c;if(!c&&!n){toast("請選顏色或填寫標註");break;}if(!setMark(d.tb,d.id,{c,n}))toast("這台裝置無法保存標記（已套用於本次畫面）");closeModal();render();break;}
     case "nav-toggle":UI.navCollapsed=!UI.navCollapsed;try{localStorage.setItem("fsched-nav-collapsed",UI.navCollapsed?"1":"0");}catch(e){}render();break;
     case "setting-set":updateDeviceSetting(a.dataset.key,a.dataset.v);break;
     case "setting-toggle":toggleDeviceSetting(a);break;
@@ -1545,6 +1556,8 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
 document.addEventListener("click",e=>{if(e.target.dataset?.actChange){const act=e.target.dataset.actChange;if(act==="rush-showarchived"){UI.shortageShowArchived=e.target.checked;render();return;}if(act==="tf-showarchived"){UI.tfShowArchived=e.target.checked;render();return;}}});
 document.addEventListener("change",e=>{
   if(e.target.dataset?.cell){saveCellEdit(e.target);return;}
+  if(e.target.dataset?.actChange==="sort-sel"){const t=e.target.dataset.t;UI.tableSort[t]=e.target.value?{key:e.target.value,dir:UI.tableSort[t]?.dir||"asc"}:null;saveTableSort();render();return;}
+  if(e.target.dataset?.actChange==="sort-dir"){const t=e.target.dataset.t;if(UI.tableSort[t])UI.tableSort[t].dir=e.target.value;saveTableSort();render();return;}
   if(e.target.dataset?.actChange==="tf-showcancelled"){UI.tfShowCancelled=e.target.checked;render();return;}
   if(e.target.dataset?.actChange==="tf-returned"){
     if(!canPermission("transfers.manage")){render();return;}
@@ -2532,6 +2545,11 @@ MODALS.help=m=>{
 };
 MODAL_ACT["help-sec"]=a=>{UI.modal.sec=+a.dataset.v;const ov=$("#ov");renderModal();if(ov)$("#ov").scrollTop=0;};
 // 功能解說：主題選擇 → 逐步導覽（左側導覽列獨立入口，不動新手導覽）
+MODALS["row-mark"]=m=>({title:tx('標記／填色'),body:
+  '<div class="mk-swatches">'+MARK_COLORS.map(c=>'<button class="mk-swatch sw-'+c.k+(m.draft.c===c.k?" on":"")+'" data-act="mk-color" data-v="'+c.k+'" aria-pressed="'+(m.draft.c===c.k)+'" title="'+tx(c.label)+'">'+tx(c.label)+'</button>').join("")+'</div>'+
+  '<div class="field" style="margin-top:12px"><label for="mk-note">'+tx('標註')+'</label><textarea class="inp" id="mk-note" maxlength="200" rows="3" placeholder="'+tx('點圖示可再看全文')+'">'+esc(m.draft.n||"")+'</textarea></div>'+
+  '<div class="hint">'+tx('人工標記僅存在這台裝置（個人偏好），與業務狀態分開，不影響正式資料。')+'</div>',
+  foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn" data-act="mk-clear" data-t="'+esc(m.tb)+'" data-id="'+esc(m.id)+'">'+tx('清除標記')+'</button><button class="btn primary" data-act="mk-save">'+tx('套用')+'</button>'});
 MODALS["feature-topics"]=()=>({title:tx('功能解說'),body:
   '<div class="hint">'+tx('選一個主題，會在畫面上逐步指引：亮框標示目標、箭頭指向說明。')+'</div>'+
   '<div class="feature-topics"><div class="more-grid">'+FEATURE_TOUR_TOPICS.map(t=>
@@ -3222,9 +3240,10 @@ function tfAutoArchive(){
 function shortagePageHTML(){
   const ro=!canPermission("rush.manage");
   const showArch=!!UI.shortageShowArchived;
-  const rows=[...(S.rushOrders||[])]
+  let rows=[...(S.rushOrders||[])]
     .filter(r=>showArch===!!r.archived)
     .sort((a,b)=>String(a.f1?.shipDate||"9999").localeCompare(String(b.f1?.shipDate||"9999")));
+  rows=tableSorted(rows,"rush",RUSH_SORT);
   const flags=(showArch?rows:[...(S.rushOrders||[])]).filter(r=>!r.archived).map(r=>shortageRowFlags(r));
   const allRush=(S.rushOrders||[]).filter(r=>!r.archived);
   const backedN=allRush.filter(r=>!shortageRowFlags(r).f2Empty).length;
@@ -3240,17 +3259,17 @@ function shortagePageHTML(){
     '<label class="tf-toggle"><input type="checkbox" data-act-change="rush-showarchived"'+(showArch?" checked":"")+'"> '+tx('顯示已歸檔')+'</label>'+
     ((S.rushOrders||[]).some(r=>r.archived)?'<span class="archived-n">已歸檔 '+(S.rushOrders||[]).filter(r=>r.archived).length+' 筆</span>':"")+
     '<span class="hint">'+tx('右欄已補且出貨日已過才可歸檔；歸檔不刪除。')+'</span></div>';
-  const table='<div class="sheettable"><table><thead>'+
+  const table=sortBar("rush",RUSH_SORT,UI.tableSort.rush,tx)+'<div class="sheettable"><table><thead>'+
     '<tr><th class="rowact"></th><th class="h-f1" colspan="5">'+tx('一廠')+'</th><th class="h-f2" colspan="6">'+tx('二廠')+'</th></tr>'+
-    '<tr><th class="rowact"></th><th class="h-f1">'+tx('出貨日期')+'</th><th class="h-f1">'+tx('廠商')+'</th><th class="h-f1">'+tx('品號')+'</th><th class="h-f1">'+tx('欠貨數量')+'</th><th class="h-f1">'+tx('備註')+'</th>'+
-    '<th class="h-f2">'+tx('開工')+'</th><th class="h-f2">'+tx('預計完成')+'</th><th class="h-f2">'+tx('品號／製程')+'</th><th class="h-f2">'+tx('描述')+'</th><th class="h-f2">'+tx('數量')+'</th><th class="h-f2">'+tx('備註')+'</th></tr></thead><tbody>'+
+    '<tr><th class="rowact"></th>'+sortTh("rush",RUSH_SORT[0],UI.tableSort.rush,tx,"h-f1")+sortTh("rush",RUSH_SORT[1],UI.tableSort.rush,tx,"h-f1")+'<th class="h-f1">'+tx('品號')+'</th>'+sortTh("rush",RUSH_SORT[2],UI.tableSort.rush,tx,"h-f1")+'<th class="h-f1">'+tx('備註')+'</th>'+
+    sortTh("rush",RUSH_SORT[3],UI.tableSort.rush,tx,"h-f2")+sortTh("rush",RUSH_SORT[4],UI.tableSort.rush,tx,"h-f2")+'<th class="h-f2">'+tx('品號／製程')+'</th><th class="h-f2">'+tx('描述')+'</th>'+sortTh("rush",RUSH_SORT[5],UI.tableSort.rush,tx,"h-f2")+'<th class="h-f2">'+tx('備註')+'</th></tr></thead><tbody>'+
     (rows.map(r=>{
       const f=shortageRowFlags(r);
       const cell=(k,t)=>'<td class="'+(k.startsWith("f1.")?"c-f1":(f.f2Empty?"c-f2-empty":"c-f2"))+'">'+editCellHTML("rush",r.id,k,t,getPath(r,k),ro)+'</td>';
       const item=String(r.f1?.desc||"").trim();
       const dateTxt=v=>v&&!/^\d{4}-\d{2}-\d{2}$/.test(String(v))?'<span class="raw-txt">'+esc(String(v))+'</span>':"";
-      return '<tr data-rowid="'+esc(r.id)+'" data-act="row-edit" data-table="rush" data-id="'+esc(r.id)+'" class="'+(r.archived?"archived":"")+'">'+
-        '<td class="rowact">'+(r.archived
+      return '<tr data-rowid="'+esc(r.id)+'" data-act="row-edit" data-table="rush" data-id="'+esc(r.id)+'" class="'+markRowAttrs("rush",r.id,r.archived?"archived":"").cls+'">'+
+        '<td class="rowact">'+markBtns("rush",r.id,tx)+(r.archived
           ?(ro?"":'<button class="rowdel restore" data-act="rush-unarchive" data-id="'+esc(r.id)+'">'+tx('還原')+'</button>')
           :(ro?"":(UI.confirmRow==="del:"+r.id?'<button class="btn danger" data-act="rush-del" data-id="'+esc(r.id)+'">'+tx('再按一次刪除')+'</button>':'<button class="rowdel" data-act="rush-del" data-id="'+esc(r.id)+'">'+tx('刪除')+'</button>')))+'</td>'+
         '<td class="c-f1">'+dateTxt(r.f1?.shipDate)+editCellHTML("rush",r.id,"f1.shipDate","date",r.f1?.shipDate,ro)+'</td>'+
@@ -3278,9 +3297,9 @@ function rawCell(table,id,key,dateVal,rawVal,ro,blank){
 function transferFlowPageHTML(){
   const ro=!canPermission("transfers.manage");
   const showArch=!!UI.tfShowArchived;
-  const list=transferOrders(S).slice()
+  const list=tableSorted(transferOrders(S).slice()
     .filter(o=>showArch===!!o.archived)
-    .sort((a,b)=>String(a.notified||a.due||"9999").localeCompare(String(b.notified||b.due||"9999")));
+    .sort((a,b)=>String(a.notified||a.due||"9999").localeCompare(String(b.notified||b.due||"9999"))),"tf",TF_SORT);
   const archN=transferOrders(S).filter(o=>o.archived).length;
   const doneN=transferOrders(S).filter(o=>o.returned&&!o.archived).length;
   const bar='<div class="archive-bar">'+
@@ -3289,14 +3308,14 @@ function transferFlowPageHTML(){
     (archN?'<span class="archived-n">已歸檔 '+archN+' 筆</span>':"")+
     (UI.tfArchivedNote?'<span class="archived-n">'+esc(UI.tfArchivedNote)+'</span>':"")+
     '<span class="hint">'+tx('完成只認「已回一廠」已勾；每月一日自動歸檔逾期已完成。')+'</span></div>';
-  const table='<div class="sheettable"><table><thead><tr>'+
-    '<th class="rowact"></th><th>'+tx('通知日期')+'</th><th>'+tx('加工編號')+'</th><th>'+tx('加工序')+'</th><th>'+tx('全部可給數')+'</th><th>'+tx('可給二廠時間')+'</th><th>'+tx('急用')+'</th><th>'+tx('要求回一廠時間')+'</th><th>'+tx('現在貨在1樓')+'</th><th>'+tx('現在貨在3樓')+'</th><th>'+tx('已回一廠')+'</th><th>'+tx('備註')+'</th></tr></thead><tbody>'+
+  const table=sortBar("tf",TF_SORT,UI.tableSort.tf,tx)+'<div class="sheettable"><table><thead><tr>'+
+    '<th class="rowact"></th>'+sortTh("tf",TF_SORT[0],UI.tableSort.tf,tx)+sortTh("tf",TF_SORT[1],UI.tableSort.tf,tx)+sortTh("tf",TF_SORT[2],UI.tableSort.tf,tx)+sortTh("tf",TF_SORT[3],UI.tableSort.tf,tx)+sortTh("tf",TF_SORT[4],UI.tableSort.tf,tx)+sortTh("tf",TF_SORT[5],UI.tableSort.tf,tx)+sortTh("tf",TF_SORT[6],UI.tableSort.tf,tx)+'<th>'+tx('現在貨在1樓')+'</th><th>'+tx('現在貨在3樓')+'</th><th>'+tx('已回一廠')+'</th><th>'+tx('備註')+'</th></tr></thead><tbody>'+
     (list.map(o=>{
       const urgent=(o.urgentQty||0)>0||!!o.urgentDue;
       const cell=(k,ty,cls="")=>'<td class="'+cls+'">'+editCellHTML("tf",o.id,k,ty,getPath(o,k),ro)+'</td>';
       const pend=k=>pendingDate(getPath(o,k))?'<span class="pending-tag">'+tx('待確認格式')+'</span>':"";
-      return '<tr data-rowid="'+esc(o.id)+'" data-act="row-edit" data-table="tf" data-id="'+esc(o.id)+'" class="'+(o.returned?"returned":"")+(o.archived?" archived":"")+(o.status==="cancelled"?" cancelled":"")+'">'+
-        '<td class="rowact">'+(o.archived
+      return '<tr data-rowid="'+esc(o.id)+'" data-act="row-edit" data-table="tf" data-id="'+esc(o.id)+'" class="'+markRowAttrs("tf",o.id,[o.returned?"returned":"",o.archived?"archived":"",o.status==="cancelled"?"cancelled":""].filter(Boolean).join(' ')).cls+'">'+
+        '<td class="rowact">'+markBtns("tf",o.id,tx)+(o.archived
           ?(ro?"":'<button class="rowdel restore" data-act="tf-unarchive" data-id="'+esc(o.id)+'">'+tx('還原')+'</button>')
           :(o.status==="cancelled"
             ?(ro?"":'<button class="rowdel restore" data-act="tf-restore" data-id="'+esc(o.id)+'">'+tx('還原')+'</button>')
@@ -3649,9 +3668,9 @@ function workLogPageHTML(){
   const ro=!canPermission("worklog.manage");
   const filter=UI.workLogDate||"";
   const all=[...(S.workLog||[])].sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
-  const rows=filter?all.filter(r=>r.date===filter):all;
-  const table='<div class="sheettable"><table><thead><tr>'+
-    '<th class="rowact"></th><th>'+tx('日期')+'</th><th>'+tx('加工編號')+'</th><th>'+tx('合格數')+'</th><th>'+tx('不良')+'</th><th>'+tx('開工（時：分）')+'</th><th>'+tx('完工（時：分）')+'</th><th>'+tx('修模時間')+'</th><th>'+tx('加工者')+'</th><th>'+tx('備註')+'</th></tr></thead><tbody>'+
+  const rows=tableSorted(filter?all.filter(r=>r.date===filter):all,"wl",WL_SORT);
+  const table=sortBar("wl",WL_SORT,UI.tableSort.wl,tx)+'<div class="sheettable"><table><thead><tr>'+
+    '<th class="rowact"></th>'+sortTh("wl",WL_SORT[0],UI.tableSort.wl,tx)+sortTh("wl",WL_SORT[1],UI.tableSort.wl,tx)+sortTh("wl",WL_SORT[2],UI.tableSort.wl,tx)+sortTh("wl",WL_SORT[3],UI.tableSort.wl,tx)+sortTh("wl",WL_SORT[4],UI.tableSort.wl,tx)+sortTh("wl",WL_SORT[5],UI.tableSort.wl,tx)+sortTh("wl",WL_SORT[6],UI.tableSort.wl,tx)+sortTh("wl",WL_SORT[7],UI.tableSort.wl,tx)+'<th>'+tx('備註')+'</th></tr></thead><tbody>'+
     (rows.map(r=>{
       const cell=(k,ty)=>'<td>'+editCellHTML("wl",r.id,k,ty,getPath(r,k),ro)+'</td>';
       const hm=(h,m,base)=>{
@@ -3661,8 +3680,8 @@ function workLogPageHTML(){
         const txt=(r[base+"H"]??"" )===""?"—":pad(r[base+"H"])+":"+(r[base+"M"]??"0");
         return '<button class="cellbtn" data-act="cell-edit" data-cell="wl" data-id="'+esc(r.id)+'" data-key="'+base+'H" data-type="hour">'+esc(txt)+'</button>';
       };
-      return '<tr data-rowid="'+esc(r.id)+'" data-act="row-edit" data-table="wl" data-id="'+esc(r.id)+'">'+
-        '<td class="rowact">'+(ro?"":(UI.confirmRow==="wldel:"+r.id?'<button class="btn danger" data-act="wl-del" data-id="'+esc(r.id)+'">'+tx('再按一次刪除')+'</button>':'<button class="rowdel" data-act="wl-del" data-id="'+esc(r.id)+'">'+tx('刪除')+'</button>'))+'</td>'+
+      return '<tr data-rowid="'+esc(r.id)+'" data-act="row-edit" data-table="wl" data-id="'+esc(r.id)+'"'+(markRowAttrs("wl",r.id).cls?' class="'+markRowAttrs("wl",r.id).cls+'"':'')+'>'+
+        '<td class="rowact">'+markBtns("wl",r.id,tx)+(ro?"":(UI.confirmRow==="wldel:"+r.id?'<button class="btn danger" data-act="wl-del" data-id="'+esc(r.id)+'">'+tx('再按一次刪除')+'</button>':'<button class="rowdel" data-act="wl-del" data-id="'+esc(r.id)+'">'+tx('刪除')+'</button>'))+'</td>'+
         cell("date","date")+cell("code","text")+cell("goodQty","number")+cell("badQty","number")+
         '<td class="hmcell">'+hm(r.startH,r.startM,"start")+'</td>'+
         '<td class="hmcell">'+hm(r.endH,r.endM,"end")+'</td>'+
