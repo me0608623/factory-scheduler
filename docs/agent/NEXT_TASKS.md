@@ -22,7 +22,7 @@
 - [x] CP-SAT 邊界案例（→ `6dd3739`）：test_edges.py 4 條（空工單/單工單完成最後一站/全部逾期仍產可行解/全空工廠），CI solver job 綠
 - [x] 效能基準（→ 48e7467）：test_perf_smoke.py——10/30/60 工單合成工廠解算有界（<30s 煙霧上限），CI solver job 綠；正式基準手動跑 scripts/benchmark.py
 - [x] 9-26 快照疑點①（→ 0ea3809）：plans.py order 事件——新工單 _finish 判定 late/part 即加診斷降級為不可套用（完成日＋建議文案）；回歸測試進 test_edges.py；CI solver job 綠（83 既有測試不破）
-- [ ] 9-26 快照疑點②：故障後排程出現 10 分鐘零碎工作段——需最短工作段規則或換模／切換成本（同上需 solver 環境重現）
+- [x] 9-26 快照疑點②（→ PR #7 feat/soft-switching-cost，待人工審核合併）：Soft Switching Cost 軟性成本＋量測模組＋19 測試，分支 CI 綠（solver 165 passed）；生產權重為溫和導引、交期零退化；完整報告 docs/agent/OVERNIGHT_REPORT_SWITCHING.md
 - 註：本機 uv 環境損壞（trampoline spawn 失敗），上述各項只能在 CI 跑，暫緩
 
 ## Phase 4（效能）
