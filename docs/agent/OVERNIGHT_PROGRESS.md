@@ -63,7 +63,7 @@
 - **分支**: `agent/overnight-20261009`（全數合併 main）
 - **最新 main**: `13a87a6`＋本輪推送（使用者已合併 feat/floating-windows：Windows 式浮動視窗，拖曳/縮放/最大化；**本系列編號跳過 65**——使用者自編輪次 65 為浮動視窗紀錄）
 - **main 總 commits**: ≈360（docs 快轉推送不產生 merge commit，精確值以 `git rev-list --count origin/main` 為準）
-- **總輪次**: 172（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
+- **總輪次**: 173（65/66/69/74/75/76/78 為使用者系列，編號重疊以內容區分）
 - **正式站**: web 200 ✓ solver 200 ✓ staging 200 ✓
 
 ## 測試
@@ -919,3 +919,9 @@
 ## 輪次 172（2026-10-10 晚間）— 穩態巡檢
 
 - 三站 200；使用者 table-sort-marks WIP 擴及 app.js/i18n.js/styles.css＋table-marks.js（table-sort.js 已納管）；worktree 隔離續行；待併兩項不變
+
+
+## 輪次 173（2026-10-10 晚間）— table-sort-marks 已推分支待併
+
+- 使用者完成全站表格自訂排序＋整列填色＋文字標註（0130104，涵蓋欠缺品項/給二廠/工作紀錄三表）——已推 feat/table-sort-marks 分支未併 main（分支 CI 模式）；不代併
+- 三站 200；待併三項：PR #7＋mobile-drawer-zoom＋table-sort-marks
