@@ -846,15 +846,11 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
   .page-title h1{font-size:22px;white-space:nowrap;overflow:visible;writing-mode:horizontal-tb!important}
   .page-title .savestate{font-size:13px;white-space:nowrap}
   .addrow-head{display:none}
-  .addrow-mobile{display:none!important}
   .fullpage{padding-bottom:90px}
   .perm{display:none}
   .page-sub{font-size:13px}
   .archive-bar{padding:4px 8px}
   .archive-bar .hint{display:none}
-}
-@media(min-width:801px){
-  .addrow-mobile{display:none}
 }
 /* 深色模式填寫窗 */
 @media (prefers-color-scheme:dark){
@@ -862,9 +858,13 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
 }
 :root[data-theme="dark"]:not([data-app-theme="light"]) .sheettable tbody tr:hover td{background:color-mix(in srgb,var(--accent) 8%,transparent)}
 
-/* 手機浮動加一列按鈕（FAB）：固定右下角、隨捲動可見 */
+/* 加一列按鈕（共用 pageShell）：桌面＝表頭旁完整文字鈕；手機（≤800px）＝固定右下 56×56 圓形 FAB，
+   僅顯示單一「＋」（aria-label 提供完整名稱），不隨表格橫向捲動移位，底部避開導覽列與 safe-area */
+@media(min-width:801px){
+  .addrow-mobile{display:none}
+}
 @media(max-width:800px){
-  .addrow-mobile{display:flex!important;position:fixed;right:16px;bottom:80px;z-index:20;width:56px;height:56px;min-width:56px;border-radius:50%;font-size:28px;font-weight:900;justify-content:center;align-items:center;padding:0;box-shadow:0 4px 12px rgba(0,0,0,.3);background:#1a73e8;color:#fff;border:none;line-height:1}
+  .addrow-mobile{display:flex;position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:20;width:56px;height:56px;min-width:56px;max-width:56px;border-radius:50%;font-size:30px;font-weight:900;justify-content:center;align-items:center;padding:0;overflow:hidden;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.3);background:#1a73e8;color:#fff;border:none;line-height:1;text-indent:0;letter-spacing:0}
   .addrow-mobile:active{transform:scale(.92)}
 }
 /* 已歸檔切換 checkbox：自訂外觀，勾選時變色 */
