@@ -2361,7 +2361,7 @@ function dpOpDetailHTML(P,key){
    '<span class="dp-arrow" aria-hidden="true">→</span>'+
    '<div class="dp-side"><span class="dp-side-t">'+(det.gone?tx('調整後（未排入）'):tx('調整後'))+'</span>'+dpSegList(det.nextSegs,"next")+'</div></div>'+
    '<div class="dp-facts">'+esc(empTxt)+(deltaTxt?'；'+esc(deltaTxt):'')+(det.split||det.crossDay?'；'+tx('{a}，各段可單獨定位',{a:[det.split?tx('分成多段'):"",det.crossDay?tx('跨日'):""].filter(Boolean).join("、")}):'')+'</div>'+
-   '<div class="dp-why"><span class="lab">'+tx('為什麼需要調整')+'</span>'+(det.reasons?det.reasons.map(t=>'<div class="issue">'+esc(t)+'</div>').join(""):'<div class="hint">'+esc(det.reasonFallback||tx('此工序位置有變動。'))+'</div>')+'</div>'+
+   '<div class="dp-why"><span class="lab">'+tx('為什麼需要調整')+'</span>'+(det.reasons?det.reasons.map(t=>'<div class="issue">'+esc(t)+'</div>').join(""):'<div class="hint">'+esc(({manual:tx('使用者手動調整這道工序的位置或工作長度。'),gone:tx('調整後這道工序沒有可用的時段，暫時未排入。'),added:tx('這是調整後新排入的工序。'),unclear:tx('此工序位置有變動；尚未能確定更詳細的原因，可對照前後位置判斷。')})[det.fallbackKind]||tx('此工序位置有變動。'))+'</div>')+'</div>'+
    (det.rel.length?'<div class="field">'+dpLab('同張工單其他受影響工序（相依）')+det.rel.map(m=>dpOpRow(m,"impact-detail")).join("")+'</div>':'')+
    (det.due?'<div class="field"><span class="lab">'+tx('對工單交期的影響')+'</span>'+dpDueRow(det.due)+'</div>':'')+
    (det.order?'<div class="hint">工單 '+esc(det.order.code)+' · '+det.order.qty+' 件 · 期限 '+mdw(det.order.due)+'</div>':'')+

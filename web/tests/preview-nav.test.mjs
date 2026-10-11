@@ -95,7 +95,7 @@ test('返回還原廠別、日週模式、對照模式與水平捲動',()=>{
 });
 test('工序原因不誤用同張工單其他工序的順延紀錄',()=>{
   const q={...P,lines:[{t:'B02 包裝：跟著前站延後'}]};
-  const detail=opDetail(q,'oB02|0');assert.equal(detail.reasons,null);assert.match(detail.reasonFallback,/使用者手動/);
+  const detail=opDetail(q,'oB02|0');assert.equal(detail.reasons,null);assert.equal(detail.fallbackKind,'manual');
 });
 
 test('建議順延＝被直接擠走的工作；連帶影響排除建議與目標本體', () => {

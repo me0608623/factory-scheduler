@@ -141,14 +141,14 @@ export function opDetail(P, key) {
     due,
     rel,
     reasons: reasons.length ? reasons : null,
-    reasonFallback: [...m.prev, ...m.next].some(b => b.id === P.oldId)
-      ? "使用者手動調整這道工序的位置或工作長度。"
+    fallbackKind: [...m.prev, ...m.next].some(b => b.id === P.oldId)
+      ? "manual"
       : m.gone
-      ? "調整後這道工序沒有可用的時段，暫時未排入。"
+      ? "gone"
       : m.added
-        ? "這是調整後新排入的工序。"
+        ? "added"
         : m.startDelta == null
-          ? "此工序位置有變動；尚未能確定更詳細的原因，可對照前後位置判斷。"
+          ? "unclear"
           : null,
   };
 }
