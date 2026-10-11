@@ -29,13 +29,14 @@
 
 - 同工作區的背景任務已將本任務進行中的初版提交至main（535e918／01f30cc）。保留其提交，不反轉其變更。
 - 後續驗收修正在獨立Git工作目錄 `C:/Users/me060/Downloads/factory-scheduler-test-mode-release`，分支 `codex/cloud-test-mode-release-20261012`。
-- 原目錄尚有本任務相同的5個未提交檔案，沒有重置或刪除，以免覆蓋背景任務；本分支只提交自己的修正。
+- 原目錄的相同5個修正後來由背景任務提交為020bc75，原目錄已乾淨；本分支以正常merge納入，不反轉／不force-push其提交。
 
 ## 驗收與尚未完成
 
 - 前端375項測試、build通過（本修正）；模式隔離、hash剝離、登入回復連結、禁止私密金鑰與SQL真實migration測試通過。
 - 手機390×844測試登入頁：清楚顯示測試模式、返回正式入口、沒有水平溢出；桌面／手機登入標示沿用現有風格。
-- 既有大chunk警告保留。npm audit現在新增source-map-js high（建置工具依賴，需獨立評估與修復）；原有exceljs／uuid moderate未強制降版或套用breaking fix。
+- 既有大chunk警告保留。npm audit現在新增source-map-js high，npm explain確認僅dev的Vite→PostCSS建置依賴；另列獨立修復，未把它當成網站讀入使用者source map的runtime路徑。原有exceljs／uuid moderate未強制降版或套用breaking fix。
+- Draft PR #16：https://github.com/me0608623/factory-scheduler/pull/16。439a55c的push CI Tests 38158258735通過；merge納入背景提交後仍須以最新head CI為準。
 - **尚未匯入真正測試Supabase**：管理後台已登出，已請使用者登入；沒有使用正式連線字串替代或猜測密碼。
 - **尚未配置正式Render的三個測試變數**：先完成匯入與帳號驗證，避免啟用一個無班表的入口。
 - **尚未親測新版測試模式的兩端雲端同步／排程套用**：完成匯入與登入後才可判定通過。
