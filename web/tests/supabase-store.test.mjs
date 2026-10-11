@@ -289,6 +289,22 @@ test("套用方案時排程已被別人更新 → 整份拒絕（版本衝突不
   assert.equal(fresh.version, 1, "版本停在老闆那一版");
 });
 
+test('儲存失敗（服務無回應）不留部分寫入，重新讀取仍是原版', async () => {
+  const { store, count } = await setup();
+  const lead = await store('lead@x');
+  const S = await lead.load();
+  S.blocks.push(blk());
+  // 模擬網路層故障：rpc 直接丟例外（非衝突、非權限）
+  const orig = lead.sb.rpc.bind(lead.sb);
+  lead.sb.rpc = async () => { throw new Error('network down'); };
+  await assert.rejects(lead.sync(S, { kind: 'move', title: '組長的調整' }), /network down/);
+  lead.sb.rpc = orig;
+  assert.equal(await count('select count(*)::int n from schedule_blocks'), 0, '資料庫沒有任何新方塊');
+  const fresh = await lead.load();
+  assert.equal(fresh.blocks.length, 0, '重新讀取仍是原版');
+  assert.equal(fresh.version, 0, '版本不變');
+});
+
 test("格式轉換：畫面 → 快照 → 畫面", () => {
   const S = { cal: { week: [false, true, true, true, true, true, true], over: { "2026-10-01": "off" } }, dayOT: { "2026-10-02": true },
     employees: [{ id: "e", name: "甲", factory: 2, color: 1, skills: ["a"], maxMachines: 2, leaves: ["2026-10-03"], noOT: true, reviewStatus: 'confirmed', sourceRef: null,
