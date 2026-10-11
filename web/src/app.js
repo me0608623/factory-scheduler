@@ -18,7 +18,7 @@ import { schedZoomState, loadSchedZoom, setZoom, setWheelZoom, SZOOM_STEP, captu
 import { executionOf, canReport, assertExecutionProtected } from './execution.js';
 import { workCatalog,assignments,occupiedWork,assignmentIssues,validateGeneralWork } from './general-work.js';
 import { newNav, navPush, navBack, opKey, suggestList, impactList, dueList, opDetail, dueDetail, boardTarget } from './preview-nav.js';
-import { RUNTIME, TEST_AVAILABLE, modeUrl } from './runtime-config.js';
+import { RUNTIME, TEST_AVAILABLE, modeUrl, authReturnUrl } from './runtime-config.js';
 import { legacyFieldMap } from './legacy-field-map.js';
 import {transferOrders,materialWarning,transferPlanWarnings,batchOf,validateTransfers,transferSummary} from './transfers.js';
 import {transferUI} from './transfer-ui.js';
@@ -4173,7 +4173,7 @@ function showLogin(err="",email="",signup=false){
     const input=$("#lg-email"),email=input.value.trim();
     if(!input.checkValidity()||!email){showLogin("請先填寫有效的電子郵件",email);return;}
     const btn=e.currentTarget;btn.disabled=true;
-    try{await STORE.requestPasswordReset(email,location.origin+location.pathname);
+    try{await STORE.requestPasswordReset(email,authReturnUrl(location,RUNTIME.mode==='test'));
       showLogin("若此帳號存在，密碼設定信已寄出。請開啟信中的連結。",email);}
     catch(err){showLogin(err.message,email);}
   });

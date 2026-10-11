@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {resolveRuntime,modeUrl,TEST_PROJECT_REF,TEST_SOLVER_ORIGIN} from '../src/runtime-config.js';
+import {resolveRuntime,modeUrl,authReturnUrl,TEST_PROJECT_REF,TEST_SOLVER_ORIGIN} from '../src/runtime-config.js';
 const env={VITE_SUPABASE_URL:'https://production.supabase.co',VITE_SUPABASE_ANON_KEY:'prod-public',VITE_SOLVER_URL:'https://prod.example',VITE_SOLVER_API_KEY:'prod-key',
   VITE_TEST_SUPABASE_URL:`https://${TEST_PROJECT_REF}.supabase.co`,VITE_TEST_SUPABASE_ANON_KEY:'test-public',VITE_TEST_SOLVER_URL:TEST_SOLVER_ORIGIN};
 test('test mode selects only isolated project/solver and its own auth storage',()=>{
@@ -24,4 +24,12 @@ test('mode links preserve view query but strip auth callback hash',()=>{
 });
 test('client and solver use the same validated runtime; no independent production test fallback',()=>{
   for(const name of ['main.js','solver.js'])assert.match(readFileSync(new URL('../src/'+name,import.meta.url),'utf8'),/import \{ RUNTIME \} from '.\/runtime-config.js'/);
+});
+test('auth redirects retain test mode but never callback tokens or unrelated view query',()=>{
+  const loc={href:'https://factory.example/?mode=test&view=catalog#access_token=secret'};
+  assert.equal(authReturnUrl(loc,true),'https://factory.example/?mode=test');assert.equal(authReturnUrl(loc,false),'https://factory.example/');
+});
+test('private service-role and secret keys cannot be included in test frontend config',()=>{
+  for(const key of ['sb_secret_do-not-publish','eyJheader.'+btoa(JSON.stringify({role:'service_role'}))+'.sig'])
+    assert.throws(()=>resolveRuntime({...env,VITE_TEST_SUPABASE_ANON_KEY:key},{search:'?mode=test'}),/私密金鑰/);
 });

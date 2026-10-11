@@ -10,6 +10,7 @@ import { validateRush } from '../rush.js';
 import { validateWorkLog } from '../worklog.js';
 import { rosterKey,validateRosters } from '../roster.js';
 import { effectivePermission } from '../permissions.js';
+import { authReturnUrl } from '../runtime-config.js';
 
 // 畫面的紀錄種類 ↔ 資料庫 change_sets.kind
 const KIND_TO_DB = { ot: "edit", save: "edit", move: "move", edit: "edit", auto: "auto", fault: "fault", leave: "leave", order: "order", recover: "recover" };
@@ -86,7 +87,7 @@ export class SupabaseStore {
 
   async signup(email, password, name) {
     const { data, error } = await this.sb.auth.signUp({ email, password,
-      options: { data: { name: name || "" }, emailRedirectTo: location.origin + location.pathname } });
+      options: { data: { name: name || "" }, emailRedirectTo: authReturnUrl(location,this.environment==='test') } });
     if (error) throw new Error(error.message);
     return data; // 需要信箱驗證時 data.session為 null
   }
