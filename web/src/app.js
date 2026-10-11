@@ -2311,7 +2311,7 @@ function manualStripHTML(o){
   const P=PV.P,d=diffOf(o),dates=Object.keys(d.dates).sort(),bad=!o.applicable;
   return '<section class="pv pv-manual" aria-label="'+tx('手動排班預覽')+'">'+
    '<div class="pv-h"><span class="pv-badge">'+(bad?'需要處理':'預覽中')+'</span>'+
-   '<div class="pv-t"><b>'+esc(P.movedLabel)+'</b><small>'+esc(P.source)+' → '+esc(P.target)+(P.newQty!==undefined?'；預計 '+P.newQty+' 件':'')+(P.remaining?'；此站還有 '+P.remaining+' 件未排':'')+'。還沒套用，正式排程不會變。</small></div><div class="spacer"></div>'+
+   '<div class="pv-t"><b>'+esc(P.movedLabel)+'</b><small>'+esc(P.source)+' → '+esc(P.target)+(P.newQty!==undefined?'；'+tx('預計 {n} 件',{n:P.newQty}):'')+(P.remaining?'；'+tx('此站還有 {n} 件未排',{n:P.remaining}):'')+'。'+tx('還沒套用，正式排程不會變。')+'</small></div><div class="spacer"></div>'+
    (PV.applying?'<button class="btn primary" disabled>'+tx('正在儲存，請稍候…')+'</button>':
    '<button class="btn" data-act="pv-cancel">'+tx('取消')+'</button><button class="btn primary" data-act="pv-apply"'+(bad?' disabled':'')+'>'+tx('確認套用')+'</button>')+'</div>'+
    '<div class="pv-row"><div class="seg" role="group" aria-label="'+tx('預覽圖與下方排程表顯示')+'"><button data-act="pv-mode" data-v="cmp" aria-pressed="'+(PV.mode==="cmp")+'">'+tx('對照')+'</button><button data-act="pv-mode" data-v="new" aria-pressed="'+(PV.mode==="new")+'">'+tx('調整後')+'</button><button data-act="pv-mode" data-v="orig" aria-pressed="'+(PV.mode==="orig")+'">'+tx('原本')+'</button></div>'+
@@ -2346,11 +2346,11 @@ function dpOpRow(m,v){
    '</button>';
 }
 function dpDueRow(s){
-  const msg=s.status==="late"?"逾期，預計 "+mdw(s.finish):(s.status==="part"||s.status==="none")?"尚未排完":s.status==="done"?"已回報完成":"未逾期"+(s.finish?"，預計 "+mdw(s.finish):"");
-  const delta=s.deltaDays!=null&&s.deltaDays!==0?"（比原本"+(s.deltaDays>0?"晚 ":"早 ")+Math.abs(s.deltaDays)+" 天）":"";
+  const msg=s.status==="late"?tx('逾期，預計 {d}',{d:mdw(s.finish)}):(s.status==="part"||s.status==="none")?tx('尚未排完'):s.status==="done"?tx('已回報完成'):tx('未逾期')+(s.finish?tx('，預計 {d}',{d:mdw(s.finish)}):"");
+  const delta=s.deltaDays!=null&&s.deltaDays!==0?"（"+tx(s.deltaDays>0?'比原本晚 {n} 天':'比原本早 {n} 天',{n:Math.abs(s.deltaDays)})+"）":"";
   return '<button class="dp-row" data-act="dp-nav" data-v="due-detail" data-id="'+esc(s.oid)+'">'+
-   '<span class="k '+(s.bad?"late":"early")+'">'+(s.bad?"需處理":"準時")+'</span>'+
-   '<span class="dp-row-t"><b>'+esc(s.code)+'</b><small>'+esc("："+msg+"；期限 "+mdw(s.due)+delta)+'</small></span></button>';
+   '<span class="k '+(s.bad?"late":"early")+'">'+(s.bad?tx('需處理'):tx('準時'))+'</span>'+
+   '<span class="dp-row-t"><b>'+esc(s.code)+'</b><small>'+esc("："+msg+tx('；期限 {d}',{d:mdw(s.due)})+delta)+'</small></span></button>';
 }
 function dpSegList(segs,cls){return segs.map(t=>'<div class="dp-seg '+cls+'">'+esc(t)+'</div>').join("")||'<div class="dp-seg">'+tx('未排入')+'</div>';}
 function dpOpDetailHTML(P,key){
