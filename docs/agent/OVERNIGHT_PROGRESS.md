@@ -1334,3 +1334,8 @@
 - **README 補測試模式入口**：部署段加 ?mode=test 說明＋docs/TEST_MODE.md 連結（使用者待設定 VITE_TEST_* 時可從 README 直達指南）
 - db 測試例行驗證：201/201 綠
 - 起步：工作區乾淨、正式站 web/solver 200
+
+## 輪次 111（2026-10-12，10 分鐘優化排程）
+
+- **render.yaml 預留 VITE_TEST_* 欄位**（main `d9cffd3`）：Blueprint 宣告測試模式四變數（sync:false）＋註解說明——使用者到 Render Dashboard 只需填值不用新增欄位；未填時 fail-closed 零影響。與 docs/TEST_MODE.md、README 形成完整啟用路徑
+- 起步：工作區乾淨、正式站 web/solver 200
