@@ -55,3 +55,13 @@ services:
           name: factory-scheduler-solver
           type: web
           envVarKey: RENDER_EXTERNAL_URL
+      # 測試模式（?mode=test）：連獨立 staging 環境，見 docs/TEST_MODE.md。
+      # 三個必要值都設好後正式站才會出現「進入測試模式」入口；缺任一則 fail-closed 停用。
+      - key: VITE_TEST_SUPABASE_URL
+        sync: false
+      - key: VITE_TEST_SUPABASE_ANON_KEY
+        sync: false
+      - key: VITE_TEST_SOLVER_URL
+        sync: false
+      - key: VITE_TEST_SOLVER_API_KEY
+        sync: false
