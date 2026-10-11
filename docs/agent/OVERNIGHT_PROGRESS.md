@@ -1328,3 +1328,9 @@
 - **權限與排程隔離演練**：上次 10/02 後 main 累積 ~25 commit 未演練——手動 dispatch（36s 成功）：最新備份還原到拋棄式 PG17 → 重放全部 migration → 模擬 boss/lead/viewer 驗證資料庫層權限矩陣與排程流程。10/02 以來的 schema/程式變更在真備份上驗證相容；正式環境零接觸
 - 盤點：acceptance-sim／catalog-inventory 兩演練同樣 10/02 後未跑（無 schedule、僅 dispatch；近期無 schema 變更，暫不急）
 - 起步：工作區乾淨、正式站 web/solver 200
+
+## 輪次 110（2026-10-12，10 分鐘優化排程）
+
+- **README 補測試模式入口**：部署段加 ?mode=test 說明＋docs/TEST_MODE.md 連結（使用者待設定 VITE_TEST_* 時可從 README 直達指南）
+- db 測試例行驗證：201/201 綠
+- 起步：工作區乾淨、正式站 web/solver 200
