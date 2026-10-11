@@ -66,7 +66,7 @@ jobs:
         working-directory: solver
       # Synthetic-only artifact for the isolated cloud test environment. No database credentials.
       - name: Prepare and validate isolated cloud test schedule
-        run: uv run --frozen node ../tools/cloud-test-seed.mjs --url https://fkefarcwadvyqqjcjxvp.supabase.co --today 2026-10-12 --out ../outputs/cloud-test-seed-ci
+        run: uv run --frozen node ../tools/cloud-test-seed.mjs --url https://fkefarcwadvyqqjcjxvp.supabase.co --today $(date -u +%F) --out ../outputs/cloud-test-seed-ci
         working-directory: solver
       - uses: actions/upload-artifact@v4
         with:
