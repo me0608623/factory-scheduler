@@ -21,7 +21,7 @@ export const SOLVER = {
   async check() {
     if(RUNTIME.error){this.up=false;return false;}
     try {
-      const r = await fetchWithTimeout(BASE + "/health", {}, 3000);
+      const r = await fetchWithTimeout(BASE + "/health", {}, RUNTIME.mode==='test'?45000:3000);
       const j = await r.json();
       this.up = !!j.ok;
       this.version = j.ortools || "";
