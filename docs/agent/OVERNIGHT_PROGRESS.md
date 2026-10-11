@@ -322,3 +322,7 @@
 
 - **標記驗證步驟首跑實證**（手動 dispatch）：步驟邏輯正確、第一輪即命中全部標記；修掉 printf broken pipe log 噪音（herestring）。輪次 121 的部署驗證機制上線完成
 - 起步：工作區乾淨、正式 web/solver 200
+
+## 輪次 123（2026-10-12，10 分鐘優化排程）
+
+- **健康檢查輪（機器端待辦空）**：正式 web/solver 200、staging web 200；近 5 CI run 全數 completed success；docs-only push 正確不觸發部署。待使用者事項不變（staging hook、測試模式填值）
