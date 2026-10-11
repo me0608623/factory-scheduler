@@ -1302,3 +1302,8 @@
 
 - **備份還原演練**：手動 dispatch（上月 10/01 排程未fire，僅 10/02 手動跑過）——下載最新 artifact（factory-20261011-2029.dump，即輪次 102 補跑那份）＋PG17 容器 pg_restore --list 驗證，28s 成功。備份→保留→可還原鏈路端到端確認
 - 起步：工作區乾淨、正式站 web/solver 200；上輪雙時段排程已生效於 repo
+
+## 輪次 105（2026-10-12，10 分鐘優化排程）
+
+- **依賴健檢＋patch 更新**（main `e81e4bc`）：supabase-js 2.117.2→.3、vite 6.4.3→.4（semver 相容）；379 綠＋build 綠＋audit 0。pglite 0.3→0.5、saxes 5→6 破壞性跨度列入 NEXT_TASKS 待辦
+- 起步：工作區乾淨、正式站 web/solver 200
