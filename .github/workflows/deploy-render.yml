@@ -96,7 +96,7 @@ jobs:
             [ -n "$BUNDLE" ] || { echo "[$i] 尚未取得 bundle 檔名"; sleep 20; continue; }
             BODY=$(curl -s "https://factory-scheduler-web.onrender.com/$BUNDLE")
             MISSING=""
-            for m in $MARKERS; do printf '%s' "$BODY" | grep -q "$m" || MISSING="$MISSING $m"; done
+            for m in $MARKERS; do grep -q "$m" <<<"$BODY" || MISSING="$MISSING $m"; done
             if [ -z "$MISSING" ]; then echo "✓ 部署驗證通過：$BUNDLE 含全部功能標記"; exit 0; fi
             echo "[$i] $BUNDLE 尚缺:$MISSING（部署進行中，20 秒後重試）"
             sleep 20
