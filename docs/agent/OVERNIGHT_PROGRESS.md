@@ -1157,3 +1157,14 @@
 - 分支 CI 初次失敗（reification 把同機換人誤罰、2 個 demo fixture NameError）→ 完整日誌修復：uses() OR + both() AND 兩段式 reification
 - 分支 CI 綠：solver 165 passed in 130.75s；A/B 故障情境生產權重下指標不變（溫和導引、交期零退化）、50000 權重確定性測試證明機制有效；效能 10/30/60≈10s
 - **PR #7** 交付人工審核（依約束不合併 main）；報告 docs/agent/OVERNIGHT_REPORT_SWITCHING.md；CI 加 -rP 使 A/B 數值可見
+
+
+## 輪次 81（2026-10-11，agent/overnight-1011b）— staging 盤點＋雲端同步補測
+
+- 基準：web 326/326、db 201/201
+- **staging Supabase 已恢復**（Resume from paused）＋組長帳號已建（boss）
+- **雲端同步雙向即時推送驗證通過**：REST API PATCH calendar_days → 兩分頁均在 3 秒內自動更新（零操作）；同帳號多分頁（桌面1280+手機390）均「已同步」
+- staging 資料盤點：5 員工/5 機台/3 產品/6 工單（示範資料可直接用）；schema 為正規化（UUID/FK/junction），REST API 直接種入不可行——正規做法透過 app UI
+- staging 網站為舊版（無 sidebar/zoom/sorting）——Render deploy 未觸發更新；核心雲端同步不受影響
+- 員工/唯讀帳號被 Supabase email rate limit 阻擋（待補建）
+- 生產健康：web 200 / solver 200
