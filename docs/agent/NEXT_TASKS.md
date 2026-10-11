@@ -53,7 +53,7 @@
 ## 待使用者設定（機器無法代勞）
 
 - [ ] **RENDER_STAGING_WEB_DEPLOY_HOOK**：Render → factory-scheduler-web-staging → Settings → Create Deploy Hook → 貼到 GitHub Secrets。設好後 staging web 可用「部署 Render staging 網站」workflow 手動更新（目前 staging 跑的是 10/11 前的舊版）
-- [ ] **正式站測試模式啟用**：Render web 服務加 VITE_TEST_* 三變數（見 docs/TEST_MODE.md）
+- [ ] **正式站測試模式啟用**：Render web 服務的環境變數已預留 VITE_TEST_* 四個欄位（render.yaml，輪次 111）——只需在 Dashboard 填 staging 的值即可（步驟見 docs/TEST_MODE.md；填好後登入頁會出現「進入測試模式」按鈕）
 
 ## 依賴升級待辦（破壞性跨度，需獨立輪驗證）
 
