@@ -1170,3 +1170,15 @@
 - 生產健康：web 200 / solver 200
 
 - 帳號建立受阻：Supabase 免費版 email rate limit（>1hr 未解）＋SQL 直接寫入 GoTrue 內部欄位不完整（427/500 schema error）——員工/唯讀需 Dashboard 手動 Add User（含 Auto Confirm）
+
+## 輪次 82（2026-10-12，10 分鐘優化排程首輪）
+
+- **過夜排程改為每 10 分鐘常態優化輪詢**（CronUpdate，同 prompt 涵蓋原過夜流程）
+- **完成並合併雲端測試模式**（main `535e918`，分支 codex/cloud-test-mode-20261012）：
+  - `?mode=test` 只連獨立測試專案（staging Supabase＋staging solver），任一設定不符即 fail-closed 停止連線，絕不回退正式/本機資料；測試與正式 auth session 分離
+  - 登入頁/頂部「測試模式」橫幅＋回正式連結；mode 連結剝離 hash 憑證
+  - main.js/solver.js 統一改用 RUNTIME 端點
+  - tools/cloud-test-seed.mjs：離線種子 SQL 產生器（UUID 對映、只允許測試專案、additive+transactional、禁止重置）；CI solver job 附帶跑 OR-Tools 產生驗證預排班表 artifact（7 天保留）
+  - 測試 +8（模式隔離/fail-closed/hash 剝離/種子安全），全套 **372/372 綠**＋build 綠
+  - 實機驗證：一般啟動正常無測試入口；未設定時顯示「測試環境尚未設定完成，已停止連線；不會使用正式資料」＋回正式連結
+- 正式 Supabase 全程未觸碰；下一步：CI 綠後，於 Render 設 VITE_TEST_* 環境變數（staging publishable key）即可在正式站啟用測試模式入口
