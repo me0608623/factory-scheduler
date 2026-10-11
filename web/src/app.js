@@ -2297,6 +2297,16 @@ function dpScrollTarget(target){
   };
   setTimeout(attempt,40);
 }
+function focusDpBack(){
+  // 與 dpScrollTarget 同理：render 慢時按鈕可能還沒出現，rAF 重試聚焦（鍵盤可用性）
+  const deadline=Date.now()+800;
+  const attempt=()=>{
+    const b=document.querySelector(".pv-drawer .dp-back");
+    if(b){b.focus();return;}
+    if(Date.now()<deadline)requestAnimationFrame(attempt);
+  };
+  setTimeout(attempt,40);
+}
 // 預覽中點排程表上的方塊：若屬這次調整，直接切到該工序詳情
 function pvClickBlock(id){
   const P=PV&&PV.P;if(!P)return;
@@ -2706,7 +2716,7 @@ Object.assign(MODAL_ACT,{
     else if(v==="due-detail")sel={oid:id};
     navPush(PV.nav,v,sel,dpSnapshot());
     dpApplyView();render();
-    if(sel){dpScrollTarget();setTimeout(()=>{const b=document.querySelector(".pv-drawer .dp-back");b?.focus();},40);}
+    if(sel){dpScrollTarget();focusDpBack();}
   },
   "dp-back":()=>dpBack(),
   "dp-locate":a=>{
