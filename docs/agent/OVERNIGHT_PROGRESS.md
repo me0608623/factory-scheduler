@@ -1317,3 +1317,8 @@
 
 - **saxes 5→6**：legacy Excel XML 解析（歷史班表匯入）升級——scan 包裝器三事件 API 相容，14 相關測試＋379 全綠＋build 綠；exceljs 巢狀 saxes@5 不受影響。**依賴升級待辦全數結案**（pglite/saxes 兩項破壞性跨度皆完成）
 - 起步：工作區乾淨、正式站 web 200
+
+## 輪次 108（2026-10-12，10 分鐘優化排程）
+
+- **品質驗證輪（無需修改）**：(1) 空 catch 全面掃描——18 處全是刻意漸進增強（localStorage 限額防護、可選 API 降級、音效/通知），無該記未記的吞錯；(2) 依賴升級後 bundle 基準——main 292KB gz＋three/excel 皆確認為 lazy chunk（WebGLRenderer 命中證實為動態 namespace 引用，非本體打包），結構健康
+- 起步：工作區乾淨、正式站 web/solver 200
