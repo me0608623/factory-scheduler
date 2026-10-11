@@ -1213,3 +1213,9 @@
 - **修補 2 個 moderate 依賴漏洞**：exceljs→uuid 8.3.2（GHSA-w5hq-g745-h8pq）——npm overrides 強制 uuid 11.1.1（exceljs 只用 v4、API 不變）；Excel 測試 11/11、全套 377 綠、npm audit 歸零
 - **驗證 CI 種子 artifact**：isolated-cloud-test-seed 每次 main push 皆有產出（GitHub API 確認 3 份最新 artifact）
 - 起步：工作區乾淨、正式站 web/solver 200
+
+## 輪次 88（2026-10-12，10 分鐘優化排程）
+
+- **staging web 部署自動化入口**（main `9b35942`）：新增「部署 Render staging 網站」workflow（workflow_dispatch；未設 RENDER_STAGING_WEB_DEPLOY_HOOK 時印設定說明並跳過——實跑驗證綠燈與 notice 行為）。staging 落後正式多日首次有更新管道；hook 設定已列入 NEXT_TASKS 待使用者處理
+- 健康檢查：正式 web/solver 200、staging solver 200
+- 起步：工作區乾淨
