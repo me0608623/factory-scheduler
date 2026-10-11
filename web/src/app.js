@@ -18,6 +18,7 @@ import { schedZoomState, loadSchedZoom, setZoom, setWheelZoom, SZOOM_STEP, captu
 import { executionOf, canReport, assertExecutionProtected } from './execution.js';
 import { workCatalog,assignments,occupiedWork,assignmentIssues,validateGeneralWork } from './general-work.js';
 import { newNav, navPush, navBack, opKey, suggestList, impactList, dueList, opDetail, dueDetail, boardTarget } from './preview-nav.js';
+import { RUNTIME, TEST_AVAILABLE, modeUrl } from './runtime-config.js';
 import { legacyFieldMap } from './legacy-field-map.js';
 import {transferOrders,materialWarning,transferPlanWarnings,batchOf,validateTransfers,transferSummary} from './transfers.js';
 import {transferUI} from './transfer-ui.js';
@@ -752,6 +753,10 @@ function initFloatWins(){
   }
   if(!_winResizeBound){_winResizeBound=true;addEventListener("resize",()=>reflowAllWindows());try{visualViewport?.addEventListener("resize",()=>reflowAllWindows());}catch{}}
 }
+function environmentHTML(){
+  if(RUNTIME.mode==='test')return '<div class="environment-banner" role="status"><b>'+tx('測試模式 · 不影響正式資料')+'</b><a class="btn" href="'+esc(modeUrl(location,false))+'">'+tx('回正式資料')+'</a></div>';
+  return TEST_AVAILABLE?'<a class="btn test-entry" href="'+esc(modeUrl(location,true))+'">'+tx('進入測試模式')+'</a>':'';
+}
 function topHTML(){
   const d=UI.date,di=dayInfo(d);
   const wk=UI.view==="week";
@@ -760,7 +765,7 @@ function topHTML(){
   const sub=wk?"第 "+isoWeek(ws)+" 週":dayLabel(d);
   return '<header class="top"><div class="top-in"><div class="top-main">'+
   '<div class="brand"><span class="brand-mark"><span></span></span>產線排程</div>'+
-  '<div class="workspace-heading"><span class="workspace-glyph">'+NAV_IC.today+'</span><span><b>'+esc(tx('今天排程'))+'</b><small>'+esc(tx('機台 × 時間'))+'</small></span></div>'+
+  '<div class="workspace-heading"><span class="workspace-glyph">'+NAV_IC.today+'</span><span><b>'+esc(tx('今天排程'))+'</b><small>'+esc(tx('機台 × 時間'))+'</small></span></div>'+environmentHTML()+
   '<div class="seg factory-switch" role="group" aria-label="'+tx('排程廠別')+'">'+
   [[1,'1 廠'],[2,'2 廠'],['all',tx('跨廠')]].map(([v,t])=>'<button data-act="factory" data-v="'+v+'" aria-pressed="'+(UI.factory===v)+'">'+t+'</button>').join('')+'</div>'+
   '<div class="page-links">'+
@@ -4137,7 +4142,7 @@ async function mountViz3D(el) {
 function showLogin(err="",email="",signup=false){
   ensureVisualStyles();
   $("#app").innerHTML='<main class="login" style="position:relative;min-height:100vh"><div id="login-bg" style="position:absolute;inset:0;z-index:0"></div>'+
-    '<form class="login-card vg-glass" id="loginf" style="position:relative;z-index:1">'+
+    '<form class="login-card vg-glass" id="loginf" style="position:relative;z-index:1">'+environmentHTML()+
     '<div class="brand" style="color:#EAF0FF"><span class="brand-mark"><span></span></span>'+liquidLogoSVG("產線排程")+'</div>'+
     '<div class="field"><label for="lg-email">'+tx('帳號（Email）')+'</label><input class="inp" id="lg-email" type="email" autocomplete="username" value="'+esc(email)+'" required></div>'+
     '<div class="field"><label for="lg-pw">'+tx('密碼')+'</label><input class="inp" id="lg-pw" type="password" autocomplete="current-password" required></div>'+
@@ -4146,7 +4151,7 @@ function showLogin(err="",email="",signup=false){
     '<button class="btn" type="button" id="lg-reset">'+tx('忘記密碼／設定邀請帳號密碼')+'</button>'+
     '<button class="btn" type="button" id="lg-signup">'+tx('註冊新帳號')+'</button>'+
     (signup?'<div class="hint">註冊後為「檢視」身分；要排程權限請找老闆在「權限管理」開放。若本站採邀請制，註冊被拒時請找管理者邀請。</div>':'')+
-    '<div class="hint">'+tx('帳號由管理者邀請。收到邀請信，先開啟信中的連結，再到「帳號與連線」設定密碼。')+'</div></form></main>';
+    '<div class="hint">'+tx(RUNTIME.mode==='test'?'請用測試帳號登入；正式帳號與測試帳號不共用。':'帳號由管理者邀請。收到邀請信，先開啟信中的連結，再到「帳號與連線」設定密碼。')+'</div></form></main>';
   vizBg = mountBackdrop(document.getElementById("login-bg"),{interactive:true});
   mountViz3D(document.getElementById("login-bg"));
   $("#loginf").addEventListener("submit",async e=>{

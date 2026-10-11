@@ -83,6 +83,10 @@ button{cursor:pointer}
 .btn[disabled]{opacity:.45;cursor:not-allowed}
 .btn .dot{min-width:24px;height:24px;border-radius:12px;background:var(--bad);color:#fff;font-size:13px;display:grid;place-items:center;padding:0 6px}
 .demo-chip{font-size:13px;font-weight:700;color:var(--warn);background:var(--warn-bg);border-radius:6px;padding:3px 8px}
+.environment-banner{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border:1px solid var(--warn);border-radius:10px;background:var(--warn-bg);color:var(--ink);font-size:16px}
+.environment-banner .btn,.test-entry{text-decoration:none;min-height:44px}
+.login-card>.test-entry{justify-content:center}
+.top-main>.environment-banner{flex-basis:100%}
 .ro-chip{font-size:13px;font-weight:700;color:var(--muted);background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:3px 8px}
 
 .wrap{max-width:1760px;margin:0 auto 0 244px;padding-inline:24px;padding-block:12px 40px;display:flex;flex-direction:column;gap:14px}

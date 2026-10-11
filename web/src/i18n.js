@@ -11,6 +11,10 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "測試模式 · 不影響正式資料": { en: "Test mode · Production data unchanged", vi: "Chế độ thử · Không ảnh hưởng dữ liệu chính thức", th: "โหมดทดสอบ · ไม่กระทบข้อมูลจริง" },
+  "回正式資料": { en: "Back to production", vi: "Về dữ liệu chính thức", th: "กลับสู่ข้อมูลจริง" },
+  "進入測試模式": { en: "Enter test mode", vi: "Vào chế độ thử", th: "เข้าโหมดทดสอบ" },
+  "請用測試帳號登入；正式帳號與測試帳號不共用。": { en: "Sign in with a test account. Production accounts are separate.", vi: "Đăng nhập bằng tài khoản thử. Tài khoản chính thức riêng biệt.", th: "ลงชื่อเข้าด้วยบัญชีทดสอบ บัญชีจริงแยกกัน" },
   "今天排程": { en: "Schedule", vi: "Lịch sản xuất", th: "ตารางผลิต" },
   "機台 × 時間": { en: "Machines × time", vi: "Máy × thời gian", th: "เครื่อง × เวลา" },
   "跨廠": { en: "All plants", vi: "Cả hai xưởng", th: "ทั้งสองโรง" },

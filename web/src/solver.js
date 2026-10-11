@@ -1,7 +1,8 @@
 // 呼叫排程服務（OR-Tools）。連不上時由畫面改用瀏覽器內的演算法。
 
-const BASE = (import.meta.env?.VITE_SOLVER_URL || "http://localhost:8080").replace(/\/$/, "");
-const KEY = import.meta.env?.VITE_SOLVER_API_KEY || "";
+import { RUNTIME } from './runtime-config.js';
+const BASE = RUNTIME.solverUrl.replace(/\/$/, "");
+const KEY = RUNTIME.solverKey;
 
 export const SOLVER = {
   url: BASE,
@@ -18,6 +19,7 @@ export const SOLVER = {
   },
 
   async check() {
+    if(RUNTIME.error){this.up=false;return false;}
     try {
       const r = await fetchWithTimeout(BASE + "/health", {}, 3000);
       const j = await r.json();
@@ -46,6 +48,7 @@ export const SOLVER = {
 };
 
 async function post(path, body, headers = {}) {
+  if(RUNTIME.error)throw RUNTIME.error;
   const h = { "Content-Type": "application/json", ...headers };
   if (KEY) h["X-API-Key"] = KEY;
   let r;
