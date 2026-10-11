@@ -14,6 +14,7 @@ import { makeScenario, scenarioStale, validateScenario, scenarioKey } from './sc
 import { reflowAllWindows } from './win.js';
 import { applySort, sortTh, sortBar, TF_SORT, RUSH_SORT, WL_SORT } from './table-sort.js';
 import { markOf, setMark, markRowAttrs, markBtns, MARK_COLORS, changeMarkColor } from './table-marks.js';
+import { schedZoomState, loadSchedZoom, setZoom, setWheelZoom, SZOOM_STEP, captureZoomAnchor, anchorScroll, rafApply } from './szoom.js';
 import { executionOf, canReport, assertExecutionProtected } from './execution.js';
 import { workCatalog,assignments,occupiedWork,assignmentIssues,validateGeneralWork } from './general-work.js';
 import { legacyFieldMap } from './legacy-field-map.js';
@@ -69,6 +70,7 @@ let recentManualMove=null;
 const UI={date:null,view:"day",layout:'resource',factory:1,group:'all',modal:null,zoom:1,theme:"light",drawer:null,focus:null,prefs:structuredClone(DEFAULT_PREFERENCES),page:null,returnTo:null,leaveBrush:null,brushStart:null,editCell:null,confirmRow:null,workLogDate:null,navCollapsed:false,drawerZoom:false,paneW:470};
 try{UI.navCollapsed=localStorage.getItem("fsched-nav-collapsed")==="1";}catch(e){}
 try{UI.tableSort=JSON.parse(localStorage.getItem("fsched-table-sort-v1")||"{}")||{};}catch(e){UI.tableSort={};}
+var SZ=loadSchedZoom();
 function saveTableSort(){try{localStorage.setItem("fsched-table-sort-v1",JSON.stringify(UI.tableSort));}catch(e){}}
 function tableSorted(rows,table,cols){const st=UI.tableSort[table];if(!st||!st.key)return rows;const col=cols.find(c=>c.key===st.key);return col?applySort(rows,{...col,dir:st.dir}):rows;}
 try{const pw=parseInt(localStorage.getItem("fsched-pane-w"),10);if(pw>=280&&pw<=900)UI.paneW=pw;}catch(e){}
@@ -81,7 +83,7 @@ const shownOrders=()=>S.orders.filter(o=>orderInFactory(o,S.products,UI.factory)
 // 畫面縮放：每台電腦各自記住
 const ZOOMS=[0.6,0.7,0.75,0.8,0.85,0.9,1,1.1,1.25,1.4];
 function persistPreferences(){try{UI.prefs=savePreferences(UI.prefs);}catch(e){toast('這台裝置無法保存設定');}applyPreferences(UI.prefs);UI.zoom=UI.prefs.scale;UI.theme=UI.prefs.theme;}
-function setZoom(z){UI.prefs=patchPreference(UI.prefs,'scale',z);persistPreferences();try{localStorage.setItem("fsched-zoom",String(UI.zoom));}catch(e){}}
+function setUiZoom(z){UI.prefs=patchPreference(UI.prefs,'scale',z);persistPreferences();try{localStorage.setItem("fsched-zoom",String(UI.zoom));}catch(e){}}
 // 淺色／深色：每台電腦各自記住（auto = 跟著系統）
 const THEMES=["auto","light","dark"];
 const THEME_UI={
@@ -643,7 +645,8 @@ chat:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2
 shortage:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>',
 transfer:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>'};
 const LOGIC={leave:"假",fault:"修",move:"移",auto:"排",ot:"加",edit:"改",save:"存"};
-function hourPx(){return parseFloat(getComputedStyle(document.body).getPropertyValue("--hour"))||72;}
+function baseHourPx(){return parseFloat(getComputedStyle(document.body).getPropertyValue("--hour"))||72;}
+function hourPx(){return baseHourPx()*(UI.view==="week"?SZ.week:SZ.day);}
 
 function render(){ I18N.lang=UI.prefs.language; ensureVisualStyles();
   const sc=$(".scroller"),sl=sc?sc.scrollLeft:0,sy=window.scrollY;
@@ -1001,11 +1004,12 @@ function dayHTML(ctx={}){
   let times="";for(let m=DAY0;m<DAY1;m+=30)times+='<div class="'+(m%60?"half":"")+'">'+hm(m)+'</div>';
   const leave=shownEmployees().filter(e=>e.leaves.includes(d));
   const otBtn=!canCalendar()?"":(di.open?'<button class="btn admin" data-act="ot">'+(di.ot?tx('調整加班'):tx('開加班'))+'</button>':"")+'<button class="btn admin" data-act="cal">'+tx('上班日設定')+'</button>';
-  return '<section class="board" aria-label="'+tx('排程表')+'"><div class="board-h"><h2>'+esc(UI.factory==="all"?tx('跨廠'):factoryName(UI.factory))+' · '+mdw(d)+(ctx.pv?(PV.mode==="orig"?" "+tx('原本的排程'):PV.mode==="new"?" "+tx('調整後'):" "+tx('對照')):" "+tx('排程'))+'</h2>'+
+  const zday=SZ.day,zw=Math.round(170*Math.min(1.15,Math.max(.45,zday)));
+  return '<section class="board szoom" style="--hour:'+hourPx()+'px" aria-label="'+tx('排程表')+'"><div class="board-h"><h2>'+esc(UI.factory==="all"?tx('跨廠'):factoryName(UI.factory))+' · '+mdw(d)+(ctx.pv?(PV.mode==="orig"?" "+tx('原本的排程'):PV.mode==="new"?" "+tx('調整後'):" "+tx('對照')):" "+tx('排程'))+'</h2>'+szoomBarHTML('day')+
     (leave.length?'<span class="tag bad" style="font-size:15px;padding:4px 10px">請假：'+esc(leave.map(e=>e.name).join("、"))+'</span>':"")+
     (nBad?'<button class="btn danger" data-act="issues">'+nBad+' 個問題</button>':(blocks.length?'<span class="tag ok" style="font-size:15px;padding:4px 10px">'+tx('沒有衝突')+'</span>':""))+
     '<div class="spacer"></div><div class="legend"><span><i style="background:var(--lunch)"></i>'+tx('午休')+'</span><span><i style="background:var(--ot)"></i>'+tx('加班')+'</span><span><i style="background:var(--bad-bg);border-color:var(--bad)"></i>'+tx('故障')+'</span><span>'+tx('顏色 = 員工')+'</span><span>'+tx('上班日／加班開關目前兩廠共用')+'</span>'+(readOnly||S.setupPending?"":"<span>'+tx('拖動方塊可改時段，拉底邊可改工作長度')+'</span>")+'</div>'+(readOnly||ctx.pv||S.setupPending?"":'<button class="btn primary" data-act="manual-add">'+tx('＋手動排班')+'</button>')+otBtn+'</div>'+
-    (ms.length?'<div class="scroller"><div class="grid" style="grid-template-columns:64px repeat('+ms.length+',minmax(170px,1fr))">'+
+    (ms.length?'<div class="scroller"><div class="grid" style="grid-template-columns:64px repeat('+ms.length+',minmax('+zw+'px,1fr))">'+
     '<div class="corner"></div>'+heads+'<div class="times">'+times+'</div>'+cols+'</div></div>':
     '<div class="empty factory-empty">'+tx('此廠尚未設定機台與員工；「歷史排程」是獨立的唯讀原表，不會自動變成正式排程。')+'</div>')+
     (ms.length&&!blocks.length&&di.win.length?'<div class="empty">'+(S.setupPending?'名冊已匯入，工作仍待確認；原始安排可在「歷史排程」按日期查看。':'這天還沒有排程。可按「＋手動排班」安排未排入的工作，或使用「自動排程」。')+'</div>':"")+
@@ -1025,7 +1029,7 @@ function weekHTML(ctx={}){
   const ws=weekStart(UI.date),days=[...Array(7)].map((_,i)=>addDays(ws,i)),T=todayStr();
   const dchg=ctx.pv?diffOf(pvOpt()).dates:{};
   const heads=days.map(d=>{const di=dayInfo(d);
-    return '<button class="wh'+(di.type==="hol"?" hol":"")+(!di.open?" wk":"")+(d===T?" today":"")+'" data-act="goto" data-d="'+d+'"><b class="num">'+mdw(d)+'</b><small>'+esc(dayLabel(d))+(di.ot?" · 加班":"")+'</small>'+(dchg[d]?'<span class="tag warn">變動 '+dchg[d]+'</span>':"")+'</button>';}).join("");
+    return '<button class="wh'+(di.type==="hol"?" hol":"")+(!di.open?" wk":"")+(d===T?" today":"")+'" aria-label="'+mdw(d)+'" data-act="goto" data-d="'+d+'"><b class="num"><span class="full-date">'+mdw(d)+'</span><span class="fit-date" aria-hidden="true">'+parseD(d).getUTCDate()+'</span></b><small>'+esc(dayLabel(d))+(di.ot?" · 加班":"")+'</small>'+(dchg[d]?'<span class="tag warn">變動 '+dchg[d]+'</span>':"")+'</button>';}).join("");
   const barsOf=(list,top,h,markSet,faded)=>list.map(b=>{const E=emp(b.emp);const bad=!ctx.pv&&issuesOf(b).length>0;const mk=markSet&&markSet.has(keyB(b));
     return '<span class="wbar'+(bad?" bad":"")+(mk?" wmk":"")+(faded?" wfade":"")+'" style="top:'+top+'px;height:'+h+'px;left:'+((b.s-DAY0)/720*100)+'%;width:'+((b.e-b.s)/720*100)+'%;background:'+empColor(b.emp)+'">'+esc(E?E.name.slice(0,1):"?")+'</span>';}).join("");
   const rows=shownMachines().map(M=>{
@@ -1043,13 +1047,75 @@ function weekHTML(ctx={}){
     return '<div class="wrow"><span class="L">'+esc(M.id)+'</span><small>'+esc(M.label)+'</small></div>'+cells;}).join("");
   const foot=days.map(d=>{const lv=shownEmployees().filter(e=>e.leaves.includes(d));
     return '<div class="wfoot">'+lv.map(e=>'<span class="tag bad">'+esc(e.name)+' 假</span>').join("")+'</div>';}).join("");
-  return '<section class="board" aria-label="'+tx('週排程')+'"><div class="board-h"><h2>'+(ctx.lanes?"本週對照（上排原本、下排調整後）":"本週總覽")+'</h2><div class="spacer"></div><div class="legend"><span>'+tx('點日期或格子看當天細節')+'</span><span><i style="background:var(--bad)"></i>'+tx('故障')+'</span></div></div>'+
-    '<div class="scroller"><div class="wgrid" style="grid-template-columns:150px repeat(7,minmax(130px,1fr))"><div class="corner" style="height:auto"></div>'+heads+rows+
+  const zw2=Math.round(130*Math.min(1.6,Math.max(.3,SZ.week))),labelw=Math.round(150*Math.min(1.4,Math.max(.36,SZ.week)));
+  return '<section class="board szoom"'+(UI.wkFit?' data-fit="1"':'')+' style="--wcell-h:'+Math.round(74*Math.min(1.5,Math.max(.45,SZ.week)))+'px" aria-label="'+tx('週排程')+'"><div class="board-h"><h2>'+(ctx.lanes?"本週對照（上排原本、下排調整後）":"本週總覽")+'</h2>'+szoomBarHTML('week')+'<div class="legend"><span>'+tx('點日期或格子看當天細節')+'</span><span><i style="background:var(--bad)"></i>'+tx('故障')+'</span></div></div>'+
+    '<div class="scroller"><div class="wgrid" style="grid-template-columns:'+labelw+'px repeat(7,minmax('+zw2+'px,1fr))"><div class="corner" style="height:auto"></div>'+heads+rows+
     '<div class="wrow"><small>'+tx('請假')+'</small></div>'+foot+'</div></div></section>';
 }
 /* ===== 7. 拖曳（滑鼠與觸控都可以） ===== */
 let drag=null;
+let pinchActive=false;
+function szoomBarHTML(view){
+  const z=view==="week"?SZ.week:SZ.day;
+  return '<div class="szbar" role="group" aria-label="'+tx('排程表縮放')+'">'+
+    '<button class="btn" data-act="sz-out" aria-label="'+tx('縮小')+'" title="'+tx('縮小')+'">−</button>'+
+    '<span class="szpct num">'+(view==='week'&&UI.wkFit?tx('整週'):Math.round(z*100)+'%')+'</span>'+
+    '<button class="btn" data-act="sz-in" aria-label="'+tx('放大')+'" title="'+tx('放大')+'">＋</button>'+
+    '<button class="btn" data-act="sz-reset" title="'+tx('還原比例')+'">'+tx('100%')+'</button>'+
+    '<button class="btn" data-act="sz-wheeltoggle" aria-label="'+tx('滾輪縮放開關')+'" aria-pressed="'+SZ.wheelZoom+'" title="'+tx('滾輪縮放開關')+'">'+tx('滾輪縮放開關')+'</button>'+
+    (view==="day"?'<button class="btn" data-act="sz-fitweek" title="'+tx('顯示整週')+'">'+tx('整週')+'</button>':'<button class="btn" data-act="sz-fitday" title="'+tx('檢視詳細日班表')+'">'+tx('詳細')+'</button>')+
+    '</div>';
+}
+function applyZoom(view,next,cx,cy,fit=false){
+  const focusAct=document.activeElement?.closest?.('.szbar button')?.dataset.act;
+  const scroller=document.querySelector(".board.szoom .scroller");
+  const anchor=cx!=null?captureZoomAnchor(scroller,cx,cy):null;
+  if(view==='week'&&!fit)UI.wkFit=false;
+  setZoom(view,next);
+  SZ=schedZoomState();
+  render();
+  if(focusAct)document.querySelector('.szbar [data-act="'+focusAct+'"]')?.focus();
+  if(anchor)anchorScroll(document.querySelector(".board.szoom .scroller"),cx,cy,anchor);
+}
+const zoomWheel=rafApply((e,view)=>{
+  if(UI.modal||drag||generalDrag||pinchActive||UI.view!==view||!SZ.wheelZoom)return;
+  const z=view==="week"?SZ.week:SZ.day;
+  const dir=e.deltaY<0?SZOOM_STEP:1/SZOOM_STEP;
+  applyZoom(view,z*dir,e.clientX,e.clientY);
+});
+document.addEventListener("wheel",e=>{
+  const board=e.target.closest?.(".board.szoom");
+  if(!board||UI.modal||drag||generalDrag||pinchActive||!SZ.wheelZoom||e.target.closest?.('.szbar'))return;
+  if(!e.deltaY||Math.abs(e.deltaX)>Math.abs(e.deltaY))return;
+  e.preventDefault();
+  zoomWheel(e,UI.view);
+},{passive:false});
+let pinch0=null;
+const applyPinch=rafApply((z,cx,cy,view)=>{if(pinchActive&&UI.view===view&&!UI.modal)applyZoom(view,z,cx,cy);});
+document.addEventListener("touchstart",e=>{
+  if(e.touches.length!==2)return;
+  const board=e.target.closest?.(".board.szoom");
+  if(!board||UI.modal)return;
+  endDrag();drag=null;
+  if(generalDrag){generalDrag.el.style.opacity='';generalDrag.el.style.transform='';generalDrag.el.style.height=generalDrag.originalHeight+'px';generalDrag=null;}
+  zoomWheel.cancel();applyPinch.cancel();
+  const [a,b]=e.touches;
+  pinch0={d:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)||1,view:UI.view,z:UI.view==="week"?SZ.week:SZ.day};
+  pinchActive=true;
+},true);
+document.addEventListener("touchmove",e=>{
+  if(!pinch0||e.touches.length!==2)return;
+  e.preventDefault();
+  const [a,b]=e.touches;
+  const d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);
+  applyPinch(pinch0.z*(d/pinch0.d),(a.clientX+b.clientX)/2,(a.clientY+b.clientY)/2,pinch0.view);
+},{passive:false});
+document.addEventListener("touchend",e=>{
+  if(pinchActive&&e.touches.length<2){applyPinch.cancel();pinch0=null;pinchActive=false;}
+},true);
+document.addEventListener("touchcancel",()=>{applyPinch.cancel();pinch0=null;pinchActive=false;},true);
 document.addEventListener("pointerdown",e=>{
+  if(pinchActive)return;
   const el=e.target.closest(".blk");if(!el||e.button>0||PV||el.closest('.gcol'))return;
   const b=S.blocks.find(x=>x.id===el.dataset.bid);if(!b)return;
   const r=el.getBoundingClientRect();
@@ -1239,6 +1305,12 @@ document.addEventListener("click",e=>{
     case "mk-color":{UI.modal.draft=changeMarkColor(UI.modal.draft,a.dataset.v,$("#mk-note")?.value);renderModal();break;}
     case "mk-clear":{const t=a.dataset.t,id=a.dataset.id;if(!setMark(t,id,null))toast("這台裝置無法保存標記設定");closeModal();render();break;}
     case "mk-save":{const d=UI.modal;const n=($("#mk-note")?.value||"").trim().slice(0,200);const c=d.draft.c;if(!c&&!n){toast("請選顏色或填寫標註");break;}if(!setMark(d.tb,d.id,{c,n}))toast("這台裝置無法保存標記（已套用於本次畫面）");closeModal();render();break;}
+    case "sz-in":{const v=UI.view==="week"?"week":"day";applyZoom(v,(v==="week"?SZ.week:SZ.day)*1.25);break;}
+    case "sz-out":{const v=UI.view==="week"?"week":"day";applyZoom(v,(v==="week"?SZ.week:SZ.day)/1.25);break;}
+    case "sz-reset":{const v=UI.view==="week"?"week":"day";applyZoom(v,1);break;}
+    case "sz-fitweek":{UI.view="week";UI.wkFit=true;applyZoom("week",.3,null,null,true);break;}
+    case "sz-fitday":{UI.view="day";UI.wkFit=false;if(SZ.day<1)applyZoom("day",1);else render();break;}
+    case "sz-wheeltoggle":{zoomWheel.cancel();setWheelZoom(!SZ.wheelZoom);SZ=schedZoomState();render();document.querySelector('[data-act="sz-wheeltoggle"]')?.focus();toast(SZ.wheelZoom?"滾輪縮放已開啟（在排程表上滾動即可縮放）":"滾輪縮放已關閉（排程表恢復一般捲動）");break;}
     case "nav-toggle":UI.navCollapsed=!UI.navCollapsed;try{localStorage.setItem("fsched-nav-collapsed",UI.navCollapsed?"1":"0");}catch(e){}render();break;
     case "setting-set":updateDeviceSetting(a.dataset.key,a.dataset.v);break;
     case "setting-toggle":toggleDeviceSetting(a);break;
@@ -1320,7 +1392,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "catalog":UI.page='review';UI.reviewStep ??= 1;UI.drawer=null;try{history.replaceState(null,"","?view=review");}catch{}render();window.scrollTo(0,0);break;
     case "master":{if(PV){toast("預覽中：先按「用這套」或「取消」");break;}UI.page='catalog';UI.drawer=null;UI.focus=null;try{history.replaceState(null,"","?view=catalog");}catch{}render();window.scrollTo(0,0);break;}
     case "pick":{const p=$("#datepick");try{p.showPicker();}catch(_){p.style.pointerEvents="auto";p.focus();p.click();}break;}
-    case "view":UI.view=a.dataset.v;render();break;
+    case "view":zoomWheel.cancel();applyPinch.cancel();pinch0=null;pinchActive=false;UI.wkFit=false;UI.view=a.dataset.v;render();break;
     case "factory":{const v=a.dataset.v==="all"?"all":Number(a.dataset.v);setFactory(v);render();if(v==="all")openModal({t:'transfer-board'});break;}
     case "groups":openModal({t:'groups'});break;
     case "tour":{closeModal();UI.drawer=null;render();setTimeout(()=>startTour(TOUR_STEPS,{tx}),350);break;}
@@ -1488,14 +1560,14 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
       break;}
     case "group-edit":openModal({t:'staff-group',id});break;
     case "group-new":if(canGroups())openModal({t:'staff-group'});break;
-    case "goto":UI.date=a.dataset.d;UI.view="day";render();window.scrollTo(0,0);break;
+    case "goto":zoomWheel.cancel();applyPinch.cancel();pinch0=null;pinchActive=false;UI.wkFit=false;UI.date=a.dataset.d;UI.view="day";render();window.scrollTo(0,0);break;
     case "tv":UI.tv=!UI.tv;render();break;
     case "theme":{setTheme(THEMES[(THEMES.indexOf(UI.theme)+1)%THEMES.length]);render();
       toast(UI.theme==="auto"?"跟著電腦的系統設定":UI.theme==="light"?"已切換為淺色":"已切換為深色");break;}
     case "zoom-":case "zoom+":case "zoom0":{
       let i=ZOOMS.indexOf(UI.zoom);if(i<0)i=ZOOMS.indexOf(1);
       i=act==="zoom0"?ZOOMS.indexOf(1):Math.max(0,Math.min(ZOOMS.length-1,i+(act==="zoom+"?1:-1)));
-      setZoom(ZOOMS[i]);render();break;}
+      setUiZoom(ZOOMS[i]);render();break;}
     case "auto":if(!readOnly)openModal({t:"auto"});break;
     case "manual-add":if(!readOnly&&!S.setupPending)openModal({t:"manual-add"});break;
     case "incident":if(canIncidents())openModal({t:"incident"});break;
@@ -4025,7 +4097,7 @@ function workGridHTML(title,lanes){
     '<div class="zone lunch" style="top:'+px(720)+'px;height:'+(px(780)-px(720))+'px">'+tx('午休')+'</div>'+
     (!di.ot?'<div class="zone ot-off" style="top:'+px(1020)+'px;height:'+(px(1200)-px(1020))+'px">'+tx('未開加班')+'</div>':'')+
     (l.production||[]).map(b=>blkHTML(b,px,issuesOf(b).length)).join('')+(l.general||[]).map(a=>workBlockHTML(a,px)).join('')+'</div>').join('');
-  return '<section class="board" aria-label="'+title+'"><div class="board-h"><h2>'+title+' · '+mdw(d)+'</h2><div class="spacer"></div>'+(!readOnly&&!S.setupPending?'<button class="btn primary" data-act="general-add">'+tx('＋一般工作排班')+'</button>':'')+'</div><div class="hint" style="padding:10px">一般工作方塊可拖曳及拉底邊；放開先預覽，確認前不改班表。純人工占用完整人員時間；參考件數不算作工單已完成。產品工序方塊請在「設備／工位」檢視調整。</div>'+
+  return '<section class="board" style="--hour:'+hourPx()+'px" aria-label="'+title+'"><div class="board-h"><h2>'+title+' · '+mdw(d)+'</h2><div class="spacer"></div>'+(!readOnly&&!S.setupPending?'<button class="btn primary" data-act="general-add">'+tx('＋一般工作排班')+'</button>':'')+'</div><div class="hint" style="padding:10px">一般工作方塊可拖曳及拉底邊；放開先預覽，確認前不改班表。純人工占用完整人員時間；參考件數不算作工單已完成。產品工序方塊請在「設備／工位」檢視調整。</div>'+
     (lanes.length?'<div class="scroller"><div class="grid" style="grid-template-columns:64px repeat('+lanes.length+',minmax(180px,1fr))"><div class="corner"></div>'+lanes.map(l=>'<div class="colhead"><span class="N">'+esc(l.name)+'</span></div>').join('')+'<div class="times">'+times+'</div>'+cols+'</div></div>':'<div class="empty">尚未有可安排的工作內容。請按「更多功能」→「設定工作內容」，先核定工作、人員與所需設備。</div>')+'</section>';
 }
 function generalLanes(){

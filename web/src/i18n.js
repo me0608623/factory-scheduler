@@ -817,6 +817,18 @@ export const UI_TEXT = {
   "完工": { en: "Finished", vi: "Hoàn thành", th: "เสร็จงาน" },
   "修模時間": { en: "Rework min", vi: "Phút sửa khuôn", th: "เวลาแก้แม่พิมพ์" },
   "加工者": { en: "Worker", vi: "Người gia công", th: "ผู้ปฏิบัติงาน" },
+  "排程表縮放": { en: "Schedule zoom", vi: "Thu nhỏ bảng lịch", th: "ซูมตาราง" },
+  "縮小": { en: "Zoom out", vi: "Thu nhỏ", th: "ลดขนาด" },
+  "還原比例": { en: "Reset zoom", vi: "Đặt lại tỉ lệ", th: "รีเซ็ตซูม" },
+  "100%": { en: "100%", vi: "100%", th: "100%" },
+  "滾輪縮放開關": { en: "Wheel zoom on/off", vi: "Bật/tắt cuộn zoom", th: "สวิตช์ซูมล้อเมาส์" },
+  "顯示整週": { en: "Show full week", vi: "Xem cả tuần", th: "ดูทั้งสัปดาห์" },
+  "整週": { en: "Week", vi: "Cả tuần", th: "ทั้งสัปดาห์" },
+  "檢視詳細日班表": { en: "Day detail", vi: "Chi tiết ngày", th: "รายละเอียดรายวัน" },
+  "詳細": { en: "Detail", vi: "Chi tiết", th: "ละเอียด" },
+  "放大": { en: "Zoom in", vi: "Phóng to", th: "ขยาย" },
+  "滾輪縮放已開啟（在排程表上滾動即可縮放）": { en: "Wheel zoom on (scroll on the schedule to zoom)", vi: "Đã bật cuộn zoom (cuộn trên bảng lịch để thu/phóng)", th: "เปิดซูมล้อเมาส์ (เลื่อนบนตารางเพื่อซูม)" },
+  "滾輪縮放已關閉（排程表恢復一般捲動）": { en: "Wheel zoom off (schedule scrolls normally)", vi: "Đã tắt cuộn zoom (bảng lịch cuộn bình thường)", th: "ปิดซูมล้อเมาส์ (ตารางเลื่อนปกติ)" },
 };
 
 export function tx(k, params) {
