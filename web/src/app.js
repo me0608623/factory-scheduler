@@ -2382,7 +2382,7 @@ function dpDueDetailHTML(P,oid){
    '<div class="dp-side"><span class="dp-side-t">'+tx('調整後預計完成')+'</span><div class="dp-seg">'+(det.finish?mdw(det.finish):tx('未排完'))+'</div></div></div>'+
    (det.deltaDays!=null&&det.deltaDays!==0?'<div class="issue">'+(det.deltaDays>0?tx('延後 {n} 天',{n:Math.abs(det.deltaDays)}):tx('提早 {n} 天',{n:Math.abs(det.deltaDays)}))+'</div>':det.finish&&det.finishB?'<div class="okbox">'+tx('完成日期不變')+'</div>':'<div class="hint">'+tx('完成日期尚無法比較')+'</div>')+
    (det.unfinished?'<div class="field">'+dpLab('尚未排完的工序')+det.stepRows.filter(r=>r.unfinished).map(r=>'<div class="issue">'+esc(r.proc+'：'+tx('已排 {a} / {b} 件',{a:r.qty,b:det.qty}))+'</div>').join("")+'</div>':'')+
-   '<div class="field">'+dpLab('各工序前後位置')+det.stepRows.map(r=>'<div class="dp-step'+(r.changed?" chg":"")+'"><b>'+esc(r.proc)+'</b>'+(r.changed?'<small>'+esc(r.prevTxt)+' → '+esc(r.nextTxt)+'</small>':'<small>'+tx('不變')+'</small>')+'</div>').join("")+'</div>'+
+   '<div class="field">'+dpLab('各工序前後位置')+det.stepRows.map(r=>'<div class="dp-step'+(r.changed?" chg":"")+'"><b>'+esc(r.proc)+'</b>'+(r.changed?'<small>'+esc(dpRngTxt(r.prev))+' → '+esc(dpRngTxt(r.next))+'</small>':'<small>'+tx('不變')+'</small>')+'</div>').join("")+'</div>'+
    (det.affectedOps.length?'<div class="field">'+dpLab('受影響的工序（可點擊）')+det.affectedOps.map(m=>dpOpRow(m,"impact-detail")).join("")+'</div>':'')+
    (det.reasons?'<div class="field">'+dpLab('排程變動的原因')+det.reasons.map(t=>'<div class="issue">'+esc(t)+'</div>').join("")+'</div>':'')+
    (det.affectedOps[0]?'<button class="btn primary dp-locate-btn" data-act="dp-nav" data-v="schedule-compare" data-id="'+esc(det.affectedOps[0].key)+'">'+tx('在排程表定位')+'</button>':'')+

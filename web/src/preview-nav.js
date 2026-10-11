@@ -173,7 +173,7 @@ export function dueDetail(P, oid) {
     const next = afterBlocks.filter(b => b.oid === oid && b.step === si).sort((a, b) => pvAbsOf(a.date, a.s) - pvAbsOf(b.date, b.s));
     const changed = JSON.stringify(prev.map(b => [b.date, b.s, b.e, b.m])) !== JSON.stringify(next.map(b => [b.date, b.s, b.e, b.m]));
     return {
-      si, proc: st2.proc, prevTxt: pvRangeTxt(prev), nextTxt: pvRangeTxt(next),
+      si, proc: st2.proc, prev, next, prevTxt: pvRangeTxt(prev), nextTxt: pvRangeTxt(next),
       qty: stepQty(afterBlocks, oid, si, execution), changed, gone: !next.length,
       unfinished: stepQty(afterBlocks, oid, si, execution) < o.qty,
     };

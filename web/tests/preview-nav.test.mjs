@@ -180,3 +180,9 @@ test('資料安全：模組面對淺拷貝的 ops 不會回頭改 proposal', () 
   opDetail(P, 'oB05|0'); dueDetail(P, 'oB05'); boardTarget(P, 'oB05|0');
   assert.equal(JSON.stringify(P.ops.map(o => [o.oid, o.si])), before, '檢視操作不改 ops');
 });
+test('dueDetail stepRows 帶原始段落陣列（畫面層自行格式化語言）', () => {
+  const det = dueDetail(P, 'oB05');
+  const cut = det.stepRows.find(r => r.proc === '裁切');
+  assert.ok(Array.isArray(cut.prev) && cut.prev.length === 1, 'prev 原始陣列');
+  assert.ok(Array.isArray(cut.next) && cut.next.length === 2, 'next 兩段');
+});
