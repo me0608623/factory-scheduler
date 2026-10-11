@@ -1271,7 +1271,9 @@ document.addEventListener("mousedown",e=>{
 });
 document.addEventListener("keydown",e=>{
   if(e.key==="Enter"&&e.target.dataset?.cell){e.preventDefault();e.target.blur();return;}
-  if(e.key==="Escape"&&PV&&PV.kind==="manual"&&PV.nav&&PV.nav.stack.length){dpBack();return;}
+  if(e.key==="Escape"&&!UI.modal&&PV&&PV.kind==="manual"){
+    e.preventDefault();if(PV.nav?.stack.length)dpBack();else exitManualPreview(true);return;
+  }
   if(e.key==="Escape"&&UI.editCell){UI.editCell=null;render();return;}
   if(e.key==="Escape"&&UI.modal){closeModal();return;}
   if(e.key==="Escape"&&UI.drawer){UI.drawer=null;UI.focus=null;render();return;}
@@ -1283,7 +1285,11 @@ document.addEventListener("keydown",e=>{
     else if(!e.shiftKey&&(at<0||at===items.length-1)){e.preventDefault();items[0].focus();}
   }
   const el=e.target.closest&&e.target.closest(".blk");
-  if(el&&(e.key==="Enter"||e.key===" ")){e.preventDefault();openModal({t:"blk",id:el.dataset.bid});}
+  if(el&&(e.key==="Enter"||e.key===" ")){
+    e.preventDefault();
+    if(PV){if(PV.kind==="manual")pvClickBlock(el.dataset.bid);return;}
+    openModal({t:"blk",id:el.dataset.bid});
+  }
 });
 
 /* ===== 8. 按鈕動作 ===== */
@@ -2143,8 +2149,9 @@ Object.assign(MODAL_ACT,{
     if(readOnly){toast('目前沒有修改排程的權限');return;}
     await applyManualPreview(P,{
       accepting(){m.applying=true;renderModal();},
-      close(){closeModal();render();},
-      fail(){render();closeModal();toast('未確認儲存，畫面已回復；請查看右上角同步狀態');}
+      close(e){closeModal();render();if(e)toast(e.message);},
+      fail(){render();closeModal();toast('未確認儲存，畫面已回復；請查看右上角同步狀態');},
+      done(moved,P){closeModal();dpApplied(moved,P);}
     });
   },
   "c-week":a=>{if(!canCalendar())return;const w=+a.dataset.v,D=UI.modal.draft;D.week[w]=!D.week[w];rerender();},
@@ -2170,7 +2177,11 @@ const pvOpt=()=>PV&&(PV.opts.find(o=>o.id===PV.cur)||PV.opts[0]);
 async function applyManualPreview(P,ui){
   if(!P)return;
   let next,moved;
-  try{({state:next,block:moved}=acceptManualPreview(S,P));}
+  try{
+    ({state:next,block:moved}=acceptManualPreview(S,P));
+    assertExecutionProtected(S,next);
+    validateGeneralWork(next,{today:todayStr(),baseAssignments:assignments(S)});
+  }
   catch(e){ui.close(e);return;}
   // canPermission 在 PV 模式一律 false（與自動排程 pvApply 相同：先離開預覽再寫入）
   ui.accepting();
@@ -2198,6 +2209,7 @@ async function pvApplyManual(){
   const P=PV&&PV.P;if(!P)return;
   if(PV.applying)return;
   if(readOnly){toast('目前沒有修改排程的權限');return;}
+  if(pvOpt()?.applicable===false){toast('這個方案尚無法套用，請查看原因與建議');return;}
   if(P.problems.length){toast('這個預覽有未解決的問題，排程不會改動');return;}
   await applyManualPreview(P,{
     accepting(){exitManualPreview(false);toast("套用中…");},
@@ -2253,13 +2265,26 @@ function dpBack(){
   const r=navBack(PV.nav);
   UI.focus=r.sel?(r.sel.key?{type:"order",id:String(r.sel.key).split("|")[0]}:{type:"order",id:r.sel.oid}):null;
   if(r.date)UI.date=r.date;
+  if(r.factory)UI.factory=r.factory;
+  if(r.boardView)UI.view=r.boardView;
+  if(r.mode)PV.mode=r.mode;
   render();
+  const sc=document.querySelector('.scroller');if(sc&&r.scrollLeft!=null)sc.scrollLeft=r.scrollLeft;
+  document.querySelector('.pv-drawer .dp-back, .pv-drawer .dp-row, .pv [data-act="pv-cancel"]')?.focus({preventScroll:true});
   if(r.scrollY!=null)window.scrollTo(0,r.scrollY);
 }
-function dpScrollTarget(){
+function dpScrollTarget(target){
+  const preview=PV;
   setTimeout(()=>{
-    const el=document.querySelector(".blk.dp-hl")||document.querySelector(".gblk")||document.querySelector(".blk.pv-mv, .blk.pv-add, .blk.willchg");
+    if(PV!==preview||!PV)return;
+    const el=target?document.querySelector('.blk[data-bid="'+CSS.escape(target.id)+'"]'):document.querySelector(".blk.dp-hl")||document.querySelector(".blk.pv-mv, .blk.pv-add, .blk.willchg")||document.querySelector(".gblk");
     el?.scrollIntoView({block:"center",inline:"nearest"});
+    if(el&&window.matchMedia?.('(max-width:980px)').matches){
+      const top=document.querySelector('.pv-manual')?.getBoundingClientRect().bottom??0;
+      const bottom=document.querySelector('.pv-drawer')?.getBoundingClientRect().top??window.innerHeight;
+      const r=el.getBoundingClientRect();
+      if(bottom>top)window.scrollBy(0,(r.top+r.bottom)/2-(Math.max(0,top)+bottom)/2);
+    }
   },40);
 }
 // 預覽中點排程表上的方塊：若屬這次調整，直接切到該工序詳情
@@ -2267,13 +2292,19 @@ function pvClickBlock(id){
   const P=PV&&PV.P;if(!P)return;
   const op=(P.ops||[]).find(o=>[...(o.prev||[]),...(o.next||[])].some(b=>b.id===id));
   if(!op){toast("這段工作在這次調整中沒有變動");return;}
-  navPush(PV.nav,"impact-detail",{key:opKey(op)},{date:UI.date,scrollY:window.scrollY,focus:UI.focus?{...UI.focus}:null});
-  dpApplyView();render();dpScrollTarget();
+  navPush(PV.nav,"impact-detail",{key:opKey(op)},dpSnapshot());
+  dpApplyView();render();
+  document.querySelector('.pv-drawer .dp-back')?.focus({preventScroll:true});
+  dpScrollTarget();
 }
 /* ----- 面板渲染 ----- */
+function dpSnapshot(){
+  return {date:UI.date,scrollY:window.scrollY,scrollLeft:document.querySelector('.scroller')?.scrollLeft??0,
+    factory:UI.factory,boardView:UI.view,mode:PV.mode};
+}
 function manualStripHTML(o){
   const P=PV.P,d=diffOf(o),dates=Object.keys(d.dates).sort(),bad=!o.applicable;
-  return '<section class="pv" aria-label="'+tx('手動排班預覽')+'">'+
+  return '<section class="pv pv-manual" aria-label="'+tx('手動排班預覽')+'">'+
    '<div class="pv-h"><span class="pv-badge">'+(bad?'需要處理':'預覽中')+'</span>'+
    '<div class="pv-t"><b>'+esc(P.movedLabel)+'</b><small>'+esc(P.source)+' → '+esc(P.target)+(P.newQty!==undefined?'；預計 '+P.newQty+' 件':'')+(P.remaining?'；此站還有 '+P.remaining+' 件未排':'')+'。還沒套用，正式排程不會變。</small></div><div class="spacer"></div>'+
    (PV.applying?'<button class="btn primary" disabled>'+tx('正在儲存，請稍候…')+'</button>':
@@ -2329,7 +2360,7 @@ function dpOpDetailHTML(P,key){
    (det.rel.length?'<div class="field">'+dpLab('同張工單其他受影響工序（相依）')+det.rel.map(m=>dpOpRow(m,"impact-detail")).join("")+'</div>':'')+
    (det.due?'<div class="field"><span class="lab">'+tx('對工單交期的影響')+'</span>'+dpDueRow(det.due)+'</div>':'')+
    (det.order?'<div class="hint">工單 '+esc(det.order.code)+' · '+det.order.qty+' 件 · 期限 '+mdw(det.order.due)+'</div>':'')+
-   (det.next.length>1||det.prev.length>1?'<div class="field"><span class="lab">'+tx('各段定位')+'</span><div class="dp-locs">'+[...det.prev.map(b=>({date:b.date,t:"原本段 "+hm(b.s)+"–"+hm(b.e)+" "+b.m})),...det.next.map(b=>({date:b.date,t:"調整後段 "+hm(b.s)+"–"+hm(b.e)+" "+b.m}))].map(x=>'<button class="btn" data-act="dp-locate" data-d="'+x.date+'">'+esc(x.date+" · "+x.t)+'</button>').join("")+'</div></div>':'')+
+   (det.next.length>1||det.prev.length>1?'<div class="field"><span class="lab">'+tx('各段定位')+'</span><div class="dp-locs">'+[...det.prev.map(b=>({...b,mode:"orig",t:"原本段 "+hm(b.s)+"–"+hm(b.e)+" "+b.m})),...det.next.map(b=>({...b,mode:"new",t:"調整後段 "+hm(b.s)+"–"+hm(b.e)+" "+b.m}))].map(x=>'<button class="btn" data-act="dp-locate" data-d="'+esc(x.date)+'" data-id="'+esc(x.id)+'" data-m="'+esc(x.m)+'" data-mode="'+x.mode+'">'+esc(x.date+" · "+x.t)+'</button>').join("")+'</div></div>':'')+
    '<button class="btn primary dp-locate-btn" data-act="dp-nav" data-v="schedule-compare" data-id="'+esc(key)+'">'+tx('在排程表查看')+'</button>'+
    '</div>';
 }
@@ -2380,10 +2411,10 @@ function dpBodyHTML(){
 }
 function manualDrawerHTML(o){
   const P=PV.P,nav=PV.nav;
-  return '<aside class="pv-drawer'+(PV.sheetCollapsed?' collapsed':'')+'" aria-label="'+tx('手動排班預覽')+'">'+
+  return '<aside class="pv-drawer pv-manual-drawer'+(PV.sheetCollapsed?' collapsed':'')+'" aria-label="'+tx('手動排班預覽')+'">'+
    '<div class="pv-drawer-h">'+(nav.stack.length?'<button class="btn dp-back" data-act="dp-back">← '+tx('返回上一步')+'</button>':'')+
    '<h3>'+esc(dpTitle(nav,P))+'</h3><button class="iconbtn" data-act="pv-sheet" aria-label="'+(PV.sheetCollapsed?tx('展開'):tx('收合'))+'">'+(PV.sheetCollapsed?'▴':'▾')+'</button></div>'+
-   '<div class="pv-drawer-b">'+dpBodyHTML()+'</div></aside>';
+   '<div class="pv-drawer-b"><div class="dp-mobile-summary">'+esc(P.movedLabel)+'：'+esc(P.source)+' → '+esc(P.target)+'</div>'+dpBodyHTML()+'</div></aside>';
 }
 function diffOf(o){
   if(o.diff)return o.diff;
@@ -2468,7 +2499,7 @@ function pvCtx(o){
       if(det){
         const prevKeys=new Set(det.prev.map(keyB)),nextKeys=new Set(det.next.map(keyB));
         if(PV.mode==="orig")return {pv:true,mark:prevKeys,markCls:"willchg",ghosts:[],extraFaults:[]};
-        if(PV.mode==="new")return {pv:true,mark:nextKeys,markCls:"dp-hl",ghosts:det.prev,extraFaults:[]};
+        if(PV.mode==="new")return {pv:true,mark:nextKeys,markCls:"dp-hl",ghosts:[],extraFaults:[]};
         return {pv:true,mark:nextKeys,markCls:"dp-hl",ghosts:det.prev,extraFaults:[]};
       }
     }
@@ -2648,7 +2679,7 @@ async function pvApply(){
 }
 Object.assign(MODAL_ACT,{
   "pv-pick":a=>{PV.cur=a.dataset.v;const d=diffOf(pvOpt());if(!d.dates[UI.date]){const ds=Object.keys(d.dates).sort();if(ds.length)UI.date=ds.find(x=>x>=todayStr())||ds[0];}render();},
-  "pv-mode":a=>{PV.mode=a.dataset.v;render();},
+  "pv-mode":a=>{PV.mode=a.dataset.v;render();document.querySelector('[data-act="pv-mode"][data-v="'+CSS.escape(PV.mode)+'"]')?.focus({preventScroll:true});},
   "pv-tab":a=>{PV.tab=a.dataset.v;render();},
   "pv-date":a=>{UI.date=a.dataset.v;UI.view="day";render();},
   "pv-ai":()=>askAI(),
@@ -2661,12 +2692,21 @@ Object.assign(MODAL_ACT,{
     let sel=null;
     if(v==="suggestion-detail"||v==="impact-detail"||v==="schedule-compare")sel={key:id};
     else if(v==="due-detail")sel={oid:id};
-    navPush(PV.nav,v,sel,{date:UI.date,scrollY:window.scrollY,focus:UI.focus?{...UI.focus}:null});
+    navPush(PV.nav,v,sel,dpSnapshot());
     dpApplyView();render();
     if(sel){dpScrollTarget();setTimeout(()=>{const b=document.querySelector(".pv-drawer .dp-back");b?.focus();},40);}
   },
   "dp-back":()=>dpBack(),
-  "dp-locate":a=>{if(!PV||PV.kind!=="manual")return;UI.date=a.dataset.d||UI.date;render();dpScrollTarget();},
+  "dp-locate":a=>{
+    if(!PV||PV.kind!=="manual")return;
+    const mode=a.dataset.mode,st=mode==="orig"?PV.B:PV.P.after;
+    const b=st.blocks.find(x=>x.id===a.dataset.id&&x.date===a.dataset.d&&x.m===a.dataset.m);
+    if(!b)return;
+    UI.date=b.date;UI.view="day";
+    const M=st.machines?.find(x=>x.id===b.m);
+    if(M&&UI.factory!=="all"&&UI.factory!==factoryOf(M))UI.factory=factoryOf(M);
+    PV.mode=mode==="orig"?"orig":"new";render();dpScrollTarget(b);
+  },
   "pv-sheet":()=>{PV.sheetCollapsed=!PV.sheetCollapsed;render();},
   "pv-rchip":a=>{
     const R=PV.rerun,k=a.dataset.v;R[k]=!R[k];

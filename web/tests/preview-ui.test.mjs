@@ -18,7 +18,7 @@ test('任務一/五：四個預覽入口都改走 enterManualPreview（PV 全螢
 
 test('任務五：dp-nav/dp-back/dp-locate 動作註冊＋Escape 返回', () => {
   for (const act of ['"dp-nav"', '"dp-back"', '"dp-locate"']) assert.ok(app.includes(act + ':'), act + ' 未註冊');
-  assert.ok(app.includes('e.key==="Escape"&&PV&&PV.kind==="manual"'), 'Escape 未接手動預覽返回');
+  assert.ok(app.includes('e.key==="Escape"&&!UI.modal&&PV&&PV.kind==="manual"'), 'Escape 未接手動預覽返回');
   assert.ok(app.includes('addEventListener("popstate"'), '瀏覽器 Back 未處理');
 });
 

@@ -26,7 +26,8 @@ export function newNav() { return { view: "overview", sel: null, stack: [] }; }
 
 export function navPush(nav, view, sel, snap = {}) {
   if (!DP_VIEWS.includes(view)) throw new Error("未知的預覽檢視：" + view);
-  nav.stack.push({ view: nav.view, sel: nav.sel, date: snap.date ?? null, scrollY: snap.scrollY ?? null });
+  nav.stack.push({ view: nav.view, sel: nav.sel, date: snap.date ?? null, scrollY: snap.scrollY ?? null,
+    scrollLeft: snap.scrollLeft ?? null, factory: snap.factory ?? null, boardView: snap.boardView ?? null, mode: snap.mode ?? null });
   nav.view = view; nav.sel = sel ?? null;
   return nav;
 }
@@ -35,7 +36,7 @@ export function navPush(nav, view, sel, snap = {}) {
 export function navBack(nav) {
   const prev = nav.stack.length ? nav.stack.pop() : { view: "overview", sel: null, date: null, scrollY: null };
   nav.view = prev.view; nav.sel = prev.sel;
-  return { view: prev.view, sel: prev.sel, date: prev.date, scrollY: prev.scrollY };
+  return { ...prev };
 }
 
 /* ===== 顯示模型 ===== */
@@ -131,16 +132,17 @@ export function opDetail(P, key) {
     .sort((a, b) => a.si - b.si);
   // 原因：系統調整紀錄中提到這張工單＋這道工序的行
   const codeM = op.code;
-  const reasons = (P.lines || []).filter(l => l && typeof l.t === "string" && l.t.includes(codeM))
-    .map(l => l.t)
-    .filter(t => t.includes(op.step) || t.includes(codeM + " "));
+  const reasons = (P.lines || []).filter(l => l && typeof l.t === "string" && l.t.includes(codeM + " " + op.step))
+    .map(l => l.t);
   return {
     ...m,
     order: o ? { code: o.code, qty: o.qty, due: o.due, pri: o.pri } : null,
     due,
     rel,
     reasons: reasons.length ? reasons : null,
-    reasonFallback: m.gone
+    reasonFallback: [...m.prev, ...m.next].some(b => b.id === P.oldId)
+      ? "使用者手動調整這道工序的位置或工作長度。"
+      : m.gone
       ? "調整後這道工序沒有可用的時段，暫時未排入。"
       : m.added
         ? "這是調整後新排入的工序。"

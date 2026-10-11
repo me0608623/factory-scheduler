@@ -89,6 +89,14 @@ test('導航狀態機：未知 view 拒絕', () => {
   assert.throws(() => navPush(nav, 'no-such-view', null), /未知的預覽檢視/);
   assert.ok(DP_VIEWS.includes('suggestion-detail') && DP_VIEWS.includes('due-detail'));
 });
+test('返回還原廠別、日週模式、對照模式與水平捲動',()=>{
+  const n=newNav();navPush(n,'due-detail',{oid:'oB02'},{date:'2026-10-12',factory:'f2',boardView:'week',mode:'orig',scrollLeft:360,scrollY:500});
+  const r=navBack(n);assert.deepEqual([r.factory,r.boardView,r.mode,r.scrollLeft,r.scrollY],['f2','week','orig',360,500]);
+});
+test('工序原因不誤用同張工單其他工序的順延紀錄',()=>{
+  const q={...P,lines:[{t:'B02 包裝：跟著前站延後'}]};
+  const detail=opDetail(q,'oB02|0');assert.equal(detail.reasons,null);assert.match(detail.reasonFallback,/使用者手動/);
+});
 
 test('建議順延＝被直接擠走的工作；連帶影響排除建議與目標本體', () => {
   const sug = suggestList(P);
