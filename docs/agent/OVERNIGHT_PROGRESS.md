@@ -1168,3 +1168,5 @@
 - staging 網站為舊版（無 sidebar/zoom/sorting）——Render deploy 未觸發更新；核心雲端同步不受影響
 - 員工/唯讀帳號被 Supabase email rate limit 阻擋（待補建）
 - 生產健康：web 200 / solver 200
+
+- 帳號建立受阻：Supabase 免費版 email rate limit（>1hr 未解）＋SQL 直接寫入 GoTrue 內部欄位不完整（427/500 schema error）——員工/唯讀需 Dashboard 手動 Add User（含 Auto Confirm）
