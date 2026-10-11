@@ -3278,6 +3278,8 @@ function syncChipHTML(){
 }
 function updateSyncChip(){const el=$("#syncchip");if(el)el.outerHTML=syncChipHTML();}
 let syncChain=Promise.resolve(),syncPending=0;
+// 同步進行中關閉分頁＝靜默丟失變更：離開前提示（僅在真的有寫入在途時）
+addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state==="busy"){e.preventDefault();e.returnValue="";}});
 function queueSync(entry){
   const snapshot=structuredClone(S);
   syncPending++;SYNC.state="busy";updateSyncChip();

@@ -85,3 +85,6 @@ test('preview-nav.js：純模組——只重用純數量函式，不碰 DOM／�
   assert.equal(nav.includes('document.'), false, '不得碰 DOM');
   assert.equal(nav.includes('localStorage'), false, '不得碰儲存');
 });
+test('同步中關閉分頁有 beforeunload 提示（防靜默丟失在途寫入）', () => {
+  assert.match(app, /addEventListener\("beforeunload"[\s\S]*?syncPending>0\|\|SYNC\.state==="busy"/, '守門需涵蓋在途同步');
+});
