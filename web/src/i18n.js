@@ -133,6 +133,7 @@ export const UI_TEXT = {
   "排程表對照": { en: "Schedule compare", vi: "So sánh lịch", th: "เทียบตาราง" },
   "連帶影響的工作（{n} 道工序）": { en: "Knock-on work ({n} steps)", vi: "Việc ảnh hưởng kèm theo ({n} công đoạn)", th: "งานที่กระทบตามมา ({n} ขั้นตอน)" },
   "查看全部 {n} 道": { en: "View all {n}", vi: "Xem tất cả {n}", th: "ดูทั้งหมด {n}" },
+  "查看全部 {n} 張": { en: "View all {n} orders", vi: "Xem tất cả {n} đơn", th: "ดูทั้งหมด {n} ใบ" },
   "{n} 段": { en: "{n} seg", vi: "{n} đoạn", th: "{n} ช่วง" },
   "不變": { en: "Unchanged", vi: "Không đổi", th: "ไม่เปลี่ยน" },
   "完成日期不變": { en: "Finish date unchanged", vi: "Ngày hoàn thành không đổi", th: "วันเสร็จไม่เปลี่ยน" },

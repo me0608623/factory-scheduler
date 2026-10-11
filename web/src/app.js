@@ -2427,7 +2427,7 @@ function dpBodyHTML(){
   const sugSec=sug.length?'<div class="field">'+dpLab('建議順延到最早可用時間')+'（'+tx('點看詳情')+'）'+sug.map(m=>dpOpRow(m,"suggestion-detail")).join("")+'</div>':'';
   const impSec='<div class="field">'+dpLab('連帶影響的工作（{n} 道工序）',{n:imp.length})+
     (imp.length?imp.slice(0,4).map(m=>dpOpRow(m,"impact-detail")).join("")+(imp.length>4?'<button class="btn dp-more" data-act="dp-nav" data-v="impact-list">'+tx('查看全部 {n} 道',{n:imp.length})+' →</button>':''):'<div class="okbox">'+tx('其他工作不變')+'</div>')+'</div>';
-  const dueSec='<div class="field">'+dpLab('受影響工單的交期')+'（'+tx('點看詳情')+'）'+(dues.length?dues.map(dpDueRow).join(""):'<div class="okbox">'+tx('其他工作不變')+'</div>')+'</div>';
+  const dueSec='<div class="field">'+dpLab('受影響工單的交期')+'（'+tx('點看詳情')+'）'+(dues.length?dues.slice(0,4).map(dpDueRow).join("")+(dues.length>4?'<button class="btn dp-more" data-act="dp-nav" data-v="due-list">'+tx('查看全部 {n} 張',{n:dues.length})+' →</button>':''):'<div class="okbox">'+tx('其他工作不變')+'</div>')+'</div>';
   const pins=!P.problems.length&&P.unpinned.length?'<div class="issues">'+P.unpinned.map(x=>'<div class="issue">'+esc(x.label)+' 已固定（釘）。確認後會解除固定並移動它；取消則保持原樣。</div>').join("")+'</div>':'';
   return sugSec+impSec+dueSec+pins;
 }
