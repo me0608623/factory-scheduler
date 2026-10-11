@@ -13,7 +13,7 @@
 
 | 元件 | 事件／依賴 | 預期與狀態 | 驗收方式 |
 |---|---|---|---|
-| 拖曳、拉底邊、手動新增、修改時段 | dragPreview → enterManualPreview | 進入 PV，不寫班表 | 四入口佈線測試；修改時段入口瀏覽器實測 |
+| 拖曳、拉底邊、手動新增、修改時段 | dragPreview → enterManualPreview | 進入 PV，不寫班表 | 四入口佈線測試；拖曳、拉底邊與修改時段入口瀏覽器實測；新增入口本輪未單獨操作 |
 | 原本／調整後／對照 | pv-mode → pvCtx | 選取保留；只有對照顯示原位 ghost | 瀏覽器＋執行函式測試 |
 | 建議順延、連帶列表、交期列表 | dp-nav / preview-nav.js | 只讀詳情、高亮、定位；無 commit | 瀏覽器＋單元／佈線測試 |
 | 各段定位 | dp-locate | 精確日期、機台、方塊與前後版本；跨廠切到目標廠 | 隔日具體段落瀏覽器實測；跨機／廠執行 handler 測試 |
@@ -56,6 +56,8 @@
 - 新增 preview-events.test.mjs，直接執行 app.js 事件／套用函式，不只檢查原始碼字串。
 - 修前4項重現失敗；補測涵蓋原位虛線、鍵盤、安全診斷、成功／失敗儲存、過期方案、未解問題、各段定位、報工保護、連點、延遲取消、保險modal、手機捲動、Escape。
 - preview-nav 增加完整快照還原與不誤用其他工序原因測試。
+- 本機與最終 PR CI：前端364項、資料庫201項、solver168項通過，跨層整合通過。預覽專項38項（原21項＋新增17項）通過。
+- 完工短少測試修前30件／預期20件失敗，修後採5件完工＋15件未完工產能＝20件；沒有把進行中3件誤當成這段最終产量。
 - 本機 build 通過；既有大 chunk 警告仍存在，不在此 PR 拆包。
 - UI偵測7項既有樣式警告保留；本 PR 新增的側邊粗色線改為1px框，不擴大改版。
 - 網路斷線、雲端版本衝突與保護路徑以實際函式／既有資料層自動測試覆蓋；本次未操作正式登入帳號、多裝置同步或真機iPhone，不列為親測通過。
@@ -63,4 +65,17 @@
 
 ## 發佈狀態
 
-待修正提交的 PR CI 通過後合併；同 SHA 的 main Tests 通過才允許現有部署 workflow 觸發 Render。完成後記錄正式提交、workflow、deploy ID、公開 assets 與 health。
+已於台灣時間2026-10-12完成合併與正式部署。
+
+- 修正提交：a66f96c（介面與保護）、f97b2b7abaefc52860f19c71cd26611862fc57c5（報工數量）。
+- 最終PR Tests 38153626082（PR）、38153621083（push）與冒煙測試均成功，才按預期head SHA合併。
+- 正式執行期：4479cd10d3e95c9c67d73b4db55e8e883a65ba78；合併後與f97b2b7的web/db/solver內容一致。
+- main Tests 38153844799、Deployment smoke test 38153844859、部署workflow 38153844797全部成功。
+- Render前端dep-db5r7o59fdbs73dr7uag與solver dep-db5r7ofavr4c739pqpkg均live、提交相同；完成時間UTC16:06:14／16:06:18。
+- 正式首頁HTTP200，assets/index-B79FZGKA.js與assets/index-Dm7lmUMZ.css；公開JS已包含pv-manual-drawer、精確段落定位與完成日期尚無法比較。
+- solver /health：ok=true、database=true、OR-Tools9.15.6755。
+- 部署時間起兩個服務error logs均0；跨region合併查log API被拒，已改各服務分開查。
+- 正式瀏覽器目前未登入，登入頁console error 0；沒有把隔離本機的套用／刷新測試冒稱為正式雲端班表操作。
+- 證據：outputs/pr15-mobile-qa-2026-10-11.jpg、outputs/pr15-desktop-qa-2026-10-11.jpg、outputs/pr15-production-login-2026-10-12.jpg（本機交付附件，不含帳號密碼）。
+- 測試分頁關閉，僅停止本任務啟動的5195伺服器；其他既有dev server未動。
+- 後續僅文件提交，不需重部署；本文件記錄的線上執行期仍4479cd1。

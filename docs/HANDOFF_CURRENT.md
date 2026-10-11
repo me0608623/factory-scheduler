@@ -1,8 +1,18 @@
 # Factory Scheduler — current handoff
 
-Last updated: 2026-09-30 (Asia/Taipei)
+Last updated: 2026-10-12 (Asia/Taipei)
 
 This is the first file a replacement agent should read. It records the current repository, production environment, verified state, and the next safe actions. Do not put passwords, Supabase service-role keys, anon keys, or AI provider keys in this file.
+
+## Latest release checkpoint (2026-10-12)
+
+- PR #15 (interactive manual scheduling preview) merged after independent review and fixes; production runtime commit `4479cd10d3e95c9c67d73b4db55e8e883a65ba78`.
+- Both existing Render services are live on this exact commit. Final PR and main CI passed: frontend 364, database 201, solver 168, cross-layer integration and deployment smoke tests.
+- Read `docs/RELEASE_PR15_PREVIEW_2026-10-11.md` for inventory, confirmed defects, fixes, browser evidence, workflow/deploy IDs, and limitations. The filename reflects the start of the review; deployment completed on Taiwan date October 12.
+- QA used isolated localhost:5195 local data. Production Supabase, its setupPending state, account permissions and real schedules were not modified; no migration or new paid resource.
+- Production browser check was the signed-out login screen only. Local desktop/mobile-size preview/apply tests are not authenticated production cloud-sync or native iPhone Safari acceptance.
+- The local branch is `main`; subsequent docs-only commits may be ahead of the runtime commit without requiring a deployment. Always inspect Git and actual Render deploy state.
+- Older account/database notes below are historical checkpoints, not freshly verified by this release review.
 
 ## Project locations
 
