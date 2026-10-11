@@ -1339,3 +1339,8 @@
 
 - **render.yaml 預留 VITE_TEST_* 欄位**（main `d9cffd3`）：Blueprint 宣告測試模式四變數（sync:false）＋註解說明——使用者到 Render Dashboard 只需填值不用新增欄位；未填時 fail-closed 零影響。與 docs/TEST_MODE.md、README 形成完整啟用路徑
 - 起步：工作區乾淨、正式站 web/solver 200
+
+## 輪次 112（2026-10-12，10 分鐘優化排程）
+
+- **solver 端健檢（驗證輪）**：正式 /health ok=true（OR-Tools 9.15.6755、database=true、5 項 capabilities 含 work_assignments/staff_roster/schedule_chat 三系列）；程式樹 12 模組結構清晰、無 TODO/FIXME；147 個 pytest 由 CI solver job 把關（本機 uv 損壞不影響）。無需修改
+- 起步：工作區乾淨、正式站 web/solver 200
