@@ -1344,3 +1344,8 @@
 
 - **solver 端健檢（驗證輪）**：正式 /health ok=true（OR-Tools 9.15.6755、database=true、5 項 capabilities 含 work_assignments/staff_roster/schedule_chat 三系列）；程式樹 12 模組結構清晰、無 TODO/FIXME；147 個 pytest 由 CI solver job 把關（本機 uv 損壞不影響）。無需修改
 - 起步：工作區乾淨、正式站 web/solver 200
+
+## 輪次 113（2026-10-12，10 分鐘優化排程）
+
+- **儲存失敗路徑測試**：rpc 網路例外→資料庫零部分寫入、重讀原版、版本不變（+1，store 15/15、全套 380 綠）。衝突/權限/網路三種失敗路徑覆蓋齊全
+- 起步：工作區乾淨、正式站 web/solver 200
