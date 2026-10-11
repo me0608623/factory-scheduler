@@ -1207,3 +1207,9 @@
 - **docs/TEST_MODE.md**：測試模式啟用指南——Render/本機 .env.local 設定、六項安全設計、CI 種子 artifact 下載與種入步驟、冷啟動行為說明（使用者正在 localhost 試 ?mode=test，文件直接對應其需求）
 - db 測試 sanity：201/201 綠（久未跑）
 - 起步：工作區乾淨、上輪 CI 綠
+
+## 輪次 87（2026-10-12，10 分鐘優化排程）
+
+- **修補 2 個 moderate 依賴漏洞**：exceljs→uuid 8.3.2（GHSA-w5hq-g745-h8pq）——npm overrides 強制 uuid 11.1.1（exceljs 只用 v4、API 不變）；Excel 測試 11/11、全套 377 綠、npm audit 歸零
+- **驗證 CI 種子 artifact**：isolated-cloud-test-seed 每次 main push 皆有產出（GitHub API 確認 3 份最新 artifact）
+- 起步：工作區乾淨、正式站 web/solver 200
