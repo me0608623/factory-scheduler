@@ -270,6 +270,25 @@ test("套用排程服務的方案（apply_plan）", async () => {
   await assert.rejects(lead.applyPlan(pv, "A"), /已經套用過/);
 });
 
+test("套用方案時排程已被別人更新 → 整份拒絕（版本衝突不留半套）", async () => {
+  const { db, store, count } = await setup();
+  const lead = await store("lead@x"), boss = await store("boss@x");
+  const S = await lead.load();
+  const opt = { id: "A", name: "少動為主", summary: "測試方案", lines: [], blocks: [
+    { order_id: A01, step_seq: 0, machine_id: "a", employee_id: E1, date: "2026-10-05", start_min: 480, end_min: 540, qty: 120 }],
+    effects: { overtime_on: ["2026-10-05"] } };
+  const pv = (await db.query("insert into plan_previews (kind,title,event,base_version,options) values ('auto','重新排程','{}',0,$1) returning id",
+    [JSON.stringify([opt])])).rows[0].id;
+  // 預覽建立後、套用前，老闆先存了一版 → base_version 過期
+  const Sb = await boss.load();
+  Sb.blocks.push(blk({ m: "b" }));
+  await boss.sync(Sb, { kind: "move", title: "老闆手動調整" });
+  await assert.rejects(lead.applyPlan(pv, "A"), (e) => e.conflict === true && /重新計算/.test(e.message));
+  assert.equal(await count("select count(*)::int n from schedule_blocks"), 1, "只留老闆那段；方案沒有半套用");
+  const fresh = await lead.load();
+  assert.equal(fresh.version, 1, "版本停在老闆那一版");
+});
+
 test("格式轉換：畫面 → 快照 → 畫面", () => {
   const S = { cal: { week: [false, true, true, true, true, true, true], over: { "2026-10-01": "off" } }, dayOT: { "2026-10-02": true },
     employees: [{ id: "e", name: "甲", factory: 2, color: 1, skills: ["a"], maxMachines: 2, leaves: ["2026-10-03"], noOT: true, reviewStatus: 'confirmed', sourceRef: null,
