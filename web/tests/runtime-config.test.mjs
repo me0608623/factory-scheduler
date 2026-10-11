@@ -40,3 +40,8 @@ test('test solver key comes only from test config, never the production key',()=
   assert.equal(none.solverKey,'','未設定時為空，不沿用 VITE_SOLVER_API_KEY');
   assert.notEqual(none.solverKey,env.VITE_SOLVER_API_KEY);
 });
+test('solver request timeouts are mode-aware (source contract)',()=>{
+  const solver=readFileSync(new URL('../src/solver.js',import.meta.url),'utf8');
+  assert.match(solver,/RUNTIME\.mode==='test'\?120000:60000/,'post() 需在測試模式放寬到 120s');
+  assert.match(solver,/RUNTIME\.mode==='test'\?45000:3000/,'health 檢查維持 45s');
+});
