@@ -978,3 +978,41 @@ tr.mk-noted>td:first-child::after{content:"✎";position:absolute}
 .mk-swatch{min-width:64px;min-height:44px;border-radius:10px;border:2px solid transparent;font-weight:900;cursor:pointer;color:#20252C}
 .mk-swatch.sw-y{background:#F5C518}.mk-swatch.sw-r{background:#E5484D;color:#fff}.mk-swatch.sw-g{background:#30A46C;color:#fff}.mk-swatch.sw-b{background:#3E82F7;color:#fff}
 .mk-swatch.on{border-color:var(--ink);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 40%,transparent)}
+
+/* 排程表縮放工具列 */
+.szbar{display:flex;align-items:center;gap:4px;margin-left:10px;flex:none}
+.szbar .btn{min-width:34px;min-height:32px;padding:2px 8px;font-size:14px;font-weight:800}
+.szbar .szpct{min-width:44px;text-align:center;font-weight:800;color:var(--muted);font-size:13px}
+/* 週儲存格高度跟隨縮放（欄寬由 inline grid-template 控制） */
+.wcell{height:var(--wcell-h,74px)}
+
+/* 整週縮小時：欄頭精簡（手機 fit-week 內容不撐開欄寬） */
+@media (max-width:800px){
+  .wgrid .wh b{font-size:14px}
+  .wgrid .wh small{display:none}
+  .wgrid .wrow{padding:4px 6px;max-width:110px;overflow:hidden}
+  .wgrid .wrow small{display:none}
+}
+
+
+/* 整週縮小（≤800px 且週縮放小於 0.6）：欄頭再精簡為週幾數字、wbar 隱文字 */
+@media (max-width:800px){
+  .wh b{white-space:nowrap;overflow:hidden;max-width:100%}
+  .wload{font-size:10px}
+}
+
+/* 整週適應模式（data-fit）：手機欄頭只留數字、內容精簡不撐開欄寬 */
+.board[data-fit="1"] .wh small{display:none}
+.board[data-fit="1"] .wh b{font-size:15px;white-space:nowrap;overflow:hidden;max-width:100%}
+.board[data-fit="1"] .wrow{max-width:96px;overflow:hidden;white-space:nowrap}
+.board[data-fit="1"] .wrow small{display:none}
+.board[data-fit="1"] .wbar{font-size:0;padding-left:0;min-width:6px}
+.board[data-fit="1"] .wload{font-size:9px;position:absolute;bottom:2px;right:2px}
+
+/* 整週適應（data-fit）：欄頭只留日期數字（標籤/變動 tag 全精簡） */
+.board[data-fit="1"] .wh small,
+.board[data-fit="1"] .wh .tag{display:none!important}
+.board[data-fit="1"] .wh b{font-size:16px}
+
+/* 整週適應：欄寬完全由 minmax 控制（不受 max-content 撐開） */
+.board[data-fit="1"] .wgrid{min-width:0!important}
