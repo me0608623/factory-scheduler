@@ -1322,3 +1322,9 @@
 
 - **品質驗證輪（無需修改）**：(1) 空 catch 全面掃描——18 處全是刻意漸進增強（localStorage 限額防護、可選 API 降級、音效/通知），無該記未記的吞錯；(2) 依賴升級後 bundle 基準——main 292KB gz＋three/excel 皆確認為 lazy chunk（WebGLRenderer 命中證實為動態 namespace 引用，非本體打包），結構健康
 - 起步：工作區乾淨、正式站 web/solver 200
+
+## 輪次 109（2026-10-12，10 分鐘優化排程）
+
+- **權限與排程隔離演練**：上次 10/02 後 main 累積 ~25 commit 未演練——手動 dispatch（36s 成功）：最新備份還原到拋棄式 PG17 → 重放全部 migration → 模擬 boss/lead/viewer 驗證資料庫層權限矩陣與排程流程。10/02 以來的 schema/程式變更在真備份上驗證相容；正式環境零接觸
+- 盤點：acceptance-sim／catalog-inventory 兩演練同樣 10/02 後未跑（無 schedule、僅 dispatch；近期無 schema 變更，暫不急）
+- 起步：工作區乾淨、正式站 web/solver 200
