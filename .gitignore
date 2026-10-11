@@ -12,3 +12,4 @@ web/dist/
 web/dist-qa/
 outputs/
 *.xlsx.inspect.ndjson
+.vite-dev.log
