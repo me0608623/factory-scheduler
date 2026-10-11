@@ -26,7 +26,7 @@ export function saveSchedZoom() {
   try { localStorage.setItem(SZOOM_KEY, JSON.stringify(state)); } catch (e) { /* 私密模式 */ }
 }
 
-export const clampZ = z => Math.min(SZOOM_MAX, Math.max(SZOOM_MIN, Math.round(z * 100) / 100));
+export const clampZ = z => Number.isFinite(z)?Math.min(SZOOM_MAX, Math.max(SZOOM_MIN, Math.round(z * 100) / 100)):1;
 
 /** 調整目前視圖的縮放；回傳 {zoom, cross}——cross="week"|"day" 表示跨層級切換建議 */
 export function setZoom(view, z) {
@@ -44,24 +44,33 @@ export function setWheelZoom(on) { state.wheelZoom = !!on; saveSchedZoom(); retu
 
 /** rAF 節流：高頻滾輪/雙指事件合併為每框一次套用 */
 export function rafApply(fn) {
-  let queued = false;
-  return (...args) => {
+  let queued = false, latest, generation=0;
+  const schedule=(...args) => {
+    latest=args;
     if (queued) return;
     queued = true;
-    requestAnimationFrame(() => { queued = false; fn(...args); });
+    const token=generation;
+    requestAnimationFrame(() => { if(token!==generation)return;queued=false;fn(...latest); });
   };
+  schedule.cancel=()=>{generation++;queued=false;latest=null;};
+  return schedule;
 }
 
 /**
  * 以 (cx,cy) 為錨點縮放：維持錨點下的內容不動——調整捲動位置補償。
  * 用於滾輪（游標）與雙指（中心點）。scrollEl=橫向捲動容器；縱向補償視窗捲動。
  */
-export function anchorScroll(scrollEl, cx, cy, z0, z1) {
-  if (!scrollEl) return;
-  const k = z1 / z0;
-  const rect = scrollEl.getBoundingClientRect();
-  const dx = cx - rect.left + scrollEl.scrollLeft;   // 內容座標（px, 未含縮放後寬度差）
-  scrollEl.scrollLeft = dx * k - (cx - rect.left);
-  const dy = cy + window.scrollY;
-  window.scrollTo(0, dy * k - cy);
+export function captureZoomAnchor(scrollEl,cx,cy){
+  if(!scrollEl)return null;
+  const cells=[...scrollEl.querySelectorAll('.col,.wcell')];
+  const index=cells.findIndex(el=>{const r=el.getBoundingClientRect();return cx>=r.left&&cx<=r.right&&cy>=r.top&&cy<=r.bottom;});
+  const rect=(index>=0?cells[index]:scrollEl).getBoundingClientRect();
+  return {index,x:(cx-rect.left)/Math.max(1,rect.width),y:(cy-rect.top)/Math.max(1,rect.height)};
+}
+export function anchorScroll(scrollEl,cx,cy,anchor){
+  if(!scrollEl||!anchor)return;
+  const cells=[...scrollEl.querySelectorAll('.col,.wcell')];
+  const rect=(cells[anchor.index]||scrollEl).getBoundingClientRect();
+  scrollEl.scrollLeft+=rect.left+anchor.x*rect.width-cx;
+  window.scrollTo(window.scrollX||0,window.scrollY+rect.top+anchor.y*rect.height-cy);
 }

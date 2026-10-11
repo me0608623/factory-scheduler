@@ -980,8 +980,8 @@ tr.mk-noted>td:first-child::after{content:"✎";position:absolute}
 .mk-swatch.on{border-color:var(--ink);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 40%,transparent)}
 
 /* 排程表縮放工具列 */
-.szbar{display:flex;align-items:center;gap:4px;margin-left:10px;flex:none}
-.szbar .btn{min-width:34px;min-height:32px;padding:2px 8px;font-size:14px;font-weight:800}
+.szbar{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-left:10px;max-width:100%;flex:0 1 auto}
+.szbar .btn{min-width:44px;min-height:44px;padding:2px 8px;font-size:14px;font-weight:800}
 .szbar .szpct{min-width:44px;text-align:center;font-weight:800;color:var(--muted);font-size:13px}
 /* 週儲存格高度跟隨縮放（欄寬由 inline grid-template 控制） */
 .wcell{height:var(--wcell-h,74px)}
@@ -1016,3 +1016,10 @@ tr.mk-noted>td:first-child::after{content:"✎";position:absolute}
 
 /* 整週適應：欄寬完全由 minmax 控制（不受 max-content 撐開） */
 .board[data-fit="1"] .wgrid{min-width:0!important}
+.board[data-fit="1"] .wgrid{grid-template-columns:54px repeat(7,minmax(0,1fr))!important}
+.board[data-fit="1"] .wh,.board[data-fit="1"] .wcell{min-width:0;overflow:hidden}
+.fit-date{display:none}
+.board[data-fit="1"] .full-date{display:none}
+.board[data-fit="1"] .fit-date{display:inline}
+.board[data-fit="1"] .wh{padding:8px 3px;text-align:center}
+@media(max-width:800px){.szbar{margin-left:0}.top-in{min-width:0}.top-main{min-width:0}.page-links,.datenav{min-width:0}}

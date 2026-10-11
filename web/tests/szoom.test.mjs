@@ -64,9 +64,30 @@ test('rafApply：同一框多次呼叫只執行一次', async () => {
   assert.equal(n, 2);
 });
 
-test('anchorScroll：以錨點為中心的比例補償', () => {
-  const el = { getBoundingClientRect: () => ({ left: 100, top: 0 }), scrollLeft: 50 };
-  S.anchorScroll(el, 300, 400, 1, 2);   // 2x 放大，錨點在 x=300
-  // dx = 300-100+50 = 250 → 新 scrollLeft = 250*2 - 200 = 300
-  assert.equal(el.scrollLeft, 300);
+test('anchorScroll uses newly rendered cell geometry, not whole-page scaling', () => {
+  const oldCell={getBoundingClientRect:()=>({left:100,top:200,right:300,bottom:800,width:200,height:600})};
+  const before={querySelectorAll:()=>[oldCell],getBoundingClientRect:oldCell.getBoundingClientRect};
+  const anchor=S.captureZoomAnchor(before,200,400);
+  let scrolled;window.scrollY=300;window.scrollTo=(x,y)=>{scrolled=y;};
+  const cell={getBoundingClientRect:()=>({left:100,top:200,width:300,height:1200})};
+  const after={querySelectorAll:()=>[cell],scrollLeft:50};
+  S.anchorScroll(after,200,400,anchor);
+  assert.equal(after.scrollLeft,100);assert.equal(scrolled,500);
+});
+
+test('cancelled frame cannot consume a newer gesture',()=>{
+  const frames=[];globalThis.requestAnimationFrame=fn=>frames.push(fn);
+  const calls=[];const f=S.rafApply(n=>calls.push(n));
+  f(1);f.cancel();f(2);frames.shift()();assert.deepEqual(calls,[]);frames.shift()();assert.deepEqual(calls,[2]);
+});
+
+test('clampZ rejects non-finite zoom without poisoning rendering',()=>{
+  for(const z of [NaN,Infinity,-Infinity,undefined])assert.equal(S.clampZ(z),1);
+});
+
+test('rAF uses latest pinch coordinates and supports cancelling stale work',()=>{
+  const frames=[];globalThis.requestAnimationFrame=fn=>frames.push(fn);
+  const calls=[];const f=S.rafApply((...args)=>calls.push(args));
+  f(1,10);f(2,20);frames.shift()();assert.deepEqual(calls,[[2,20]]);
+  f(3,30);f.cancel();frames.shift()();assert.equal(calls.length,1);
 });
