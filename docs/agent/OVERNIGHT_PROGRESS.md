@@ -297,3 +297,8 @@
 
 - **due-list 導航狀態啟用**：總覽交期區切前 4 筆＋「查看全部 {n} 張」按鈕（原先無入口的死狀態；比照連帶影響區模式）。381 綠＋build 綠
 - 健康檢查：正式 web/solver 200、staging web 200
+
+## 輪次 118（2026-10-12，10 分鐘優化排程）
+
+- **dev 站 console 錯誤煙霧（驗證輪）**：今日全部變更（i18n 五輪＋時序兩輪＋due-list＋beforeunload＋依賴升級）後重載——看板 26 方塊正常渲染、error/unhandledrejection 監聽 2.5s 零錯誤
+- 起步：工作區乾淨、正式 web/solver 200、staging web 200
