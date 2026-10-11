@@ -1241,3 +1241,8 @@
 
 - **fallback 文案分層**：preview-nav 回傳 fallbackKind 代碼、app 層 tx() 顯示（+4 鍵）；模組回到純資料無展示文字，互動預覽 i18n 全面收尾。全套 378 綠
 - 起步：工作區乾淨、正式站 web/solver 200
+
+## 輪次 93（2026-10-12，10 分鐘優化排程）
+
+- **段落文字 i18n**：列表行/對照卡/摘要 5 處改用 app 層 tx() 格式器（dpSegTxt/dpRngTxt）；模組中文字串退為內部用途。互動預覽 i18n 僅剩 dueDetail stepRows（下輪）。全套 378 綠
+- 起步：工作區乾淨、正式站 web/solver 200
