@@ -1277,3 +1277,8 @@
 
 - **預覽定位捲動強化**：dpScrollTarget 改 rAF 重試（≤800ms、PV 切換即中止）——修復大量方塊時 render>40ms 導致進詳情後看板不定位的靜默失效；既有 preview-events 沙箱測試全過（performance→Date.now）。379 綠
 - 起步：工作區乾淨、正式站 web/solver 200
+
+## 輪次 100（2026-10-12，10 分鐘優化排程）
+
+- **返回鈕聚焦 rAF 重試**（focusDpBack）：與輪次 99 的捲動定位同模式，修復 render 慢時鍵盤聚焦靜默失效；掃過其餘短 setTimeout（導覽 300-600ms、下載清理 1s 等）皆為刻意讓出主執行緒或延遲收尾，不需改。379 綠
+- 起步：工作區乾淨、正式站 web/solver 200
