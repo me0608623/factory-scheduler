@@ -2335,11 +2335,13 @@ function dpTitle(nav,P){
   return tx('手動排班預覽');
 }
 const dpLab=(t,p)=>'<span class="lab">'+tx(t,p)+'</span>';
+const dpSegTxt=b=>mdw(b.date)+" "+hm(b.s)+"–"+hm(b.e)+" · "+b.m+" "+tx('機台');
+const dpRngTxt=bl=>!bl||!bl.length?tx('未排入'):dpSegTxt(bl[0])+(bl.length>1?" …"+tx('{n} 段',{n:bl.length}):"");
 function dpOpRow(m,v){
   const k=m.gone?"fail":m.startDelta>0?"delay":m.startDelta<0?"early":"info";
   return '<button class="dp-row" data-act="dp-nav" data-v="'+v+'" data-id="'+esc(m.key)+'">'+
    '<span class="k '+k+'">'+esc(m.code)+'</span>'+
-   '<span class="dp-row-t"><b>'+esc(m.step)+'</b><small>'+esc(m.prevTxt)+' → '+esc(m.nextTxt)+'</small></span>'+
+   '<span class="dp-row-t"><b>'+esc(m.step)+'</b><small>'+esc(dpRngTxt(m.prev))+' → '+esc(dpRngTxt(m.next))+'</small></span>'+
    (m.split?'<span class="tag">'+tx('{n} 段',{n:m.nextSegs.length})+'</span>':'')+(m.crossDay?'<span class="tag warn">'+tx('跨日')+'</span>':'')+(m.empChanged?'<span class="tag">'+tx('換人')+'</span>':'')+
    '</button>';
 }
@@ -2357,9 +2359,9 @@ function dpOpDetailHTML(P,key){
   const empTxt=det.empChanged?tx('員工有更換：{a} → {b}',{a:det.prevEmps.join("、")||tx('未指定'),b:det.nextEmps.join("、")||tx('未指定')}):tx('員工沒有更換')+(det.nextEmps.length?"（"+det.nextEmps.join("、")+"）":"");
   const deltaTxt=det.startDelta==null?"":det.startDelta>0?tx('開始時間往後 {d}',{d:fmtDelta(det.startDelta)}):det.startDelta<0?tx('開始時間提早 {d}',{d:fmtDelta(-det.startDelta)}):tx('開始時間不變');
   return '<div class="dp-det">'+
-   '<div class="dp-sides"><div class="dp-side"><span class="dp-side-t">'+tx('原本')+'</span>'+dpSegList(det.prevSegs,"prev")+'</div>'+
+   '<div class="dp-sides"><div class="dp-side"><span class="dp-side-t">'+tx('原本')+'</span>'+dpSegList(det.prev.map(dpSegTxt),"prev")+'</div>'+
    '<span class="dp-arrow" aria-hidden="true">→</span>'+
-   '<div class="dp-side"><span class="dp-side-t">'+(det.gone?tx('調整後（未排入）'):tx('調整後'))+'</span>'+dpSegList(det.nextSegs,"next")+'</div></div>'+
+   '<div class="dp-side"><span class="dp-side-t">'+(det.gone?tx('調整後（未排入）'):tx('調整後'))+'</span>'+dpSegList(det.next.map(dpSegTxt),"next")+'</div></div>'+
    '<div class="dp-facts">'+esc(empTxt)+(deltaTxt?'；'+esc(deltaTxt):'')+(det.split||det.crossDay?'；'+tx('{a}，各段可單獨定位',{a:[det.split?tx('分成多段'):"",det.crossDay?tx('跨日'):""].filter(Boolean).join("、")}):'')+'</div>'+
    '<div class="dp-why"><span class="lab">'+tx('為什麼需要調整')+'</span>'+(det.reasons?det.reasons.map(t=>'<div class="issue">'+esc(t)+'</div>').join(""):'<div class="hint">'+esc(({manual:tx('使用者手動調整這道工序的位置或工作長度。'),gone:tx('調整後這道工序沒有可用的時段，暫時未排入。'),added:tx('這是調整後新排入的工序。'),unclear:tx('此工序位置有變動；尚未能確定更詳細的原因，可對照前後位置判斷。')})[det.fallbackKind]||tx('此工序位置有變動。'))+'</div>')+'</div>'+
    (det.rel.length?'<div class="field">'+dpLab('同張工單其他受影響工序（相依）')+det.rel.map(m=>dpOpRow(m,"impact-detail")).join("")+'</div>':'')+
@@ -2402,7 +2404,7 @@ function dpBodyHTML(){
   if(nav.view==="schedule-compare"){
     const det=nav.sel&&nav.sel.key?opDetail(P,nav.sel.key):null;
     return '<div class="hint">'+tx('排程表＝前後對照：虛線方塊是原本位置，亮色方塊是調整後位置；上方可切換「原本／調整後／對照」，滾輪與雙指縮放照常可用。點排程表上其他變動的方塊可切換檢視對象。')+'</div>'+
-      (det?'<div class="dp-sum"><b>'+esc(det.code+" "+det.step)+'</b><small>'+esc(det.prevTxt)+' → '+esc(det.nextTxt)+'</small></div>':'')+
+      (det?'<div class="dp-sum"><b>'+esc(det.code+" "+det.step)+'</b><small>'+esc(dpRngTxt(det.prev))+' → '+esc(dpRngTxt(det.next))+'</small></div>':'')+
       (P.unpinned.length?'<div class="issues">'+P.unpinned.map(x=>'<div class="issue">'+esc(x.label)+' 已固定（釘）。確認後會解除固定並移動它；取消則保持原樣。</div>').join("")+'</div>':'');
   }
   // overview：總覽
