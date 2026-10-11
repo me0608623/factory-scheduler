@@ -1191,3 +1191,8 @@
   - solver health 在測試模式放寬 45s（staging 冷啟動容忍）
   - 測試 +3，全套 **375/375 綠**＋build 綠
 - 正式 Supabase 未觸碰
+
+## 輪次 84（2026-10-12，10 分鐘優化排程）
+
+- **測試模式 solver 金鑰支援**（main `~`）：新增可選 VITE_TEST_SOLVER_API_KEY，修復 staging solver 有金鑰保護時測試模式 401 退回瀏覽器演算法的缺口；測試/正式服務憑證互不沿用（+1 測試，376 綠）
+- 工作區起步乾淨、上一輪 CI 綠（Tests/smoke/部署）
