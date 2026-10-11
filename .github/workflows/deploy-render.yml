@@ -85,3 +85,20 @@ jobs:
           code=$(curl -s -o /tmp/solver.json -w '%{http_code}' -X POST "$HOOK")
           echo "HTTP $code $(cat /tmp/solver.json)"
           case "$code" in 200|201|202) echo "solver deploy triggered";; *) echo "::error::solver hook failed"; exit 1;; esac
+      # 部署後功能標記驗證：等正式站 bundle 出現本次功能的關鍵字（字串字面值不會被壓縮改名）。
+      # 標記隨功能演進需同步更新；失敗＝部署未上線或回滾，提早發現而不是等使用者回報。
+      - name: 部署後功能標記驗證（web）
+        if: steps.gate.outputs.deploy == 'go'
+        run: |
+          MARKERS="schedule-compare dp-row fsched-test-auth"
+          for i in $(seq 1 30); do
+            BUNDLE=$(curl -s https://factory-scheduler-web.onrender.com/ | grep -o 'assets/index-[^"]*.js' | head -1)
+            [ -n "$BUNDLE" ] || { echo "[$i] 尚未取得 bundle 檔名"; sleep 20; continue; }
+            BODY=$(curl -s "https://factory-scheduler-web.onrender.com/$BUNDLE")
+            MISSING=""
+            for m in $MARKERS; do printf '%s' "$BODY" | grep -q "$m" || MISSING="$MISSING $m"; done
+            if [ -z "$MISSING" ]; then echo "✓ 部署驗證通過：$BUNDLE 含全部功能標記"; exit 0; fi
+            echo "[$i] $BUNDLE 尚缺:$MISSING（部署進行中，20 秒後重試）"
+            sleep 20
+          done
+          echo "::error::部署後 10 分鐘仍缺功能標記——部署可能失敗或回滾，請到 Render 檢查"; exit 1
