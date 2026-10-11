@@ -1219,3 +1219,9 @@
 - **staging web 部署自動化入口**（main `9b35942`）：新增「部署 Render staging 網站」workflow（workflow_dispatch；未設 RENDER_STAGING_WEB_DEPLOY_HOOK 時印設定說明並跳過——實跑驗證綠燈與 notice 行為）。staging 落後正式多日首次有更新管道；hook 設定已列入 NEXT_TASKS 待使用者處理
 - 健康檢查：正式 web/solver 200、staging solver 200
 - 起步：工作區乾淨
+
+## 輪次 89（2026-10-12，10 分鐘優化排程）
+
+- **apply_plan 版本衝突測試補齊**（main `08992df`）：預覽建立後別人先存 → 套用時 40001 → ConflictError、排程只留對方版本不半套用。衝突覆蓋至此三路全齊（sync／save_blocks／apply_plan）；全套 378 綠
+- 註：TEST_DATA_REPORT 的「衝突未驗證」其實 store 層已有覆蓋（本輪補齊最後一塊）
+- 起步：工作區乾淨、正式站 web/solver 200
