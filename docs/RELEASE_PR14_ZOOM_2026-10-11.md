@@ -63,3 +63,15 @@ PR CI 全綠後才合併。main 同提交測試綠燈觸發現有部署 workflow
 - 桌面縮放按鈕維持鍵盤焦點；Enter 放大生效。手機工具列44px以上、換行後所有按鈕可見。
 - 整週模式標示「整週」，避免固定30%被誤認為實際自適應欄寬比例。
 - 單元與瀏覽器的已驗證項目滿足此次合併門檻；iPhone原生手勢仍明確保留「未驗證」，工具列為已測替代入口。
+
+## 已完成正式發佈
+
+- PR #14：https://github.com/me0608623/factory-scheduler/pull/14，已合併。
+- 修復分支67047f8；正式執行期提交7c3202a11a95b5e348ed505c2e1991029475b005。
+- PR Tests 38120083249 與 main Tests 38120241166 全綠：前端326、資料庫201、solver168、跨層A/B/C/D通過。
+- main Deployment smoke test 38120241157、正式部署workflow 38120241209成功。
+- Render web dep-db5jbvg473hc73bcs6v0 / solver dep-db5jbvg473hc73bcs78g 均live，提交相同。
+- 正式首頁HTTP200，/assets/index-B9BRssvV.js與/assets/index-D-js-n4l.css和Render build一致。
+- /health ok=true、database=true；部署時間起solver error logs為0。
+- 正式瀏覽器登入頁載入正常、console error 0；未登入操作正式排程，限制如上。
+- 後續僅本文件docs-only提交，不觸發重部署，線上執行期仍7c3202a。
