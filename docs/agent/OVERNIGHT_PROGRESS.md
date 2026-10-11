@@ -1182,3 +1182,12 @@
   - 測試 +8（模式隔離/fail-closed/hash 剝離/種子安全），全套 **372/372 綠**＋build 綠
   - 實機驗證：一般啟動正常無測試入口；未設定時顯示「測試環境尚未設定完成，已停止連線；不會使用正式資料」＋回正式連結
 - 正式 Supabase 全程未觸碰；下一步：CI 綠後，於 Render 設 VITE_TEST_* 環境變數（staging publishable key）即可在正式站啟用測試模式入口
+
+## 輪次 83（2026-10-12，10 分鐘優化排程）
+
+- **完成並推送測試模式安全強化**（main `020bc75`）：
+  - 前端測試設定若含 sb_secret_／service_role 金鑰即 fail-closed（只允許 publishable key）
+  - 註冊／忘記密碼信件導回網址保留 ?mode=test 並剝離 callback token（邀請信不會把人帶回正式站）
+  - solver health 在測試模式放寬 45s（staging 冷啟動容忍）
+  - 測試 +3，全套 **375/375 綠**＋build 綠
+- 正式 Supabase 未觸碰
