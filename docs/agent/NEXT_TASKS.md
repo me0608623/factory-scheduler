@@ -54,3 +54,8 @@
 
 - [ ] **RENDER_STAGING_WEB_DEPLOY_HOOK**：Render → factory-scheduler-web-staging → Settings → Create Deploy Hook → 貼到 GitHub Secrets。設好後 staging web 可用「部署 Render staging 網站」workflow 手動更新（目前 staging 跑的是 10/11 前的舊版）
 - [ ] **正式站測試模式啟用**：Render web 服務加 VITE_TEST_* 三變數（見 docs/TEST_MODE.md）
+
+## 依賴升級待辦（破壞性跨度，需獨立輪驗證）
+
+- [ ] pglite 0.3.16 → 0.5.8：影響 web/tests/fake-supabase.mjs 的 PGlite 沙箱（db 層測試基礎）；升級需全跑 web+db 測試並確認 SQL 相容
+- [ ] saxes 5 → 6：Excel XML 解析（exceljs 相依）；major 版需匯入匯出回歸測試
