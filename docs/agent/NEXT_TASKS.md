@@ -57,5 +57,5 @@
 
 ## 依賴升級待辦（破壞性跨度，需獨立輪驗證）
 
-- [ ] pglite 0.3.16 → 0.5.8：影響 web/tests/fake-supabase.mjs 的 PGlite 沙箱（db 層測試基礎）；升級需全跑 web+db 測試並確認 SQL 相容
+- [x] pglite 0.3.16 → 0.5.8（→ 輪次 106）：全套 379 綠＋build 綠，沙箱完整相容
 - [ ] saxes 5 → 6：Excel XML 解析（exceljs 相依）；major 版需匯入匯出回歸測試
