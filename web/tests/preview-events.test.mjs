@@ -117,3 +117,7 @@ test('Escape at root cancels without writes; modal Escape is not hijacked by nav
   h.events.keydown({key:'Escape',target:{},preventDefault(){}});
   assert.equal(h.ctx.PV,null);assert.equal(JSON.stringify(h.ctx.S),before);assert.ok(!h.log.includes('commit'));
 });
+test('missing finish dates are unknown, never displayed as unchanged',()=>{
+  const h=harness();h.ctx.dpDueRow=()=>'';h.ctx.dueDetail=()=>({qty:10,code:'A01',due:'2026-10-12',finish:null,finishB:null,affectedOps:[],stepRows:[]});
+  const html=h.ctx.dpDueDetailHTML(h.P,'o1');assert.match(html,/完成日期尚無法比較/);assert.doesNotMatch(html,/完成日期不變/);
+});

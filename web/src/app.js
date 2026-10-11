@@ -2373,7 +2373,7 @@ function dpDueDetailHTML(P,oid){
    '<div class="dp-sides"><div class="dp-side"><span class="dp-side-t">'+tx('原本預計完成')+'</span><div class="dp-seg">'+(det.finishB?mdw(det.finishB):tx('未排完'))+'</div></div>'+
    '<span class="dp-arrow" aria-hidden="true">→</span>'+
    '<div class="dp-side"><span class="dp-side-t">'+tx('調整後預計完成')+'</span><div class="dp-seg">'+(det.finish?mdw(det.finish):tx('未排完'))+'</div></div></div>'+
-   (det.deltaDays!=null&&det.deltaDays!==0?'<div class="issue">'+(det.deltaDays>0?"延後 ":"提早 ")+Math.abs(det.deltaDays)+' 天</div>':'<div class="okbox">'+tx('完成日期不變')+'</div>')+
+   (det.deltaDays!=null&&det.deltaDays!==0?'<div class="issue">'+(det.deltaDays>0?"延後 ":"提早 ")+Math.abs(det.deltaDays)+' 天</div>':det.finish&&det.finishB?'<div class="okbox">'+tx('完成日期不變')+'</div>':'<div class="hint">'+tx('完成日期尚無法比較')+'</div>')+
    (det.unfinished?'<div class="field">'+dpLab('尚未排完的工序')+det.stepRows.filter(r=>r.unfinished).map(r=>'<div class="issue">'+esc(r.proc+'：已排 '+r.qty+' / '+det.qty+' 件'+(r.gone?"；調整後未排入":""))+'</div>').join("")+'</div>':'')+
    '<div class="field">'+dpLab('各工序前後位置')+det.stepRows.map(r=>'<div class="dp-step'+(r.changed?" chg":"")+'"><b>'+esc(r.proc)+'</b>'+(r.changed?'<small>'+esc(r.prevTxt)+' → '+esc(r.nextTxt)+'</small>':'<small>'+tx('不變')+'</small>')+'</div>').join("")+'</div>'+
    (det.affectedOps.length?'<div class="field">'+dpLab('受影響的工序（可點擊）')+det.affectedOps.map(m=>dpOpRow(m,"impact-detail")).join("")+'</div>':'')+

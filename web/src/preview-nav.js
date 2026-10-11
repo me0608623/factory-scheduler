@@ -1,6 +1,7 @@
 // 互動式手動排班預覽：階層導航狀態機與顯示模型。
 // 純邏輯、無 DOM／無全域——所有檢視操作只讀 proposal，不碰正式排程。
 // app.js 負責渲染與 data-act 佈線；本模組產生「要顯示什麼」。
+import { effectiveBlockQty } from './manual.js';
 
 /* ----- 日期／時間小工具（與 app.js 同規則的純實作） ----- */
 const DAYMS = 86400000;
@@ -153,8 +154,8 @@ export function opDetail(P, key) {
 }
 
 // 每道工序的排程數量（純計算，供「未排完」判斷）
-function stepQty(blocks, oid, si) {
-  return blocks.filter(b => b.oid === oid && b.step === si).reduce((a, b) => a + (b.qty || 0), 0);
+function stepQty(blocks, oid, si, execution) {
+  return blocks.filter(b => b.oid === oid && b.step === si).reduce((a, b) => a + effectiveBlockQty(b,execution), 0);
 }
 
 // 工單交期詳情
@@ -166,14 +167,15 @@ export function dueDetail(P, oid) {
   const steps = (p && p.steps) || [];
   const baseBlocks = ((P.B || {}).blocks) || [];
   const afterBlocks = ((P.after || {}).blocks) || [];
+  const execution = P.after?.execution || [];
   const stepRows = steps.map((st2, si) => {
     const prev = baseBlocks.filter(b => b.oid === oid && b.step === si).sort((a, b) => pvAbsOf(a.date, a.s) - pvAbsOf(b.date, b.s));
     const next = afterBlocks.filter(b => b.oid === oid && b.step === si).sort((a, b) => pvAbsOf(a.date, a.s) - pvAbsOf(b.date, b.s));
     const changed = JSON.stringify(prev.map(b => [b.date, b.s, b.e, b.m])) !== JSON.stringify(next.map(b => [b.date, b.s, b.e, b.m]));
     return {
       si, proc: st2.proc, prevTxt: pvRangeTxt(prev), nextTxt: pvRangeTxt(next),
-      qty: stepQty(afterBlocks, oid, si), changed, gone: !next.length,
-      unfinished: stepQty(afterBlocks, oid, si) < o.qty,
+      qty: stepQty(afterBlocks, oid, si, execution), changed, gone: !next.length,
+      unfinished: stepQty(afterBlocks, oid, si, execution) < o.qty,
     };
   });
   const affectedOps = (P.ops || []).filter(x => x.oid === oid).map(x => opModel(P, x));

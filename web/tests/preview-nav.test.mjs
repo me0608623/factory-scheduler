@@ -153,6 +153,10 @@ test('交期詳情：各工序前後位置與未排完判定', () => {
   assert.deepEqual(det.affectedOps.map(x => x.key), ['oB05|0', 'oB05|1']);
   assert.equal(dueDetail(P, 'nope'), null);
 });
+test('交期詳情採完工回報件數，短少不可被原定數量蓋掉',()=>{
+  const q={...P,after:{...A,execution:[{blockId:'k5',status:'done',qtyDone:5},{blockId:'k6',status:'running',qtyDone:3}]}};
+  const cut=dueDetail(q,'oB05').stepRows[0];assert.equal(cut.qty,20);assert.equal(cut.unfinished,true);
+});
 
 test('boardTarget：多段跨日跨機都能定位（不只第一段）', () => {
   const t = boardTarget(P, 'oB05|0');

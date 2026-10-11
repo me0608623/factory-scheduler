@@ -80,8 +80,8 @@ test('i18n：新互動預覽鍵已入字典（三語）', () => {
     assert.ok(i18n.includes(k + ':'), k + ' 缺字典');
 });
 
-test('preview-nav.js：純模組——不 import、不碰 DOM／正式資料', () => {
-  assert.equal(nav.includes('import '), false, '不得有 import（保持純函式）');
+test('preview-nav.js：純模組——只重用純數量函式，不碰 DOM／正式資料', () => {
+  assert.deepEqual(nav.match(/^import .*;$/gm), ["import { effectiveBlockQty } from './manual.js';"], '只允許重用純數量函式');
   assert.equal(nav.includes('document.'), false, '不得碰 DOM');
   assert.equal(nav.includes('localStorage'), false, '不得碰儲存');
 });

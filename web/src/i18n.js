@@ -114,6 +114,7 @@ export const UI_TEXT = {
   "{n} 段": { en: "{n} seg", vi: "{n} đoạn", th: "{n} ช่วง" },
   "不變": { en: "Unchanged", vi: "Không đổi", th: "ไม่เปลี่ยน" },
   "完成日期不變": { en: "Finish date unchanged", vi: "Ngày hoàn thành không đổi", th: "วันเสร็จไม่เปลี่ยน" },
+  "完成日期尚無法比較": { en: "Finish dates cannot yet be compared", vi: "Chưa thể so sánh ngày hoàn thành", th: "ยังเปรียบเทียบวันเสร็จไม่ได้" },
   "找不到這道工序的資料。": { en: "Step data not found.", vi: "Không tìm thấy dữ liệu công đoạn.", th: "ไม่พบข้อมูลขั้นตอนนี้" },
   "找不到這張工單的資料。": { en: "Order data not found.", vi: "Không tìm thấy dữ liệu đơn.", th: "ไม่พบข้อมูลใบสั่งงาน" },
   "同張工單其他受影響工序（相依）": { en: "Other affected steps of this order (dependent)", vi: "Công đoạn khác của đơn này bị ảnh hưởng (phụ thuộc)", th: "ขั้นตอนอื่นของใบสั่งงานนี้ที่กระทบ (พึ่งพากัน)" },
