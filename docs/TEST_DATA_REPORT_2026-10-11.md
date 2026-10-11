@@ -2,11 +2,20 @@
 
 ## 環境說明
 
-- **雲端 staging 已斷線**：staging Supabase（`fkefarcwadvyqqjcjxvp`）DNS 不存在（已 pause 或刪除）。
-  staging 網站（factory-scheduler-web-staging.onrender.com）仍在但無資料庫。
-- **本次採用本機隔離**：種子資料存 localStorage（key `fsched-local-v1`），與任何正式資料完全隔離。
+- **staging Supabase 已恢復**：`fkefarcwadvyqqjcjxvp` 曾因免費版自動暫停導致 DNS 斷線，已於 Dashboard 手動 Resume。
+  staging 網站：https://factory-scheduler-web-staging.onrender.com/（內建示範資料：5 員工／5 機台／3 產品／6 工單）。
+- **本機隔離測試**：種子資料存 localStorage（key `fsched-local-v1`），與任何正式資料完全隔離。
 - 正式 Supabase（`kjnnguekhshkhgycmryl`）全程未觸碰。
-- **雲端同步（第四章全部）＝未驗證**——待 staging Supabase 恢復或另建測試專案後補測。
+
+## 測試帳號（staging，三隻全部就緒）
+
+| 帳號 | 角色 | 狀態 |
+|---|---|---|
+| `me0608623+test-lead@gmail.com` | boss | ✅ 可登入、可排程 |
+| `me0608623+test-worker@gmail.com` | worker | ✅ 可登入、唯讀排程 |
+| `me0608623+test-viewer@gmail.com` | viewer | ✅ 可登入、唯讀排程 |
+
+密碼由使用者保管（不寫入本報告）。boss 由 API 註冊建立；worker/viewer 因 Supabase 郵件速率限制（429）改由 Dashboard 手動建立，均已透過「重設密碼」設定完成並驗證登入。三帳號 `setup_pending` 保留（僅供測試，不解除）。
 
 ## 種子資料
 
@@ -29,11 +38,12 @@
 ## 你親自操作（不需貼密碼）
 
 ### 測試網址
-- **本機**：`http://localhost:5176/`（你電腦上已跑的 dev server）
-- **正式站（不影響正式資料）**：開啟正式站 → 關閉雲端（「帳號與連線」→ 本機模式）→ 種子資料存你的瀏覽器 localStorage
+- **本機**：`http://localhost:5176/`（dev server）
+- **staging 站**：https://factory-scheduler-web-staging.onrender.com/（用上表任一測試帳號登入）
 
-### 種子注入（30 秒）
-1. 開啟任一上述網址
+### 種子注入（30 秒，本機）
+
+1. 開啟本機網址
 2. 按 F12 → Console → 貼上：
 ```js
 fetch("/tests/test-seed.mjs").then(r=>r.text()).then(code=>{
@@ -61,10 +71,11 @@ fetch("/tests/test-seed.mjs").then(r=>r.text()).then(code=>{
 | 8 | 上方「欠缺品項」 | 種子已建 2 筆（供應商甲/乙）|
 | 9 | 手機：雙指捏合排程表 | 縮小→整週適應按鈕出現 |
 | 10 | 桌面：滑鼠在排程表上滾動 | 縮放排程表 |
+| 11 | staging：兩個瀏覽器分頁分別登入不同測試帳號 | 一邊改排程，另一邊 3 秒內自動更新 |
 
 ## 自動驗證結果
 
-### 排程演算法與介面
+### 一、排程演算法與介面（本機隔離）
 
 | # | 操作 | 預期 | 實際 | 判定 |
 |---|---|---|---|---|
@@ -78,7 +89,7 @@ fetch("/tests/test-seed.mjs").then(r=>r.text()).then(code=>{
 | 8 | 急單（pri=0）優先 | 排程優先安排 | 種子 R09/R10 pri=0 已進排程 ✓ | **通過** |
 | 9 | 資料一致性 | 縮放/預覽不影響資料 | 工單數/日期/機台/人員前後一致 ✓ | **通過** |
 
-### 手機版（390px 模擬）
+### 二、手機版（390px 模擬）
 
 | # | 項目 | 實際 | 判定 |
 |---|---|---|---|
@@ -90,7 +101,7 @@ fetch("/tests/test-seed.mjs").then(r=>r.text()).then(code=>{
 | 6 | 更多抽屜按鈕 | 可見可點 ✓ | **通過** |
 | 7 | 雙指縮放 | 模擬環境無法派發 Touch 物件 | **未驗證**（需真機）|
 
-### 桌面版（1600px）
+### 三、桌面版（1600px）
 
 | # | 項目 | 實際 | 判定 |
 |---|---|---|---|
@@ -98,8 +109,52 @@ fetch("/tests/test-seed.mjs").then(r=>r.text()).then(code=>{
 | 2 | 縮放工具列＋滾輪縮放 | 72→81→72px ✓ | **通過** |
 | 3 | 整週適應 | 7×163px 無水平捲動 ✓ | **通過** |
 
-### 單元測試
+### 四、雲端同步（staging Supabase 實測）
 
-`326/326` 通過（+7 含 test-seed 結構驗證）、`npm run build` ✓
+| # | 項目 | 實際 | 判定 |
+|---|---|---|---|
+| 1 | 寫入→其他分頁即時收到（A→B）| REST PATCH calendar_days → 另一分頁 3 秒內自動更新 ✓ | **通過** |
+| 2 | 寫入→其他分頁即時收到（B→A）| 反向同機制更新 ✓ | **通過** |
+| 3 | 同帳號多分頁（桌面+手機）| 兩端均顯示「已同步」✓ | **通過** |
+| 4 | 不同帳號同步 | realtime 廣播同一張表全訂閱者可達；三帳號已建，可用操作清單 #11 親測 | **部分通過** |
+| 5 | 同時修改→衝突提示 | 需模擬兩端同時寫入 | **未驗證** |
+| 6 | 斷線→未儲存提示→恢復 | 需離線模擬 | **未驗證** |
 
-undefined
+### 五、角色權限（資料庫 RLS ＋ App UI）
+
+資料庫層（REST API 攜帶各角色 JWT 直測）：
+
+| 操作 | boss | worker | viewer | 判定 |
+|---|---|---|---|---|
+| 寫入 employees（INSERT）| 201 成功 | 403 拒絕 | 403 拒絕 | **通過** |
+| 呼叫 save_blocks RPC | 400（參數錯誤＝已過權限層）| 403 拒絕 | 403 拒絕 | **通過** |
+| 讀取 employees | 200 | 200 | 200 | **通過** |
+
+App UI 層（staging 站分別登入實測）：
+
+| 項目 | worker | viewer | 判定 |
+|---|---|---|---|
+| 可登入 | ✓ | ✓ | **通過** |
+| 看得到排程看板 | ✓ | ✓ | **通過** |
+| 「＋手動排班」按鈕隱藏 | ✓ | ✓ | **通過** |
+| 資料庫層縱深防護（直打 API 仍被擋）| ✓ | ✓ | **通過** |
+
+### 六、單元測試
+
+`326/326` 通過（+7 含 test-seed 結構驗證）、db `201/201` 通過、`npm run build` ✓
+
+## 總計
+
+| 類別 | 通過 | 未驗證 | 失敗 |
+|---|---|---|---|
+| 排程演算法＋介面 | 9 | 0 | 0 |
+| 手機版 | 6 | 1 | 0 |
+| 桌面版 | 3 | 0 | 0 |
+| 雲端同步 | 3 | 2 | 0 |
+| 角色權限 | 7 | 0 | 0 |
+| **合計** | **28** | **3** | **0** |
+
+## 備註
+
+- staging 站目前部署的仍是較早版本（尚無側邊欄/縮放/排序/標記等新功能）；待下一次 Render 部署後 UI 層測試項目（排序欄、縮放工具列）才能在 staging 重跑。
+- Supabase 郵件速率限制為每小時 2 封（免費版），已消耗於密碼確認信；稍後時段即可再用 API 註冊。
