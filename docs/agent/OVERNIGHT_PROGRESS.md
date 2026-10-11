@@ -1312,3 +1312,8 @@
 
 - **pglite 0.3.16→0.5.8**：db 測試沙箱升級一次成功——14 個真 SQL 測試（衝突/權限/apply_plan）＋全套 379 綠＋build 綠；NEXT_TASKS 剩 saxes 5→6 一項
 - 起步：工作區乾淨、正式站 web/solver 200
+
+## 輪次 107（2026-10-12，10 分鐘優化排程）
+
+- **saxes 5→6**：legacy Excel XML 解析（歷史班表匯入）升級——scan 包裝器三事件 API 相容，14 相關測試＋379 全綠＋build 綠；exceljs 巢狀 saxes@5 不受影響。**依賴升級待辦全數結案**（pglite/saxes 兩項破壞性跨度皆完成）
+- 起步：工作區乾淨、正式站 web 200
