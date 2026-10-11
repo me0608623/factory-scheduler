@@ -102,23 +102,4 @@ fetch("/tests/test-seed.mjs").then(r=>r.text()).then(code=>{
 
 `326/326` 通過（+7 含 test-seed 結構驗證）、`npm run build` ✓
 
-## 未驗證（雲端同步——staging DB 斷線）
-
-以下全部列為 **未驗證**（非通過、非失敗），待環境就緒：
-
-- 桌面修改→手機不重整看到
-- 手機修改→桌面更新
-- 同帳號／不同帳號分別測試
-- 同時修改→衝突提示（不靜默覆蓋）
-- 斷線→未儲存提示→恢復→重試
-- 組長可排班／員工報工／唯讀不可修改
-
-## 恢復 staging 的步驟（你操作）
-
-1. 登入 supabase.com → 找到專案 `fkefarcwadvyqqjcjxvp`（可能被 pause）
-2. 按 Restore → 等待 DNS 恢復（約 5 分鐘）
-3. 告訴我已恢復 → 我將：
-   - 跑 migrations 建表
-   - 種子資料寫入 staging
-   - 建三個測試帳號（lead/worker/viewer）
-   - 補完整雲端同步驗證
+undefined
