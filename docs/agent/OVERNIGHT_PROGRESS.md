@@ -1307,3 +1307,8 @@
 
 - **依賴健檢＋patch 更新**（main `e81e4bc`）：supabase-js 2.117.2→.3、vite 6.4.3→.4（semver 相容）；379 綠＋build 綠＋audit 0。pglite 0.3→0.5、saxes 5→6 破壞性跨度列入 NEXT_TASKS 待辦
 - 起步：工作區乾淨、正式站 web/solver 200
+
+## 輪次 106（2026-10-12，10 分鐘優化排程）
+
+- **pglite 0.3.16→0.5.8**：db 測試沙箱升級一次成功——14 個真 SQL 測試（衝突/權限/apply_plan）＋全套 379 綠＋build 綠；NEXT_TASKS 剩 saxes 5→6 一項
+- 起步：工作區乾淨、正式站 web/solver 200
