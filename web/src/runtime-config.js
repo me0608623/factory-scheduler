@@ -17,7 +17,8 @@ export function resolveRuntime(env = {}, location = {}) {
     let secret=key.startsWith('sb_secret_');
     if(key.startsWith('eyJ'))try{secret ||= JSON.parse(atob(key.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).role==='service_role';}catch{}
     if(secret)throw new Error('前端不可使用資料庫私密金鑰，已停止連線。');
-    return {mode:'test',url,anon:env.VITE_TEST_SUPABASE_ANON_KEY,solverUrl,solverKey:'',
+    return {mode:'test',url,anon:env.VITE_TEST_SUPABASE_ANON_KEY,solverUrl,
+      solverKey:String(env.VITE_TEST_SOLVER_API_KEY||''),   // staging solver 若有金鑰保護用這裡；絕不沿用正式金鑰
       authOptions:{storageKey:`fsched-test-auth-${TEST_PROJECT_REF}`}};
   }
   const localQa = env.DEV && ['localhost','127.0.0.1'].includes(location.hostname) && query.get('local') === '1';
