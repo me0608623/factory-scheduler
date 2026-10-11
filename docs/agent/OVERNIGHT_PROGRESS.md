@@ -1225,3 +1225,9 @@
 - **apply_plan 版本衝突測試補齊**（main `08992df`）：預覽建立後別人先存 → 套用時 40001 → ConflictError、排程只留對方版本不半套用。衝突覆蓋至此三路全齊（sync／save_blocks／apply_plan）；全套 378 綠
 - 註：TEST_DATA_REPORT 的「衝突未驗證」其實 store 層已有覆蓋（本輪補齊最後一塊）
 - 起步：工作區乾淨、正式站 web/solver 200
+
+## 輪次 90（2026-10-12，10 分鐘優化排程）
+
+- **正式站部署漂移檢查**：線上 bundle 實測含互動預覽（dp-row/dp-back/schedule-compare）、測試模式（獨立 auth storage／mode 判斷／金鑰防呆）——部署與 main 同步零漂移
+- **測試報告修正**：衝突項由「未驗證」改為「通過（store 層）」，總計 30 通過／1 未驗證（僅剩斷線恢復 UI 層）
+- 起步：工作區乾淨、正式站 web/solver 200
