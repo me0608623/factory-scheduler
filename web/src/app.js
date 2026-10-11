@@ -2280,17 +2280,22 @@ function dpBack(){
 }
 function dpScrollTarget(target){
   const preview=PV;
-  setTimeout(()=>{
+  // 大量方塊時 render 可能超過 40ms 才把目標畫出來：rAF 重試直到找到（上限 800ms）
+  const find=()=>target?document.querySelector('.blk[data-bid="'+CSS.escape(target.id)+'"]'):document.querySelector(".blk.dp-hl")||document.querySelector(".blk.pv-mv, .blk.pv-add, .blk.willchg")||document.querySelector(".gblk");
+  const deadline=Date.now()+800;
+  const attempt=()=>{
     if(PV!==preview||!PV)return;
-    const el=target?document.querySelector('.blk[data-bid="'+CSS.escape(target.id)+'"]'):document.querySelector(".blk.dp-hl")||document.querySelector(".blk.pv-mv, .blk.pv-add, .blk.willchg")||document.querySelector(".gblk");
-    el?.scrollIntoView({block:"center",inline:"nearest"});
-    if(el&&window.matchMedia?.('(max-width:980px)').matches){
+    const el=find();
+    if(!el){if(performance.now()<deadline)requestAnimationFrame(attempt);return;}
+    el.scrollIntoView({block:"center",inline:"nearest"});
+    if(window.matchMedia?.('(max-width:980px)').matches){
       const top=document.querySelector('.pv-manual')?.getBoundingClientRect().bottom??0;
       const bottom=document.querySelector('.pv-drawer')?.getBoundingClientRect().top??window.innerHeight;
       const r=el.getBoundingClientRect();
       if(bottom>top)window.scrollBy(0,(r.top+r.bottom)/2-(Math.max(0,top)+bottom)/2);
     }
-  },40);
+  };
+  setTimeout(attempt,40);
 }
 // 預覽中點排程表上的方塊：若屬這次調整，直接切到該工序詳情
 function pvClickBlock(id){
