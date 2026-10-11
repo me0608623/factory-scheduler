@@ -312,3 +312,8 @@
 
 - **選擇器健全性抽查（驗證輪）**：dpScrollTarget 手機補償引用的 .pv-manual 確實由 manualStripHTML 渲染（pv pv-manual）、CSS 530–535 有黏頂樣式——無死選擇器。機器端待辦仍空，僅剩兩項使用者設定事項
 - 健康檢查：正式 web/solver 200；工作區乾淨
+
+## 輪次 121（2026-10-12，10 分鐘優化排程）
+
+- **部署後功能標記驗證自動化**：deploy-render 加最終步驟——輪詢正式站 bundle（≤10min）驗證含 schedule-compare/dp-row/fsched-test-auth 標記（字串字面值不受壓縮影響）；修復「hook 觸發即結束、部署回滾無人知」缺口。輪次 90 的手動檢查自此常態化
+- 起步：工作區乾淨、CI 近 4 run 全綠、正式 web/solver 200
