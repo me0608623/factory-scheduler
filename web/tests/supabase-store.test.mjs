@@ -305,6 +305,21 @@ test('儲存失敗（服務無回應）不留部分寫入，重新讀取仍是�
   assert.equal(fresh.version, 0, '版本不變');
 });
 
+test('套用後立即復原（同使用者）不被自己的版本鎖擋住', async () => {
+  const { store, count } = await setup();
+  const boss = await store('boss@x');
+  const S0 = await boss.load();
+  S0.blocks.push(blk());
+  await boss.sync(S0, { kind: 'move', title: '排入工作' });
+  assert.equal(await count('select count(*)::int n from schedule_blocks'), 1);
+  // 「復原上一步」的實際效果：同一 store 把狀態退回改動前再存
+  const S1 = structuredClone(S0); S1.blocks.pop();
+  await boss.sync(S1, { kind: 'edit', title: '復原上一步' });
+  assert.equal(await count('select count(*)::int n from schedule_blocks'), 0, '復原後方塊移除');
+  const fresh = await boss.load();
+  assert.equal(fresh.version, 2, '版本正常推進，未被 40001 擋下');
+});
+
 test("格式轉換：畫面 → 快照 → 畫面", () => {
   const S = { cal: { week: [false, true, true, true, true, true, true], over: { "2026-10-01": "off" } }, dayOT: { "2026-10-02": true },
     employees: [{ id: "e", name: "甲", factory: 2, color: 1, skills: ["a"], maxMachines: 2, leaves: ["2026-10-03"], noOT: true, reviewStatus: 'confirmed', sourceRef: null,
