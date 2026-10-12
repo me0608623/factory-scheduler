@@ -630,3 +630,8 @@
 - **結果：等 1/90/240 秒三次探測仍 500 (error 1101)**——開關重佈建無效。注意：過程發現 Inspector 頁顯示「API DISABLED」但 Settings 主開關是 ON＝**平台內部狀態不一致**，進一步佐證是 Supabase 側 tenant 損壞
 - **結論：所有使用者側手段已窮盡**（Pause/Resume ✓、開關重佈建 ✓）。需向 Supabase support 報平台故障，建議文案：「Realtime websocket returns Cloudflare error 1101 after project pause/restore; REST API fine; Realtime Settings toggle re-provision (off→save→on→save) did not help; Inspector shows API DISABLED while Settings shows enabled」
 - 正式站不受影響；下輪繼續正常探索
+
+### 缺陷探索輪 30（2026-10-12 23:25–23:35，健康檢查輪——狀態不變）
+
+- 正式 web/solver 200；工作區乾淨；staging Realtime 仍 500（重佈建已試、待 support）
+- 機器端待辦空；下輪繼續
