@@ -1543,7 +1543,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case 'queue-arrange':if(!readOnly&&!S.setupPending)openModal({t:'manual-add',choice:id+':'+a.dataset.step});break;
     case 'scenarios':openScenarioList();break;
     case 'scenario-view':viewScenario(id);break;
-    case 'scenario-save':if(canScenarios())openModal({t:'scenario-save',base:structuredClone(PV?.B||S),candidate:structuredClone(PV?pvOpt().A:S),description:PV?.title||'目前排程',date:UI.date});break;
+    case 'scenario-save':if(canPermissionRaw('scenarios.manage'))openModal({t:'scenario-save',base:structuredClone(PV?.B||S),candidate:structuredClone(PV?pvOpt().A:S),description:PV?.title||'目前排程',date:UI.date});break;
     case 'scenario-confirm':saveScenarioFromModal(a);break;
     case 'execution':openModal({t:'execution'});break;
     case 'report-open':openModal({t:'execution-report',id});break;
@@ -2600,7 +2600,7 @@ function pvPanelHTML(o){
   }else ai='<div class="hint">'+tx('AI 助理下一階段由伺服器提供。')+'</div>';
   const strip='<section class="pv" aria-label="'+tx('預覽')+'">'+
    '<div class="pv-h"><span class="pv-badge">'+(PV.savedScenario?'保存情境':'預覽中')+'</span><div class="pv-t"><b>'+esc(PV.title)+'</b><small>'+(PV.savedScenario?'只讀比較；正式班表與現場進度不會變更。':'還沒套用，排程不會變。左邊甘特表＝選中的那套；差異色塊＝綠新增／黃搬動／虛線會移走。　計算：'+planEngineLabel(o.solverMethod,PV.engine))+'</small></div><div class="spacer"></div>'+
-   (canScenarios()&&!PV.savedScenario?'<button class="btn" data-act="scenario-save">'+tx('保存試排情境')+'</button>':'')+
+   (canPermissionRaw('scenarios.manage')&&!PV.savedScenario?'<button class="btn" data-act="scenario-save">'+tx('保存試排情境')+'</button>':'')+
    '<button class="btn" data-act="pv-cancel">'+(PV.savedScenario?'結束查看':'取消')+'</button><button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+tx('用這套')+'</button></div>'+
    '<div class="pv-row"><div class="seg" role="group" aria-label="'+tx('預覽圖與下方排程表顯示')+'"><button data-act="pv-mode" data-v="cmp" aria-pressed="'+(PV.mode==="cmp")+'">'+tx('對照')+'</button><button data-act="pv-mode" data-v="new" aria-pressed="'+(PV.mode==="new")+'">'+tx('調整後')+'</button><button data-act="pv-mode" data-v="orig" aria-pressed="'+(PV.mode==="orig")+'">'+tx('原本')+'</button></div>'+
    '<span class="hint">'+(PV.mode==="cmp"?"灰虛線＝原本位置，彩色＝調整後（綠新增、黃搬動）":PV.mode==="new"?"只看調整後：綠框＝新增的工作，黃框＝搬動的工作":"只看原本；紅虛線＝會被移走的工作")+'</span><div class="spacer"></div>'+
@@ -3264,7 +3264,8 @@ let scheduleChat=null;
 const SYNC={state:"ok",msg:""};
 let lastLocalWrite=0,pendingReload=false,reloadTimer=null;
 // 職位只提供預設值；正式可寫範圍由老闆逐項授權，畫面與資料庫使用同一組權限鍵。
-function canPermission(key){return !PV&&(!STORE||STORE.kind==='local'||(STORE.can?STORE.can(key):effectivePermission(STORE.role,STORE.permissions,key)));}
+function canPermissionRaw(key){return !STORE||STORE.kind==='local'||(STORE.can?STORE.can(key):effectivePermission(STORE.role,STORE.permissions,key));}
+function canPermission(key){return !PV&&canPermissionRaw(key);}
 function canMaster(){return canPermission('master.manage');}
 function canArchive(){return canPermission('archives.manage');}
 function canOrders(){return canPermission('orders.manage');}
@@ -4231,7 +4232,7 @@ MODALS['work-queue']=()=>{
       (!rows.length?'<div class="okbox">'+tx('此範圍目前没有未排量或已回報短少。這不等於工作已實際完成。')+'</div>':''),foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button>'};
 };
 async function openScenarioList(){
-  if(!canScenarios())return;openModal({t:'scenario-list',loading:true});const m=UI.modal;
+  if(!canPermissionRaw('scenarios.manage'))return;openModal({t:'scenario-list',loading:true});const m=UI.modal;
   try{m.items=await STORE.listScenarios();}catch(e){m.error=e.message;}m.loading=false;if(UI.modal===m)renderModal();
 }
 MODALS['scenario-list']=m=>({title:tx('保存的試排情境'),body:
@@ -4243,13 +4244,13 @@ MODALS['scenario-save']=m=>({title:tx('保存試排情境'),body:'<div class="hi
   '<div class="field"><label for="scenario-name">'+tx('情境名稱')+'</label><input class="inp" id="scenario-name" maxlength="80" value="'+esc(m.name||'')+'"></div>',
   foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="scenario-confirm">'+tx('確認保存情境')+'</button>'});
 async function saveScenarioFromModal(button){
-  if(!canScenarios())return;const m=UI.modal;if(m.t!=='scenario-save')return;
+  if(!canPermissionRaw('scenarios.manage'))return;const m=UI.modal;if(m.t!=='scenario-save')return;
   try{m.name=$('#scenario-name').value;const item=m.item||makeScenario(m.name,m.base,m.candidate,{description:m.description,date:m.date});m.item=item;
     button.disabled=true;await STORE.saveScenario(item);closeModal();toast('情境已保存，正式班表沒有改變');}
   catch(e){button.disabled=false;toast(e.message);}
 }
 async function viewScenario(id){
-  if(!canScenarios())return;
+  if(!canPermissionRaw('scenarios.manage'))return;
   try{
     const item=await STORE.getScenario(id);if(!item)throw new Error('找不到情境');validateScenario(item.payload);
     const stale=scenarioStale(item,S),B=item.payload.base,A=item.payload.candidate,ev={date:item.payload.date||UI.date};

@@ -141,3 +141,8 @@ test('缺陷#14 回歸：feedback-send 需在本機模式提前擋下（查看�
   const seg = app.slice(i, i + 200);
   assert.match(seg, /STORE\.kind==="local"\)\{toast\(/, '本機模式要先提示改用 Email，不得走到 STORE.sb');
 });
+
+test('缺陷#15 回歸：保存試排情境按鈕不得用被 !PV 閘門的 canScenarios（該鈕只在預覽中渲染，canPermission 在 PV 期間恒 false＝按鈕永遠不出現的死代碼）', () => {
+  assert.match(app, /function canPermission\(key\)\{return !PV&&canPermissionRaw\(key\);\}/, 'canPermission 需委派 raw 檢查');
+  assert.match(app, /canPermissionRaw\('scenarios\.manage'\)&&!PV\.savedScenario\?'<button[^>]+scenario-save/, '保存情境鈕需用 raw 權限（不受 !PV 影響）');
+});
