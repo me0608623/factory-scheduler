@@ -618,3 +618,8 @@
 
 - 正式 web/solver 200；工作區乾淨；staging Realtime 仍 500（待使用者 Replication toggle／support）
 - 機器端待辦空；下輪繼續
+
+### 缺陷探索輪 28（2026-10-12 22:58–23:08，健康檢查輪——狀態不變）
+
+- 正式 web/solver 200；工作區乾淨；staging Realtime 仍 500
+- 機器端待辦空；下輪繼續
