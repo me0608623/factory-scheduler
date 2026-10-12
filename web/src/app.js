@@ -61,7 +61,8 @@ function todayStr(){const n=new Date();return n.getFullYear()+"-"+pad(n.getMonth
 function nowMin(){const n=new Date();return n.getHours()*60+n.getMinutes();}
 function nowAbs(){return absOf(todayStr(),Math.ceil(nowMin()/10)*10);}
 function md(ds){const d=parseD(ds);return (d.getUTCMonth()+1)+"/"+d.getUTCDate();}
-function mdw(ds){return md(ds)+"（"+WD[parseD(ds).getUTCDay()]+"）";}
+const WD_EN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],WD_VI=["CN","T2","T3","T4","T5","T6","T7"],WD_TH=["อา","จ","อ","พ","พฤ","ศ","ส"];
+function mdw(ds){const w=parseD(ds).getUTCDay();if(I18N.lang==="zh-TW")return md(ds)+"（"+WD[w]+"）";const arr=I18N.lang==="vi"?WD_VI:I18N.lang==="th"?WD_TH:WD_EN;return md(ds)+" ("+arr[w]+")";}
 function weekStart(ds){const w=parseD(ds).getUTCDay();return addDays(ds,-((w+6)%7));}
 function mergeIv(iv){iv.sort((a,b)=>a[0]-b[0]);const o=[];for(const x of iv){if(o.length&&x[0]<=o[o.length-1][1])o[o.length-1][1]=Math.max(o[o.length-1][1],x[1]);else o.push([x[0],x[1]]);}return o;}
 
@@ -767,7 +768,7 @@ function topHTML(){
   '<div class="brand"><span class="brand-mark"><span></span></span>產線排程</div>'+
   '<div class="workspace-heading"><span class="workspace-glyph">'+NAV_IC.today+'</span><span><b>'+esc(tx('今天排程'))+'</b><small>'+esc(tx('機台 × 時間'))+'</small></span></div>'+environmentHTML()+
   '<div class="seg factory-switch" role="group" aria-label="'+tx('排程廠別')+'">'+
-  [[1,'1 廠'],[2,'2 廠'],['all',tx('跨廠')]].map(([v,t])=>'<button data-act="factory" data-v="'+v+'" aria-pressed="'+(UI.factory===v)+'">'+t+'</button>').join('')+'</div>'+
+  [[1,tx('1 廠')],[2,tx('2 廠')],['all',tx('跨廠')]].map(([v,t])=>'<button data-act="factory" data-v="'+v+'" aria-pressed="'+(UI.factory===v)+'">'+t+'</button>').join('')+'</div>'+
   '<div class="page-links">'+
   '<button class="btn pagelink shortage" data-act="page" data-v="shortage">'+tx('shortage')+'</button>'+
   '<button class="btn pagelink transfer" data-act="page" data-v="transfer">'+tx('transfer')+'</button>'+
@@ -780,7 +781,7 @@ function topHTML(){
   (S.setupPending?'<button class="btn primary verify-entry" data-act="catalog">'+tx('初次核對資料')+'</button>':'')+
   (UI.returnTo?'<button class="btn pagelink return-chip" data-act="page-return">↩ 返回'+(UI.returnTo.page==='shortage'?'欠缺品項':UI.returnTo.page==='worklog'?'工作紀錄':'給二廠／回一廠')+'</button>':'')+
   '<div class="top-status">'+syncChipHTML()+
-  '<button class="btn" data-act="settings" title="'+esc(tx('settings'))+'">'+IC.user+'<span class="lbl">'+esc(STORE&&STORE.kind==="supabase"?(STORE.userName||"帳號"):"本機")+'</span></button></div></div></div></header>';
+  '<button class="btn" data-act="settings" title="'+esc(tx('settings'))+'">'+IC.user+'<span class="lbl">'+esc(STORE&&STORE.kind==="supabase"?(STORE.userName||tx('帳號')):tx('本機'))+'</span></button></div></div></div></header>';
 }
 
 function appNavHTML(){
@@ -968,8 +969,8 @@ async function saveOwnProfile(button){
 function moreDrawerHTML(){
   const btn=(act,label,extra='')=>'<button class="more-action" data-act="'+act+'" '+extra+'>'+label+'</button>';
   // 名冊與工作資料待確認時，整段排程入口不出現（不只是停用）
-  const schedGate=S.setupPending?"":btn('manual-add','＋手動排班',readOnly?'disabled':'')+btn('auto','⚡ 自動排班',readOnly?'disabled':'')+btn('incident','故障／請假',!canIncidents()?'disabled':'');
-  return '<section class="more-group"><h3>'+tx('班表')+'</h3><div class="more-grid"><div class="seg" role="group" aria-label="'+tx('檢視')+'"><button data-act="view" data-v="day" aria-pressed="'+(UI.view==='day')+'">'+tx('日班表')+'</button><button data-act="view" data-v="week" aria-pressed="'+(UI.view==='week')+'">'+tx('週班表')+'</button></div><div class="seg" role="group" aria-label="'+tx('查看方式')+'"><button data-act="layout" data-v="resource" aria-pressed="'+(UI.layout==='resource')+'">'+tx('按設備')+'</button><button data-act="layout" data-v="work" aria-pressed="'+(UI.layout==='work')+'">'+tx('按工作')+'</button></div>'+schedGate+btn('undo','復原上一步',readOnly||!undoStack.length?'disabled':'')+'</div></section>'+
+  const schedGate=S.setupPending?"":btn('manual-add',tx('＋手動排班'),readOnly?'disabled':'')+btn('auto',tx('⚡ 自動排班'),readOnly?'disabled':'')+btn('incident',tx('故障／請假'),!canIncidents()?'disabled':'');
+  return '<section class="more-group"><h3>'+tx('班表')+'</h3><div class="more-grid"><div class="seg" role="group" aria-label="'+tx('檢視')+'"><button data-act="view" data-v="day" aria-pressed="'+(UI.view==='day')+'">'+tx('日班表')+'</button><button data-act="view" data-v="week" aria-pressed="'+(UI.view==='week')+'">'+tx('週班表')+'</button></div><div class="seg" role="group" aria-label="'+tx('查看方式')+'"><button data-act="layout" data-v="resource" aria-pressed="'+(UI.layout==='resource')+'">'+tx('按設備')+'</button><button data-act="layout" data-v="work" aria-pressed="'+(UI.layout==='work')+'">'+tx('按工作')+'</button></div>'+schedGate+btn('undo',tx('復原上一步'),readOnly||!undoStack.length?'disabled':'')+'</div></section>'+
     '<section class="more-group"><h3>'+tx('工作與人員')+'</h3><div class="more-grid">'+btn('work-queue',tx('未排工作'))+btn('execution',tx('現場回報'))+btn('resource-load',tx('當日負荷'))+btn('rosters',tx('輪班表'))+btn('work-contents',tx('工作內容'))+btn('transfers',tx('跨廠加工'))+btn('rush',tx('欠缺品項'))+btn('groups',tx('員工分組'))+(STORE.role==='boss'?btn('access',tx('權限管理')):'')+(canScenarios()?btn('scenarios',tx('試排情境')):'')+'</div></section>'+
     '<section class="more-group"><h3>'+tx('資料與設定')+'</h3><div class="more-grid">'+btn('settings',tx('⚙ 設定'))+btn('master',tx('員工、設備與工單'))+(canArchive()?btn('history',tx('歷史班表')):'')+btn('export',tx('匯出／匯入 Excel'))+btn('log',tx('全部紀錄'))+btn('tv',UI.tv?'管理模式':'大螢幕')+btn('help',tx('操作說明'))+btn('feedback',tx('意見反饋'))+btn('analytics',tx('產能分析'))+btn('schedule-diff',tx('排程比對'))+btn('line-notify',tx('LINE 通知'))+(STORE.role==='boss'?btn('feedback-list',tx('查看反饋')):'')+btn('tour',tx('新手導覽'))+(STORE.kind==='supabase'?btn('account',STORE.userName?STORE.userName.split('@')[0]+' · '+tx('登出'):'帳號與登出'):'')+'</div></section>';
 }
@@ -1018,7 +1019,7 @@ function dayHTML(ctx={}){
     (ms.length?'<div class="scroller"><div class="grid" style="grid-template-columns:64px repeat('+ms.length+',minmax('+zw+'px,1fr))">'+
     '<div class="corner"></div>'+heads+'<div class="times">'+times+'</div>'+cols+'</div></div>':
     '<div class="empty factory-empty">'+tx('此廠尚未設定機台與員工；「歷史排程」是獨立的唯讀原表，不會自動變成正式排程。')+'</div>')+
-    (ms.length&&!blocks.length&&di.win.length?'<div class="empty">'+(S.setupPending?'名冊已匯入，工作仍待確認；原始安排可在「歷史排程」按日期查看。':'這天還沒有排程。可按「＋手動排班」安排未排入的工作，或使用「自動排程」。')+'</div>':"")+
+    (ms.length&&!blocks.length&&di.win.length?'<div class="empty">'+(S.setupPending?tx('名冊已匯入，工作仍待確認；原始安排可在「歷史排程」按日期查看。'):tx('這天還沒有排程。可按「＋手動排班」安排未排入的工作，或使用「自動排程」。'))+'</div>':"")+
     '</section>';
 }
 function blkHTML(b,px,bad,cls=""){
@@ -3733,7 +3734,7 @@ function printDaySchedule(){
   const byMach={};
   for(const m of machs) byMach[m.id]=[];
   for(const b of blocks){ if(byMach[b.m]) byMach[b.m].push(b); }
-  const title=f==='all'?'跨廠':f+' 廠';
+  const title=f==='all'?tx('跨廠'):factoryName(f);
   const otEnd=typeof S.dayOT[d]==='number'?S.dayOT[d]:1200;
 
   let rows='';
@@ -3790,16 +3791,16 @@ function floorPageHTML(){
   const cells=floorCells(S,fac,UI.date);
   const counts={busy:cells.filter(c=>c.status==='busy').length,fault:cells.filter(c=>c.status==='fault').length,idle:cells.filter(c=>c.status==='idle').length};
   return '<div class="fullpage"><div class="page-top"><div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">'+tx('backToday')+'</button>'+
-    '<div class="seg factory-switch" role="group" aria-label="'+tx('平面圖廠別')+'">'+[[1,'1 廠'],[2,'2 廠']].map(([v,t])=>'<button data-act="factory" data-v="'+v+'" aria-pressed="'+(fac===v)+'">'+t+'</button>').join('')+'</div>'+
+    '<div class="seg factory-switch" role="group" aria-label="'+tx('平面圖廠別')+'">'+[[1,tx('1 廠')],[2,tx('2 廠')]].map(([v,t])=>'<button data-act="factory" data-v="'+v+'" aria-pressed="'+(fac===v)+'">'+t+'</button>').join('')+'</div>'+
     '<div class="datenav"><button class="iconbtn" data-act="prev" aria-label="'+tx('往前')+'">‹</button><button class="btn" data-act="today">'+mdw(UI.date)+'</button><button class="iconbtn" data-act="next" aria-label="'+tx('往後')+'">›</button></div>'+
     '<div class="page-title"><h1>'+tx('floor')+'</h1></div></div>'+
     '<p class="page-sub">'+tx('floorHint')+'</p></div>'+
     '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin:6px 0 10px">'+
-    [['busy','#315FA7',counts.busy],['idle','#9AA3AF',counts.idle],['fault','#DC2626',counts.fault]].map(([st,c,n])=>'<span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:'+c+';opacity:'+(st==='idle'?0.35:0.85)+';margin-right:5px;vertical-align:-1px"></i>'+({busy:'排程中',idle:'閒置',fault:'故障'}[st])+' '+n+'</span>').join('')+
+    [['busy','#315FA7',counts.busy],['idle','#9AA3AF',counts.idle],['fault','#DC2626',counts.fault]].map(([st,c,n])=>'<span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:'+c+';opacity:'+(st==='idle'?0.35:0.85)+';margin-right:5px;vertical-align:-1px"></i>'+tx({busy:'排程中',idle:'閒置',fault:'故障'}[st])+' '+n+'</span>').join('')+
     '</div>'+
     '<div style="position:relative"><canvas id="floor-canvas" style="width:100%;display:block;touch-action:pan-y"></canvas></div>'+
     '<div id="floor-tip" style="position:fixed;pointer-events:none;background:var(--surface);border:1px solid var(--line);padding:6px 9px;border-radius:6px;font-size:12px;display:none;z-index:60;box-shadow:0 2px 8px rgba(0,0,0,.15)"></div>'+
-    ((S.machineLayout||[]).length?'':'<p class="hint">目前為自動排列；要固定位置，請在資料庫 machine_layout 填入各機台 0–100 座標。</p>')+'</div>';
+    ((S.machineLayout||[]).length?'':'<p class="hint">'+tx('目前為自動排列；要固定位置，請在資料庫 machine_layout 填入各機台 0–100 座標。')+'</p>')+'</div>';
 }
 function initFloor(){
   const canvas=$('#floor-canvas');if(!canvas)return;
@@ -4122,7 +4123,7 @@ MODALS['staff-group']=m=>{
   const D=m.draft,ro=!canGroups(),off=ro?' disabled':'';
   const body='<div class="field"><label for="group-name">'+tx('分組名稱')+'</label><input class="inp" id="group-name" data-bind="name" maxlength="80" value="'+esc(D.name)+'"'+off+'></div>'+
     '<div class="field"><label for="group-department">'+tx('部門（可不填）')+'</label><input class="inp" id="group-department" data-bind="department" maxlength="80" value="'+esc(D.department||'')+'"'+off+'><div class="hint">'+tx('部門可自行命名；同一員工可以加入不同部門的分組，不另外建立重複員工。')+'</div></div>'+
-    '<div class="field"><label for="group-factory">'+tx('分組所屬範圍')+'</label><select class="inp" id="group-factory" data-bind="homeFactory"'+off+'>'+[['all',tx('跨廠')],[1,'1 廠'],[2,'2 廠']].map(([id,t])=>'<option value="'+id+'"'+((D.homeFactory??'all')==id?' selected':'')+'>'+t+'</option>').join('')+'</select><div class="hint">'+tx('分組範圍是管理標籤，不會限制加入人員；跨廠實際排班仍須符合現行技能與廠別規則。')+'</div></div>'+
+    '<div class="field"><label for="group-factory">'+tx('分組所屬範圍')+'</label><select class="inp" id="group-factory" data-bind="homeFactory"'+off+'>'+[['all',tx('跨廠')],[1,tx('1 廠')],[2,tx('2 廠')]].map(([id,t])=>'<option value="'+id+'"'+((D.homeFactory??'all')==id?' selected':'')+'>'+t+'</option>').join('')+'</select><div class="hint">'+tx('分組範圍是管理標籤，不會限制加入人員；跨廠實際排班仍須符合現行技能與廠別規則。')+'</div></div>'+
     (D.sourceRef?'<div class="hint">分組來源：'+esc(D.sourceRef)+'</div>':'')+
     FACTORIES.map(f=>'<div class="field"><span class="lab">'+factoryName(f)+' · 組員</span><div class="toggles">'+S.employees.filter(e=>factoryOf(e)===f).map(e=>{const mem=m.members.find(x=>x.employeeId===e.id);
       return '<button class="tg" data-act="group-member" data-v="'+esc(e.id)+'" aria-pressed="'+!!mem+'"'+off+'>'+esc(e.name)+(e.sourceCode?' '+esc(e.sourceCode):'')+(mem?'<small>'+memberStatus(mem.reviewStatus)+'</small>':'')+'</button>';
@@ -4414,8 +4415,8 @@ function workGridHTML(title,lanes){
     '<div class="zone lunch" style="top:'+px(720)+'px;height:'+(px(780)-px(720))+'px">'+tx('午休')+'</div>'+
     (!di.ot?'<div class="zone ot-off" style="top:'+px(1020)+'px;height:'+(px(1200)-px(1020))+'px">'+tx('未開加班')+'</div>':'')+
     (l.production||[]).map(b=>blkHTML(b,px,issuesOf(b).length)).join('')+(l.general||[]).map(a=>workBlockHTML(a,px)).join('')+'</div>').join('');
-  return '<section class="board" style="--hour:'+hourPx()+'px" aria-label="'+title+'"><div class="board-h"><h2>'+title+' · '+mdw(d)+'</h2><div class="spacer"></div>'+(!readOnly&&!S.setupPending?'<button class="btn primary" data-act="general-add">'+tx('＋一般工作排班')+'</button>':'')+'</div><div class="hint" style="padding:10px">一般工作方塊可拖曳及拉底邊；放開先預覽，確認前不改班表。純人工占用完整人員時間；參考件數不算作工單已完成。產品工序方塊請在「設備／工位」檢視調整。</div>'+
-    (lanes.length?'<div class="scroller"><div class="grid" style="grid-template-columns:64px repeat('+lanes.length+',minmax(180px,1fr))"><div class="corner"></div>'+lanes.map(l=>'<div class="colhead"><span class="N">'+esc(l.name)+'</span></div>').join('')+'<div class="times">'+times+'</div>'+cols+'</div></div>':'<div class="empty">尚未有可安排的工作內容。請按「更多功能」→「設定工作內容」，先核定工作、人員與所需設備。</div>')+'</section>';
+  return '<section class="board" style="--hour:'+hourPx()+'px" aria-label="'+title+'"><div class="board-h"><h2>'+title+' · '+mdw(d)+'</h2><div class="spacer"></div>'+(!readOnly&&!S.setupPending?'<button class="btn primary" data-act="general-add">'+tx('＋一般工作排班')+'</button>':'')+'</div><div class="hint" style="padding:10px">'+tx('一般工作方塊可拖曳及拉底邊；放開先預覽，確認前不改班表。純人工占用完整人員時間；參考件數不算作工單已完成。產品工序方塊請在「設備／工位」檢視調整。')+'</div>'+
+    (lanes.length?'<div class="scroller"><div class="grid" style="grid-template-columns:64px repeat('+lanes.length+',minmax(180px,1fr))"><div class="corner"></div>'+lanes.map(l=>'<div class="colhead"><span class="N">'+esc(l.name)+'</span></div>').join('')+'<div class="times">'+times+'</div>'+cols+'</div></div>':'<div class="empty">'+tx('尚未有可安排的工作內容。請按「更多功能」→「設定工作內容」，先核定工作、人員與所需設備。')+'</div>')+'</section>';
 }
 function generalLanes(){
   return workCatalog(S).filter(w=>inFactory(w,UI.factory)).flatMap(w=>{
@@ -4424,10 +4425,10 @@ function generalLanes(){
     return pairs.map(p=>({...p,workId:w.id,name:w.name+' · '+p.name,general:list.filter(a=>w.requiresResource?a.resourceId===p.resourceId:a.emp===p.emp)}));
   });
 }
-function generalBoardHTML(){return workGridHTML('一般工作／純人工排班',generalLanes());}
+function generalBoardHTML(){return workGridHTML(tx('一般工作／純人工排班'),generalLanes());}
 function workViewHTML(){
   const production=shownMachines().map(m=>({name:m.proc+' · '+m.label,production:S.blocks.filter(b=>b.date===UI.date&&b.m===m.id)}));
-  return workGridHTML('依工作內容查看',production.sort((a,b)=>a.name.localeCompare(b.name,'zh-TW')).concat(generalLanes()));
+  return workGridHTML(tx('依工作內容查看'),production.sort((a,b)=>a.name.localeCompare(b.name,'zh-TW')).concat(generalLanes()));
 }
 let generalDrag=null;
 document.addEventListener('pointerdown',e=>{
