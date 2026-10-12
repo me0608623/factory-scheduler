@@ -326,3 +326,8 @@
 ## 輪次 123（2026-10-12，10 分鐘優化排程）
 
 - **健康檢查輪（機器端待辦空）**：正式 web/solver 200、staging web 200；近 5 CI run 全數 completed success；docs-only push 正確不觸發部署。待使用者事項不變（staging hook、測試模式填值）
+
+## 輪次 124（2026-10-12，10 分鐘優化排程）
+
+- **部署映像健檢（驗證輪）**：web/.dockerignore 已排除 env/node_modules/dist/tests；Dockerfile 只 COPY 必要檔＋三建置變數防呆；Render static 走原生建置、VITE_TEST_* 填 Dashboard 即生效（Vite 讀 process env）。無需修改
+- 健康檢查：正式 web/solver 200
