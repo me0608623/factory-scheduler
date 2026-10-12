@@ -59,3 +59,7 @@
 
 - [x] pglite 0.3.16 → 0.5.8（→ 輪次 106）：全套 379 綠＋build 綠，沙箱完整相容
 - [x] saxes 5 → 6（→ 輪次 107）：scan 包裝器 API 相容，14 相關測試＋379 全綠
+
+## 環境問題（需使用者留意的 Supabase staging Realtime 故障）
+
+- [ ] **staging Realtime 服務故障（2026-10-12 實測）**：WS 端點帶有效 publishable key 回 500（無 key 401、REST 正常 200）→ 所有即時推播不可用。可能與今早專案暫停恢復有關。建議：Supabase Dashboard → staging 專案 → 檢查 Realtime（或 Republish／重新啟動專案）。此為環境問題，App 端程式（訂閱程式碼）無法在服務故障下驗證

@@ -474,3 +474,9 @@
 - **發現與修復（main `450a964`）**：自訂「加班到 17:30/18:00」儲存後 DB 正確（overtime_end），但 fromSnapshot 只讀 calendar.overtime（全 true）、忽略 0032 放在快照頂層的 ot_ends → 重載後顯示與排程窗口都變 20:00；且 true 下次儲存被 rowsOf 覆寫 1200＝**自訂值永久丟失**。修法：fromSnapshot 併入 snap.ot_ends（缺值退 true）；+1 convert 測試、store 斷言更新（true→1200 語意等價）——385/385 綠＋build 綠；瀏覽器實證 DB=1140 修復前顯示 20:00、修復後正確「加班到 19:00」
 - **realtime delivery 異常（watch item，非本輪代碼問題）**：staging 上 REST 改 calendar_days 後，重載分頁載入路徑正確（資料會更新）但即時推播未在 8 秒內送達（boot 確認每次都重掛 subscribe）。懷疑 staging Supabase Realtime 服務健康（該專案今早曾暫停恢復）。下輪先確認：staging Dashboard Realtime 設定／用 supabase channel STATUS 日誌診斷；此現象同樣影響輪 5 前的「A 未跟進」觀察——其中混有 ot_end 崩潰與 ot_ends 丟失兩個真缺陷，現已各自修復剝離
 - **下輪接續**：①CI/部署查證 ②realtime 通道診斷（頻道狀態日誌）③衝突路徑 UI
+
+### 缺陷探索輪 7（2026-10-12 15:46–16:20）——realtime 故障判定＋no-op 回饋修復
+
+- **realtime 未達之謎結案（環境判定）**：A 連自家 REST 寫入都收不到（30 秒未反映；載入路徑正常）。直接探測：staging Realtime WS 端點帶有效金鑰回 **500**（無金鑰 401＝正常把關；REST 200 正常）→ **staging Realtime 服務層故障**（疑與今早專案暫停恢復相關），非 App 程式問題。已寫入 NEXT_TASKS 供使用者於 Dashboard 處理；realtime 相關 UI 驗證暫時受阻
+- **修復（main `2354276`）**：加班設定 no-op 分支加「設定沒有變更，未儲存」toast——消除輪 4 觀測的靜默關閉（使用者誤以為已儲存的風險）。+1 契約測試；386/386 綠＋build 綠
+- **下輪接續**：①CI/部署查證 ②衝突路徑 UI（不依賴 realtime：兩分頁各自載入→A 先存→B 舊版存→40001→toast＋重載）③若 staging Realtime 恢復則補 B→A 即時實證
