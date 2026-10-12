@@ -63,3 +63,7 @@
 ## 環境問題（需使用者留意的 Supabase staging Realtime 故障）
 
 - [ ] **staging Realtime 服務故障（2026-10-12 實測）**：WS 端點帶有效 publishable key 回 500（無 key 401、REST 正常 200）→ 所有即時推播不可用。可能與今早專案暫停恢復有關。建議：Supabase Dashboard → staging 專案 → 檢查 Realtime（或 Republish／重新啟動專案）。此為環境問題，App 端程式（訂閱程式碼）無法在服務故障下驗證
+
+## 待真人驗收（自動化受阻項，5 分鐘可完成）
+
+- [ ] **衝突路徑 UI（雙分頁）**：兩分頁同帳號登入 staging → 分頁 A 完成任一跳版寫入（如未來日請假→方案→用這套）→ 分頁 B（未重整）做另一跳版寫入 → 預期：B 出現「別人剛更新過排程，已載入最新版本」並自動重載（store 層已測，UI 層待真人確認）
