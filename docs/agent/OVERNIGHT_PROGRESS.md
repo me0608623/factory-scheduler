@@ -675,3 +675,21 @@
 - **發現並修復第 7 缺陷（main `32466fe`）**：筆刷範圍套用的 pushUndo() 在 applyBrush 變更**之後**才快照 →「復原上一步」還原的已是套用後狀態＝**復原無效**。修法：pushUndo 移到迴圈前（與 ot-save/toggleOpen 對齊）。修復前：套用 leaves=[15,16]→復原→**仍 [15,16]**；修復後：→復原→**[]**＋toast「已復原上一步」（HMR 實證）。+1 契約測試；**390/390 綠**＋build 綠
 - **候選清單進度**：#1 ✓ #2 ✓ #3 ✓（本輪含缺陷修復）
 - **下輪接續**：#4 權限委派
+
+### 缺陷探索輪 36（2026-10-13 02:00–03:30）——★修復第 8 缺陷：權限管理無法儲存（四層不一致，含兩次自我糾正）
+
+- **候選 #4 權限委派**：重現路徑＝老闆登入 staging → 更多→權限管理→任帳號→切權限→儲存 → 必失敗
+- **缺陷 #8 根因（四層）**：前端 `PERMISSIONS` 15 鍵 vs 資料庫 13 鍵（0027 補了 notes.manage 後再沒跟上）——
+  1. `set_account_permissions` 白名單 13 鍵 →「含未知權限或非布林值」
+  2. `account_permissions_permission_check` CHECK 13 鍵 → 白名單放行後 INSERT 仍撞約束
+  3. `role_has_permission` 組長預設 10 鍵 vs 前端 LEAD_DEFAULT 12 鍵（雲端組長少了趕貨/工作紀錄）
+  4. `has_any_write_permission` 寫入閘門 13 鍵（僅授趕貨/工作紀錄的帳號被當唯讀）
+- **修復（0037，共三版——兩次 staging 實測抓出自己的錯）**：
+  - v1 誤建 `set_access_permissions` 孤兒函式（RPC 名不符，staging 實測仍失敗才發現）；v2 改 replace 正確函式後撞第 2 層 CHECK；v3（main `16a6d86`）一次補齊四層＋drop 孤兒
+  - **staging E2E 實證**：老闆→viewer→切「特別趕貨」＋「工作紀錄」→儲存 → **toast「已更新 me0608623+test-viewer@gmail.com 的功能權限」**（修復前兩種錯誤訊息都實際出現過）
+- **測試債一併修復**：① `permissions.test.mjs` v1 從未被 `npm test` 執行過（無 import、不在 script 內）——改 node:test 並接進 runner；② `machine-layout.test.mjs` 5 個測試自 0036 起就漏接（`npm test` 只跑 migrations.test.mjs）——補回；③ 新增 RPC 名稱防回歸（store rpc 呼叫名必須＝migration 建立的函式名）＋ PERMISSIONS/白名單/CHECK/LEAD_DEFAULT 四清單對齊測試＋PGlite 15 鍵全量儲存實測
+- **測試**：db 203＋5＋3、web 390 全綠；build 綠；main CI `16a6d86` 全綠
+- **staging 套用**：0037 v3 已透過 Supabase dashboard SQL editor 套用並驗證（`real_fn_15keys=true`、孤兒已 drop、UI 儲存成功）
+- **揭露**：staging 測試帳號 test-lead 密碼已重設（與先前 test-viewer 重設同值，見 SQL editor 歷史；正式環境未動）
+- **正式環境待辦（使用者）**：0037 尚未套用正式庫（走 apply-migration 流程＋備份前置）；套用前正式站「權限管理」儲存仍是壞的
+- **候選清單進度**：#1 ✓ #2 ✓ #3 ✓ #4 ✓（本輪，含缺陷修復）；**下輪接續**：#5 輪班表 Excel 式編輯
