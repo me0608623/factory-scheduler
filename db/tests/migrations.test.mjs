@@ -102,6 +102,14 @@ await as(TV, async () => {
     "非老闆不能轉授權限");
 });
 await db.query("delete from orders where code='DELEGATED-ORDER'");
+// 0037：前端 15 鍵全量儲存（含 rush.manage/worklog.manage）不得再被白名單或 CHECK 拒絕
+const ALL15 = Object.fromEntries(['schedule','incidents','orders','calendar','master','groups','work_contents','transfers',
+  'rosters','scenarios','execution','archives','notes','rush','worklog'].map(k=>[k+'.manage',false]));
+await as(BOSS, async () => {
+  await db.query("select set_account_permissions($1,$2::jsonb)", [TV, JSON.stringify(ALL15)]);
+  ok((await db.query("select count(*)::int n from account_permissions where user_id=$1 and permission in ('rush.manage','worklog.manage')", [TV])).rows[0].n === 2,
+    "15 鍵全量儲存成功（含趕貨／工作紀錄——0037 前會被白名單與 CHECK 擋下）");
+});
 await as(BOSS, () => db.query("select set_account_permissions($1,$2::jsonb)", [LEAD, JSON.stringify({"incidents.manage":false})]));
 await as(LEAD, () => expectErr("insert into machine_faults (machine_id,date,start_min,end_min) values ('c',current_date,480,540)",[],/row-level security/,
   "老闆可收回組長職位原本擁有的單項權限"));

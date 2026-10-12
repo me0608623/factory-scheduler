@@ -36,3 +36,26 @@ test('RPC 名稱防回歸：store 呼叫的函式名必須與 0037 建立的函�
   const allowed = m[1].match(/'[a-z_.]+'/g).map(s=>s.slice(1,-1));
   assert.deepEqual(frontKeys.sort(), [...new Set(allowed)].sort(), 'PERMISSIONS 與白名單鍵不一致');
 });
+
+test('0037：資料表 CHECK、寫入閘門也需 15 鍵；組長預設與前端 LEAD_DEFAULT 對齊', () => {
+  const sql37 = read('db/migrations/0037_permission_whitelist_complete.sql');
+  const front = ['schedule','incidents','orders','calendar','master','groups','work_contents','transfers','rush','worklog','rosters','scenarios','execution','archives','notes'].map(k=>k+'.manage');
+  // CHECK 約束與 has_any_write_permission 各自的鍵清單都涵蓋 15 鍵
+  const blocks = [...sql37.matchAll(/check\(permission in \(\s*([\s\S]*?)\)\)/g),
+                  ...sql37.matchAll(/has_any_write_permission[\s\S]*?unnest\(array\[\s*([\s\S]*?)\]\)/g)];
+  assert.ok(blocks.length >= 2, '0037 應同時更新 CHECK 約束與 has_any_write_permission（第三層：僅改函式白名單仍存不了）');
+  for (const b of blocks) {
+    const keys = b[1].match(/'[a-z_.]+'/g).map(s=>s.slice(1,-1));
+    const missing = front.filter(k=>!keys.includes(k));
+    assert.deepEqual(missing, [], '鍵清單缺少：'+missing);
+  }
+  // role_has_permission 組長預設 = 前端 LEAD_DEFAULT
+  const permSrc = read('web/src/permissions.js');
+  const leadBlock = permSrc.match(/LEAD_DEFAULT = new Set\(\[([\s\S]*?)\]\)/);
+  assert.ok(leadBlock, 'permissions.js 找不到 LEAD_DEFAULT');
+  const leadFront = [...leadBlock[1].matchAll(/'([a-z_]+\.manage)'/g)].map(x=>x[1]).sort();
+  const roleBlock = sql37.match(/role_has_permission[\s\S]*?lead' then p_permission=any\(array\[\s*([\s\S]*?)\]\)/);
+  assert.ok(roleBlock, '0037 找不到 role_has_permission 的組長預設');
+  const leadDb = [...roleBlock[1].matchAll(/'([a-z_]+\.manage)'/g)].map(x=>x[1]).sort();
+  assert.deepEqual(leadDb, leadFront, '雲端組長預設與前端 LEAD_DEFAULT 不一致');
+});
