@@ -43,7 +43,12 @@ export function seedSql(s,url){
   assertTestTarget(url);if(!s.blocks.length)throw new Error('必須先計算有效班表，不能交付空表');
   const tables=rowsOf(s);
   let sql=`-- ONLY ${TEST_URL}; synthetic data. No credentials. No DELETE/TRUNCATE.\nbegin;\nlock table schedule_state in exclusive mode;\n`;
-  sql+=`do $$ begin
+  sql+=`do $$ declare missing text; begin
+    select string_agg(t, ', ' order by t) into missing
+      from unnest(array['account_permissions','leave_requests','schedule_memos','rush_orders','work_log','machine_layout']) t
+      where to_regclass('public.'||t) is null;
+    if missing is not null then
+      raise exception '測試 schema 尚未升級，缺少 %；請先完成 migration 0025–0036', missing; end if;
     if exists(select 1 from employees where source_ref is not null or catalog_sources<>'[]'::jsonb) then
       raise exception '此環境有原始名冊，停止匯入測試資料'; end if;
     if exists(select 1 from employees where id=${literal(s.employees[0].id)}::uuid) then

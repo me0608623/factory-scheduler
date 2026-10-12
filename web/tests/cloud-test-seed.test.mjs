@@ -32,3 +32,17 @@ test('cloud seed SQL executes against real migrations, preserves demo catalog an
     assert.equal((await db.query('select count(*)::int as n from employees')).rows[0].n,before+12);
   }finally{await db.close();}
 });
+test('outdated staging schema fails before any seed rows or schedule-state changes',async()=>{
+  const db=await makeDb();
+  try{
+    const before=(await db.query('select count(*)::int as n from employees')).rows[0].n;
+    const state=(await db.query('select version,setup_pending from schedule_state')).rows[0];
+    await db.exec('alter table rush_orders rename to rush_orders_before_upgrade');
+    const s=cloudSeed('2026-10-12');
+    s.blocks=[{id:testId('b1'),oid:s.orders[0].id,step:0,m:s.machines[0].id,emp:s.employees[0].id,date:'2026-10-12',s:480,e:540,qty:120,pin:true}];
+    await assert.rejects(db.exec(seedSql(s,TEST_URL)),/schema 尚未升級.*rush_orders/);
+    await db.exec('rollback');
+    assert.equal((await db.query('select count(*)::int as n from employees')).rows[0].n,before);
+    assert.deepEqual((await db.query('select version,setup_pending from schedule_state')).rows[0],state);
+  }finally{await db.close();}
+});
