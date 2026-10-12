@@ -1701,7 +1701,9 @@ function toggleOpen(d){
 function saveDailyOT(m){
   if(!canCalendar())return;
   const d=m.date;
-  const changed=!!S.dayOT[d]!==m.open||S.employees.some(e=>{
+  // 先讀下拉選單（改變「加班到幾點」才是使用者剛剛選的值），否則 changed 誤判無變更
+  if(m.open){const sel=$("#ot-end");m.otEnd=sel?+sel.value:m.otEnd||DAY1;}
+  const changed=!!S.dayOT[d]!==m.open||(!!m.open&&S.dayOT[d]!==m.otEnd)||S.employees.some(e=>{
     const old=Object.prototype.hasOwnProperty.call(e.otOverrides||{},d)?!!e.otOverrides[d]:null;
     return old!==m.overrides[e.id];
   });

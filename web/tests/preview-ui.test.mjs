@@ -97,3 +97,11 @@ test('加班日渲染不崩潰：dayHTML 必須用 di.otEnd（裸 otEnd 會 Refe
 test('加班設定無變更時有明確回饋（不再靜默關閉）', () => {
   assert.match(app, /if\(!changed\)\{closeModal\(\);toast\("設定沒有變更，未儲存"\);return;\}/, 'no-op 分支需 toast');
 });
+
+test('只改「加班到幾點」也被視為變更——changed 判斷需先讀選單並比對 otEnd', () => {
+  const head = app.slice(app.indexOf('function saveDailyOT'), app.indexOf('function saveDailyOT') + 700);
+  const readSelAt = head.indexOf('m.otEnd=sel');
+  const changedAt = head.indexOf('const changed=');
+  assert.ok(readSelAt > -1 && changedAt > -1 && readSelAt < changedAt, '選單值必須在 changed 計算前讀取');
+  assert.match(head, /\(\!\!m\.open&&S\.dayOT\[d\]!==m\.otEnd\)/, 'changed 需比對 otEnd');
+});
