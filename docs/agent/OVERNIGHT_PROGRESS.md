@@ -452,3 +452,10 @@
 - **測試方法教訓（重要，下輪遵守）**：modal 內互動不可用 querySelector 拿節點跨 sleep 點擊——必須用 CUA 座標點擊（真實滑鼠事件）或 pointer 座標派發（本輪拖曳測試成功正是此法）
 - 本輪無程式修改；staging DB 全程唯讀查證＋兩次無效 no-op（版本 0→2 來自更早 muddle 輪的 10/13 不開放寫入）
 - **下輪接續點**：用 CUA 座標點擊重做加班雙分頁（B 開加班→A 3 秒內跟進）＋衝突路徑（A 先存、B 舊版存→40001→toast＋自動重載）
+
+### 缺陷探索輪 4（2026-10-12 15:0x–15:2x，OT 自動化深掘＋改道）
+
+- **OT modal 自動化結論（兩輪收斂）**：CUA 座標＋click 探針證實——點擊確實送達 document handler（act=ot-save 已觀測、modal 關閉），但走 saveDailyOT 的「無變化」靜默路徑（changed=false→closeModal 不寫入不提示）：toggle 狀態在步驟間丟失的機制未完全鎖定（新 DOM 讀數顯示 pressed=true 但 save 時 m.open=false）。**對真實使用者的風險評估**：toggle→確認的連續操作中 changed 必為 true，「無變化靜默關閉」是正確行為；但 DB 三度查證零寫入＋零回饋的自動化現象仍留一個 watch item：saveDailyOT 的靜默 no-op 分支若因任何狀態丟失誤觸，使用者會以為已儲存——建議下下輪評估在 no-op 分支加 toast「設定未變更」（一行防呆）
+- **拖曳改道測 B→A 即時同步**：受 MCP 32s 逾時限制在 staging 拖曳未完成（兩分頁仍 19 blocks、無預覽殘留）——標記未驗證，下輪接續
+- 本輪無程式修改；staging DB 唯讀查證（version 恆 2）
+- **下輪接續點**：①拖曳 B→A 即時同步（把 evaluate 拆兩段：拖曳一段、等預覽一段，避開 32s cap）②若成功續做衝突路徑 ③考慮 no-op toast 防呆
