@@ -41,6 +41,8 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
     });
     addEventListener('resize',()=>positionPanel());
     addEventListener('pointerup',()=>{if(!panel.hidden)setTimeout(positionPanel,0);},{passive:true});
+    // 載入當下就要定位：否則手機沿用桌機存下的浮動座標（如 x=1114）會把藥丸放到畫面外，且使用者無從點它補救
+    positionPanel();
   }
   // 語音播報：用瀏覽器內建語音（zh-TW 優先），不把回答送到任何服務
   let ttsAuto=false;try{ttsAuto=localStorage.getItem('fsched-chat-tts')==='1';}catch{}

@@ -197,3 +197,8 @@ test('桌面抽屜高度：pane sticky 且以可視高度為準（不被排程�
   assert.ok(app.includes('updateHeaderVar') && app.includes('ResizeObserver'), '缺少 --hdr-h 動態量測');
   assert.ok(app.includes('try{sp.setPointerCapture'), 'setPointerCapture 需容錯（合成指標會拋錯中斷拖曳）');
 });
+
+test('缺陷#11 回歸：聊天室安裝當下必須呼叫 positionPanel（手機沿用桌機浮動座標會讓藥丸跑到畫面外且無法點擊補救）', () => {
+  const block = chatUI.slice(chatUI.indexOf('addEventListener(\'resize\',()=>positionPanel())'), chatUI.indexOf('addEventListener(\'resize\',()=>positionPanel())') + 400);
+  assert.match(block, /addEventListener\('resize',\(\)=>positionPanel\(\)\);[\s\S]*?positionPanel\(\);/, '安裝浮動定位後必須立即 positionPanel() 一次（清除手機上的桌機殘留座標）');
+});
