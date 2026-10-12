@@ -1705,7 +1705,7 @@ function saveDailyOT(m){
     const old=Object.prototype.hasOwnProperty.call(e.otOverrides||{},d)?!!e.otOverrides[d]:null;
     return old!==m.overrides[e.id];
   });
-  if(!changed){closeModal();return;}
+  if(!changed){closeModal();toast("設定沒有變更，未儲存");return;}
   const blocksInOvertime=S.blocks.filter(b=>b.date===d&&futureOf(b)&&b.e>REG_END);
   if(readOnly&&blocksInOvertime.some(b=>!m.open||!(m.overrides[b.emp]??overtimeDefault(emp(b.emp),d)))){
     toast("這天已有加班排程；縮短加班並順延工作還需要「調整與自動排程」權限");return;

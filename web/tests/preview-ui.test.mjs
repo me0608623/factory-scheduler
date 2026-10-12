@@ -94,3 +94,6 @@ test('加班日渲染不崩潰：dayHTML 必須用 di.otEnd（裸 otEnd 會 Refe
   const dayHTMLBody = app.slice(app.indexOf('function dayHTML'), app.indexOf('function blkHTML'));
   assert.doesNotMatch(dayHTMLBody, /hm\(otEnd\)/, 'dayHTML 內不得有裸 otEnd（其他模組有局部 otEnd 屬合法）');
 });
+test('加班設定無變更時有明確回饋（不再靜默關閉）', () => {
+  assert.match(app, /if\(!changed\)\{closeModal\(\);toast\("設定沒有變更，未儲存"\);return;\}/, 'no-op 分支需 toast');
+});
