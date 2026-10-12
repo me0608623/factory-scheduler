@@ -2831,7 +2831,7 @@ MODALS.leaveq=m=>{
   if(!m.date)m.date=UI.date;
   let days="";for(let i=0;i<14;i++){const d=addDays(UI.date<todayStr()?todayStr():UI.date,i),di=dayInfo(d);
     days+=tg("lq-date",d,m.date===d,'<span class="num">'+md(d)+'</span><small>'+WD[di.w]+(di.open?"":" 停工")+'</small>',"leave");}
-  const n=S.blocks.filter(b=>b.emp===E.id&&b.date===m.date).length;
+  const n=S.blocks.filter(b=>b.emp===E.id&&b.date===m.date&&futureOf(b)).length;  // 與 lq-go 同口徑：過去時段不計（避免 hint 說有工作、按下卻說沒有）
   return {title:tx("{name} 請假",{name:esc(E.name)}),body:'<div class="field"><span class="lab">'+tx('哪一天？')+'</span><div class="toggles">'+days+'</div></div>'+
     (E.leaves.includes(m.date)?'<div class="okbox">'+tx('這天已經登記請假')+'</div>':'<div class="hint">'+mdw(m.date)+" "+esc(E.name)+" 有 "+n+" 段工作要調整</div>"),
     foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="lq-go" '+(E.leaves.includes(m.date)?"disabled":"")+'>'+tx('看調整方案')+'</button>'};

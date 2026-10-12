@@ -116,3 +116,6 @@ test('停工/日曆儲存前有產量矛盾閘門（repair 可產出違反後站
   const pushUndoAt = app.indexOf('pushUndo();S.cal=', t2);
   assert.ok(t2 > -1 && pushUndoAt > t2, 'c-save：草稿探測在 pushUndo 之前');
 });
+test('leaveq 工作數提示與 lq-go 同口徑（futureOf 過濾）', () => {
+  assert.match(app, /const n=S\.blocks\.filter\(b=>b\.emp===E\.id&&b\.date===m\.date&&futureOf\(b\)\)\.length/, 'hint 計數需含 futureOf');
+});
