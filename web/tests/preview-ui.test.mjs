@@ -134,3 +134,10 @@ test('缺陷#13 回歸：case "analytics" 必須自帶 break 與頁面切換主�
   assert.match(seg, /UI\.page="analytics";[\s\S]*?render\(\);[\s\S]*?break;/, 'analytics case 需完整主體＋break，不得落入下一個 case');
   assert.ok(!/case "analytics":UI\.page="analytics";\s*case/.test(app), 'analytics case 不得直接落到下一個 case（缺 break）');
 });
+
+test('缺陷#14 回歸：feedback-send 需在本機模式提前擋下（查看反饋有擋、送出沒擋＝不一致；本機 STORE.sb 不存在會靜默失敗）', () => {
+  const i = app.indexOf('case "feedback-send"');
+  assert.ok(i >= 0, '找不到 feedback-send case');
+  const seg = app.slice(i, i + 200);
+  assert.match(seg, /STORE\.kind==="local"\)\{toast\(/, '本機模式要先提示改用 Email，不得走到 STORE.sb');
+});
