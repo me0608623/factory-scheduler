@@ -635,3 +635,8 @@
 
 - 正式 web/solver 200；工作區乾淨；staging Realtime 仍 500（重佈建已試、待 support）
 - 機器端待辦空；下輪繼續
+
+### 缺陷探索輪 31（2026-10-12 23:36–23:46，健康檢查輪——狀態不變）
+
+- 正式 web/solver 200；工作區乾淨；staging Realtime 仍 500（等 support）
+- 機器端待辦空；下輪繼續
