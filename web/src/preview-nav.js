@@ -25,8 +25,11 @@ export const DP_VIEWS = ["overview", "suggestion-detail", "impact-list", "impact
 
 export function newNav() { return { view: "overview", sel: null, stack: [] }; }
 
+const sameSel=(a,b)=>!a&&!b||(!!a&&!!b&&(a.key!=null?a.key===b.key:a.oid===b.oid));
 export function navPush(nav, view, sel, snap = {}) {
   if (!DP_VIEWS.includes(view)) throw new Error("未知的預覽檢視：" + view);
+  // 連點去重：同一檢視＋同一選取再點一次不堆疊（double-tap 會把「返回上一步」變成多按好幾次）
+  if (nav.view === view && sameSel(nav.sel, sel ?? null)) return nav;
   nav.stack.push({ view: nav.view, sel: nav.sel, date: snap.date ?? null, scrollY: snap.scrollY ?? null,
     scrollLeft: snap.scrollLeft ?? null, factory: snap.factory ?? null, boardView: snap.boardView ?? null, mode: snap.mode ?? null });
   nav.view = view; nav.sel = sel ?? null;
@@ -141,14 +144,14 @@ export function opDetail(P, key) {
     due,
     rel,
     reasons: reasons.length ? reasons : null,
-    reasonFallback: [...m.prev, ...m.next].some(b => b.id === P.oldId)
-      ? "使用者手動調整這道工序的位置或工作長度。"
+    fallbackKind: [...m.prev, ...m.next].some(b => b.id === P.oldId)
+      ? "manual"
       : m.gone
-      ? "調整後這道工序沒有可用的時段，暫時未排入。"
+      ? "gone"
       : m.added
-        ? "這是調整後新排入的工序。"
+        ? "added"
         : m.startDelta == null
-          ? "此工序位置有變動；尚未能確定更詳細的原因，可對照前後位置判斷。"
+          ? "unclear"
           : null,
   };
 }
@@ -173,7 +176,7 @@ export function dueDetail(P, oid) {
     const next = afterBlocks.filter(b => b.oid === oid && b.step === si).sort((a, b) => pvAbsOf(a.date, a.s) - pvAbsOf(b.date, b.s));
     const changed = JSON.stringify(prev.map(b => [b.date, b.s, b.e, b.m])) !== JSON.stringify(next.map(b => [b.date, b.s, b.e, b.m]));
     return {
-      si, proc: st2.proc, prevTxt: pvRangeTxt(prev), nextTxt: pvRangeTxt(next),
+      si, proc: st2.proc, prev, next, prevTxt: pvRangeTxt(prev), nextTxt: pvRangeTxt(next),
       qty: stepQty(afterBlocks, oid, si, execution), changed, gone: !next.length,
       unfinished: stepQty(afterBlocks, oid, si, execution) < o.qty,
     };

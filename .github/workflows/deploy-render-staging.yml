@@ -1,0 +1,24 @@
+# 手動部署 staging web（factory-scheduler-web-staging）。
+# 與正式部署分離：staging 更新非緊迫，採 on-demand；缺 hook secret 時安全跳過並印設定說明。
+# 需要的 secret：RENDER_STAGING_WEB_DEPLOY_HOOK
+#   （Render → factory-scheduler-web-staging → Settings → Create Deploy Hook → 貼到 GitHub Secrets）
+name: 部署 Render staging 網站
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 觸發 staging web 部署（缺 secret 時跳過）
+        env:
+          HOOK: ${{ secrets.RENDER_STAGING_WEB_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::notice::尚未設定 RENDER_STAGING_WEB_DEPLOY_HOOK，已跳過。設定方式：Render → factory-scheduler-web-staging → Settings → Create Deploy Hook，把網址加到本倉庫 GitHub Secrets。"
+            exit 0
+          fi
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$HOOK")
+          echo "deploy hook 回應：$code"
+          [ "$code" = "200" ] || [ "$code" = "204" ] || { echo "::error::觸發失敗（$code），請到 Render 檢查 hook 與服務狀態"; exit 1; }

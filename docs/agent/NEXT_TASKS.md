@@ -49,3 +49,13 @@
 
 - PR #7-#14 全部 MERGED；#14（排程縮放）含手勢強化 67047f8 已部署正式站
 - 日／週切換：保留工具列手動，不自動跳週（使用者確認 2026-10-11）
+
+## 待使用者設定（機器無法代勞）
+
+- [ ] **RENDER_STAGING_WEB_DEPLOY_HOOK**：Render → factory-scheduler-web-staging → Settings → Create Deploy Hook → 貼到 GitHub Secrets。設好後 staging web 可用「部署 Render staging 網站」workflow 手動更新（目前 staging 跑的是 10/11 前的舊版）
+- [ ] **正式站測試模式啟用**：Render web 服務的環境變數已預留 VITE_TEST_* 四個欄位（render.yaml，輪次 111）——只需在 Dashboard 填 staging 的值即可（步驟見 docs/TEST_MODE.md；填好後登入頁會出現「進入測試模式」按鈕）
+
+## 依賴升級待辦（破壞性跨度，需獨立輪驗證）
+
+- [x] pglite 0.3.16 → 0.5.8（→ 輪次 106）：全套 379 綠＋build 綠，沙箱完整相容
+- [x] saxes 5 → 6（→ 輪次 107）：scan 包裝器 API 相容，14 相關測試＋379 全綠

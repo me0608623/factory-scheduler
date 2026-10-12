@@ -270,6 +270,56 @@ test("套用排程服務的方案（apply_plan）", async () => {
   await assert.rejects(lead.applyPlan(pv, "A"), /已經套用過/);
 });
 
+test("套用方案時排程已被別人更新 → 整份拒絕（版本衝突不留半套）", async () => {
+  const { db, store, count } = await setup();
+  const lead = await store("lead@x"), boss = await store("boss@x");
+  const S = await lead.load();
+  const opt = { id: "A", name: "少動為主", summary: "測試方案", lines: [], blocks: [
+    { order_id: A01, step_seq: 0, machine_id: "a", employee_id: E1, date: "2026-10-05", start_min: 480, end_min: 540, qty: 120 }],
+    effects: { overtime_on: ["2026-10-05"] } };
+  const pv = (await db.query("insert into plan_previews (kind,title,event,base_version,options) values ('auto','重新排程','{}',0,$1) returning id",
+    [JSON.stringify([opt])])).rows[0].id;
+  // 預覽建立後、套用前，老闆先存了一版 → base_version 過期
+  const Sb = await boss.load();
+  Sb.blocks.push(blk({ m: "b" }));
+  await boss.sync(Sb, { kind: "move", title: "老闆手動調整" });
+  await assert.rejects(lead.applyPlan(pv, "A"), (e) => e.conflict === true && /重新計算/.test(e.message));
+  assert.equal(await count("select count(*)::int n from schedule_blocks"), 1, "只留老闆那段；方案沒有半套用");
+  const fresh = await lead.load();
+  assert.equal(fresh.version, 1, "版本停在老闆那一版");
+});
+
+test('儲存失敗（服務無回應）不留部分寫入，重新讀取仍是原版', async () => {
+  const { store, count } = await setup();
+  const lead = await store('lead@x');
+  const S = await lead.load();
+  S.blocks.push(blk());
+  // 模擬網路層故障：rpc 直接丟例外（非衝突、非權限）
+  const orig = lead.sb.rpc.bind(lead.sb);
+  lead.sb.rpc = async () => { throw new Error('network down'); };
+  await assert.rejects(lead.sync(S, { kind: 'move', title: '組長的調整' }), /network down/);
+  lead.sb.rpc = orig;
+  assert.equal(await count('select count(*)::int n from schedule_blocks'), 0, '資料庫沒有任何新方塊');
+  const fresh = await lead.load();
+  assert.equal(fresh.blocks.length, 0, '重新讀取仍是原版');
+  assert.equal(fresh.version, 0, '版本不變');
+});
+
+test('套用後立即復原（同使用者）不被自己的版本鎖擋住', async () => {
+  const { store, count } = await setup();
+  const boss = await store('boss@x');
+  const S0 = await boss.load();
+  S0.blocks.push(blk());
+  await boss.sync(S0, { kind: 'move', title: '排入工作' });
+  assert.equal(await count('select count(*)::int n from schedule_blocks'), 1);
+  // 「復原上一步」的實際效果：同一 store 把狀態退回改動前再存
+  const S1 = structuredClone(S0); S1.blocks.pop();
+  await boss.sync(S1, { kind: 'edit', title: '復原上一步' });
+  assert.equal(await count('select count(*)::int n from schedule_blocks'), 0, '復原後方塊移除');
+  const fresh = await boss.load();
+  assert.equal(fresh.version, 2, '版本正常推進，未被 40001 擋下');
+});
+
 test("格式轉換：畫面 → 快照 → 畫面", () => {
   const S = { cal: { week: [false, true, true, true, true, true, true], over: { "2026-10-01": "off" } }, dayOT: { "2026-10-02": true },
     employees: [{ id: "e", name: "甲", factory: 2, color: 1, skills: ["a"], maxMachines: 2, leaves: ["2026-10-03"], noOT: true, reviewStatus: 'confirmed', sourceRef: null,

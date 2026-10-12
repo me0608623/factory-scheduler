@@ -95,7 +95,7 @@ test('返回還原廠別、日週模式、對照模式與水平捲動',()=>{
 });
 test('工序原因不誤用同張工單其他工序的順延紀錄',()=>{
   const q={...P,lines:[{t:'B02 包裝：跟著前站延後'}]};
-  const detail=opDetail(q,'oB02|0');assert.equal(detail.reasons,null);assert.match(detail.reasonFallback,/使用者手動/);
+  const detail=opDetail(q,'oB02|0');assert.equal(detail.reasons,null);assert.equal(detail.fallbackKind,'manual');
 });
 
 test('建議順延＝被直接擠走的工作；連帶影響排除建議與目標本體', () => {
@@ -179,4 +179,23 @@ test('資料安全：模組面對淺拷貝的 ops 不會回頭改 proposal', () 
   suggestList(P); impactList(P); dueList(P);
   opDetail(P, 'oB05|0'); dueDetail(P, 'oB05'); boardTarget(P, 'oB05|0');
   assert.equal(JSON.stringify(P.ops.map(o => [o.oid, o.si])), before, '檢視操作不改 ops');
+});
+test('dueDetail stepRows 帶原始段落陣列（畫面層自行格式化語言）', () => {
+  const det = dueDetail(P, 'oB05');
+  const cut = det.stepRows.find(r => r.proc === '裁切');
+  assert.ok(Array.isArray(cut.prev) && cut.prev.length === 1, 'prev 原始陣列');
+  assert.ok(Array.isArray(cut.next) && cut.next.length === 2, 'next 兩段');
+});
+test('連點去重：同一檢視＋同一選取重複 push 不堆疊導航層', () => {
+  const nav = newNav();
+  navPush(nav, 'impact-detail', { key: 'o1|0' }, {});
+  navPush(nav, 'impact-detail', { key: 'o1|0' }, {}); // double-tap
+  navPush(nav, 'impact-detail', { key: 'o1|0' }, {});
+  assert.equal(nav.stack.length, 1, '重複點同一列只留一層');
+  navPush(nav, 'impact-detail', { key: 'o2|0' }, {}); // 不同選取仍正常堆疊
+  assert.equal(nav.stack.length, 2);
+  navPush(nav, 'overview', null, {});
+  assert.equal(nav.stack.length, 3, '不同檢視不受去重影響');
+  navBack(nav);
+  assert.equal(nav.view, 'impact-detail' );
 });

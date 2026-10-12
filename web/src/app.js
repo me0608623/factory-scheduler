@@ -2280,17 +2280,32 @@ function dpBack(){
 }
 function dpScrollTarget(target){
   const preview=PV;
-  setTimeout(()=>{
+  // 大量方塊時 render 可能超過 40ms 才把目標畫出來：rAF 重試直到找到（上限 800ms）
+  const find=()=>target?document.querySelector('.blk[data-bid="'+CSS.escape(target.id)+'"]'):document.querySelector(".blk.dp-hl")||document.querySelector(".blk.pv-mv, .blk.pv-add, .blk.willchg")||document.querySelector(".gblk");
+  const deadline=Date.now()+800;
+  const attempt=()=>{
     if(PV!==preview||!PV)return;
-    const el=target?document.querySelector('.blk[data-bid="'+CSS.escape(target.id)+'"]'):document.querySelector(".blk.dp-hl")||document.querySelector(".blk.pv-mv, .blk.pv-add, .blk.willchg")||document.querySelector(".gblk");
-    el?.scrollIntoView({block:"center",inline:"nearest"});
-    if(el&&window.matchMedia?.('(max-width:980px)').matches){
+    const el=find();
+    if(!el){if(performance.now()<deadline)requestAnimationFrame(attempt);return;}
+    el.scrollIntoView({block:"center",inline:"nearest"});
+    if(window.matchMedia?.('(max-width:980px)').matches){
       const top=document.querySelector('.pv-manual')?.getBoundingClientRect().bottom??0;
       const bottom=document.querySelector('.pv-drawer')?.getBoundingClientRect().top??window.innerHeight;
       const r=el.getBoundingClientRect();
       if(bottom>top)window.scrollBy(0,(r.top+r.bottom)/2-(Math.max(0,top)+bottom)/2);
     }
-  },40);
+  };
+  setTimeout(attempt,40);
+}
+function focusDpBack(){
+  // 與 dpScrollTarget 同理：render 慢時按鈕可能還沒出現，rAF 重試聚焦（鍵盤可用性）
+  const deadline=Date.now()+800;
+  const attempt=()=>{
+    const b=document.querySelector(".pv-drawer .dp-back");
+    if(b){b.focus();return;}
+    if(Date.now()<deadline)requestAnimationFrame(attempt);
+  };
+  setTimeout(attempt,40);
 }
 // 預覽中點排程表上的方塊：若屬這次調整，直接切到該工序詳情
 function pvClickBlock(id){
@@ -2311,7 +2326,7 @@ function manualStripHTML(o){
   const P=PV.P,d=diffOf(o),dates=Object.keys(d.dates).sort(),bad=!o.applicable;
   return '<section class="pv pv-manual" aria-label="'+tx('手動排班預覽')+'">'+
    '<div class="pv-h"><span class="pv-badge">'+(bad?'需要處理':'預覽中')+'</span>'+
-   '<div class="pv-t"><b>'+esc(P.movedLabel)+'</b><small>'+esc(P.source)+' → '+esc(P.target)+(P.newQty!==undefined?'；預計 '+P.newQty+' 件':'')+(P.remaining?'；此站還有 '+P.remaining+' 件未排':'')+'。還沒套用，正式排程不會變。</small></div><div class="spacer"></div>'+
+   '<div class="pv-t"><b>'+esc(P.movedLabel)+'</b><small>'+esc(P.source)+' → '+esc(P.target)+(P.newQty!==undefined?tx('；預計 {n} 件',{n:P.newQty}):'')+(P.remaining?tx('；此站還有 {n} 件未排',{n:P.remaining}):'')+tx('。還沒套用，正式排程不會變。')+'</small></div><div class="spacer"></div>'+
    (PV.applying?'<button class="btn primary" disabled>'+tx('正在儲存，請稍候…')+'</button>':
    '<button class="btn" data-act="pv-cancel">'+tx('取消')+'</button><button class="btn primary" data-act="pv-apply"'+(bad?' disabled':'')+'>'+tx('確認套用')+'</button>')+'</div>'+
    '<div class="pv-row"><div class="seg" role="group" aria-label="'+tx('預覽圖與下方排程表顯示')+'"><button data-act="pv-mode" data-v="cmp" aria-pressed="'+(PV.mode==="cmp")+'">'+tx('對照')+'</button><button data-act="pv-mode" data-v="new" aria-pressed="'+(PV.mode==="new")+'">'+tx('調整後')+'</button><button data-act="pv-mode" data-v="orig" aria-pressed="'+(PV.mode==="orig")+'">'+tx('原本')+'</button></div>'+
@@ -2335,37 +2350,39 @@ function dpTitle(nav,P){
   return tx('手動排班預覽');
 }
 const dpLab=(t,p)=>'<span class="lab">'+tx(t,p)+'</span>';
+const dpSegTxt=b=>mdw(b.date)+" "+hm(b.s)+"–"+hm(b.e)+" · "+b.m+" "+tx('機台');
+const dpRngTxt=bl=>!bl||!bl.length?tx('未排入'):dpSegTxt(bl[0])+(bl.length>1?" …"+tx('{n} 段',{n:bl.length}):"");
 function dpOpRow(m,v){
   const k=m.gone?"fail":m.startDelta>0?"delay":m.startDelta<0?"early":"info";
   return '<button class="dp-row" data-act="dp-nav" data-v="'+v+'" data-id="'+esc(m.key)+'">'+
    '<span class="k '+k+'">'+esc(m.code)+'</span>'+
-   '<span class="dp-row-t"><b>'+esc(m.step)+'</b><small>'+esc(m.prevTxt)+' → '+esc(m.nextTxt)+'</small></span>'+
+   '<span class="dp-row-t"><b>'+esc(m.step)+'</b><small>'+esc(dpRngTxt(m.prev))+' → '+esc(dpRngTxt(m.next))+'</small></span>'+
    (m.split?'<span class="tag">'+tx('{n} 段',{n:m.nextSegs.length})+'</span>':'')+(m.crossDay?'<span class="tag warn">'+tx('跨日')+'</span>':'')+(m.empChanged?'<span class="tag">'+tx('換人')+'</span>':'')+
    '</button>';
 }
 function dpDueRow(s){
-  const msg=s.status==="late"?"逾期，預計 "+mdw(s.finish):(s.status==="part"||s.status==="none")?"尚未排完":s.status==="done"?"已回報完成":"未逾期"+(s.finish?"，預計 "+mdw(s.finish):"");
-  const delta=s.deltaDays!=null&&s.deltaDays!==0?"（比原本"+(s.deltaDays>0?"晚 ":"早 ")+Math.abs(s.deltaDays)+" 天）":"";
+  const msg=s.status==="late"?tx('逾期，預計 {d}',{d:mdw(s.finish)}):(s.status==="part"||s.status==="none")?tx('尚未排完'):s.status==="done"?tx('已回報完成'):tx('未逾期')+(s.finish?tx('，預計 {d}',{d:mdw(s.finish)}):"");
+  const delta=s.deltaDays!=null&&s.deltaDays!==0?tx('（')+tx(s.deltaDays>0?'比原本晚 {n} 天':'比原本早 {n} 天',{n:Math.abs(s.deltaDays)})+tx('）'):"";
   return '<button class="dp-row" data-act="dp-nav" data-v="due-detail" data-id="'+esc(s.oid)+'">'+
-   '<span class="k '+(s.bad?"late":"early")+'">'+(s.bad?"需處理":"準時")+'</span>'+
-   '<span class="dp-row-t"><b>'+esc(s.code)+'</b><small>'+esc("："+msg+"；期限 "+mdw(s.due)+delta)+'</small></span></button>';
+   '<span class="k '+(s.bad?"late":"early")+'">'+(s.bad?tx('需處理'):tx('準時'))+'</span>'+
+   '<span class="dp-row-t"><b>'+esc(s.code)+'</b><small>'+esc(tx('：')+msg+tx('；期限 {d}',{d:mdw(s.due)})+delta)+'</small></span></button>';
 }
 function dpSegList(segs,cls){return segs.map(t=>'<div class="dp-seg '+cls+'">'+esc(t)+'</div>').join("")||'<div class="dp-seg">'+tx('未排入')+'</div>';}
 function dpOpDetailHTML(P,key){
   const det=opDetail(P,key);
   if(!det)return'<div class="hint">'+tx('找不到這道工序的資料。')+'</div>';
-  const empTxt=det.empChanged?("員工有更換："+(det.prevEmps.join("、")||"未指定")+" → "+(det.nextEmps.join("、")||"未指定")):"員工沒有更換"+(det.nextEmps.length?"（"+det.nextEmps.join("、")+"）":"");
-  const deltaTxt=det.startDelta==null?"":det.startDelta>0?"開始時間往後 "+fmtDelta(det.startDelta):det.startDelta<0?"開始時間提早 "+fmtDelta(-det.startDelta):"開始時間不變";
+  const empTxt=det.empChanged?tx('員工有更換：{a} → {b}',{a:det.prevEmps.join("、")||tx('未指定'),b:det.nextEmps.join("、")||tx('未指定')}):tx('員工沒有更換')+(det.nextEmps.length?tx('（')+det.nextEmps.join(tx('、'))+tx('）'):"");
+  const deltaTxt=det.startDelta==null?"":det.startDelta>0?tx('開始時間往後 {d}',{d:fmtDelta(det.startDelta)}):det.startDelta<0?tx('開始時間提早 {d}',{d:fmtDelta(-det.startDelta)}):tx('開始時間不變');
   return '<div class="dp-det">'+
-   '<div class="dp-sides"><div class="dp-side"><span class="dp-side-t">'+tx('原本')+'</span>'+dpSegList(det.prevSegs,"prev")+'</div>'+
+   '<div class="dp-sides"><div class="dp-side"><span class="dp-side-t">'+tx('原本')+'</span>'+dpSegList(det.prev.map(dpSegTxt),"prev")+'</div>'+
    '<span class="dp-arrow" aria-hidden="true">→</span>'+
-   '<div class="dp-side"><span class="dp-side-t">'+(det.gone?tx('調整後（未排入）'):tx('調整後'))+'</span>'+dpSegList(det.nextSegs,"next")+'</div></div>'+
-   '<div class="dp-facts">'+esc(empTxt)+(deltaTxt?'；'+esc(deltaTxt):'')+(det.split||det.crossDay?'；'+(det.split?'分成多段':'')+(det.split&&det.crossDay?'、':'')+(det.crossDay?'跨日':'')+'，各段可單獨定位':'')+'</div>'+
-   '<div class="dp-why"><span class="lab">'+tx('為什麼需要調整')+'</span>'+(det.reasons?det.reasons.map(t=>'<div class="issue">'+esc(t)+'</div>').join(""):'<div class="hint">'+esc(det.reasonFallback||"此工序位置有變動。")+'</div>')+'</div>'+
+   '<div class="dp-side"><span class="dp-side-t">'+(det.gone?tx('調整後（未排入）'):tx('調整後'))+'</span>'+dpSegList(det.next.map(dpSegTxt),"next")+'</div></div>'+
+   '<div class="dp-facts">'+esc(empTxt)+(deltaTxt?tx('；')+esc(deltaTxt):'')+(det.split||det.crossDay?tx('；')+tx('{a}，各段可單獨定位',{a:[det.split?tx('分成多段'):"",det.crossDay?tx('跨日'):""].filter(Boolean).join(tx('、'))}):'')+'</div>'+
+   '<div class="dp-why"><span class="lab">'+tx('為什麼需要調整')+'</span>'+(det.reasons?det.reasons.map(t=>'<div class="issue">'+esc(t)+'</div>').join(""):'<div class="hint">'+esc(({manual:tx('使用者手動調整這道工序的位置或工作長度。'),gone:tx('調整後這道工序沒有可用的時段，暫時未排入。'),added:tx('這是調整後新排入的工序。'),unclear:tx('此工序位置有變動；尚未能確定更詳細的原因，可對照前後位置判斷。')})[det.fallbackKind]||tx('此工序位置有變動。'))+'</div>')+'</div>'+
    (det.rel.length?'<div class="field">'+dpLab('同張工單其他受影響工序（相依）')+det.rel.map(m=>dpOpRow(m,"impact-detail")).join("")+'</div>':'')+
    (det.due?'<div class="field"><span class="lab">'+tx('對工單交期的影響')+'</span>'+dpDueRow(det.due)+'</div>':'')+
    (det.order?'<div class="hint">工單 '+esc(det.order.code)+' · '+det.order.qty+' 件 · 期限 '+mdw(det.order.due)+'</div>':'')+
-   (det.next.length>1||det.prev.length>1?'<div class="field"><span class="lab">'+tx('各段定位')+'</span><div class="dp-locs">'+[...det.prev.map(b=>({...b,mode:"orig",t:"原本段 "+hm(b.s)+"–"+hm(b.e)+" "+b.m})),...det.next.map(b=>({...b,mode:"new",t:"調整後段 "+hm(b.s)+"–"+hm(b.e)+" "+b.m}))].map(x=>'<button class="btn" data-act="dp-locate" data-d="'+esc(x.date)+'" data-id="'+esc(x.id)+'" data-m="'+esc(x.m)+'" data-mode="'+x.mode+'">'+esc(x.date+" · "+x.t)+'</button>').join("")+'</div></div>':'')+
+   (det.next.length>1||det.prev.length>1?'<div class="field"><span class="lab">'+tx('各段定位')+'</span><div class="dp-locs">'+[...det.prev.map(b=>({...b,mode:"orig",t:tx('原本段 {t}',{t:hm(b.s)+"–"+hm(b.e)+" "+b.m})})),...det.next.map(b=>({...b,mode:"new",t:tx('調整後段 {t}',{t:hm(b.s)+"–"+hm(b.e)+" "+b.m})}))].map(x=>'<button class="btn" data-act="dp-locate" data-d="'+esc(x.date)+'" data-id="'+esc(x.id)+'" data-m="'+esc(x.m)+'" data-mode="'+x.mode+'">'+esc(x.date+" · "+x.t)+'</button>').join("")+'</div></div>':'')+
    '<button class="btn primary dp-locate-btn" data-act="dp-nav" data-v="schedule-compare" data-id="'+esc(key)+'">'+tx('在排程表查看')+'</button>'+
    '</div>';
 }
@@ -2378,9 +2395,9 @@ function dpDueDetailHTML(P,oid){
    '<div class="dp-sides"><div class="dp-side"><span class="dp-side-t">'+tx('原本預計完成')+'</span><div class="dp-seg">'+(det.finishB?mdw(det.finishB):tx('未排完'))+'</div></div>'+
    '<span class="dp-arrow" aria-hidden="true">→</span>'+
    '<div class="dp-side"><span class="dp-side-t">'+tx('調整後預計完成')+'</span><div class="dp-seg">'+(det.finish?mdw(det.finish):tx('未排完'))+'</div></div></div>'+
-   (det.deltaDays!=null&&det.deltaDays!==0?'<div class="issue">'+(det.deltaDays>0?"延後 ":"提早 ")+Math.abs(det.deltaDays)+' 天</div>':det.finish&&det.finishB?'<div class="okbox">'+tx('完成日期不變')+'</div>':'<div class="hint">'+tx('完成日期尚無法比較')+'</div>')+
-   (det.unfinished?'<div class="field">'+dpLab('尚未排完的工序')+det.stepRows.filter(r=>r.unfinished).map(r=>'<div class="issue">'+esc(r.proc+'：已排 '+r.qty+' / '+det.qty+' 件'+(r.gone?"；調整後未排入":""))+'</div>').join("")+'</div>':'')+
-   '<div class="field">'+dpLab('各工序前後位置')+det.stepRows.map(r=>'<div class="dp-step'+(r.changed?" chg":"")+'"><b>'+esc(r.proc)+'</b>'+(r.changed?'<small>'+esc(r.prevTxt)+' → '+esc(r.nextTxt)+'</small>':'<small>'+tx('不變')+'</small>')+'</div>').join("")+'</div>'+
+   (det.deltaDays!=null&&det.deltaDays!==0?'<div class="issue">'+(det.deltaDays>0?tx('延後 {n} 天',{n:Math.abs(det.deltaDays)}):tx('提早 {n} 天',{n:Math.abs(det.deltaDays)}))+'</div>':det.finish&&det.finishB?'<div class="okbox">'+tx('完成日期不變')+'</div>':'<div class="hint">'+tx('完成日期尚無法比較')+'</div>')+
+   (det.unfinished?'<div class="field">'+dpLab('尚未排完的工序')+det.stepRows.filter(r=>r.unfinished).map(r=>'<div class="issue">'+esc(r.proc+'：'+tx('已排 {a} / {b} 件',{a:r.qty,b:det.qty}))+'</div>').join("")+'</div>':'')+
+   '<div class="field">'+dpLab('各工序前後位置')+det.stepRows.map(r=>'<div class="dp-step'+(r.changed?" chg":"")+'"><b>'+esc(r.proc)+'</b>'+(r.changed?'<small>'+esc(dpRngTxt(r.prev))+' → '+esc(dpRngTxt(r.next))+'</small>':'<small>'+tx('不變')+'</small>')+'</div>').join("")+'</div>'+
    (det.affectedOps.length?'<div class="field">'+dpLab('受影響的工序（可點擊）')+det.affectedOps.map(m=>dpOpRow(m,"impact-detail")).join("")+'</div>':'')+
    (det.reasons?'<div class="field">'+dpLab('排程變動的原因')+det.reasons.map(t=>'<div class="issue">'+esc(t)+'</div>').join("")+'</div>':'')+
    (det.affectedOps[0]?'<button class="btn primary dp-locate-btn" data-act="dp-nav" data-v="schedule-compare" data-id="'+esc(det.affectedOps[0].key)+'">'+tx('在排程表定位')+'</button>':'')+
@@ -2402,7 +2419,7 @@ function dpBodyHTML(){
   if(nav.view==="schedule-compare"){
     const det=nav.sel&&nav.sel.key?opDetail(P,nav.sel.key):null;
     return '<div class="hint">'+tx('排程表＝前後對照：虛線方塊是原本位置，亮色方塊是調整後位置；上方可切換「原本／調整後／對照」，滾輪與雙指縮放照常可用。點排程表上其他變動的方塊可切換檢視對象。')+'</div>'+
-      (det?'<div class="dp-sum"><b>'+esc(det.code+" "+det.step)+'</b><small>'+esc(det.prevTxt)+' → '+esc(det.nextTxt)+'</small></div>':'')+
+      (det?'<div class="dp-sum"><b>'+esc(det.code+" "+det.step)+'</b><small>'+esc(dpRngTxt(det.prev))+' → '+esc(dpRngTxt(det.next))+'</small></div>':'')+
       (P.unpinned.length?'<div class="issues">'+P.unpinned.map(x=>'<div class="issue">'+esc(x.label)+' 已固定（釘）。確認後會解除固定並移動它；取消則保持原樣。</div>').join("")+'</div>':'');
   }
   // overview：總覽
@@ -2410,7 +2427,7 @@ function dpBodyHTML(){
   const sugSec=sug.length?'<div class="field">'+dpLab('建議順延到最早可用時間')+'（'+tx('點看詳情')+'）'+sug.map(m=>dpOpRow(m,"suggestion-detail")).join("")+'</div>':'';
   const impSec='<div class="field">'+dpLab('連帶影響的工作（{n} 道工序）',{n:imp.length})+
     (imp.length?imp.slice(0,4).map(m=>dpOpRow(m,"impact-detail")).join("")+(imp.length>4?'<button class="btn dp-more" data-act="dp-nav" data-v="impact-list">'+tx('查看全部 {n} 道',{n:imp.length})+' →</button>':''):'<div class="okbox">'+tx('其他工作不變')+'</div>')+'</div>';
-  const dueSec='<div class="field">'+dpLab('受影響工單的交期')+'（'+tx('點看詳情')+'）'+(dues.length?dues.map(dpDueRow).join(""):'<div class="okbox">'+tx('其他工作不變')+'</div>')+'</div>';
+  const dueSec='<div class="field">'+dpLab('受影響工單的交期')+'（'+tx('點看詳情')+'）'+(dues.length?dues.slice(0,4).map(dpDueRow).join("")+(dues.length>4?'<button class="btn dp-more" data-act="dp-nav" data-v="due-list">'+tx('查看全部 {n} 張',{n:dues.length})+' →</button>':''):'<div class="okbox">'+tx('其他工作不變')+'</div>')+'</div>';
   const pins=!P.problems.length&&P.unpinned.length?'<div class="issues">'+P.unpinned.map(x=>'<div class="issue">'+esc(x.label)+' 已固定（釘）。確認後會解除固定並移動它；取消則保持原樣。</div>').join("")+'</div>':'';
   return sugSec+impSec+dueSec+pins;
 }
@@ -2699,7 +2716,7 @@ Object.assign(MODAL_ACT,{
     else if(v==="due-detail")sel={oid:id};
     navPush(PV.nav,v,sel,dpSnapshot());
     dpApplyView();render();
-    if(sel){dpScrollTarget();setTimeout(()=>{const b=document.querySelector(".pv-drawer .dp-back");b?.focus();},40);}
+    if(sel){dpScrollTarget();focusDpBack();}
   },
   "dp-back":()=>dpBack(),
   "dp-locate":a=>{
@@ -3261,6 +3278,8 @@ function syncChipHTML(){
 }
 function updateSyncChip(){const el=$("#syncchip");if(el)el.outerHTML=syncChipHTML();}
 let syncChain=Promise.resolve(),syncPending=0;
+// 同步進行中關閉分頁＝靜默丟失變更：離開前提示（僅在真的有寫入在途時）
+addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state==="busy"){e.preventDefault();e.returnValue="";}});
 function queueSync(entry){
   const snapshot=structuredClone(S);
   syncPending++;SYNC.state="busy";updateSyncChip();

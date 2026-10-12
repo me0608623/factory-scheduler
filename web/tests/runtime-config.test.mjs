@@ -33,3 +33,15 @@ test('private service-role and secret keys cannot be included in test frontend c
   for(const key of ['sb_secret_do-not-publish','eyJheader.'+btoa(JSON.stringify({role:'service_role'}))+'.sig'])
     assert.throws(()=>resolveRuntime({...env,VITE_TEST_SUPABASE_ANON_KEY:key},{search:'?mode=test'}),/私密金鑰/);
 });
+test('test solver key comes only from test config, never the production key',()=>{
+  const c=resolveRuntime({...env,VITE_TEST_SOLVER_API_KEY:'test-solver-key'},{search:'?mode=test'});
+  assert.equal(c.solverKey,'test-solver-key');
+  const none=resolveRuntime(env,{search:'?mode=test'});
+  assert.equal(none.solverKey,'','未設定時為空，不沿用 VITE_SOLVER_API_KEY');
+  assert.notEqual(none.solverKey,env.VITE_SOLVER_API_KEY);
+});
+test('solver request timeouts are mode-aware (source contract)',()=>{
+  const solver=readFileSync(new URL('../src/solver.js',import.meta.url),'utf8');
+  assert.match(solver,/RUNTIME\.mode==='test'\?120000:60000/,'post() 需在測試模式放寬到 120s');
+  assert.match(solver,/RUNTIME\.mode==='test'\?45000:3000/,'health 檢查維持 45s');
+});

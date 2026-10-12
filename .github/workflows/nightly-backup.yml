@@ -6,6 +6,7 @@ name: 每日資料庫備份
 on:
   schedule:
     - cron: "0 18 * * *"   # UTC 18:00 = 台灣時間 02:00
+    - cron: "0 22 * * *"   # 備援時段（台灣 06:00）：主時段被 GitHub 延遲/吞掉時確保當天仍有備份
   workflow_dispatch: {}      # 也可以手動按一次
 
 jobs:

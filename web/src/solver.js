@@ -53,7 +53,8 @@ async function post(path, body, headers = {}) {
   if (KEY) h["X-API-Key"] = KEY;
   let r;
   try {
-    r = await fetchWithTimeout(BASE + path, { method: "POST", headers: h, body: JSON.stringify(body) }, 60000);
+    // 測試模式放寬到 120s：staging 免費版冷啟動（~30-50s）＋求解時間，60s 會在第一次呼叫就失敗
+    r = await fetchWithTimeout(BASE + path, { method: "POST", headers: h, body: JSON.stringify(body) }, RUNTIME.mode==='test'?120000:60000);
   } catch (e) {
     SOLVER.up = false;
     throw new Error("排程服務沒有回應");
