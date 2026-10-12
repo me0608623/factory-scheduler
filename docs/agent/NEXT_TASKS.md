@@ -69,6 +69,11 @@
 
 - [ ] **staging Realtime 故障（診斷更新 22:50）**：Pause→Resume 已執行仍 500。回應體＝Cloudflare「error code: 1101」（Supabase Realtime Worker 內部例外）＝**平台側損壞**非金鑰/設定/程式問題。下一步：Dashboard → Database → Replication → Realtime → 任意表 toggle 關再開（重新發佈）；仍不行則 Supabase support ticket（免費版可報平台故障）。正式站不受影響
 
+## 產品決策待辦（輪班表，使用者決定方向）
+
+- [ ] 複製下一週期是否保留自訂名稱（現況：自訂名稱被預設名稱取代，如「測試-雙週班表A」→「2026-10-27 1 廠班表」）
+- [ ] 輪班草稿缺少刪除入口（上限 24 份；用滿只能清本機資料）——是否加刪除鈕＋二次確認
+
 ## 待真人驗收（自動化受阻項，5 分鐘可完成）
 
 - [x] **衝突路徑 UI（雙分頁）**（→ 輪 13）：A 跳版寫入後 B 過期套用——**安全屬性成立**（DB 未被覆蓋、無部分寫入）；但 staging 基礎設施逾時掩蓋 40001 判定（顯示 timeout 而非衝突 toast）。正式環境待一次確認（solver 常駐）
