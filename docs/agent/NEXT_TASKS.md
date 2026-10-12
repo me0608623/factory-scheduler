@@ -69,6 +69,8 @@
 
 - [ ] **staging Realtime 故障（診斷更新 22:50）**：Pause→Resume 已執行仍 500。回應體＝Cloudflare「error code: 1101」（Supabase Realtime Worker 內部例外）＝**平台側損壞**非金鑰/設定/程式問題。下一步：Dashboard → Database → Replication → Realtime → 任意表 toggle 關再開（重新發佈）；仍不行則 Supabase support ticket（免費版可報平台故障）。正式站不受影響
 
+- [ ] 開發體驗（非產品缺陷）：切換頁面時 history.replaceState 會剝掉 ?local=1，重新整理後靜默改連 staging——本機隔離測試需重新帶參數；可考慮 local 模式記在 sessionStorage
+
 ## 產品決策待辦（輪班表，使用者決定方向）
 
 - [ ] 複製下一週期是否保留自訂名稱（現況：自訂名稱被預設名稱取代，如「測試-雙週班表A」→「2026-10-27 1 廠班表」）
