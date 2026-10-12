@@ -126,3 +126,11 @@ test('月曆筆刷的 undo 快照在變更前（復原必須能還原筆刷套�
   const loopAt = seg.indexOf('applyBrush(eid,x)');
   assert.ok(pushAt > -1 && loopAt > -1 && pushAt < loopAt, 'pushUndo 必須在 applyBrush 迴圈之前');
 });
+
+test('缺陷#13 回歸：case "analytics" 必須自帶 break 與頁面切換主體（曾掉 break 落入 line-notify——點產能分析開成 LINE 通知視窗）', () => {
+  const i = app.indexOf('case "analytics"');
+  assert.ok(i >= 0, '找不到 analytics case');
+  const seg = app.slice(i, app.indexOf('case "line-notify"'));
+  assert.match(seg, /UI\.page="analytics";[\s\S]*?render\(\);[\s\S]*?break;/, 'analytics case 需完整主體＋break，不得落入下一個 case');
+  assert.ok(!/case "analytics":UI\.page="analytics";\s*case/.test(app), 'analytics case 不得直接落到下一個 case（缺 break）');
+});
