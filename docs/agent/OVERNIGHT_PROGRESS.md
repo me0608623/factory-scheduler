@@ -407,3 +407,9 @@
 ## 輪次 143（2026-10-12，10 分鐘優化排程）
 
 - **健康檢查輪**：正式 web/solver 200；工作區乾淨。機器端待辦空；使用者事項不變
+
+## 輪次 143b——10 分鐘優化排程系列結束
+
+- 使用者指示停止 cron（2026-10-12）；自動化已刪除，工作區乾淨
+- 系列總結（輪次 82–143）：互動預覽上線（PR #15）＋測試模式（fail-closed 四輪強化）＋i18n 四語收尾（6 輪）＋時序修復（2 輪）＋依賴升級結案（uuid/pglite/saxes/supabase-js/vite）＋運維自動化（備份雙時段、還原/權限演練、部署後標記驗證、staging 部署入口）＋文件（TEST_MODE 指南、README、封存整理）
+- 最終狀態：web 381＋db 201＋solver 147 測試全綠；正式/staging 三站 200；待使用者事項：RENDER_STAGING_WEB_DEPLOY_HOOK、VITE_TEST_* 填值（render.yaml 已預留欄位）
