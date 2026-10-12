@@ -468,3 +468,9 @@
 - 過程副產品：兩分頁內容分歧（19 vs 20）查證為輪 3 外科互動本地殘留（重載即一致）；staging DB 全程唯讀＋一次合成 OT 寫入（留作 OT 日 fixture）
 - **部署中**（push 後 CI＋Render 自動）；下輪查證部署結果與線上功能
 - 下輪接續：①部署查證 ②B→A 即時同步（現在崩潰已修，A 的靜默崩潰排除後重測）③衝突路徑
+
+### 缺陷探索輪 6（2026-10-12 15:26–16:05）——★ 修復第二個真缺陷：ot_ends 快照丟失
+
+- **發現與修復（main `450a964`）**：自訂「加班到 17:30/18:00」儲存後 DB 正確（overtime_end），但 fromSnapshot 只讀 calendar.overtime（全 true）、忽略 0032 放在快照頂層的 ot_ends → 重載後顯示與排程窗口都變 20:00；且 true 下次儲存被 rowsOf 覆寫 1200＝**自訂值永久丟失**。修法：fromSnapshot 併入 snap.ot_ends（缺值退 true）；+1 convert 測試、store 斷言更新（true→1200 語意等價）——385/385 綠＋build 綠；瀏覽器實證 DB=1140 修復前顯示 20:00、修復後正確「加班到 19:00」
+- **realtime delivery 異常（watch item，非本輪代碼問題）**：staging 上 REST 改 calendar_days 後，重載分頁載入路徑正確（資料會更新）但即時推播未在 8 秒內送達（boot 確認每次都重掛 subscribe）。懷疑 staging Supabase Realtime 服務健康（該專案今早曾暫停恢復）。下輪先確認：staging Dashboard Realtime 設定／用 supabase channel STATUS 日誌診斷；此現象同樣影響輪 5 前的「A 未跟進」觀察——其中混有 ot_end 崩潰與 ot_ends 丟失兩個真缺陷，現已各自修復剝離
+- **下輪接續**：①CI/部署查證 ②realtime 通道診斷（頻道狀態日誌）③衝突路徑 UI
