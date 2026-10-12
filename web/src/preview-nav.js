@@ -25,8 +25,11 @@ export const DP_VIEWS = ["overview", "suggestion-detail", "impact-list", "impact
 
 export function newNav() { return { view: "overview", sel: null, stack: [] }; }
 
+const sameSel=(a,b)=>!a&&!b||(!!a&&!!b&&(a.key!=null?a.key===b.key:a.oid===b.oid));
 export function navPush(nav, view, sel, snap = {}) {
   if (!DP_VIEWS.includes(view)) throw new Error("未知的預覽檢視：" + view);
+  // 連點去重：同一檢視＋同一選取再點一次不堆疊（double-tap 會把「返回上一步」變成多按好幾次）
+  if (nav.view === view && sameSel(nav.sel, sel ?? null)) return nav;
   nav.stack.push({ view: nav.view, sel: nav.sel, date: snap.date ?? null, scrollY: snap.scrollY ?? null,
     scrollLeft: snap.scrollLeft ?? null, factory: snap.factory ?? null, boardView: snap.boardView ?? null, mode: snap.mode ?? null });
   nav.view = view; nav.sel = sel ?? null;

@@ -186,3 +186,16 @@ test('dueDetail stepRows 帶原始段落陣列（畫面層自行格式化語言�
   assert.ok(Array.isArray(cut.prev) && cut.prev.length === 1, 'prev 原始陣列');
   assert.ok(Array.isArray(cut.next) && cut.next.length === 2, 'next 兩段');
 });
+test('連點去重：同一檢視＋同一選取重複 push 不堆疊導航層', () => {
+  const nav = newNav();
+  navPush(nav, 'impact-detail', { key: 'o1|0' }, {});
+  navPush(nav, 'impact-detail', { key: 'o1|0' }, {}); // double-tap
+  navPush(nav, 'impact-detail', { key: 'o1|0' }, {});
+  assert.equal(nav.stack.length, 1, '重複點同一列只留一層');
+  navPush(nav, 'impact-detail', { key: 'o2|0' }, {}); // 不同選取仍正常堆疊
+  assert.equal(nav.stack.length, 2);
+  navPush(nav, 'overview', null, {});
+  assert.equal(nav.stack.length, 3, '不同檢視不受去重影響');
+  navBack(nav);
+  assert.equal(nav.view, 'impact-detail' );
+});
