@@ -3789,17 +3789,17 @@ function floorPageHTML(){
   const fac=UI.factory==='all'?1:UI.factory;
   const cells=floorCells(S,fac,UI.date);
   const counts={busy:cells.filter(c=>c.status==='busy').length,fault:cells.filter(c=>c.status==='fault').length,idle:cells.filter(c=>c.status==='idle').length};
-  return '<div class="page-top"><div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">'+tx('backToday')+'</button>'+
+  return '<div class="fullpage"><div class="page-top"><div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">'+tx('backToday')+'</button>'+
     '<div class="seg factory-switch" role="group" aria-label="'+tx('平面圖廠別')+'">'+[[1,'1 廠'],[2,'2 廠']].map(([v,t])=>'<button data-act="factory" data-v="'+v+'" aria-pressed="'+(fac===v)+'">'+t+'</button>').join('')+'</div>'+
     '<div class="datenav"><button class="iconbtn" data-act="prev" aria-label="'+tx('往前')+'">‹</button><button class="btn" data-act="today">'+mdw(UI.date)+'</button><button class="iconbtn" data-act="next" aria-label="'+tx('往後')+'">›</button></div>'+
     '<div class="page-title"><h1>'+tx('floor')+'</h1></div></div>'+
-    '<p class="page-sub">'+tx('floorHint')+'</p>'+
+    '<p class="page-sub">'+tx('floorHint')+'</p></div>'+
     '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin:6px 0 10px">'+
     [['busy','#315FA7',counts.busy],['idle','#9AA3AF',counts.idle],['fault','#DC2626',counts.fault]].map(([st,c,n])=>'<span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:'+c+';opacity:'+(st==='idle'?0.35:0.85)+';margin-right:5px;vertical-align:-1px"></i>'+({busy:'排程中',idle:'閒置',fault:'故障'}[st])+' '+n+'</span>').join('')+
     '</div>'+
     '<div style="position:relative"><canvas id="floor-canvas" style="width:100%;display:block;touch-action:pan-y"></canvas></div>'+
     '<div id="floor-tip" style="position:fixed;pointer-events:none;background:var(--surface);border:1px solid var(--line);padding:6px 9px;border-radius:6px;font-size:12px;display:none;z-index:60;box-shadow:0 2px 8px rgba(0,0,0,.15)"></div>'+
-    ((S.machineLayout||[]).length?'':'<p class="hint">目前為自動排列；要固定位置，請在資料庫 machine_layout 填入各機台 0–100 座標。</p>');
+    ((S.machineLayout||[]).length?'':'<p class="hint">目前為自動排列；要固定位置，請在資料庫 machine_layout 填入各機台 0–100 座標。</p>')+'</div>';
 }
 function initFloor(){
   const canvas=$('#floor-canvas');if(!canvas)return;
