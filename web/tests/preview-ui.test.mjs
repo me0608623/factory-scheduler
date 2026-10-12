@@ -119,3 +119,10 @@ test('停工/日曆儲存前有產量矛盾閘門（repair 可產出違反後站
 test('leaveq 工作數提示與 lq-go 同口徑（futureOf 過濾）', () => {
   assert.match(app, /const n=S\.blocks\.filter\(b=>b\.emp===E\.id&&b\.date===m\.date&&futureOf\(b\)\)\.length/, 'hint 計數需含 futureOf');
 });
+test('月曆筆刷的 undo 快照在變更前（復原必須能還原筆刷套用）', () => {
+  const i = app.indexOf('let cnt=0');
+  const seg = app.slice(i - 200, i + 900);
+  const pushAt = seg.indexOf('pushUndo()');
+  const loopAt = seg.indexOf('applyBrush(eid,x)');
+  assert.ok(pushAt > -1 && loopAt > -1 && pushAt < loopAt, 'pushUndo 必須在 applyBrush 迴圈之前');
+});

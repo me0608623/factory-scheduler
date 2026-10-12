@@ -1383,11 +1383,11 @@ document.addEventListener("click",e=>{
         (async()=>{
           try{
             let cnt=0;
+            pushUndo();   // 快照必須在 applyBrush 變更 S 之前——否則「復原上一步」還原的已是套用後的狀態（無效復原）
             for(let x=lo;x<=hi&&cnt<62;x=addDays(x,1)){
               if(UI.leaveBrush==="leave"&&S.blocks.some(b=>b.emp===eid&&b.date===x&&futureOf(b)))continue;
               const r=await applyBrush(eid,x);if(r!==0)cnt++;
             }
-            pushUndo();
             commit({kind:"leave",title:E.name+" "+brushName+" "+md(lo)+"～"+md(hi)+"（"+cnt+" 天）",lines:[]},"incidents.manage");
             await reloadFromStore();
             UI.drawer="people";
