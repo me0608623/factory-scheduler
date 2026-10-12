@@ -105,3 +105,14 @@ test('只改「加班到幾點」也被視為變更——changed 判斷需先讀
   assert.ok(readSelAt > -1 && changedAt > -1 && readSelAt < changedAt, '選單值必須在 changed 計算前讀取');
   assert.match(head, /\(\!\!m\.open&&S\.dayOT\[d\]!==m\.otEnd\)/, 'changed 需比對 otEnd');
 });
+test('停工/日曆儲存前有產量矛盾閘門（repair 可產出違反後站≤前站的排程，伺服器會拒）', () => {
+  assert.match(app, /function closeDaysPlanBad\(calOverride\)/, '需有純探測函式');
+  assert.match(app, /materialFlowIssue\(S\.blocks,b\.oid,b\.step,absOf,S\.execution\|\|\[\]\)\)bad\.push/, '探測需用 materialFlowIssue');
+  // toggleOpen 與 c-save 兩個入口都要先閘後改
+  const t1 = app.indexOf('const bad=closeDaysPlanBad();');
+  const closeDaysAt = app.indexOf('const r=closeDays();', t1);
+  assert.ok(t1 > -1 && closeDaysAt > t1, 'toggleOpen：閘門在 closeDays 之前');
+  const t2 = app.indexOf('closeDaysPlanBad({week:');
+  const pushUndoAt = app.indexOf('pushUndo();S.cal=', t2);
+  assert.ok(t2 > -1 && pushUndoAt > t2, 'c-save：草稿探測在 pushUndo 之前');
+});

@@ -1683,6 +1683,21 @@ function closeDays(){  // 停工日上的工作移走
   const aff=S.blocks.filter(b=>futureOf(b)&&!isOpen(b.date));
   return {aff,lines:aff.length?repair(aff,"ot"):[]};
 }
+// 純探測：在複製狀態上跑 closeDays，檢查 repair 結果是否違反「後站累積產量 ≤ 前站完成」。
+// 違反時直接停工會被伺服器 save_blocks 拒絕（同步失敗、重試也无效），必須先擋下並引導改用自動排程。
+function closeDaysPlanBad(calOverride){
+  const probe=structuredClone(S);
+  if(calOverride)probe.cal=calOverride;
+  return withState(probe,()=>{
+    const aff=S.blocks.filter(b=>futureOf(b)&&!isOpen(b.date));
+    if(aff.length)repair(aff,"ot");
+    const bad=[];
+    for(const b of S.blocks){
+      if(b.step>0&&materialFlowIssue(S.blocks,b.oid,b.step,absOf,S.execution||[]))bad.push(label(b));
+    }
+    return [...new Set(bad)];
+  });
+}
 function toggleOpen(d){
   if(!canCalendar())return;
   const willOpen=!isOpen(d);
@@ -1693,6 +1708,8 @@ function toggleOpen(d){
     commit({kind:"ot",title:mdw(d)+" 改為上班",lines:[{k:"info",t:payNote(dayInfo(d))||"一般上班日"}].filter(l=>l.t)},"calendar.manage");
     toast(mdw(d)+" 改為上班。要把工作排進來嗎？","重新排程",runAuto);
   }else{
+    const bad=closeDaysPlanBad();
+    if(bad.length){toast("改為停工會造成工序產量矛盾（"+bad[0]+" 等 "+bad.length+" 段），排程不會改動；請改用「自動排程」重新安排");return;}
     const r=closeDays();
     commit({kind:"ot",title:mdw(d)+" 改為停工"+(r.aff.length?"，移走 "+r.aff.length+" 段工作":""),lines:r.lines},"calendar.manage");
     if(r.lines.length)showResult();else toast(mdw(d)+" 已改為停工");
@@ -2167,6 +2184,8 @@ Object.assign(MODAL_ACT,{
     if(!canCalendar())return;
     const D=UI.modal.draft,openD=d=>{const o=D.over[d];return o?o==="work":!!D.week[parseD(d).getUTCDay()];};
     if(readOnly&&S.blocks.some(b=>futureOf(b)&&!openD(b.date))){toast("新設定會移動既有工作；還需要「調整與自動排程」權限");return;}
+    const bad=closeDaysPlanBad({week:[...UI.modal.draft.week],over:{...UI.modal.draft.over}});
+    if(bad.length){toast("這樣設定會造成工序產量矛盾（"+bad[0]+" 等 "+bad.length+" 段），未儲存；請改用「自動排程」重新安排");return;}
     pushUndo();S.cal={week:[...UI.modal.draft.week],over:{...UI.modal.draft.over}};
     for(const d of Object.keys(S.dayOT))if(!isOpen(d))delete S.dayOT[d];
     const r=closeDays();
