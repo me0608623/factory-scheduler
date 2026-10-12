@@ -606,3 +606,10 @@
 - 正式 web/solver 200；工作區乾淨；CI 綠
 - staging Realtime 仍 500（已向使用者說明白話與修法：Pause→Resume 專案）
 - 機器端待辦空；下輪繼續
+
+### 缺陷探索輪 26（2026-10-12 22:45–22:55，staging 恢復後複查——Realtime 仍 500，診斷升級）
+
+- 使用者已執行 Pause→Resume（專案恢復、REST 200 正常）但 **Realtime 仍 500**
+- **診斷升級**：回應體＝`error code: 1101`（Cloudflare Worker 丟例外的標準碼；Supabase Realtime 跑在 CF Workers）＝**平台側內部損壞**，不是金鑰/設定/我們的程式問題。Restoration 沒有重建 Realtime tenant
+- 建議已更新至 NEXT_TASKS：Database → Replication → Realtime 表 toggle 關再開（重新發佈）；仍不行找 Supabase support
+- 正式站即時推送不受影響；下輪繼續正常探索

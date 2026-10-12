@@ -62,7 +62,7 @@
 
 ## 環境問題（需使用者留意的 Supabase staging Realtime 故障）
 
-- [ ] **staging Realtime 服務故障（2026-10-12 實測）**：WS 端點帶有效 publishable key 回 500（無 key 401、REST 正常 200）→ 所有即時推播不可用。可能與今早專案暫停恢復有關。建議：Supabase Dashboard → staging 專案 → 檢查 Realtime（或 Republish／重新啟動專案）。此為環境問題，App 端程式（訂閱程式碼）無法在服務故障下驗證
+- [ ] **staging Realtime 故障（診斷更新 22:50）**：Pause→Resume 已執行仍 500。回應體＝Cloudflare「error code: 1101」（Supabase Realtime Worker 內部例外）＝**平台側損壞**非金鑰/設定/程式問題。下一步：Dashboard → Database → Replication → Realtime → 任意表 toggle 關再開（重新發佈）；仍不行則 Supabase support ticket（免費版可報平台故障）。正式站不受影響
 
 ## 待真人驗收（自動化受阻項，5 分鐘可完成）
 
