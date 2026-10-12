@@ -763,3 +763,17 @@
 - **候選#10 匯入範本下載與結構驗證**：public/匯入範本.xlsx 五表（填寫說明＋員工/機台/產品工序/工單）表頭與 IMPORT_HEADERS **全等**；空白範本（預格式空列）正確跳過且只擋「至少填一位」非結構錯；**填一列有效資料往返零錯**、欄位映射全對（代號/姓名/顏色/可操作機台/請假日期/工序/數量/期限/優先級）；下載連結 dev 與正式站都 HTTP 200/13613b ✓（+1 測試凍結此行為，**396/396 綠**＋build 綠，main `910afa0`）
 - **本輪零缺陷**（產能分析內容、範本結構皆過）——成果＝③深度對帳驗證＋①新增往返測試
 - **候選清單進度**：#9 ✓ #10 ✓；**下輪接續**：#11 未測模組單元測試補強
+
+### 缺陷探索輪 42（2026-10-13 09:15–09:55）——★候選#11 未測模組補強：solver.js 零覆蓋→7 項單元測試
+
+- **覆蓋盤點**：逐一比對 web/src 模組與測試匯入——小型模組（rush/work-queue/worklog/execution/scenarios/groups）都已有測試引用；**唯一零行為覆蓋的裸模組＝solver.js**（排程服務客戶端；先前只有 runtime-config 契約字串斷言）
+- **新增 tests/solver-client.test.mjs（7 測試，fetch stub 隔離不打真服務）**：
+  1. 網路失敗 → 統一「排程服務沒有回應」＋ up=false（畫面降級用瀏覽器演算法的依據）
+  2. HTTP 錯誤 → status 保留（409 衝突處理依賴）＋優先採伺服器 detail 訊息
+  3. HTTP 錯誤無 detail → 「排程服務錯誤 + 狀態碼」
+  4. **plans 能力閘門**：快照帶一般工作但服務無 work_assignments_v1 → fetch 前就擋 409（斷言零請求送出）；服務支援則放行
+  5. chat 端點選擇：有 jwt → /chat/db＋Bearer；無 → /chat 不帶 Authorization
+  6. check() 三態：健康帶回 version/capabilities；失敗 up=false 且**能力清空（避免殘留舊能力誤判）**；服務活著但自評不健康（ok:false）→ up=false
+- **測試**：**403/403 綠**（+7）＋build 綠；main `e06ae8f`
+- **插曲（測試自身的除錯）**：stub 一開始直接回傳 Response（非 Promise）→ fetchWithTimeout 的 .finally() 炸 TypeError 被產品碼的 catch 吞成「沒有回應」——用注入版 solver 抓出 CAUGHT 訊息後修 stub 回傳 Promise。這也側面驗證了產品的 catch-all 網路錯誤路徑足夠防禦
+- **候選清單進度**：#11 ✓（本輪）；**下輪接續**：#12 i18n 缺漏掃描（切語言跑主要頁面）
