@@ -88,3 +88,9 @@ test('preview-nav.js：純模組——只重用純數量函式，不碰 DOM／�
 test('同步中關閉分頁有 beforeunload 提示（防靜默丟失在途寫入）', () => {
   assert.match(app, /addEventListener\("beforeunload"[\s\S]*?syncPending>0\|\|SYNC\.state==="busy"/, '守門需涵蓋在途同步');
 });
+test('加班日渲染不崩潰：dayHTML 必須用 di.otEnd（裸 otEnd 會 ReferenceError）', () => {
+  assert.match(app, /return \{type,hol,ot,win,w,open,special,otEnd\};/, 'dayInfo 需回傳 otEnd');
+  assert.match(app, /hm\(di\.otEnd\)/, 'dayHTML 的加班到標籤需用 di.otEnd');
+  const dayHTMLBody = app.slice(app.indexOf('function dayHTML'), app.indexOf('function blkHTML'));
+  assert.doesNotMatch(dayHTMLBody, /hm\(otEnd\)/, 'dayHTML 內不得有裸 otEnd（其他模組有局部 otEnd 屬合法）');
+});

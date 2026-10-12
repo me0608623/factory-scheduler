@@ -123,7 +123,7 @@ function dayInfo(ds){
   let win=[];
   const otEnd=ot?(S.dayOT[ds]===true?DAY1:S.dayOT[ds]||DAY1):DAY1;
   if(open){win=[{s:DAY0,e:LUNCH_S,ot:special},{s:LUNCH_E,e:REG_END,ot:special}];if(ot)win.push({s:REG_END,e:otEnd,ot:true});}
-  return {type,hol,ot,win,w,open,special};
+  return {type,hol,ot,win,w,open,special,otEnd};
 }
 function dayLabel(ds){const i=dayInfo(ds);return (i.type==="hol"?tx(i.hol):i.type==="sat"?tx('週六'):i.type==="sun"?tx('週日'):tx('平日'))+(i.open?tx(' · 上班'):tx(' · 停工'));}
 function payNote(i){return i.type==="hol"?tx('國定假日出勤，工資加倍'):i.type==="sat"?tx('休息日出勤，依加班計薪'):i.type==="sun"?tx('例假日出勤，請確認是否合法'):"";}
@@ -995,7 +995,7 @@ function dayHTML(ctx={}){
     if(!di.open)z+='<div class="zone off" style="top:0;height:'+px(DAY1)+'px">'+tx('停工')+'</div>';
     else{
       z+='<div class="zone lunch" style="top:'+px(LUNCH_S)+'px;height:'+(H)+'px">'+tx('午休')+'</div>';
-      z+='<div class="zone ot'+(di.ot?"":" closed")+'" style="top:'+px(REG_END)+'px;height:'+(px(DAY1)-px(REG_END))+'px">'+(di.ot?tx("加班到")+" "+hm(otEnd):tx("未開加班"))+'</div>';
+      z+='<div class="zone ot'+(di.ot?"":" closed")+'" style="top:'+px(REG_END)+'px;height:'+(px(DAY1)-px(REG_END))+'px">'+(di.ot?tx("加班到")+" "+hm(di.otEnd):tx("未開加班"))+'</div>';
     }
     for(const f of M.faults.filter(f=>f.date===d))z+='<div class="zone fault" style="top:'+px(f.s)+'px;height:'+(px(f.e)-px(f.s))+'px">故障 '+hm(f.s)+'–'+hm(f.e)+(f.fixed?"（已修復）":"")+(f.note?" "+esc(f.note):"")+'</div>';
     for(const f of (ctx.extraFaults||[]).filter(f=>f.m===M.id&&f.date===d))z+='<div class="zone fault" style="top:'+px(f.s)+'px;height:'+(px(f.e)-px(f.s))+'px;opacity:.75">將故障 '+hm(f.s)+'–'+hm(f.e)+'</div>';
