@@ -613,3 +613,8 @@
 - **診斷升級**：回應體＝`error code: 1101`（Cloudflare Worker 丟例外的標準碼；Supabase Realtime 跑在 CF Workers）＝**平台側內部損壞**，不是金鑰/設定/我們的程式問題。Restoration 沒有重建 Realtime tenant
 - 建議已更新至 NEXT_TASKS：Database → Replication → Realtime 表 toggle 關再開（重新發佈）；仍不行找 Supabase support
 - 正式站即時推送不受影響；下輪繼續正常探索
+
+### 缺陷探索輪 27（2026-10-12 22:56–23:05，健康檢查輪——狀態不變）
+
+- 正式 web/solver 200；工作區乾淨；staging Realtime 仍 500（待使用者 Replication toggle／support）
+- 機器端待辦空；下輪繼續
