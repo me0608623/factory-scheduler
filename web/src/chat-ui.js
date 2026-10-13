@@ -3,6 +3,13 @@ import { tx } from './i18n.js';
 import {SOLVER} from './solver.js';
 import {floatWindow} from './win.js';
 
+function focusAfterChatClose(launch){
+  // Mobile sheets hide the closed launcher. Return to the visible sheet instead
+  // of attempting to focus a display:none control and losing keyboard context.
+  const target=launch.getClientRects().length?launch:document.querySelector('.ops-drawer');
+  target?.focus();
+}
+
 export function installScheduleChat({snapshot,view,store,enabled,stamp}){
   const root=document.createElement('aside');root.id='schedule-chat';root.setAttribute('aria-label','排程聊天室');document.body.append(root);
   root.innerHTML='<button class="chat-launch" aria-label="'+tx('開啟排程 AI 聊天室')+'" aria-expanded="false" aria-controls="schedule-chat-panel">'+tx('✦ 排程助理')+'</button><section id="schedule-chat-panel" class="chat-panel" hidden aria-label="'+tx('排程 AI 聊天室')+'"><header><strong>'+tx('排程助理')+'</strong><button class="btn chat-tts" aria-pressed="false" title="'+tx('新回答自動唸出來')+'">🔊</button><button class="btn chat-clear">'+tx('清除')+'</button><button class="btn chat-close" aria-label="'+tx('關閉聊天室')+'">×</button></header><div class="chat-log" role="log" aria-live="polite" aria-label="'+tx('排程對話')+'"></div><form><textarea id="schedule-chat-question" maxlength="1000" rows="2" placeholder="'+tx('問我排程、請假、趕貨…')+'"></textarea><button class="btn primary" type="submit">'+tx('送出')+'</button></form><div class="chat-quick"><button class="btn">'+tx('目前排程有哪些問題？')+'</button><button class="btn">'+tx('誰請假？')+'</button><button class="btn">'+tx('哪些機台故障？')+'</button><button class="btn">'+tx('輪班人力缺口')+'</button><button class="btn">'+tx('跨廠流轉進度')+'</button><button class="btn">'+tx('特別趕貨欠什麼？')+'</button></div></section>';
@@ -58,7 +65,7 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
   const from={value:view().date},to={value:view().date};let lastViewDate='';
   let busy=false,generation=0,lastStamp='',messages=[];
   const add=(who,text)=>{const el=document.createElement('div');el.className='chat-message '+who;el.textContent=text;log.append(el);while(log.children.length>30)log.firstElementChild.remove();log.scrollTop=log.scrollHeight;return el;};
-  const hide=()=>{panel.hidden=true;launch.setAttribute('aria-expanded','false');launch.focus();};
+  const hide=()=>{panel.hidden=true;launch.setAttribute('aria-expanded','false');focusAfterChatClose(launch);};
   const scopeStamp=()=>stamp()+'|'+from.value+'|'+to.value;
   const refresh=()=>{const v=view();root.hidden=!enabled();if(v.date!==lastViewDate){from.value=to.value=v.date;lastViewDate=v.date;}};
   from.onchange=to.onchange=()=>refresh();  launch.onclick=()=>{refresh();panel.hidden=!panel.hidden;launch.setAttribute('aria-expanded',String(!panel.hidden));positionPanel();if(!panel.hidden)input.focus();};
