@@ -129,3 +129,27 @@ test('輪115 查證：匯入流程鍵 en/vi/th 皆有譯文（非 zh 語言無 C
   assert.equal(tx('檔案：'), 'File: ');
   I18N.lang = 'zh-TW';
 });
+
+test('輪116 棘輪：匯入解析必須先開 loading 回饋、完成後以 loading 態守門（防關窗後覆寫）', async () => {
+  const fs = await import('node:fs');
+  const app = fs.readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
+  const loadOpen = 'openModal({t:"import-preview",filename:file.name,base,loading:true,errors:[],data:null})';
+  assert.ok(app.includes(loadOpen), '解析前必須先開 loading modal');
+  const loadIdx = app.indexOf(loadOpen);
+  const importIdx = app.indexOf('await import("./excel.js")', loadIdx);
+  assert.ok(importIdx > loadIdx, 'loading modal 必須在動態載入 excel 模組之前開啟');
+  const handler = app.slice(loadIdx, loadIdx + 2000);
+  assert.ok((handler.match(/!UI\.modal\.loading/g) || []).length >= 2, '成功與錯誤路徑都要以 loading 態守門');
+  assert.ok(app.includes("if(m.loading)return {title:tx('Excel 匯出／匯入'),body:'<div class=\"hint\">'+tx('正在解析 Excel…')+'</div>'}"), 'import-preview 須渲染 loading 態');
+});
+
+test('輪116 查證：正在解析 Excel… 三語有譯文', () => {
+  const cjk = /[\u4e00-\u9fff]/;
+  for (const lang of ['en', 'vi', 'th']) {
+    I18N.lang = lang;
+    const out = tx('正在解析 Excel…');
+    assert.notEqual(out, '正在解析 Excel…');
+    assert.ok(!cjk.test(out), `${lang} 譯文含中文：${out}`);
+  }
+  I18N.lang = 'zh-TW';
+});
