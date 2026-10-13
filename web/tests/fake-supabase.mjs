@@ -78,10 +78,13 @@ export class FakeSupabase {
     }
   }
 
-  async rpc(fn, args = {}) {
-    const keys = Object.keys(args);
-    const r = await this._run(`select ${fn}(${keys.map((k, i) => `${k} => $${i + 1}`).join(", ")}) as r`, keys.map((k) => val(args[k])));
-    return r.error ? r : { data: r.data[0].r, error: null };
+  rpc(fn, args = {}) {
+    const self=this,query={setHeader(){return query;},then(resolve,reject){
+      const keys=Object.keys(args);
+      return self._run(`select ${fn}(${keys.map((k,i)=>`${k} => $${i+1}`).join(', ')}) as r`,keys.map(k=>val(args[k])))
+        .then(r=>r.error?r:{data:r.data[0].r,error:null}).then(resolve,reject);
+    }};
+    return query;
   }
 
   from(table) {
@@ -97,7 +100,12 @@ export class FakeSupabase {
       single() { q.single = true; return b; },
       insert(row) { q.op = "insert"; q.insertRows = Array.isArray(row) ? row : [row]; return b; },
       delete() { q.op = "delete"; return b; },
-      async upsert(rows, { onConflict }) {
+      upsert(rows, { onConflict }) {
+        q.op='upsert';q.upsertRows=rows;q.onConflict=onConflict;return b;
+      },
+      then(resolve, reject) {
+        if(q.op==='upsert')return (async()=>{
+        const rows=q.upsertRows,onConflict=q.onConflict;
         for (const row of rows) {
           const cols = Object.keys(row);
           const set = cols.filter((c) => !onConflict.split(",").includes(c)).map((c) => `${c} = excluded.${c}`);
@@ -107,8 +115,7 @@ export class FakeSupabase {
           if (r.error) return r;
         }
         return { data: null, error: null };
-      },
-      then(resolve, reject) {
+        })().then(resolve,reject);
         const w = q.where.map(([c], i) => `${c} = $${i + 1}`).join(" and ");
         const row = q.insertRows?.[0], cols = row ? Object.keys(row) : [];
         const params = q.op === "insert" ? cols.map(c => val(row[c])) : q.where.map(([, v]) => v);
