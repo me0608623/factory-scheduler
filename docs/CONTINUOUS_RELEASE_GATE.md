@@ -30,6 +30,30 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13使用者續作：最新CI全綠，GitHub Render App未安裝，停在新增授權前
+
+- 持久工作樹7309aaa乾淨，無其他modifier／deploy；僅專屬Vite/esbuild。main仍c58032b、staging source仍ae1bbb4，沒有改共享checkout或正式1023／setup_pending／帳號權限；沒有雲端資料寫入。
+- 6f37083的Tests **38404332390／38404326289**、smoke **38404332297／38404326429**全部success；PR16 e76796c Tests **38404364111／38404358613**、smoke **38404364044／38404358653**全部success。兩個Tests各frontend/database/solver jobs全success，不把CI當登入／同步E2E。
+- 使用Render-debug及render-deploy（全文及deployment-details/post-deploy-checks），MCP再核staging web：autoDeploy=yes／commit、root=web、source branch正確；latest只有5476a60 live／dep-db70mojrjlhs739hte6g，沒有新queued/failed deploy，故不是建置失敗。正式web/solver未觸碰，不手動deploy autoDeploy服務或toggle/cache繞過限制。
+- 真UI核對：Render服務Source→Edit的Git Provider面板顯示Connect Git provider；但Account settings又確實有既有me0608623部署憑證。因此**更正先前簡化推論**：不是單憑Connect字樣就宣稱沒有任何Git credential。GitHub已登入同一個me0608623，Installed GitHub Apps清單**沒有Render**；依官方git-provider文件進既有診斷連結，最後是Install Render新安裝頁（非既有Configure），這才是新確認的缺失。Render殘留credential不代表GitHub App實際安裝／webhook可用；安裝後是否真的恢復auto仍需push＋deploy事件實證，尚不當已修復。
+- 點Render的GitHub/Configure on GitHub按鈕都沒有出現新分頁（IAB inventory及console無可確認結果），未盲目重點／JS window.open。改用已登入GitHub的標準Installed Apps頁及官方連結，只讀／選取安裝預覽，不增權限。API key欄未展開或讀值，沒有新增credential／PAT／hook或secret。
+- 安裝預覽已選**Only select repositories → me0608623/factory-scheduler（僅1個）**，尚未按Install。頁面要求讀code/metadata/Dependabot及讀寫Actions/checks/status/deployments/environments/issues/PR/hooks/workflows，並標明公開repo亦可read-only；屬新增security-sensitive授權，必須使用者當下確認，不能把「全權處理／更新測試站」當本次授權同意。正向Git部署憑證仍保留，沒有Disconnect；Render設定未存任何改動。
+- 本機授權截圖outputs/render-app-install-review-20261013.png已保存及目視，未上傳公開artifact。GitHub tab23停在Install前，Render tab21與qa-lead測試tab20均handoff；user tab22保留。下一步等使用者確認最小Repo Render App權限，再核裝好且source能列repo；CI綠後安全FF既有staging來源到新runtime、查真auto事件/live SHA/bundle、再做實際測試。沒有更新成功前不拿舊版5476的DOM當新版回歸，不合PR16/18或部署正式。
+- 第二帳號登入／設定信同意仍未收到，不猜／改密碼或寄信。不同角色、跨帳號同步、OR-Tools真套用、offline／409與原生Safari仍未通過。新備份安全版尚未main，nightly維持停用；Codex10分鐘追蹤繼續ACTIVE，授權阻礙不停止其他安全缺陷測試。
+
+#### 2026-10-13 20:50延續／21:16 heartbeat：UUID儲存回條與帳號生命週期競爭防護
+
+- 起點4a44611；8份未提交檔是本對話上一轮留下的修正／測試，沒有他人modifier，只有專屬Vite/esbuild。本輪延續它們而非重寫或丟棄。最新main c58032b相較11c7d9c只新增另一agent進度文件；普通merge保留，沒有改共享checkout／force。全部指定交接與最新checkpoint已讀；歷史NEXT_TASKS仍有已完成0037等條目，不照過時清單重做。
+- 上輪ae1bbb4與PR16 e00c61e的Tests及smoke全成功；ae1另有staging branch的Tests38400538398／smoke38400538402成功。已安全FF將既有staging來源由2d040d0推到含web改動的ae1bbb4。但21:19左右Render MCP仍只有5476a60 live／dep-db70mojrjlhs739hte6g，沒有新增deploy；**來源SHA不等於live SHA**。不手動trigger autoDeploy服務、不toggle設定、不清cache或部署未驗新版；solver未改，不重部署。Render-monitor指引只作非侵入部署狀態核對，未查私密env/hook。
+- Render登入舊提醒已更正：使用者說未看到側邊登入頁，重新開既有staging Settings，實際已登入，不需密碼。tab21保留可見交付；截圖outputs/render-visible-20261013.png只含服務頂部及General，無secret。舊tab15/16/17/18已不在inventory，僅tab20的同一qa-lead測試session仍保留；不要假定消失tab還能操作／另一帳號已登入。沒有寄設定信、猜密碼或改密碼。
+- **save_blocks確認缺陷**：0017實際回change_set UUID，但前端只檢error便升版本。新增缺漏／錯型回條測試修前1 fail／1 pass，修後8種畸形回應保持待確認、不改version/base/protectedBase；有效大小寫UUID只寫一次。真本機PGlite＋全部migrations＋真SupabaseStore/queueSync，transport故意在SQL已提交後丟UUID；重試40001後重讀已提交結果，確認一個block、一個change_set、version=1，沒有第二次寫入。Auth是明確合成stub，不是雲端登入／雙帳號實證。
+- **帳號切換競爭**：上一轮3項真函式測試已確認舊排隊snapshot可能送到新STORE/帳號/新登入生命週期，晚RPC會污染新baseline，SIGNED_IN新身分不清舊role。本輪完成authEpoch、同步SDK callback清session/權限及channel、queued write固定store/user/epoch，await前後核對；Store每個寫入await後確認身份一致，停止後續語句及remember。相同UID正常TOKEN_REFRESHED不被錯殺；身份已失效的重試不新增寫入，明確提示重新整理確認帳號（三語齊全）。無新登入API／權限擴張。
+- **讀取及409恢復第二層漏洞**：新增4項修前全fail：Store.load晚snapshot或history可覆蓋新baseline、foreground recovery無身份防護、同UID刷新正向baseline未統一接受、切帳號後舊恢復成功toast抹掉新狀態。Store在snapshot/history兩個await後檢client/user/epoch；所有reload先remember=false，接受時才一起記baseline與render。背景原草稿／預覽／拖曳／在途及失敗寫入guards不放寬；foreground保留正常衝突rollback能力但也檢帳號生命週期。queue在恢復讀完再核對，不改新帳號S/SYNC，不報舊帳號成功。
+- 聚焦首次50項有2項失敗是既有VM harness缺新增tx邊界；補tx mock而未鬆斷言。初始全套507/509不當通過；修harness後重新完整跑 **509/509／0 fail**（56.4秒），包含上述所有新增測試。另manual refresh/reload/auth/undo **29/29**及build成功（index-CPs1acFX.js），既有chunk警告保留。Impeccable context一次及harden/craft-floor全文、detector app/i18n/store一次[]；只改既有安全錯誤回饋，未改Gantt／抽屜／灰底／字體設計，不當全面視覺QA。
+- runtime **2b5bf92**提交後普通merge最新main為 **6f37083**已推；PR16事前乾淨且e00c61e本地/remote一致，僅既有Vite/esbuild，普通merge為 **e76796ce6fd8feca0a1d7c5621002dba6cd7dc1e**已推，原3份runtime/test差異與2份docs保留。最新SHA CI待核對，不用ae1綠冒稱新版本綠。PR16/18仍draft、沒有合main／正式部署；nightly仍等待安全加密版进入main，Codex10分鐘追蹤繼續ACTIVE。
+- 本輪正式1023／setup_pending／0037／角色授權、測試Supabase完全未寫入；新mutation僅本機拋棄式DB。缺第二帳號登入／寄信同意、OR-Tools真套用、真不同角色與跨帳號同步／409／offline、原生Safari仍未過。舊live5476的手動M20 apply＋undo不能當新帳號防護雲端E2E。下一輪先查6f37083/e76796c同SHA CI及staging自動部署原因；**log_change也回UUID但無version，回條遺失的安全冪等恢復尚未處理**，不可盲套save_blocks重試策略。另_profile/updateProfile等非schedule寫入的身份切換仍待真函式重現，不宣稱全Auth路徑已保護。
+- 21:23實查：6f37083 Tests **38404332390／38404326289**仍in_progress，smoke **38404332297／38404326429**success；PR16 e76796c Tests **38404364111／38404358613**仍in_progress，smoke **38404364044／38404358653**success。用完整40位SHA查證；首次短SHA查回[]不能當沒有CI。nightly **367614493**再查disabled_manually。tab21交付、tab20 handoff已重新標記，本機與持久分支保留；不因509綠停止追蹤。
+
 #### 2026-10-13 20:12 heartbeat／20:45：儲存確認、衝突佇列覆写及Render既有登入恢復
 
 - 起點f731e4c乾淨，無其他modifier／deploy，僅原Vite/esbuild；全部指定交接讀取，main仍11c7d9c。上輪2d040d0 Tests **38395295245／38395289396**與smoke **38395295244／38395289506**、PR16 de0957b Tests **38395359154／38395350915**與smoke **38395359346／38395350794**均實查success；docs-only f731e4c Tests **38395513041**與smoke **38395513030**success。這不是發布門檻全過，不合main，不重做0037／匯入／還原。
