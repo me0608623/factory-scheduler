@@ -3327,20 +3327,27 @@ let syncChain=Promise.resolve(),syncPending=0,syncEpoch=0,lastSyncState='ok';
 // 同步進行中關閉分頁＝靜默丟失變更：離開前提示（僅在真的有寫入在途時）
 addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state==="busy"){e.preventDefault();e.returnValue="";}});
 function queueSync(entry){
-  const snapshot=structuredClone(S),epoch=syncEpoch;
+  if(STORE.kind==='supabase'&&!STORE.session?.user?.id){changedWriteSession();return Promise.resolve(false);}
+  const snapshot=structuredClone(S),epoch=syncEpoch,activeStore=STORE,writer=STORE.session?.user?.id,authEpoch=STORE.authEpoch||0;
+  const current=()=>STORE===activeStore&&STORE.session?.user?.id===writer&&(STORE.authEpoch||0)===authEpoch;
   syncPending++;SYNC.state="busy";updateSyncChip();
   const task=syncChain.then(async()=>{
     try{
+      if(!current())return false;
       // Never rebase older queued snapshots onto a recovered remote baseline.
       if(epoch!==syncEpoch){SYNC.state=lastSyncState;return false;}
-      await STORE.sync(snapshot,entry);SYNC.state=lastSyncState="ok";SYNC.msg="";lastLocalWrite=Date.now();return true;
+      await activeStore.sync(snapshot,entry);
+      if(!current())return false;
+      SYNC.state=lastSyncState="ok";SYNC.msg="";lastLocalWrite=Date.now();return true;
     }
     catch(e){
+      if(!current())return false;
       SYNC.state=lastSyncState="error";SYNC.msg=e.message;
       if(e.conflict||e.permission){
         // Invalidate jobs captured before and during the recovery read.
         syncEpoch++;let result='failed';
         try{result=await reloadFromStore();}catch{result='failed';}finally{syncEpoch++;}
+        if(!current())return false;
         if(result==='applied'){
           SYNC.state=lastSyncState='ok';SYNC.msg='';
           toast(e.conflict?"別人剛更新過排程，已載入最新版本，請再做一次你的調整":e.message+"，已還原");
@@ -3349,10 +3356,19 @@ function queueSync(entry){
       else toast(e.unconfirmed?tx(e.message):"沒存到："+e.message,"重試",()=>queueSync(null));
       return false;
     }
-    finally{syncPending--;if(syncPending>0)SYNC.state="busy";updateSyncChip();if(syncPending===0&&SYNC.state==='ok')maybeReload();}
+    finally{
+      syncPending--;
+      if(current()){if(syncPending>0)SYNC.state="busy";updateSyncChip();}
+      else if(STORE===activeStore&&!STORE.session?.user?.id)changedWriteSession();
+      if(syncPending===0&&SYNC.state==='ok')maybeReload();
+    }
   });
   syncChain=task.then(()=>undefined);
   return task;
+}
+function changedWriteSession(){
+  const message=tx('登入狀態已變更，請重新整理後確認帳號。'),notify=SYNC.msg!==message;
+  SYNC.state=lastSyncState='error';SYNC.msg=message;updateSyncChip();if(notify)toast(message);
 }
 
 // ---------- 別人改了 → 重新讀取 ----------
@@ -3375,14 +3391,15 @@ function normalizeState(){
 }
 async function reloadFromStore({background=false}={}){
   const activeStore=STORE,before=S,beforeJSON=background?JSON.stringify(S):null;
-  const version=STORE.version,savedAt=lastLocalWrite,user=STORE.session?.user?.id;
-  const accept=()=>!background||(!remoteReloadBlocked()&&STORE===activeStore&&S===before&&JSON.stringify(S)===beforeJSON&&STORE.version===version&&lastLocalWrite===savedAt&&STORE.session?.user?.id===user);
+  const version=STORE.version,savedAt=lastLocalWrite,user=STORE.session?.user?.id,authEpoch=STORE.authEpoch||0;
+  const sameSession=()=>STORE===activeStore&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===authEpoch;
+  const accept=()=>sameSession()&&(!background||(!remoteReloadBlocked()&&S===before&&JSON.stringify(S)===beforeJSON&&STORE.version===version&&lastLocalWrite===savedAt));
   if(!accept()){pendingReload=true;return 'deferred';}
   try{
-    const s=await activeStore.load({remember:!background});
-    if(background&&(!s||!accept())){pendingReload=true;return 'deferred';}
-    if(s){if(background)activeStore.acceptLoaded?.(s);S=s;normalizeState();}render();return 'applied';
-  }catch(e){if(background)pendingReload=true;toast(typeof e?.message==='string'&&e.message?e.message:tx('無法讀取最新班表，請稍後再試。'));return 'failed';}
+    const s=await activeStore.load({remember:false});
+    if(!s||!accept()){pendingReload=true;return 'deferred';}
+    activeStore.acceptLoaded?.(s);S=s;normalizeState();render();return 'applied';
+  }catch(e){if(!sameSession()){pendingReload=true;return 'deferred';}if(background)pendingReload=true;toast(typeof e?.message==='string'&&e.message?tx(e.message):tx('無法讀取最新班表，請稍後再試。'));return 'failed';}
 }
 async function refreshCloudSnapshot(){
   if(SYNC.state==='error')return queueSync(null);

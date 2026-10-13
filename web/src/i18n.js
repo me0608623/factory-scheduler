@@ -11,6 +11,7 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "登入狀態已變更，請重新整理後確認帳號。": {en:"Your sign-in has changed. Reload and check the account before continuing.",vi:"Trạng thái đăng nhập đã thay đổi. Tải lại và kiểm tra tài khoản trước khi tiếp tục.",th:"สถานะการเข้าสู่ระบบเปลี่ยนไป กรุณาโหลดใหม่และตรวจสอบบัญชีก่อนดำเนินการต่อ"},
   "無法載入最新版本，尚未確認儲存；請重試。": {en:"Could not load the latest version. Save is unconfirmed; please retry.",vi:"Không thể đọc phiên bản mới nhất. Chưa xác nhận lưu; vui lòng thử lại.",th:"ไม่สามารถโหลดเวอร์ชันล่าสุด ยังยืนยันการบันทึกไม่ได้ กรุณาลองใหม่"},
   "雲端儲存結果待確認，請按重試核對；目前修改仍保留。": {en:"Cloud save is unconfirmed. Tap Retry to check; your changes are preserved.",vi:"Chưa xác nhận lưu trên đám mây. Nhấn Thử lại để kiểm tra; các thay đổi vẫn được giữ.",th:"ยังยืนยันการบันทึกบนคลาวด์ไม่ได้ แตะลองใหม่เพื่อตรวจสอบ การแก้ไขยังคงอยู่"},
   "無法讀取最新班表，請稍後再試。": {en:"Could not read the latest schedule. Please try again later.",vi:"Không thể đọc lịch mới nhất. Vui lòng thử lại sau.",th:"ไม่สามารถอ่านตารางล่าสุดได้ กรุณาลองใหม่ภายหลัง"},

@@ -147,3 +147,86 @@ test('ordinary consecutive successful edits still persist in order without being
   assert.equal(await first,true);assert.equal(await second,true);assert.equal(h.calls.length,2);
   assert.deepEqual(h.calls.map(s=>s.blocks.map(b=>b.id)),[['FIRST'],['FIRST','SECOND']]);assert.equal(h.ctx.syncEpoch,0);
 });
+const receipt='12345678-1234-4234-8234-123456789abc';
+const block={id:'00000000-0000-4000-8000-000000000010',oid:'00000000-0000-4000-8000-0000000000b1',step:0,m:'a',emp:'00000000-0000-4000-8000-0000000000e1',date:'2026-10-05',s:480,e:540,qty:120,pin:false};
+test('save_blocks requires a UUID receipt before advancing the version or accepting the baseline',async()=>{
+  for(const data of [null,undefined,{},[],false,0,'','TEST-NOT-UUID']){
+    const h=setup(()=>{},s=>s.blocks.push(structuredClone(block)),{data,error:null});
+    await assert.rejects(h.store.sync(h.candidate),e=>e.unconfirmed===true);
+    assert.equal(h.store.version,12);assert.equal(h.candidate.version,12);assert.equal(h.store.base,h.baseline);assert.equal(h.store.protectedBase,h.protectedBase);
+    assert.equal(h.calls.length,1);assert.equal(h.calls[0].name,'save_blocks');
+  }
+});
+test('valid save_blocks receipts confirm one write; retry does not issue a duplicate request',async()=>{
+  for(const data of [receipt,receipt.toUpperCase()]){
+    const h=setup(()=>{},s=>s.blocks.push(structuredClone(block)),{data,error:null});
+    await h.store.sync(h.candidate);assert.equal(h.store.version,13);assert.equal(h.candidate.version,13);
+    await h.store.sync(h.candidate);assert.equal(h.calls.length,1);
+  }
+});
+test('real save_blocks commit with a lost UUID receipt is recovered without a duplicate block or change-set',async()=>{
+  const {db,sb}=await realClient();
+  try{
+    const store=new SupabaseStore(sb);await store.init();const state=await store.load();state.blocks.push(structuredClone(block));
+    const rpc=sb.rpc.bind(sb);let drop=true,actualReceipt;
+    sb.rpc=async(name,args)=>{const response=await rpc(name,args);if(name==='save_blocks'&&drop){drop=false;assert.equal(response.error,null);actualReceipt=response.data;return {data:null,error:null};}return response;};
+    const h=queueHarness();h.ctx.STORE=store;h.ctx.S=state;h.ctx.reloadFromStore=async()=>{h.ctx.S=await store.load();return 'applied';};
+    assert.equal(await h.ctx.queueSync({kind:'move',title:'TEST-SAVE-ACK'}),false);
+    assert.match(actualReceipt,/^[0-9a-f-]{36}$/);assert.equal(store.version,0);assert.equal(h.ctx.SYNC.state,'error');assert.match(h.messages.at(-1),/結果待確認/);
+    assert.equal(await h.ctx.queueSync(null),false);assert.equal(store.version,1);assert.equal(h.ctx.SYNC.state,'ok');assert.equal(h.ctx.S.blocks.length,1);
+    assert.equal((await db.query("select count(*)::int as n from change_sets where title='TEST-SAVE-ACK'")).rows[0].n,1);
+    assert.equal((await db.query("select count(*)::int as n from schedule_blocks")).rows[0].n,1);
+  }finally{await db.close();}
+});
+test('queued writes belong to their original store, account and login lifetime',async()=>{
+  for(const mode of ['store','account','login']){
+    const h=queueHarness();h.ctx.STORE.session={user:{id:'TEST-A'}};h.ctx.STORE.authEpoch=0;
+    h.ctx.S.blocks=[{id:'OLD-ACCOUNT'}];const pending=h.ctx.queueSync(null);
+    if(mode==='store')h.ctx.STORE={session:{user:{id:'TEST-B'}},sync:async s=>h.calls.push(s)};
+    if(mode==='account')h.ctx.STORE.session={user:{id:'TEST-B'}};
+    if(mode==='login')h.ctx.STORE.authEpoch=2;
+    h.ctx.S={blocks:[{id:'CURRENT-ACCOUNT'}]};h.ctx.SYNC.state='ok';
+    assert.equal(await pending,false,mode);assert.equal(h.calls.length,0,mode);
+    assert.equal(h.ctx.S.blocks[0].id,'CURRENT-ACCOUNT');
+  }
+});
+test('late RPC replies cannot replace another account or login lifetime baseline; same-account token refresh remains valid',async()=>{
+  for(const mode of ['account','login','client','token']){
+    const h=setup(()=>{},s=>{s.groups=[{id:'TEST-G',name:'Test'}];},{data:13,error:null});
+    h.store.session={user:{id:'TEST-A'},access_token:'synthetic-old'};let finish;
+    h.store.sb.rpc=()=>new Promise(resolve=>finish=resolve);
+    const pending=h.store.sync(h.candidate);
+    if(mode==='account')h.store.session={user:{id:'TEST-B'}};
+    if(mode==='login')h.store.authEpoch=2;
+    if(mode==='client')h.store.sb={};
+    if(mode==='token')h.store.session={user:{id:'TEST-A'},access_token:'synthetic-new'};
+    finish({data:13,error:null});
+    if(mode==='token'){await pending;assert.equal(h.store.version,13);}
+    else{await assert.rejects(pending,e=>e.unconfirmed===true);assert.equal(h.store.version,12);assert.equal(h.store.base,h.baseline);assert.equal(h.store.protectedBase,h.protectedBase);}
+  }
+});
+test('a late old-account completion never changes the fresh account state or sends its queued snapshot',async()=>{
+  const h=queueHarness();let finish;h.ctx.STORE.session={user:{id:'TEST-A'}};
+  h.ctx.STORE.sync=async s=>{h.calls.push(s);return new Promise(resolve=>finish=resolve);};
+  const pending=h.ctx.queueSync(null);await new Promise(resolve=>setImmediate(resolve));
+  h.ctx.STORE={kind:'supabase',session:{user:{id:'TEST-B'}},sync:async s=>assert.fail('old account data must not reach new client')};
+  h.ctx.S={blocks:[{id:'TEST-B-BOARD'}]};h.ctx.SYNC={state:'ok',msg:'TEST-B-STATUS'};finish();
+  assert.equal(await pending,false);assert.equal(h.ctx.S.blocks[0].id,'TEST-B-BOARD');assert.equal(h.ctx.SYNC.msg,'TEST-B-STATUS');
+});
+test('an invalidated cloud identity cannot enqueue new writes through the retry button',async()=>{
+  const h=queueHarness();h.ctx.STORE.kind='supabase';h.ctx.STORE.session=null;
+  assert.equal(await h.ctx.queueSync(null),false);assert.equal(h.calls.length,0);assert.equal(h.ctx.syncPending,0);
+  assert.equal(h.ctx.SYNC.state,'error');assert.match(h.messages.at(-1),/登入狀態已變更/);
+});
+
+test('switching account during conflict recovery cannot announce success or overwrite the new status',async()=>{
+  const h=queueHarness();let finish,entered;const reading=new Promise(resolve=>entered=resolve);
+  h.ctx.STORE.session={user:{id:'TEST-A'}};
+  h.ctx.STORE.sync=async()=>{throw new ConflictError();};
+  h.ctx.reloadFromStore=()=>{entered();return new Promise(resolve=>finish=resolve);};
+  const task=h.ctx.queueSync(null);await reading;
+  h.ctx.STORE={session:{user:{id:'TEST-B'}},sync:async()=>assert.fail('unexpected write')};
+  h.ctx.S={blocks:[{id:'TEST-B'}]};h.ctx.SYNC={state:'ok',msg:'TEST-B-STATUS'};finish('applied');
+  assert.equal(await task,false);assert.equal(h.ctx.SYNC.msg,'TEST-B-STATUS');
+  assert.equal(h.messages.length,0);assert.equal(h.ctx.S.blocks[0].id,'TEST-B');
+});

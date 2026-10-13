@@ -38,3 +38,11 @@ test('排程查詢使用自動更新後的登入憑證；登出後不再提供�
   callbacks[0]('TOKEN_REFRESHED',refreshed);
   assert.equal(store.jwt(),null);assert.equal(store.role,null);
 });
+test('a SIGNED_IN event for another identity invalidates the old session and permission cache',async()=>{
+  let callback;const store=new SupabaseStore({auth:{onAuthStateChange:fn=>{callback=fn;return {data:{subscription:{}}};}}});
+  store.session={user:{id:'TEST-A'},access_token:'synthetic-A'};store.role='boss';store.permissions={'schedule.manage':true};
+  store._watchAuthSession();callback('SIGNED_IN',{user:{id:'TEST-A'},access_token:'synthetic-A2'});
+  assert.equal(store.session.user.id,'TEST-A');
+  callback('SIGNED_IN',{user:{id:'TEST-B'},access_token:'synthetic-B'});
+  assert.equal(store.session,null);assert.equal(store.role,null);assert.deepEqual(store.permissions,{});assert.ok(store.authEpoch>0);
+});

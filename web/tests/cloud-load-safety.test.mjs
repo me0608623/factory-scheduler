@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {SupabaseStore} from '../src/store/supabase.js';
+import {fromSnapshot} from '../src/convert.js';
 
 const empty=()=>({version:12,employees:[],machines:[],products:[],orders:[],blocks:[],calendar:{}});
 const remembered=store=>JSON.stringify(Object.fromEntries(['version','base','baseBlocks','protectedBase','baseGroups',
@@ -68,4 +69,17 @@ test('valid zero-row cloud snapshot is not confused with a failed RPC',async()=>
   const chain={select:()=>chain,order:()=>chain,limit:async()=>({data:[],error:null})};
   const store=new SupabaseStore({rpc:async()=>({data:{version:3,employees:[],machines:[],products:[],orders:[],blocks:[],calendar:{}},error:null}),from:()=>chain});
   const snapshot=await store.load();assert.equal(snapshot.demo,false);assert.equal(snapshot.employees.length,0);assert.equal(store.version,3);
+});
+test('an old snapshot cannot replace a different account or a new login lifetime baseline',async()=>{
+  for(const mode of ['account','login','history']){
+    let finish,entered;const waiting=new Promise(resolve=>entered=resolve);
+    const chain={select:()=>chain,order:()=>chain,limit:async()=>mode==='history'?new Promise(resolve=>{finish=resolve;entered();}):({data:[],error:null})};
+    const client={rpc:async()=>mode==='history'?({data:empty(),error:null}):new Promise(resolve=>{finish=resolve;entered();}),from:()=>chain};
+    const store=new SupabaseStore(client);store.session={user:{id:'TEST-A'}};
+    const old=store.load();await waiting;
+    store._clearSession();store.session={user:{id:mode==='login'?'TEST-A':'TEST-B'}};
+    const fresh=fromSnapshot({...empty(),version:100});store.acceptLoaded(fresh);const baseline=store.base;
+    finish(mode==='history'?{data:[],error:null}:{data:empty(),error:null});
+    await assert.rejects(old,/登入狀態已變更/);assert.equal(store.version,100);assert.equal(store.base,baseline);
+  }
 });
