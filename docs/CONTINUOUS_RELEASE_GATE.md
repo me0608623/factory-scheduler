@@ -38,6 +38,9 @@
 - SupabaseStore 新增 speculative `load({remember:false})`，讀取快照不修改version／base／protectedBase；真正接受畫面時同步acceptLoaded，避免「畫面拒收、寫入基準卻已更新」。預設load仍維持既有行為。真PGlite＋全部migration回歸實證拒收時基準逐位元組不變、接受後版本前進；沒有存取或寫入正式DB。
 - 新增10項 app 執行期回歸＋1真SQL store回歸：安全重讀、六種busy／未存狀態、等待中開草稿、完成儲存、同物件未儲存更動、切換帳號／store、失敗不通知不迴圈、多事件合併與關閉草稿後補讀。全web **440/440**、build通過；工具 **26/26**。工具首跑因未加 age工具到此PowerShell PATH有5項環境失敗（不是產品缺陷），補既有已驗證工具路徑後26項真正執行通過，沒有跳過。一次誤用不存在tools/tests glob產生0測試，不作通過證據。Impeccable harden只影響本輪資料更新／錯誤安全，detector app.js無輸出，不做畫面重設計。
 - 真staging平台即時通道中斷與第二帳號未登入仍是發布門檻，本輪程式測試不冒稱真兩端同步已通過，也未新增自動輪詢。寄設定信仍待本人同意，不能讀舊SQL／猜或改密碼。0037不重套、正式1023不動，PR16/18仍draft、nightly仍停用直到加密main安全發布。10分鐘追蹤ACTIVE。
+- 修復提交 **508b79453453a362426e808e53f3b1434cdf1931** 已推own branch；同SHA Tests **38370357004**（frontend/database含跨層/solver全部成功）與smoke **38370357303**成功後，non-force FF既有staging分支。repo hooks仍0，觀察無自動deploy後才手動更新web **dep-db6usuk9v7es739tfko0**，08:40:55Z live508b794。canonical root實查MISS、**index-BxxaTLZr.js**，不是只靠HTTP200或API live判斷；solver維持2cde149，沒有新增服務、費用或正式部署。08:40:26–08:43:59Z部署error logs空，不代表浏览器或同步全面零問題。
+- 最新main實查 **4008974297b0d0453ba1339a9efdf2d1e11ab9c9**，PR18 mergeable=CONFLICTING、PR16仍draft/b249160。下一輪普通merge整合需處理兩份calendar-overlap修正（保留已驗收邏輯與新增測試）、各workflow與其他提交；最新main的acceptance-report仍新增`/tmp/sim-*.json`公開上傳，**必須阻止新真實請求快照artifact**，但不得刪使用者要求保留的舊下載檔。不用force push或重設他人分支。
+- 08:46Z真IAB qa-lead一般root載入 **index-BxxaTLZr.js**，top/sidebar仍如實「即時更新中斷」。回10/12／1廠，開測試A01編輯表單，開始時間08:00改草稿08:10（DOM value490），Escape取消後19段label/text/style逐筆一致；沒有按儲存或套用，不改測試DB。截圖 **outputs/staging-remote-read-safety-20261013.jpg**。手動新增入口本次正確顯示無剩餘工序，並可Escape關閉，**isNew完整新增路徑仍未測**。這不是有遠端事件的瀏覽器競爭E2E；實際即時通道仍失敗、第二帳號登入仍缺，不冒充同步成功。IAB/Chrome登入handoff保留供下輪，程式／資料發布門檻仍未全過。
 
 #### 2026-10-13 16:00 台灣時間：即時通道狀態修復與登入阻礙
 
