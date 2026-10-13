@@ -17,6 +17,7 @@ import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {safeSnapshotDebug} from '../../tools/sim-debug.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const solverDir = path.resolve(root, "solver");
@@ -223,21 +224,7 @@ console.log(`基準完成：${setup.length} 項；員工 F1×2（TEST-E01/E02）
 // 既有資料占用快照（INFEASIBLE 排查用）：sim 走「新單插入」而 app 走「全單重排」，占用差異是線索
 if (process.env.SIM_DEBUG) {
   const snapDump = JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`));
-  const cnt = (a) => Array.isArray(a) ? a.length : a;
-  console.error('[snap] blocks=' + cnt(snapDump.blocks) + ' employees=' + cnt(snapDump.employees) +
-    ' machines=' + cnt(snapDump.machines) + ' orders=' + cnt(snapDump.orders) +
-    ' execution=' + cnt(snapDump.work_execution || snapDump.execution) +
-    ' workWindows=' + cnt(snapDump.work_windows) + ' faults=' + (snapDump.machines || []).reduce((n, m) => n + cnt(m.faults), 0));
-  const mine = (snapDump.machines || []).filter(m => ['f1e','f1b','f2k','f2ac'].includes(m.id));
-  console.error('[snap] testMachines=' + JSON.stringify(mine.map(m => ({ id: m.id, procs: cnt(m.faults), rev: m.review_status }))));
-  console.error('[snap] week=' + JSON.stringify(snapDump.calendar ? snapDump.calendar.week : null) + ' over=' + JSON.stringify(snapDump.calendar ? Object.keys(snapDump.calendar.over || {}) : null));
-  console.error('[snap] ot=' + JSON.stringify(snapDump.overtime || snapDump.dayOT || null).slice(0, 200));
-  console.error('[snap] blocksOnTestMachines=' + (snapDump.blocks || []).filter(b => ['f1e','f1b','f2k','f2ac'].includes(b.m || b.machine)).length);
-  console.error('[snap] firstEmp=' + JSON.stringify((snapDump.employees || [])[0]));
-  console.error('[snap] wa=' + cnt(snapDump.work_assignments) + ' tf=' + cnt(snapDump.transfer_orders) + ' rosters=' + cnt(snapDump.staff_rosters) + ' wc=' + cnt(snapDump.work_contents));
-  console.error('[snap] pickedEmps=' + JSON.stringify((snapDump.employees || []).filter(e => [E01,E02,E03].includes(e.id)).map(e => ({ f: e.factory, skills: e.skills, leaves: e.leaves, noOT: e.no_overtime, otw: e.overtime_weekdays, rev: e.review_status }))));
-  console.error('[snap] testMachFactories=' + JSON.stringify(mine.map(m => ({ id: m.id, factory: m.factory, products: cnt(m.products) }))));
-  console.error('[snap] testProducts=' + JSON.stringify((snapDump.products || []).filter(pr => String(pr.id).startsWith('11111111')).map(pr => ({ id: String(pr.id).slice(-4), steps: (pr.steps || []).map(st => ({ proc: st.proc, factory: st.factory, rate: st.rate, batch: st.batch })) }))));
+  console.error('[snap] safeSummary=' + JSON.stringify(safeSnapshotDebug(snapDump,[E01,E02,E03])));
 }
 
 // ---------- 案例執行 ----------
@@ -258,11 +245,12 @@ async function runCase(id, fn) {
 }
 
 await runCase("C1 正常單廠", async (out) => {
-  const plan = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: orderEvent("TEST-O1", P2, 120, 14), now, time_limit: 3 });
+  const ev = orderEvent("TEST-O1", P2, 120, 14);
+  const plan = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: ev, now, time_limit: 3 });
   console.error(`[選項] 共${(plan.options||[]).length}個：${(plan.options||[]).map(o=>o.id+(o.applicable?"+":"-")+(o.solver_method==="keep"?"k":"")).join("")}`);
   const opt = plan.options.find((o) => o.applicable && o.solver_method !== "keep");
   if (!opt) { noOpt(plan, out); return "FAIL"; }
-  await applyOption(plan, orderEvent("TEST-O1", P2, 120, 14), opt.id, "TEST-O1");
+  await applyOption(plan, ev, opt.id, "TEST-O1");
   const blocks = JSON.parse(await orderBlocks("TEST-O1"));
   if (await stationQty("TEST-O1", 0) !== 120) out.push("裁切站件數≠120");
   if (await stationQty("TEST-O1", 1) !== 120) out.push("焊接站件數≠120");
