@@ -30,6 +30,18 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 23:59 heartbeat／2026-10-14 00:17：備援套用不等儲存與失敗前通知修復
+
+- 起點 **00dbc7c38825c4f4b5a773a7302ed1a09322437f** 乾淨、fetch無額外main更新，無重疊modifier／部署，必讀交接已核對。90bf552 Tests **38426008893／38426003626**與smoke **38426008887／38426003528**、PR16 aa920f6既有四項CI全success。不重做上輪staging真ORTools C套用／版本8→9，不重寄信、猜密碼、匯入種子或碰正式1023。午夜後環境日期已10/14，記錄不沿用10/13的today。
+- 新最小重現 **6/6失敗**：真pvApply備援支線沒有await commit，等待／寫入false亦先showResult；舊帳號／新preview／新state期間回應仍開舊成功結果；權限撤回後先換S與pushUndo再拒存；實際commit+queueSync+LocalStore儲存額度失敗時pvApply先返回、SYNC仍busy；共用commit先送LINE才等儲存。因此不是上輪apply_plan回條分支的回歸，是未經RPC preview的本機／雲端瀏覽器備援支線及共用通知時序。
+- runtime **b2f39d3933eb72d074a8b612cfc9cb86ac19d76a**：備援套用前核對當前原始permission與P.base，拒絕時不改S/log/undo或送寫入；確認後等待commit，只有真saved且原store/user/authEpoch、同候選S物件／內容、沒有進新PV才showResult。失敗保留現有待重試候選，由既有queueSync維持「沒存到」/重試，沒有拿成功結果蓋掉失敗回饋或丟掉要重試的快照。共用commit在permission拒絕前不加假紀錄；LINE改為確認saved後才發，捕捉原帳號／store/authEpoch，不拿新登入的JWT發舊事件，通知失敗仍不影響已確認儲存。
+- 新增 **10項實际函式回歸**：在途、false、晚回應（含新草稿內容／store／帳號／epoch／PV）、撤權、stale base、真LocalStore quota failure（明確assert SYNC.msg含儲存空間不足）、通知時序／只成功一次、permission拒絕零副作用、换帳號不發、通知同步/非同步失敗不改saved。quota是假測試儲存層內的真正LocalStore+commit+queueSync執行，不是瀏覽器CDP改localStorage，也不是正式／staging的quota E2E；LINE只用合成通知器，未發實際外部訊息。
+- 第一輪全套 **560/563，3失敗**，因此沒有build／發布（PowerShell明確檢LASTEXITCODE失敗即throw）。修復漏加的權限提示三語；另兩個既有SupabaseStore回歸硬編10/6的fault/overtime在DB today翻到10/14時掉出schedule_snapshot預設七日前下限，不是修改app/Store引起。改用各自真DB `current_date`建立同樣fixture，保留4列audit、note/orig、ot_end=1200、加班授權等所有原断言，不更改SQL讀取範圍或正式資料。3失敗項聚焦重跑全過；最終全web **563/563**（53.65秒）＋build **index-Ro2yQp4p.js**（9.32秒）通過，最後增加quota訊息assert後10/10再過。大chunk警告仍在。
+- Impeccable全文、harden/craft-floor全文，沿用先前session context不重跑；本輪detector app/i18n一次 **[]**。沒有新CSS／版型／機台Gantt／日週切換變動。只以確認結果／權限拒絕／錯誤時序減少誤導，沒有全面設計重做。
+- 真本機 **tab25 / localhost:5202/?local=1**（非staging）正常更多→自動排班→計算→真「瀏覽器備援」三方案→選C維持現狀→填QA備註→對用這套按Enter一次，才出成功modal／本機儲存狀態。**390×844** modal無水平溢出，X/復原/知道了均44px，備註可見，證據 **outputs/fallback-confirmed-local-mobile-20261014.png**已目視。正常reload→更多/全部紀錄→00:14詳情仍有「QA fallback confirmed-save 2026-10-14」，證明真LocalStore持久化；未操作復原。收尾Emulation.clear、modal/More/PV皆關閉，本機留10/14。20/24/25/21/23保留handoff。沒有state注入、quota瀏覽器猴補丁或任何雲端寫入。
+- b2f39d3已推，Tests **38429113037／38429104456**在00:17仍in_progress，smoke **38429113212／38429104378**success；**尚未部署此修復或90bf552匯入翻譯整合版**，staging仍已驗6dc3c6d/index-D7tYAvVb.js。新共用commit涵蓋其他手動/事件流程，要等同SHA跨層回歸及後續staging驗收，不能拿本機通過冒稱雲端LINE／離線／不同角色通過。PR16仍aa920f6，下一輪安全同步最新修復前先核干淨／無modifier／remote一致；PR16/18仍draft。
+- 下一輪先核含b2f39d3的最新head CI，安全部署既有staging前端再只讀核對版本／匯入翻譯與備援失敗UI；不要重做已過ORTools C寫入。可在隔離staging暫阻出站log_change/save_blocks，先證明沒有DB提交及沒有提早LINE/成功modal，再考慮正常重試一次，不能盲重送或丟未存草稿。其他安全候選：套用中卡片／條件重排disabled一致性與其他commit呼叫者是否等待saved。真正不同帳號/角色、Realtime自動同步、offline409與原生Safari、正式VITE_TEST_*門檻仍未全過，不合main／正式部署／額外migration。正式0037不重套，正式1023/setup_pending/Auth/授權零改動。nightly仍待加密版本安全進main；10分鐘追蹤ACTIVE，繼續探索，不自行停用。
+
 #### 2026-10-13 23:40 heartbeat／23:57：真 OR-Tools 單次套用、回條／版本／第二分頁補讀通過
 
 - 起點 **6dc3c6d07b93b3a6aacca2030d06afab2c2ca532** 乾淨，只有既有Vite／本輪readcheck，無重疊modifier或部署。必讀交接已讀；舊寄信「未同意」敘述不採用，使用者已授權且一封已提交，不重寄／猜密碼／改憑證；仍無第二個可用不同帳號。Render-deploy全文與deployment-details/post-deploy-checks已讀，只更新既有staging web，不新增服務或費用。
