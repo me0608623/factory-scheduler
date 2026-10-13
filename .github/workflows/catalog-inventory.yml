@@ -13,7 +13,7 @@ jobs:
         run: |
           ARTIFACTS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?per_page=20" | \
-            jq -r '.artifacts[] | select(.name | startswith("db-backup-")) | .id' | head -1)
+            jq -r '.artifacts[] | select(.name | test("^db-backup-(?!encrypted-)")) | .id' | head -1)
           if [ -z "$ARTIFACTS" ]; then echo "No backup artifact found"; exit 1; fi
           curl -s -L -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACTS/zip" -o backup.zip
