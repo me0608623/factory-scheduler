@@ -3370,6 +3370,12 @@ async function reloadFromStore({background=false}={}){
   }catch(e){if(background)pendingReload=true;toast(e.message);return 'failed';}
 }
 function remoteReloadBlocked(){return !!(PV||drag||generalDrag||UI.modal||syncPending>0||SYNC.state!=='ok');}
+function onRealtimeStatus(status){
+  const previous=SYNC.realtime;SYNC.realtime=status;updateSyncChip();
+  // The stream cannot replay every missed database event. Also reconcile the
+  // initial snapshot/join gap; repeated SUBSCRIBED callbacks are not new joins.
+  if(status==='SUBSCRIBED'&&previous!=='SUBSCRIBED')onRemoteChange('reconcile');
+}
 function onRemoteChange(source){
   if(source==="account_permissions"){
     readOnly=STORE.kind==="supabase"&&!STORE.can("schedule.manage");
@@ -3385,7 +3391,7 @@ function onRemoteChange(source){
     result=await reloadFromStore({background:true});
     if(result!=='applied')return;
     const l=S.log[0];
-    if(!mine&&notificationEnabled(UI.prefs,source)){
+    if(source!=='reconcile'&&!mine&&notificationEnabled(UI.prefs,source)){
       const recent=l&&Date.now()-l.t<120000,title=recent?'有新的變更：'+l.title:source==='leave_requests'||source==='leaves'?'請假資料有更新':source==='schedule_memos'?'現場備忘有更新':'排程資料有更新';
       if(recent)toast(title,"看細節",()=>openModal({t:"logone",id:l.id}));else toast(title);
       showDeviceNotification(title);
@@ -3393,7 +3399,7 @@ function onRemoteChange(source){
     }finally{remoteLoading=false;if(result!=='failed')maybeReload();}
   },600);
 }
-function maybeReload(){if(pendingReload&&!remoteReloadBlocked()&&!remoteLoading){pendingReload=false;onRemoteChange();}}
+function maybeReload(){if(pendingReload&&!remoteReloadBlocked()&&!remoteLoading){pendingReload=false;onRemoteChange('reconcile');}}
 
 // ---------- 帳號與連線 ----------
 MODALS.account=()=>({title:tx('帳號與連線'),
@@ -4493,7 +4499,7 @@ async function start(){
   if(r.needLogin){showLogin();return;}
   readOnly=STORE.kind==="supabase"&&!STORE.can("schedule.manage");
   let s=null;
-  try{s=await STORE.load();}catch(e){toast(e.message);}
+  try{s=await STORE.load();}catch(e){if(STORE.kind==='supabase')throw e;toast(e.message);}
   const madeDemo=!(s&&(STORE.kind==="supabase"||s.employees.length));
   if(madeDemo)makeDemo();else S=s;
   normalizeState();
@@ -4505,7 +4511,7 @@ async function start(){
   render();
   if(UI.page)flashReturnRow();
   if(!tourDone()&&!UI.tv&&!UI.page)setTimeout(()=>startTour(TOUR_STEPS,{tx}),600);
-  STORE.subscribe(onRemoteChange,status=>{SYNC.realtime=status;updateSyncChip();});
+  STORE.subscribe(onRemoteChange,onRealtimeStatus);
   scheduleChat?.destroy();scheduleChat=installScheduleChat({snapshot:()=>({...toSnapshot(S,HOLI),work_execution:structuredClone(S.execution||[])}),view:()=>({date:UI.date,factory:UI.factory}),store:()=>STORE,enabled:()=>!UI.tv&&canPermission('schedule.manage'),stamp:()=>scenarioKey(S)+'|'+UI.date+'|'+UI.factory});
   SOLVER.check().then(up=>{updateSyncChip();scheduleChat?.refresh();if(up)toast("已連上 OR-Tools 排程服務");});
   setInterval(()=>{if(!drag&&!generalDrag&&!UI.modal&&!PV&&UI.view==="day"&&UI.date===todayStr())render();},60000);

@@ -30,6 +30,14 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 17:12 heartbeat：訂閱成功補漏讀取與雲端啟動失敗防護
+
+- 本輪891b0cd起點乾淨、沒有其他modifier／deploy程序；不再整合相同main或重跑已過C5。依Impeccable harden只補資料更新／失敗路徑，保留班表、抽屜、日週切換及午休背景；context已執行一次，craft-floor全文已讀，最終detector app.js為空結果。
+- 真app start＋背景補讀函式執行期重現：初次snapshot與加入訂閱之間的空窗、斷線後SUBSCRIBED卻未補讀、重複join排程、草稿期間漏記pending等4項測試修前失敗（第5項未覆寫preview原已通過）。最小修正onRealtimeStatus：每次非SUBSCRIBED→SUBSCRIBED安靜補讀一次，重複SUBSCRIBED不補；初次join同樣補空窗。不新增定時輪詢。沿用508b794的timer／結果兩次安全檢核與speculative load，草稿、預覽、拖曳、在途／失敗儲存期間仍延後。補讀與延後補讀走reconcile，不憑人工觸發讀取就產生新變更通知。
+- 沿途新Major/潛在資料安全缺陷實際重現：start()在STORE.load拋錯時吞錯後呼叫makeDemo，可能讓雲端session拿示範資料開始操作；另真SupabaseStore在RPC data=null時轉成空snapshot，且開始讀取log。新測試各修前失敗。現在雲端start讀取錯誤直接交由既有啟動失敗UI／登入handler顯示，不產生或儲存示範；Store拒絕null/undefined/array/string/number，version/base不變。真正零員工的有效雲端快照仍正常顯示空資料；本機首次使用仍產生並保存示範。
+- 新增7項真start／註冊callback執行期回歸＋2項真Store RPC資料邊界，聚焦23/23及全web **449/449**、工具 **31/31**、build成功。測試有明確mock API與timer，不是源碼字串斷言，也不冒稱真平台或跨帳號雲端已恢復。實际平台仍中斷，第二帳號登入／寄設定信同意仍缺；後續須以同SHA CI、staging與正式門檻分開記錄。
+- 目前只本機修正，CI／staging發布結果後續追加；正式0037不重套、正式1023與角色授權不改、不重匯測試資料。PR16/18維持draft，舊nightly仍停用，Codex10分鐘追蹤ACTIVE。catalog/permissions舊備份消費者待加密相容與公開輸出安全檢查，未dispatch。
+
 #### 2026-10-13 16:50 heartbeat：安全整合最新main與模擬診斷隱私防護
 
 - 開始工作目錄乾淨，沒有重疊modifier；正常fetch並普通merge **0e60483**，不切換共享checkout、不force push。四個衝突：acceptance-sim、backup-drill、C5案例、solver calendar bans。保留本分支已真驗收的分頁／密文解密及calendar union（忽略無長度區間、不合併真實工作占用），保留main新增test_leave_holiday_overlap三項測試與其他文件／工作流變更。C5保留完整求解件數、獨立合法性、實際DB拒絕及savepoint回滾，合入main新增「加班／調整期限」建議斷言，沒有弱化逾期套用閘門。
