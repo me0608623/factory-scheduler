@@ -30,6 +30,16 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 22:51 heartbeat／22:58：按計算安全重連及健康檢查競爭修復
+
+- 起點378c4a2乾淨、無其他modifier／deploy；指定交接全文/選定最新段已讀，舊寄信／0037／artifact消費者待辦不重做。正式1023/setup_pending/角色及正式服務零改動；本輪沒有雲端資料或Auth寫入，測試seed不重匯。Impeccable全文、context一次、harden/craft-floor完整及detector app/i18n一次[]，保留既有UI世界，不新增CSS/Gantt/抽屜設計。
+- 依前輪真3秒中止證據，新增實際app VM測試修前 **3 fail**：服務up=false時按計算不重試、取消沒有可Abort健康請求、只有事件權限的人不能在重連後走既有solver；明確合成transport，不當正式／真雲端E2E。改為**只有雲端使用者明確計算且up=false時check一次，45秒上限＋三語toast**；計算busy/同job去重沿用01740ea，close／換modal立即Abort健康請求，await後原有S/store/user/epoch/version/owner再驗。正常本機模式不等待遠端重連；未改startup預設3000ms／test45000ms，不新增poll／定時重試／費用。
+- 健康transport新增4項：外部Abort、body時間上限、舊失敗覆蓋新成功、503的ok:true不得健康。原外部Abort測試只查aborted其實等滿3秒也會過，測試補80ms有界回條才足以檢驗即時Abort；原實跑body／舊失敗／HTTP三項確實fail。最小修check參數、healthEpoch、strict true及HTTP ok；fetchWithTimeout可選consume，health整個JSONbody仍在timer內，external signal合併且finally移除listener／timer，已abort不送fetch。**POST body時間上限仍未改**（只health用consume），不宣稱全部API都已覆蓋完整本文timeout。
+- 追加capability負面實跑 **1 fail**：服務缺一般工作能力的分支會讓僅事件權限帳號產生完整瀏覽器重排預覽。集中openPlansLocal雲端schedule.manage防護，網路/能力/其他入口皆拒絕整張fallback；未改DB角色／RLS，也不宣稱此測試證明正式資料已被越權寫入。增加timeout非數字/過大上限與already-aborted無fetch測試。原local timer fixture由偽supabase改成真正kind=local，保留原取消／錯誤斷言；新增雲端retry fixtures明確kind=supabase，不放寬權限規則。
+- 聚焦 **52/52**，完整 **535/535／0 fail**（53.76秒），build成功 **index-D_CW2lfP.js**，原chunk警告保留；全部無真憑證／雲端操作。logs僅本機outputs/health-recovery-focused-20261013.txt、health-recovery-web-tests-20261013.txt。**此批新UI toast／真健康重連、desktop/mobile/Safari未瀏覽器驗證，也未部署**，上一輪dfc取消截圖不可當58b新版完整回歸。
+- runtime **58b73baa78ce3281e38ae0d58027582dda5c41c3**提交推送；其 Tests **38417929344／38417923759**及smoke **38417929361／38417923758**在22:58實查in_progress，待同SHA最終核對。上一個378c Tests38416894549/smoke38416894685成功不替代新SHA。PR16事前a1cc476本地/remote一致、乾淨，僅其原Vite，fetch核對後普通merge為 **f11db512259e4d993e399658f95a342be47ded4f**已推；保留seed/CSS/docs差異，不force、不合main。新PR16 CI／全套須獨立核對，不用535冒稱該分支536已跑完。
+- staging仍 **dfc2486 / index-ZK94ERD9.js**；未把push持久/PR16分支當既有staging已部署。接续先核58b/f11同SHA CI，安全FF既有staging source（autoDeploy yes，不manualtrigger）後查live SHA及普通root，按正常UI製造可重現up=false（可有界臨時阻斷/離線health觀測後復原，不改app/auth/state），驗「按計算→單次健康重試→ORM方案」、在健康等待時取消不送plans、正常fallback/權限提示、原20色塊保存，保留手機/桌面44px/日期/F1。前輪真原生Safari/不同帳號/ORTools套用/offline409／Realtime／正式VITE_TEST_*門檻仍未全過，PR16/18維持draft，nightly不重啟。追蹤ACTIVE，繼續下一項，不因535綠結案。
+
 #### 2026-10-13 22:40 heartbeat／22:50：新版自動部署及真計算在途取消通過
 
 - 起點c897b6a乾淨、無其他modifier／deploy，指定交接已讀。不重套0037、重匯測試seed、重寄已獲准設定信、改帳號角色或正式1023/setup_pending。Render-deploy全文及deployment-details/post-deploy-checks已讀，MCP先核既有staging web正確repo/root/branch/autoDeploy=yes；此前同SHA dfc2486 Tests/smoke均success，安全FF來源 **99d0760→dfc24865a413a11c7135b18054efbb5625a8fd8f**，沒有手動trigger/toggle/cache或新增服務費用。
