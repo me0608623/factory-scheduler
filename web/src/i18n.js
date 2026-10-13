@@ -11,6 +11,9 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "回報處理中；關閉視窗不會取消已送出的回報。": {en:"Processing the report. Closing this dialog does not cancel a submitted report.",vi:"Đang xử lý báo cáo. Đóng cửa sổ không hủy báo cáo đã gửi.",th:"กำลังประมวลผลรายงาน การปิดหน้าต่างไม่ยกเลิกรายงานที่ส่งแล้ว"},
+  "尚未確認儲存這筆回報；請按「重試上一筆回報」，不要另送新的一筆。": {en:"This report's save is unconfirmed. Use Retry previous report; do not submit a new report.",vi:"Chưa xác nhận lưu báo cáo này. Hãy thử lại báo cáo trước, không gửi báo cáo mới.",th:"ยังยืนยันการบันทึกรายงานนี้ไม่ได้ ใช้ลองรายงานเดิมใหม่ อย่าส่งรายงานใหม่"},
+  "回報已處理；尚未讀到最新資料，請更新核對。": {en:"Report processed, but the latest data has not been read. Refresh to check.",vi:"Đã xử lý báo cáo nhưng chưa đọc được dữ liệu mới nhất. Cập nhật để kiểm tra.",th:"ประมวลผลรายงานแล้ว แต่ยังอ่านข้อมูลล่าสุดไม่ได้ กรุณาอัปเดตเพื่อตรวจสอบ"},
   "操作儲存中，請稍候。": {en:"Saving this change. Please wait.",vi:"Đang lưu thay đổi. Vui lòng đợi.",th:"กำลังบันทึกการเปลี่ยนแปลง กรุณารอ"},
   "操作已保存；尚未讀到最新資料，請更新核對。": {en:"Change saved, but the latest data has not been read. Refresh to check.",vi:"Đã lưu thay đổi nhưng chưa đọc được dữ liệu mới nhất. Cập nhật để kiểm tra.",th:"บันทึกการเปลี่ยนแปลงแล้ว แต่ยังอ่านข้อมูลล่าสุดไม่ได้ กรุณาอัปเดตเพื่อตรวจสอบ"},
   "詢問已送出；尚未讀到最新資料，請更新核對。": {en:"Leave request submitted, but the latest data has not been read. Refresh to check.",vi:"Đã gửi yêu cầu nghỉ nhưng chưa đọc được dữ liệu mới nhất. Cập nhật để kiểm tra.",th:"ส่งคำขอลาแล้ว แต่ยังอ่านข้อมูลล่าสุดไม่ได้ กรุณาอัปเดตเพื่อตรวจสอบ"},

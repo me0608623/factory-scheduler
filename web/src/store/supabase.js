@@ -170,13 +170,15 @@ export class SupabaseStore {
   can(permission) { return effectivePermission(this.role,this.permissions,permission); }
 
   async listAccessAccounts() {
-    const {data,error}=await this.sb.rpc('list_access_accounts');
+    const client=this.sb,assertOwner=this.requestOwnerGuard();
+    const {data,error}=await assertOwner.authorize(client.rpc('list_access_accounts'));assertOwner();
     if(error)throw new Error('讀取帳號權限失敗：'+error.message);
     return data||[];
   }
 
   async setAccessPermissions(userId,permissions) {
-    const {error}=await this.sb.rpc('set_account_permissions',{p_user:userId,p_permissions:permissions});
+    const client=this.sb,assertOwner=this.requestOwnerGuard();
+    const {error}=await assertOwner.authorize(client.rpc('set_account_permissions',{p_user:userId,p_permissions:permissions}));assertOwner();
     if(error)throw new Error('儲存帳號權限失敗：'+error.message);
   }
 
@@ -185,30 +187,37 @@ export class SupabaseStore {
     const client=this.sb,assertOwner=this.requestOwnerGuard();
     const {data,error}=await assertOwner.authorize(client.rpc('update_own_profile',{p_display_name:name}));
     assertOwner();
-    if(error)throw new Error('儲存個人資料失敗：'+error.message);this.userName=data?.displayName||name;
+    if(error)throw new Error('儲存個人資料失敗：'+error.message);
+    if(!data||Array.isArray(data)||typeof data.displayName!=='string'||data.displayName!==name)throw new UnconfirmedWriteError();
+    this.userName=data.displayName;
   }
 
   jwt() { return this.session?.access_token || null; }
 
   async listScenarios() {
-    const {data,error}=await this.sb.from('planning_scenarios').select('id,name,created_at').order('created_at',{ascending:false});
+    const client=this.sb,assertOwner=this.requestOwnerGuard();
+    const {data,error}=await assertOwner.authorize(client.from('planning_scenarios').select('id,name,created_at')).order('created_at',{ascending:false});assertOwner();
     if(error)throw new Error('讀取試排情境失敗：'+error.message);return data||[];
   }
   async getScenario(id) {
-    const {data,error}=await this.sb.from('planning_scenarios').select('*').eq('id',id).single();
+    const client=this.sb,assertOwner=this.requestOwnerGuard();
+    const {data,error}=await assertOwner.authorize(client.from('planning_scenarios').select('*')).eq('id',id).single();assertOwner();
     if(error)throw new Error('讀取試排情境失敗：'+error.message);if(!data)throw new Error('情境不存在或沒有權限');return data;
   }
   async saveScenario(item) {
-    const {data,error}=await this.sb.rpc('save_planning_scenario',{p_id:item.id,p_name:item.name,p_payload:item.payload});
+    const client=this.sb,assertOwner=this.requestOwnerGuard();
+    const {data,error}=await assertOwner.authorize(client.rpc('save_planning_scenario',{p_id:item.id,p_name:item.name,p_payload:item.payload}));assertOwner();
     if(error)throw new Error('保存情境失敗：'+error.message);return data;
   }
   async reportExecution(request) {
-    const {data,error}=await this.sb.rpc('report_work_execution',{p_request:request.id,p_block:request.blockId,p_action:request.action,p_qty:request.qtyDone,p_revision:request.expectedRevision});
+    const client=this.sb,assertOwner=this.requestOwnerGuard();
+    const {data,error}=await assertOwner.authorize(client.rpc('report_work_execution',{p_request:request.id,p_block:request.blockId,p_action:request.action,p_qty:request.qtyDone,p_revision:request.expectedRevision}));assertOwner();
     if(error){if(error.code==='40001')throw new ConflictError('進度已被更新，請重新載入');throw Object.assign(new Error(error.message),{rejected:!!error.code});}
     return data;
   }
   async confirmExecution(blockId, confirmed) {
-    const {error}=await this.sb.rpc('confirm_work_execution',{p_block:blockId,p_confirmed:confirmed});
+    const client=this.sb,assertOwner=this.requestOwnerGuard();
+    const {error}=await assertOwner.authorize(client.rpc('confirm_work_execution',{p_block:blockId,p_confirmed:confirmed}));assertOwner();
     if(error)throw new Error(error.message);
   }
 
