@@ -4551,7 +4551,7 @@ MODALS['scenario-list']=m=>({title:tx('保存的試排情境'),body:
   (m.viewLoading?'<div class="hint" role="status">'+tx('正在讀取情境，可取消。')+'</div>':'')+
   (m.viewError?'<div class="issue" role="alert">'+esc(tx(m.viewError))+'</div>':'')+
   (m.loading?'<div class="hint" role="status">'+tx('讀取中…')+'</div>':m.error?'<div class="issue" role="alert">'+esc(m.error)+'</div>':
-    (m.items||[]).map(s=>{const date=scenarioCreatedDate(s.created_at);return '<button class="btn" style="width:100%;height:auto;min-height:48px;margin:8px 0" data-act="scenario-view" data-id="'+esc(s.id)+'">'+esc(s.name)+(date?' · '+esc(date):'')+'</button>';}).join('')||'<div class="hint">'+tx('還沒有保存的情境。')+'</div>'),
+    (m.items||[]).map(s=>{const date=scenarioCreatedDate(s.created_at);return '<button class="btn" style="width:100%;height:auto;min-height:48px;margin:8px 0;white-space:normal;overflow-wrap:anywhere;text-align:left" data-act="scenario-view" data-id="'+esc(s.id)+'">'+esc(s.name)+(date?' · '+esc(date):'')+'</button>';}).join('')||'<div class="hint">'+tx('還沒有保存的情境。')+'</div>'),
   foot:'<button class="btn" data-act="scenario-save">'+tx('保存目前排程')+'</button><button class="btn" data-act="close">'+tx('關閉')+'</button>'});
 MODALS['scenario-save']=m=>({title:tx('保存試排情境'),body:'<div class="hint">只保存比較資料，不套用、不寫入正式班表。之後排程、名冊、技能或現場進度改變，會提示這份情境與現況不同。</div>'+
   (m.saving?'<div class="hint" role="status">'+tx('正在保存情境；關閉視窗不會取消已送出的保存。')+'</div>':'')+
