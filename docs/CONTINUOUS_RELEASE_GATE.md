@@ -39,6 +39,7 @@
 - 聚焦 **52/52**，完整 **535/535／0 fail**（53.76秒），build成功 **index-D_CW2lfP.js**，原chunk警告保留；全部無真憑證／雲端操作。logs僅本機outputs/health-recovery-focused-20261013.txt、health-recovery-web-tests-20261013.txt。**此批新UI toast／真健康重連、desktop/mobile/Safari未瀏覽器驗證，也未部署**，上一輪dfc取消截圖不可當58b新版完整回歸。
 - runtime **58b73baa78ce3281e38ae0d58027582dda5c41c3**提交推送；其 Tests **38417929344／38417923759**及smoke **38417929361／38417923758**在22:58實查in_progress，待同SHA最終核對。上一個378c Tests38416894549/smoke38416894685成功不替代新SHA。PR16事前a1cc476本地/remote一致、乾淨，僅其原Vite，fetch核對後普通merge為 **f11db512259e4d993e399658f95a342be47ded4f**已推；保留seed/CSS/docs差異，不force、不合main。新PR16 CI／全套須獨立核對，不用535冒稱該分支536已跑完。
 - staging仍 **dfc2486 / index-ZK94ERD9.js**；未把push持久/PR16分支當既有staging已部署。接续先核58b/f11同SHA CI，安全FF既有staging source（autoDeploy yes，不manualtrigger）後查live SHA及普通root，按正常UI製造可重現up=false（可有界臨時阻斷/離線health觀測後復原，不改app/auth/state），驗「按計算→單次健康重試→ORM方案」、在健康等待時取消不送plans、正常fallback/權限提示、原20色塊保存，保留手機/桌面44px/日期/F1。前輪真原生Safari/不同帳號/ORTools套用/offline409／Realtime／正式VITE_TEST_*門檻仍未全過，PR16/18維持draft，nightly不重啟。追蹤ACTIVE，繼續下一項，不因535綠結案。
+- 收尾核對：58b兩個Tests仍in_progress，兩個smoke成功；PR16 f11 Tests **38417980873／38417972686**仍in_progress、smoke **38417980692／38417972734**成功。IAB20/24/25/23/21已重新保留；Chrome待設定信tab1703573257已不存在，沒有重開／重寄／讀取未知分頁或猜密碼，不把其消失當已完成第二帳號登入。
 
 #### 2026-10-13 22:40 heartbeat／22:50：新版自動部署及真計算在途取消通過
 
