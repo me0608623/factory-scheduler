@@ -11,6 +11,13 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "正在更新完工確認；關閉視窗不會取消已送出的確認。": {en:"Updating completion confirmation. Closing this dialog does not cancel a submitted confirmation.",vi:"Đang cập nhật xác nhận hoàn thành. Đóng cửa sổ không hủy yêu cầu đã gửi.",th:"กำลังอัปเดตการยืนยันงานเสร็จ การปิดหน้าต่างไม่ยกเลิกคำขอที่ส่งแล้ว"},
+  "已確認完工（已存到資料庫）": {en:"Completion confirmed and saved to the database",vi:"Đã xác nhận hoàn thành và lưu vào cơ sở dữ liệu",th:"ยืนยันงานเสร็จและบันทึกในฐานข้อมูลแล้ว"},
+  "已取消確認，回報仍保留": {en:"Confirmation removed; the report is retained",vi:"Đã hủy xác nhận; báo cáo vẫn được giữ",th:"ยกเลิกการยืนยันแล้ว รายงานยังคงอยู่"},
+  "已確認完工": {en:"Completion confirmed",vi:"Đã xác nhận hoàn thành",th:"ยืนยันงานเสร็จแล้ว"},
+  "完工待確認": {en:"Completion awaiting confirmation",vi:"Hoàn thành, chờ xác nhận",th:"งานเสร็จ รอการยืนยัน"},
+  "確認完工": {en:"Confirm completion",vi:"Xác nhận hoàn thành",th:"ยืนยันงานเสร็จ"},
+  "取消確認": {en:"Remove confirmation",vi:"Hủy xác nhận",th:"ยกเลิกการยืนยัน"},
   "班表尚未確認儲存，請先核對班表儲存狀態，再回報進度。": {en:"Schedule saving is unconfirmed. Check the schedule save status before reporting progress.",vi:"Chưa xác nhận lưu lịch. Kiểm tra trạng thái lưu lịch trước khi báo cáo tiến độ.",th:"ยังยืนยันการบันทึกตารางไม่ได้ ตรวจสอบสถานะการบันทึกตารางก่อนรายงานความคืบหน้า"},
   "完工確認結果待核對，請更新班表查看；不要重複送出。": {en:"Completion confirmation is unverified. Refresh the schedule to check; do not submit again.",vi:"Chưa xác minh kết quả xác nhận hoàn thành. Cập nhật lịch để kiểm tra; không gửi lại.",th:"ยังตรวจสอบผลการยืนยันงานเสร็จไม่ได้ อัปเดตตารางเพื่อตรวจสอบ อย่าส่งซ้ำ"},
   "回報處理中；關閉視窗不會取消已送出的回報。": {en:"Processing the report. Closing this dialog does not cancel a submitted report.",vi:"Đang xử lý báo cáo. Đóng cửa sổ không hủy báo cáo đã gửi.",th:"กำลังประมวลผลรายงาน การปิดหน้าต่างไม่ยกเลิกรายงานที่ส่งแล้ว"},
