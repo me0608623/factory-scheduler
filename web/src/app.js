@@ -178,9 +178,11 @@ function commit(entry,permission="schedule.manage"){
   }
   return canPermission(permission)?queueSync(entry):Promise.resolve(false);
 }
-function undo(){
+async function undo(){
   if(!undoStack.length){toast("沒有可以復原的動作");return;}
-  S=JSON.parse(undoStack.pop());commit({kind:"edit",title:tx('復原上一步'),lines:[]});toast("已復原上一步");
+  S=JSON.parse(undoStack.pop());
+  const saved=await commit({kind:"edit",title:tx('復原上一步'),lines:[]});
+  if(saved)toast("已復原上一步");
 }
 /* ===== 5. 排程引擎 ===== */
 // 某人達到同時顧機台上限的時段；每段工作對應一台機台。

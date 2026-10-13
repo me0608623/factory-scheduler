@@ -30,6 +30,18 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 19:31 heartbeat／19:49：真雲端手動套用、復原與成功提示時序
+
+- 起點763795b乾淨、無其他modifier／部署，全部指定交接已讀。e0c0e4a的Tests **38390490847／38390484974**及smoke **38390490985／38390485079**成功；docs-only763795b的Tests **38390675837**及smoke **38390676007**成功。最新main仍11c7d9c，沒有新增runtime。PR16仍1451cff、staging來源8ffa、live5476，不把舊heartbeat的f6部署當新版。
+- 真IAB qa-lead（組長）登入仍有效，tab15基準10/12／1廠19段保存。原班表有3個刻意保留警示；未整份auto重排，以免復原受舊異常資料驗證影響。首次S16 10/12過去時段微調被正確擋下「不能把新工作排在已經過去的時間」，確認套用disabled；取消後原19段aria-label/text/style一致，沒有寫入。
+- 再選未來10/15的M20裁切160件（tst01），13:00–14:50→13:10–15:00，110分鐘／件數不變、0連帶工序、沒有衝突、交期仍10/19準時。選擇此段是首站且後站在10/17以後，原狀可依一般復原流程還原，不解除核定或改請假。tab20先read-only重新讀取；只檢查Network URL/方法/狀態，實查 **fkefarcwadvyqqjcjxvp.supabase.co/rest/v1/rpc/schedule_snapshot**，不讀或輸出headers/JWT/body私密資料。未確認隔離目的地前不按確認。
+- **第一次真測試雲端班表寫入已完成**：tab15按確認套用，RPC save_blocks一個POST成功（另一200是OPTIONS CORS預檢，已以request.method辨明，非重複提交）。tab20未reload仍原時段，reload＋切10/15後確實看到13:10–15:00及固定標記，原時段不存在；不是只靠200或成功toast。再用tab15「更多→復原上一步」，等雲端已儲存，tab20獨立reload後 **10/15原20段DOM label/text/style逐項一致**，M20回13:00–14:50且未固定；tab15回10/12後原19段一致。這是正常apply＋undo的兩次版本／稽核寫入，沒有倒轉版本、刪歷史、重匯或reset；未做全DB所有欄位的指紋比較，不能冒稱完全沒有資料庫副作用。
+- 測試只在指定隔離庫，用同一qa-lead的兩分頁；單段手動預覽是瀏覽器邏輯，不是OR-Tools方案或apply_plan RPC。**可放行的僅真組長手動套用／雲端持久化／復原**；OR-Tools真正套用、不同帳號/角色、Realtime自動更新、原生Safari及全PR新SHA仍未過。tab20未reload前舊資料與兩端「即時更新中斷」一致，不宣稱同步修好。
+- 期間僅tab15暫時阻擋 */notify/line，避免測試訊息外發（不改LINE設定/權限）；完畢已Network.setBlockedURLs urls=[]及Network.disable，tab20觀察器也disable，沒有留下攔截／離線模擬。390×844的tab20真手機尺寸重讀原工作、160件與未固定正確，Escape取消查看、20段仍一致，viewport已reset。只驗手機讀取／開窗／取消，不當手機實際寫入。手機截圖 `outputs/cloud-apply-undo-mobile-20261013.png` 本機保存且目視；QA分頁及原Render/local session已handoff。模糊qa-lead名稱定位器匹配兩個button曾逾時，改確切top帳號名稱後通過，這是測試定位器問題。
+- 真undo操作另重現「同步中已說已復原」的回饋時序問題；使用Impeccable harden（main、context一次、harden/craft-floor全文）最小改undo為async，保留原樂觀S/undoStack/commit/queueSync資料與衝突策略，只等commit回true才成功toast，false保留原「沒存到／已載入最新」錯誤，不再提前誤報。沒有新CSS／文案或資料庫變動，detector app一次為[]。
+- 新4項實際undo函式測試修前 **3失敗／1通過**：pending、false寫入、版本衝突仍提前成功；修後4/4。再加1項真undo＋真commit＋真queueSync連動，只有STORE transport明確mock：pending busy且無success，一次寫入；offline error保留沒存到，成功才顯示已復原，kind=edit不發LINE。聚焦 **5/5**；全套 **473/473**＋build成功是在最後這1項追加前已啟動的run，不能稱最新474全套已跑；下一輪同SHA CI須覆核全部474。本輪沒有部署新版undo，stage的保存／復原證據是5476，並非此新提示修復的線上E2E；offline／409瀏覽器實測仍待補。
+- 正式1023、0037、setup_pending、角色／帳號完全未動，測試雲端只上述一段套用後正常復原，保留原fixture與稽核。Render登入及第二帳號設定信同意都未答覆，未重複問／猜密碼／寄信；autoDeploy來源不明仍不盲目手動trigger。nightly停用、Codex追蹤ACTIVE，不因本輪成功停止。下一輪查最新CI後安全同步PR16，再做新版undo的離線回饋／HTTP409真驗收與有界安全補讀探索，不強行正式發布。
+
 #### 2026-10-13 19:13 heartbeat／19:28：失敗畫面保留裝置偏好與部署診斷
 
 - 起點920fc9a工作樹乾淨、沒有其他modifier／deploy，只見專屬Vite的esbuild；所有指定交接與最新checkpoint已讀，不重做密文還原、C1–C7或正式0037。前輪test-only920fc9a的Tests **38388544855／38388540284**及smoke **38388544964／38388540111**全部success。
