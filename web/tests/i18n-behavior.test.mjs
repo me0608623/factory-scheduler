@@ -72,3 +72,60 @@ test('輪43 棘輪：EN 掃描發現的缺譯呼叫點必須走 tx（抽屜鈕/�
   assert.match(app, /tx\(\{busy:'排程中',idle:'閒置',fault:'故障'\}\[st\]\)/, '平面圖圖例須 tx');
   assert.match(app, /tx\('目前為自動排列/, '平面圖提示須 tx');
 });
+
+test('輪115 棘輪：匯出視窗 hint/CSV 與匯入預覽摘要、警告、確認 toast 全走 tx', async () => {
+  const fs = await import('node:fs');
+  const app = fs.readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
+  const mustTx = [
+    '舊版排程可獨立存為歷史資料',
+    '下載全部明細 CSV 檔',
+    '員工 {e} 人、機台 {m} 台、產品 {p} 種、工單 {o} 張',
+    '匯入範本尚未包含獨立工作內容與一般工作排班',
+    '目前匯入範本未包含分組與組員對照',
+    '確認後將以 Excel 內容取代現有員工、機台、產品工序與工單',
+    '檔案：',
+    '匯入範本不含一般工作／跨廠加工資料',
+    '目前匯入範本不含分組',
+    '目前範本沒有廠別欄',
+    '排程已更新，請重新選擇 Excel 檔案預覽',
+    '匯入會清空既有排程',
+    'Excel 匯入完成。請建立新排程',
+    '歷史排程已存入；目前排程沒有變動',
+  ];
+  for (const key of mustTx) {
+    assert.ok(app.includes(`tx('${key}`) || app.includes(`tx("${key}`), `呼叫點須包 tx：${key}`);
+  }
+});
+
+test('輪115 查證：匯入流程鍵 en/vi/th 皆有譯文（非 zh 語言無 CJK 洩漏）', () => {
+  const keys = [
+    '下載全部明細 CSV 檔',
+    '舊版排程可獨立存為歷史資料，按日期查看 1 廠、2 廠，不改目前排程。批次匯入範本會取代基本資料，只有老闆能確認。',
+    '員工 {e} 人、機台 {m} 台、產品 {p} 種、工單 {o} 張',
+    '檔案：',
+    '匯入範本尚未包含獨立工作內容與一般工作排班，不能覆蓋已建立的資料。歷史排程仍可獨立匯入。',
+    '目前匯入範本未包含分組與組員對照，不能覆蓋已建立分組的正式名冊。歷史排程仍可獨立匯入。',
+    '確認後將以 Excel 內容取代現有員工、機台、產品工序與工單，並清空現有 {n} 段排程；上班日設定保留。匯入後再按「自動排程」建立新班表。',
+    '匯入範本不含一般工作／跨廠加工資料，不能覆蓋目前名冊',
+    '目前匯入範本不含分組，不能覆蓋已有分組的正式名冊',
+    '目前範本沒有廠別欄，不能覆蓋已設定的 2 廠資料',
+    '排程已更新，請重新選擇 Excel 檔案預覽',
+    '匯入會清空既有排程；還需要「調整與自動排程」權限',
+    'Excel 匯入完成。請建立新排程',
+    '歷史排程已存入；目前排程沒有變動',
+  ];
+  const cjk = /[\u4e00-\u9fff]/;
+  for (const lang of ['en', 'vi', 'th']) {
+    I18N.lang = lang;
+    for (const key of keys) {
+      const out = tx(key, { e: 3, m: 2, p: 1, o: 4, n: 5, date: '10/13 (Tue)' });
+      assert.notEqual(out, key, `${lang} 缺譯：${key}`);
+      assert.ok(!cjk.test(out), `${lang} 譯文含中文：${key} → ${out}`);
+    }
+  }
+  // 佔位符替換有效性
+  I18N.lang = 'en';
+  assert.equal(tx('員工 {e} 人、機台 {m} 台、產品 {p} 種、工單 {o} 張', { e: 3, m: 2, p: 1, o: 4 }), '3 employees, 2 machines, 1 products, 4 orders');
+  assert.equal(tx('檔案：'), 'File: ');
+  I18N.lang = 'zh-TW';
+});
