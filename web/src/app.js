@@ -2639,6 +2639,7 @@ function pvPanelHTML(o){
 }
 let planCalculationJob=null;
 function cancelPlanCalculation(){
+  planCalculationJob?.healthAbort?.abort();
   if(planCalculationJob?.modal)planCalculationJob.modal.planBusy=false;
   planCalculationJob=null;
 }
@@ -2657,12 +2658,19 @@ function planCalculationReady(job){
 }
 async function openPlans(title,logTitle,kind,applyEvent,strategies,extra={}){
   if(S.setupPending){toast("原檔名冊與工作資料尚待確認，暫不開放排程");return;}
-  if(extra.event&&STORE.kind==="supabase"&&!STORE.can("schedule.manage")&&SOLVER.up===false){toast("這項授權需要 OR-Tools 服務在線才能安全調整既有排程");return;}
   if(planCalculationJob&&planCalculationReady(planCalculationJob))return;
   const job={modal:UI.modal,preview:PV,store:STORE,user:STORE.session?.user?.id,epoch:STORE.authEpoch,version:STORE.version,state:S,base:JSON.stringify(S)};
   planCalculationJob=job;
   if(job.modal){job.modal.planBusy=true;renderModal();}
   try{
+    if(extra.event&&STORE.kind==='supabase'&&SOLVER.up===false){
+      toast(tx('正在重新連線排程服務，最多等待 45 秒；可取消。'));
+      job.healthAbort=new AbortController();
+      await SOLVER.check({timeoutMs:45000,signal:job.healthAbort.signal});
+      job.healthAbort=null;
+      if(!planCalculationReady(job))return;
+    }
+    if(extra.event&&STORE.kind==="supabase"&&!STORE.can("schedule.manage")&&SOLVER.up===false){toast("這項授權需要 OR-Tools 服務在線才能安全調整既有排程");return;}
     if(extra.event&&SOLVER.up!==false)return await openPlansSolver(title,logTitle,kind,applyEvent,strategies,extra,job);
     return await openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra,job);
   }catch(e){if(planCalculationReady(job))toast(tx('排程計算失敗，請重試。'));}
@@ -2694,6 +2702,9 @@ async function openPlansSolver(title,logTitle,kind,applyEvent,strategies,extra,j
   enterPreview({title,logTitle,kind,base:JSON.stringify(B),B,opts,ev,extra:{...extra,fid:fi&&fi[0]?fi[0].id:extra.fid,previewId:plan.preview_id||null,engine:"OR-Tools"}});
 }
 function openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra={},job){
+  if(STORE.kind==='supabase'&&!STORE.can('schedule.manage')){
+    toast("OR-Tools 服務暫時無法使用；你的權限不包含瀏覽器內的完整重排");return;
+  }
   toast("正在計算幾種排法…");
   return new Promise((resolve,reject)=>setTimeout(()=>{try{
     if(!planCalculationReady(job))return;
