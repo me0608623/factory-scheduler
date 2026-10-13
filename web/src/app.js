@@ -1840,11 +1840,11 @@ function renderModal(){
   const keep=root.querySelector(".overlay"),focusToken=keep&&root.contains(document.activeElement)?modalFocusToken(document.activeElement):null;
   const st=keep?keep.scrollTop:0;
   const importBusy=m.t==='import-preview'&&m.saving;
-  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!(m.confirmBusy||m.planBusy||importBusy||m.t==='legacy-preview'&&m.saving||['memo-edit','leave-request'].includes(m.t)&&m.saving||m.t==='execution-report'&&m.busy||m.t==='legacy-history'&&m.loading)+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close"'+(importBusy?' disabled':'')+' aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
+  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!(m.confirmBusy||m.planBusy||importBusy||m.t==='legacy-preview'&&m.saving||['memo-edit','leave-request','scenario-save'].includes(m.t)&&m.saving||m.t==='execution-report'&&m.busy||m.t==='legacy-history'&&m.loading)+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close"'+(importBusy?' disabled':'')+' aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
   if(importBusy)root.querySelectorAll('input,select,textarea,button').forEach(el=>el.disabled=true);
   if(['memo-edit','leave-request'].includes(m.t)&&m.saving)root.querySelectorAll('input,select,textarea').forEach(el=>el.disabled=true);
   if(m.t==='execution-report'&&m.busy)root.querySelectorAll('input,select,textarea,button:not([data-act="close"])').forEach(el=>el.disabled=true);
-  if(m.confirmBusy||m.planBusy)root.querySelectorAll('input,select,textarea,button:not([data-act="close"])').forEach(el=>el.disabled=true);
+  if(m.confirmBusy||m.planBusy||m.t==='scenario-save'&&m.saving)root.querySelectorAll('input,select,textarea,button:not([data-act="close"])').forEach(el=>el.disabled=true);
   const ov=$("#ov");ov.scrollTop=st;
   const cb=$("#cbx"),modal=ov.querySelector(".modal");
   const restore=modalFocusFromToken(modal,focusToken);
@@ -3455,7 +3455,7 @@ function sideHealthHTML(){
 function updateSyncChip(){const el=$("#syncchip");if(el)el.outerHTML=syncChipHTML();const side=$(".side-health");if(side)side.outerHTML=sideHealthHTML();}
 let syncChain=Promise.resolve(),syncPending=0,syncEpoch=0,lastSyncState='ok';
 // 同步進行中關閉分頁＝靜默丟失變更：離開前提示（僅在真的有寫入在途時）
-addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state==="busy"||UI.leaveBrushSaving||UI.memoSaving||UI.directSaving||UI.executionSaving){e.preventDefault();e.returnValue="";}});
+addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state==="busy"||UI.leaveBrushSaving||UI.memoSaving||UI.directSaving||UI.executionSaving||UI.scenarioSaving){e.preventDefault();e.returnValue="";}});
 function queueSync(entry){
   if(STORE.kind==='supabase'&&!STORE.session?.user?.id){changedWriteSession();return Promise.resolve(false);}
   const snapshot=structuredClone(S),epoch=syncEpoch,activeStore=STORE,writer=STORE.session?.user?.id,authEpoch=STORE.authEpoch||0;
@@ -3548,7 +3548,7 @@ async function refreshCloudSnapshot(){
     else if(result==='deferred')toast(tx('已保留目前操作；完成或取消後再更新班表。'));
   }finally{remoteLoading=false;if(result!=='failed')maybeReload();}
 }
-function remoteReloadBlocked(){return !!(PV||drag||generalDrag||UI.modal||UI.editCell||UI.confirmRow||UI.leaveBrushSaving||UI.memoSaving||UI.directSaving||UI.executionSaving||UI.drawer==='settings'||syncPending>0||SYNC.state!=='ok');}
+function remoteReloadBlocked(){return !!(PV||drag||generalDrag||UI.modal||UI.editCell||UI.confirmRow||UI.leaveBrushSaving||UI.memoSaving||UI.directSaving||UI.executionSaving||UI.scenarioSaving||UI.drawer==='settings'||syncPending>0||SYNC.state!=='ok');}
 function onRealtimeStatus(status){
   const previous=SYNC.realtime;SYNC.realtime=status;updateSyncChip();
   // The stream cannot replay every missed database event. Also reconcile the
@@ -4543,13 +4543,24 @@ MODALS['scenario-list']=m=>({title:tx('保存的試排情境'),body:
     (m.items||[]).map(s=>'<button class="btn" style="width:100%;height:auto;min-height:48px;margin:8px 0" data-act="scenario-view" data-id="'+esc(s.id)+'">'+esc(s.name)+' · '+esc(s.created_at.slice(0,10))+'</button>').join('')||'<div class="hint">'+tx('還沒有保存的情境。')+'</div>'),
   foot:'<button class="btn" data-act="scenario-save">'+tx('保存目前排程')+'</button><button class="btn" data-act="close">'+tx('關閉')+'</button>'});
 MODALS['scenario-save']=m=>({title:tx('保存試排情境'),body:'<div class="hint">只保存比較資料，不套用、不寫入正式班表。之後排程、名冊、技能或現場進度改變，會提示這份情境與現況不同。</div>'+
+  (m.saving?'<div class="hint" role="status">'+tx('正在保存情境；關閉視窗不會取消已送出的保存。')+'</div>':'')+
+  (m.error?'<div class="issue" role="alert">'+esc(tx(m.error))+'</div>':'')+
   '<div class="field"><label for="scenario-name">'+tx('情境名稱')+'</label><input class="inp" id="scenario-name" maxlength="80" value="'+esc(m.name||'')+'"></div>',
   foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="scenario-confirm">'+tx('確認保存情境')+'</button>'});
 async function saveScenarioFromModal(button){
-  if(!canPermissionRaw('scenarios.manage'))return;const m=UI.modal;if(m.t!=='scenario-save')return;
-  try{m.name=$('#scenario-name').value;const item=m.item||makeScenario(m.name,m.base,m.candidate,{description:m.description,date:m.date});m.item=item;
-    button.disabled=true;await STORE.saveScenario(item);closeModal();toast('情境已保存，正式班表沒有改變');}
-  catch(e){button.disabled=false;toast(e.message);}
+  const m=UI.modal;if(!canPermissionRaw('scenarios.manage')||m?.t!=='scenario-save'||m.saving||UI.scenarioSaving)return;
+  const store=STORE,client=store.sb,user=store.session?.user?.id,epoch=store.authEpoch||0,state=S,json=JSON.stringify(S),preview=PV,
+    date=UI.date,factory=UI.factory,page=UI.page,drawer=UI.drawer,focus=JSON.stringify(UI.focus),operation={};
+  const current=()=>STORE===store&&STORE.sb===client&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===epoch&&
+    canPermissionRaw('scenarios.manage')&&UI.modal===m&&PV===preview&&S===state&&JSON.stringify(S)===json&&
+    UI.date===date&&UI.factory===factory&&UI.page===page&&UI.drawer===drawer&&JSON.stringify(UI.focus)===focus;
+  try{m.name=$('#scenario-name').value;
+    const item=m.item&&m.item.name===m.name.trim()?m.item:makeScenario(m.name,m.base,m.candidate,{description:m.description,date:m.date});m.item=item;
+    m.error=null;m.saving=true;UI.scenarioSaving=operation;button.disabled=true;renderModal();
+    await store.saveScenario(item);if(!current())return;
+    closeModal();toast(tx(store.kind==='local'?'情境已保存在這台裝置，班表沒有改變':'情境已保存，正式班表沒有改變'));
+  }catch(e){if(current()){m.error=e.message;toast(tx(e.message));}}
+  finally{if(UI.scenarioSaving===operation)UI.scenarioSaving=null;m.saving=false;button.disabled=false;if(current())renderModal();maybeReload();}
 }
 async function viewScenario(id){
   if(!canPermissionRaw('scenarios.manage'))return;
