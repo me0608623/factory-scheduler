@@ -19,10 +19,10 @@ function fixture(){
 const reloads=f=>f.events.filter(e=>e?.type==='reload');
 const toasts=f=>f.events.filter(e=>e?.type==='toast');
 test('late memo ACK never closes a newer dialog, reloads drafts or reports success in another context',async()=>{
-  for(const kind of ['closed','modal','store','user','epoch','preview','state','mutation','date','factory','permission']){
+  for(const kind of ['closed','modal','store','client','user','epoch','preview','state','mutation','date','factory','permission']){
     const f=fixture(),job=f.ctx.save(f.button);
     if(kind==='closed')f.ctx.UI.modal=null;if(kind==='modal')f.ctx.UI.modal={t:'order-edit'};
-    if(kind==='store')f.ctx.STORE={...f.ctx.STORE};if(kind==='user')f.ctx.STORE.session={user:{id:'B'}};if(kind==='epoch')f.ctx.STORE.authEpoch++;
+    if(kind==='store')f.ctx.STORE={...f.ctx.STORE};if(kind==='client')f.ctx.STORE.sb={};if(kind==='user')f.ctx.STORE.session={user:{id:'B'}};if(kind==='epoch')f.ctx.STORE.authEpoch++;
     if(kind==='preview')f.ctx.PV={kind:'manual'};if(kind==='state')f.ctx.S={...f.ctx.S};if(kind==='mutation')f.ctx.S.memos.push({id:'new-draft'});
     if(kind==='date')f.ctx.UI.date='2026-10-15';if(kind==='factory')f.ctx.UI.factory=2;if(kind==='permission')f.ctx.canPermission=()=>false;
     const latest=f.ctx.UI.modal;f.pending.resolve();await job;

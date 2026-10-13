@@ -35,7 +35,7 @@ test('all three direct actions discard late ACKs after dialog, drawer, owner, pr
     const f=fixture(kind),job=f.run(f.button);
     if(change==='modal')f.ctx.UI.modal={t:'new-draft'};if(change==='drawer')f.ctx.UI.drawer='output';if(change==='date')f.ctx.UI.date='2026-10-16';
     if(change==='factory')f.ctx.UI.factory=2;if(change==='page')f.ctx.UI.page='worklog';if(change==='focus')f.ctx.UI.focus={type:'machine',id:'other'};
-    if(change==='user')f.ctx.STORE.session={user:{id:'B'}};if(change==='epoch')f.ctx.STORE.authEpoch++;if(change==='store')f.ctx.STORE={...f.ctx.STORE};if(change==='client')f.ctx.STORE.client={};
+    if(change==='user')f.ctx.STORE.session={user:{id:'B'}};if(change==='epoch')f.ctx.STORE.authEpoch++;if(change==='store')f.ctx.STORE={...f.ctx.STORE};if(change==='client')f.ctx.STORE.sb={};
     if(change==='preview')f.ctx.PV={kind:'manual'};if(change==='state')f.ctx.S={...f.ctx.S};if(change==='mutation')f.ctx.S.blocks[0].id='draft';
     if(change==='permission'){f.ctx.canPermission=()=>false;f.ctx.canIncidents=()=>false;}
     const modal=f.ctx.UI.modal,drawer=f.ctx.UI.drawer;f.pending.resolve();await job;
