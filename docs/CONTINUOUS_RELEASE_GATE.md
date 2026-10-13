@@ -2,6 +2,7 @@
 
 ## 2026-10-14 04:36 checkpoint：報工／確認完工有效回條與未確認班表守門
 
+- **04:39收尾覆核（取代本節root待確認狀態）**：等待已觀察的s-maxage=300到期後，普通 **/** 於 **20:38:50Z**回HTTP200／CF **EXPIRED**、新ETag1607911fae617e9ea131d1075b44057a，實際DOM新 **index-K8czAH2g.js**；初始化後qa-lead10/14／1廠22段正常、無modal／drawer，browser error0。没有cache-buster／clear cache／重複部署，不能泛稱所有地區快取同步刷新。Network disabled、viewportclear、5tabs handoff已完成；staging branch第三套Tests38463614931／smoke38463614893亦success。own docs04f141c已push，此追加也只推own docs，不更新無變化服務。下一輪不重做root/回條/seed，改先查確認／情境UI競爭與報工uncertain ID生命週期；正式/雙端門檻仍未放行。
 - 起點a34624d乾淨，僅既有PR16 Vite無modifier/deploy；讀最新本文件與HANDOFF/缺陷總表/NEXT_TASKS/測試模式文件，歷史mail未授權等不覆蓋最新人類授權。正式1023/setup_pending/Auth角色/授權完全未動，0037/備份/seed不重做；無新明文公開artifact/付費服務。環境與10分鐘追蹤保留。
 - **校正前輪文件的錯誤假設**：0035 **confirm_work_execution returns jsonb**，不是void；真SQL明確回傳blockId/confirmed/version。本輪先讀0021/0035與全部patches，不沿用前輪「confirm void不能拒null」的錯誤。只修應用契約，沒有任何新增schema/migration或正式寫入。
 - **db98963（合併前修復）**：新真正SDK/custom fetch及PGlite回條5測 **4 RED/1 PASS→5 GREEN**。報工HTTP200/null、錯工單/employee格式/status/qty/revision/version/time不再當成功；以實際送出的scalar request驗證block（UUID大小寫正規化）、qty、action/finish、revision、正數safe version及開始/完成時間，finish不得早於start。**重試回條version可比目前snapshot舊**，不錯誤要求store.version+1；合法同IDreplay仍接受，不改Store baseline直到後續正式read。confirm要求正確block/boolean旗標/正數version，失去回條Unconfirmed且明示更新核對、不盲目重送。
