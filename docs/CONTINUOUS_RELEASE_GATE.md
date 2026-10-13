@@ -1,5 +1,19 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-14 07:36 checkpoint：同頁完工確認未知結果阻擋重送
+
+- **07:37收尾（取代下文CI/log待確認部分）**：stage Tests **38485107632**與smoke **38485107636**全success；PR16 push Tests **38485102826**success，PR Tests **38485108762**仍in_progress，其餘smoke/synthetic全success，下一輪只核對這項最新結果。Render app error實際 **23:35:09–23:37:10Z**窗0/hasMorefalse；早先查詢的endTime曾在未來，不採作完整兩分鐘證據，此收尾於23:37:18Z後重新查詢完成。一次附錯job ID的CLI log查詢exit1/無輸出，不是測試失敗；通過數依來源正式run成功log，不用失敗查詢冒稱stage test數。6 QA tabs重新handoff，既有dev/資料保留，doc-only不觸發runtime部署。
+
+- 起點 **46d23121884ccd7626df33b269110963024de089** clean；已讀指定交接/缺陷總表/NEXT_TASKS/測試模式與最新checkpoint，fetch main無新增，process只有既有dev/esbuild與本輪shell、無第二modifier/deploy。正式1023/setup_pending/Auth/角色/授權/schema及全部正式資料未動，不再0037、不改cloud確認/報工/套用/seed、不猜密碼/寄信、不增費用或新明文真資料artifact/log。
+- 探索→RED：新增actual Supabase SDK/compiled renderer/beforeunload共7測，修前7 RED，其中同block未知結果重送、SDK在途重送直接重現；其餘部分因新API尚不存在而失敗，**不是7個獨立產品缺陷**。既有真PGlite migrated SQL＋actual SDK＋compiled confirmation handler回歸擴充：SQL confirmed=true/version3已提交但合成HTTP503遮蔽，關窗重開、接受fresh snapshot後再按同值/反向操作，修後只有原來1次SDK送出/version仍3。另一客戶端直接RPC仍使version3→4，server idempotency風險未修，不能把這個測試稱真平台503/跨端同步證據。
+- **71f18181dd30042c0483549847f5ee563b82c9a9**只新增Store頁面session confirmation ledger，依Store/client/user/authEpoch/block（UUID大小寫正規化）隔離；dispatch前登記，在途/unknown/missing或錯誤ACK均阻擋同block同值及反向重送，其他block仍可操作。有效ACK/已知SQL拒絕才清原attempt，late舊actor不能抹新actor的record；fresh load不自行清除，沒有自動重讀或重送。actual execution workbench遇pending隱藏確認/解除確認控制，顯示既有四語待核對訊息；beforeunload即使modal已關亦提醒。**僅同頁session**，不持久化、不跨強制reload/新Store/新登入，不是server去重、不是完整重試已修。
+- 聚焦 **32/32**通過；首次full web FAIL exit1只因新提示缺i18n key，修成沿用既有zh-TW/en/vi/th訊息後，翻譯＋新guard **19/19**、完整本機dot exit0/build **index-DVia22dt.js**通過。來源CI實測 **web784/784、tools57/57**，Tests **38484736417/38484742528**、smoke **38484736419/38484742553**、synthetic **38484742530**全success；不是以字串/HTTP200替代功能測試。既有chunk>500k warning保留，本機缺age的相同6失敗不重跑/skip/stub，不把crypto fixture當真庫新鮮完整restore。
+- Impeccable harden/craft-floor限定既有版面與錯誤清楚化，context本session已跑不重做，detector一次`[]`非全a11y。LocalStore原確認入口相容：5203 reload17段，A01完成12件待確認仍可見正常確認；桌面48px、390×844 44px中心命中，**未按確認**。`outputs/local-confirm-guard-compatible-mobile-20261014.png`已目視，只證正常入口相容，不是pending手機/真Safari/雲端衝突驗收。Escape關modal、viewport clear、更多關閉，17段DOM id/label/text/style一致，環境保留。
+- PR16 clean、無modifier且local/tracking/ls-remote **421b69b**一致後普通merge **66267825804866d6df46dd96afffe17db66dc8ee**，原5檔105insert/3delete完整保留；32/32聚焦/build **index-CDygW0go.js**成功後non-force push。PR16 smoke **38485102737/38485108681**與synthetic **38485108710**success；Tests **38485102826/38485108762**此checkpoint仍in_progress，待收尾核對，不提前稱全綠。
+- Render deploy/monitor只更新既有web；來源5runs成功且remote仍3194cb8/ancestor後non-force stage推71f1818，沒有solver檔案差異、不主動重部署solver/新建資源/改env/clear cache。auto new_commit **dep-db7c06ks728c73d0a1ig**於 **23:35:09.123017Z live71f1818**；普通rootHTTP200/**CF HIT/index-CPwMAll6.js**。真qa-lead普通reload同bundle、等待雲端heading後 **10/14／1廠／22段DOM id/label/text/style逐項不變、dialog0/browser error0**，沒有按任何cloud確認/報工/套用。這是部署與只讀相容驗收，不稱未知guard已在真平台被觸發。
+- Stage smoke **38485107636**success、Tests **38485107632**仍in_progress；Render部署後2–3分鐘app error窗尚待收尾，不冒稱長期健康或Realtime恢復。PR16/18實查OPEN/draft/MERGEABLE，正式不同actor權限/真套用/兩端同步/斷線衝突/VITE_TEST門檻仍未全過，不合main/正式deploy；nightly367614493不重啟，10分鐘追蹤ACTIVE。
+- **下一候選**：valid late ACK在dialog/view owner已變時，SDK可清ledger而app不補讀，舊view再開是否重現冗餘確認；尚未重現/修，下一輪先用合成SQL/SDK/actual handler實證，不寫cloud確認。另跨reload/new login與server request ID安全核對仍未解，不能因本輪全綠停止探索。
+
 ## 2026-10-14 07:19 checkpoint：完工確認未知結果不再冒稱沒存到
 
 - 起點 **e616d1ed2929392b0cc7ebd9d62bc1753ed6f7d8** clean；已讀最新本檔/HANDOFF/缺陷總表/NEXT_TASKS/測試模式交接，process僅既有dev/esbuild與本輪shell，無第二modifier/deploy。fetch main新 **736834d**僅11行他人紀錄，普通merge **9ce8f46**保留。正式1023/setup_pending/Auth/角色/個人權限/schema/全部正式資料未動，不再0037、不改任何cloud確認/排程/seed、不猜密碼/寄信/新增費用/明文真資料artifact/log。

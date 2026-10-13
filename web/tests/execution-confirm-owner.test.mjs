@@ -24,6 +24,38 @@ function change(f,k){
   if(k==='user')f.ctx.STORE.session={user:{id:'B'}};if(k==='epoch')f.ctx.STORE.authEpoch++;if(k==='client')f.ctx.STORE.sb={};if(k==='store')f.ctx.STORE={...f.ctx.STORE};if(k==='preview')f.ctx.PV={};if(k==='state')f.ctx.S={...f.ctx.S};if(k==='mutation')f.ctx.S.execution[0].confirmed=!f.ctx.S.execution[0].confirmed;if(k==='permission')f.ctx.canPermission=()=>false;
 }
 const feedback=f=>f.events.filter(e=>e?.type==='reload'||e?.type==='toast');
+function reconcileFixture(f){
+  f.ctx.S.log=[];
+  const timers=[],loads=[];Object.assign(f.ctx,{drag:null,generalDrag:null,syncPending:0,lastLocalWrite:0,pendingReload:false,reloadTimer:null,remoteLoading:false,
+    setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout:()=>{},normalizeState:()=>{},notificationEnabled:()=>false,showDeviceNotification:()=>{}});
+  f.ctx.STORE.version=1;f.ctx.STORE.load=async()=>{loads.push('read');return {...f.ctx.S,version:3,execution:[{...f.ctx.S.execution[0],confirmed:true}]};};
+  const at=source.indexOf('async function reloadFromStore(');vm.runInContext(source.slice(at,source.indexOf('// ---------- 帳號與連線',at)),f.ctx);
+  return {timers,loads};
+}
+
+test('late successful confirmation after closing queues a protected reread without reopening the old dialog',async()=>{
+  const f=fixture(),h=reconcileFixture(f);f.queue.resolve();f.start();await tick();f.ctx.closeModal();f.write.resolve();await tick();
+  assert.equal(h.timers.length,1);assert.equal(f.ctx.UI.modal,null);assert.equal(f.ctx.S.execution[0].confirmed,false);
+  await h.timers.shift()();assert.equal(h.loads.length,1);assert.equal(f.ctx.S.execution[0].confirmed,true);assert.equal(f.ctx.UI.modal,null);
+  assert.equal(f.events.filter(e=>e?.type==='toast').length,0);
+});
+
+test('late successful confirmation waits for a new draft or preview to finish before rereading',async()=>{
+  for(const mode of ['modal','preview','date','state']){
+    const f=fixture(),h=reconcileFixture(f);f.queue.resolve();f.start();await tick();change(f,mode);const draft=f.ctx.UI.modal,state=f.ctx.S;
+    f.write.resolve();await tick();assert.equal(h.loads.length,0);assert.equal(f.ctx.S,state);assert.equal(f.ctx.UI.modal,draft);
+    if(mode==='modal'||mode==='preview'){assert.equal(f.ctx.pendingReload,true);assert.equal(h.timers.length,0);f.ctx.UI.modal=null;f.ctx.PV=null;f.ctx.maybeReload();}
+    else {f.ctx.UI.modal=null;f.ctx.maybeReload();}
+    assert.equal(h.timers.length,1);await h.timers.shift()();assert.equal(h.loads.length,1);assert.equal(f.ctx.S.execution[0].confirmed,true);
+  }
+});
+
+test('late confirmation ACK from an old store, client, account or login never schedules a new-actor reread',async()=>{
+  for(const mode of ['store','client','user','epoch']){
+    const f=fixture(),h=reconcileFixture(f);f.queue.resolve();f.start();await tick();change(f,mode);f.ctx.UI.modal=null;f.write.resolve();await tick();
+    assert.equal(f.ctx.pendingReload,false);assert.equal(h.timers.length,0);assert.equal(h.loads.length,0);
+  }
+});
 test('both actual confirmation cases ignore late ACK after owner, state, view or dialog changes',async()=>{
   for(const confirm of [true,false])for(const kind of changes){const f=fixture(confirm);f.queue.resolve();f.start();await tick();change(f,kind);const modal=f.ctx.UI.modal;f.write.resolve();await tick();assert.equal(f.ctx.UI.modal,modal);assert.equal(feedback(f).length,0,confirm+'/'+kind);}
 });

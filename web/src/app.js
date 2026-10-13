@@ -4335,9 +4335,10 @@ function releaseDirectWrite(operation){
 function directWriteOwner(permission){
   const store=STORE,client=store.sb,user=store.session?.user?.id,epoch=store.authEpoch||0,state=S,json=JSON.stringify(S),modal=UI.modal,
     date=UI.date,factory=UI.factory,page=UI.page,drawer=UI.drawer,focus=JSON.stringify(UI.focus);
-  const sameView=()=>STORE===store&&STORE.sb===client&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===epoch&&permission()&&!PV&&
+  const sameSession=()=>STORE===store&&STORE.sb===client&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===epoch;
+  const sameView=()=>sameSession()&&permission()&&!PV&&
     UI.date===date&&UI.factory===factory&&UI.page===page&&UI.drawer===drawer&&JSON.stringify(UI.focus)===focus;
-  return {store,sameView,current:()=>sameView()&&UI.modal===modal&&S===state&&JSON.stringify(S)===json};
+  return {store,sameSession,sameView,current:()=>sameView()&&UI.modal===modal&&S===state&&JSON.stringify(S)===json};
 }
 async function runDrawerWrite(button,permission,write,success){
   if(!permission()||UI.directSaving||UI.memoSaving||UI.leaveBrushSaving||UI.modal||PV)return;
@@ -4539,7 +4540,12 @@ async function changeExecutionConfirmation(button,confirmed){
   try{
     await syncChain;if(!owner.current())return;
     if(SYNC.state!=='ok'){if(m)m.confirmError=tx('班表尚未確認儲存，請先核對班表儲存狀態，再回報進度。');return;}
-    await owner.store.confirmExecution(id,confirmed);if(!owner.current())return;
+    await owner.store.confirmExecution(id,confirmed);
+    if(!owner.current()){
+      // A conclusive write still needs reconciliation after its view closes.
+      // Existing background guards defer the read until drafts/preview finish.
+      if(owner.sameSession())pendingReload=true;return;
+    }
     if(m)closeModal();release();
     const result=await reloadFromStore({background:true});if(!owner.sameView()||UI.modal)return;
     if(result==='applied'&&m?.t==='execution'){UI.modal=m;renderModal();}
