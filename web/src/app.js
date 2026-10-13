@@ -1848,25 +1848,25 @@ function legacyCatalogHTML(catalog,factory){
 
 function resourceLoadHTML(){
   const report=resourceLoad(S,UI.date,dayInfo(UI.date).win,UI.factory);
-  const duration=n=>n===null?'待確認':n+' 分';
+  const duration=n=>n===null?tx('待確認'):tx('{n} 分',{n});
   const rows=(items,employee)=>items.map(r=>{
-    const warnings=[r.overloadMinutes>0?(employee?'超出顧機上限 ':'機台工作重疊 ')+duration(r.overloadMinutes):'',
-      r.outsideMinutes>0?'不在可用時段 '+duration(r.outsideMinutes):'',r.invalidFaults?'故障時間格式異常':''].filter(Boolean);
-    const availability=r.pending?'資料待確認':r.availableMinutes===0?(employee&&r.leave?'當日請假':'當日無可用時段'):'可用 '+duration(r.availableMinutes);
+    const warnings=[r.overloadMinutes>0?tx(employee?'超出顧機上限 {d}':'機台工作重疊 {d}',{d:duration(r.overloadMinutes)}):'',
+      r.outsideMinutes>0?tx('不在可用時段 {d}',{d:duration(r.outsideMinutes)}):'',r.invalidFaults?tx('故障時間格式異常'):''].filter(Boolean);
+    const availability=r.pending?tx('資料待確認'):r.availableMinutes===0?(employee&&r.leave?tx('當日請假'):tx('當日無可用時段')):tx('可用 {d}',{d:duration(r.availableMinutes)});
     const rate=r.utilization===null?'—':Math.round(r.utilization*100)+'%';
-    const free=r.pending?'尚不能計算空檔':r.longest?'最長空檔 '+hm(r.longest[0])+'–'+hm(r.longest[1])+'（'+duration(r.longest[1]-r.longest[0])+'）':'沒有可用空檔';
+    const free=r.pending?tx('尚不能計算空檔'):r.longest?tx('最長空檔 {a}–{b}（{d}）',{a:hm(r.longest[0]),b:hm(r.longest[1]),d:duration(r.longest[1]-r.longest[0])}):tx('沒有可用空檔');
     return '<article class="load-row"><div class="load-row-head"><b>'+esc(r.name)+'</b><span class="tag mute">'+factoryName(r.factory)+'</span><span class="spacer"></span><span>'+rate+'</span></div>'+
       '<div class="load-bar" aria-label="'+tx('{name} 可用時段占用率 {rate}',{name:esc(r.name),rate})+'"><span style="width:'+(r.utilization===null?0:Math.min(100,Math.max(0,r.utilization*100)))+'%"></span></div>'+
-      '<div class="hint">'+esc(availability)+' · 已排 '+r.blockCount+' 段 · 占用 '+duration(r.busyMinutes)+
-      (employee?' · 工作時段合計 '+duration(r.assignedMinutes)+' · 最高占用容量 '+r.peak+(r.limit===null?'（上限待確認）':' / 顧機上限 '+r.limit):r.faultMinutes>0?' · 故障占用 '+duration(r.faultMinutes):'')+'</div>'+
-      '<div class="hint">'+esc(free)+(r.pending?'':' · 總空檔 '+duration(r.freeMinutes))+'</div>'+
+      '<div class="hint">'+esc(availability)+' · '+tx('已排 {n} 段',{n:r.blockCount})+' · '+tx('占用 {d}',{d:duration(r.busyMinutes)})+
+      (employee?' · '+tx('工作時段合計 {d}',{d:duration(r.assignedMinutes)})+' · '+tx('最高占用容量 {p}',{p:r.peak})+(r.limit===null?tx('（上限待確認）'):tx('{p} / 顧機上限 {l}',{p:r.peak,l:r.limit})):r.faultMinutes>0?' · '+tx('故障占用 {d}',{d:duration(r.faultMinutes)}):'')+'</div>'+
+      '<div class="hint">'+esc(free)+(r.pending?'':' · '+tx('總空檔 {d}',{d:duration(r.freeMinutes)}))+'</div>'+
       warnings.map(t=>'<div class="issue">'+esc(t)+'</div>').join('')+'</article>';
   }).join('')||'<div class="empty">'+tx('此範圍沒有資源')+'</div>';
   const anomalies=report.invalidBlocks+report.missingResources+report.invalidWindows;
   return {title:tx('當日負荷')+' · '+mdw(UI.date),body:
-    '<div class="hint">'+esc(UI.factory==='all'?'兩廠全體資源':factoryName(UI.factory))+' · 分析目前畫面的排程，不套用名冊分組篩選，也不改排程。同步狀態請看右上角；週檢視仍分析上方選定的單日。</div>'+
-    '<div class="hint">占用率 = 可用時段內的占用時間 ÷ 可用時間。午休、停工、故障、請假及個人加班設定均扣除。一人同時顧多台時，占用時間不重複加總，機台工作合計另列；重疊或超限另外警示。</div>'+
-    '<div class="hint">空檔只代表時間未被占用，不保證技能、物料、工序或交期允許排入；負荷高也不等於已確認的生產瓶頸。待確認名冊不推測可用產能。</div>'+
+    '<div class="hint">'+esc(UI.factory==='all'?tx('兩廠全體資源'):factoryName(UI.factory))+' · '+tx('分析目前畫面的排程，不套用名冊分組篩選，也不改排程。同步狀態請看右上角；週檢視仍分析上方選定的單日。')+'</div>'+
+    '<div class="hint">'+tx('占用率 = 可用時段內的占用時間 ÷ 可用時間。午休、停工、故障、請假及個人加班設定均扣除。一人同時顧多台時，占用時間不重複加總，機台工作合計另列；重疊或超限另外警示。')+'</div>'+
+    '<div class="hint">'+tx('空檔只代表時間未被占用，不保證技能、物料、工序或交期允許排入；負荷高也不等於已確認的生產瓶頸。待確認名冊不推測可用產能。')+'</div>'+
     (anomalies?'<div class="issue">有 '+report.invalidBlocks+' 段工作時間異常、'+report.missingResources+' 段缺少人員／機台對照、'+report.invalidWindows+' 個上班時段異常；統計可能不完整，請先檢查資料。</div>':'')+
     '<h4>'+tx('機台／操作位置')+'</h4><div class="load-list">'+rows(report.machines,false)+'</div>'+
     '<h4>'+tx('員工')+'</h4><div class="load-list">'+rows(report.employees,true)+'</div>',
@@ -4122,7 +4122,7 @@ Object.assign(MODAL_ACT,{
 
 // ---------- 分組：一人可多組，部門與廠別不是技能限制 ----------
 MODALS.groups=()=>({title:tx('員工分組／部門'),body:
-  '<div class="hint">分組與廠別、機台技能分開。一人可加入多組，分組可跨部門或跨廠；這不會自動修改所屬廠別或授予機台技能。原檔分組是來源紀錄，不代表已核定現在的人力配置。</div>'+
+  '<div class="hint">'+tx('分組與廠別、機台技能分開。一人可加入多組，分組可跨部門或跨廠；這不會自動修改所屬廠別或授予機台技能。原檔分組是來源紀錄，不代表已核定現在的人力配置。')+'</div>'+
   (S.groups||[]).map(g=>{const ms=S.groupMembers.filter(m=>m.groupId===g.id),pending=ms.filter(m=>m.reviewStatus==='pending').length;
     return '<button class="btn" style="display:flex;width:100%;margin:10px 0;justify-content:space-between;height:auto;min-height:46px" data-act="group-edit" data-id="'+esc(g.id)+'"><span>'+esc(g.name)+(g.department?' · '+esc(g.department):'')+'</span><span>'+esc(g.homeFactory?factoryName(g.homeFactory):'跨廠')+' · '+ms.length+' 人'+(pending?' · '+pending+' 待核對':'')+'</span></button>';
   }).join('')+((S.groups||[]).length?'':'<div class="hint">'+tx('還沒有分組，可建立第一個分組。')+'</div>'),
@@ -4330,11 +4330,11 @@ const referenceOrder=id=>order(id)||S.workReferenceOrders?.find(o=>o.id===id);
 const timeValue=t=>{const [h,m]=t.split(':').map(Number);return h*60+m;};
 const textInput=(id,label,value,type='text',off='')=>'<div class="field"><label for="'+id+'">'+label+'</label><input class="inp" id="'+id+'" type="'+type+'" value="'+esc(value)+'" '+off+'></div>';
 MODALS['work-contents']=()=>({title:tx('工作內容'),body:
-  '<div class="hint">三部分：工作內容（做什麼）、設備／工位（需要時才指定）、排班方塊（人員、時間及參考件數）。既有產品工序仍依原公式排程；下面的獨立工作不會自動算進工單完成量。</div>'+
+  '<div class="hint">'+tx('三部分：工作內容（做什麼）、設備／工位（需要時才指定）、排班方塊（人員、時間及參考件數）。既有產品工序仍依原公式排程；下面的獨立工作不會自動算進工單完成量。')+'</div>'+
   '<h4>'+tx('產品工序工作內容')+'</h4><div class="hint">'+[...new Set(S.products.flatMap(p=>p.steps.map(s=>s.proc)))].map(esc).join('、')+'</div><button class="btn" data-act="products">'+tx('查看產品工序')+'</button>'+
   '<h4>'+tx('可獨立安排的工作內容')+'</h4>'+workCatalog(S).filter(w=>inFactory(w,UI.factory)).map(w=>'<button class="rline" data-act="work-content-edit" data-id="'+esc(w.id)+'"><b>'+esc(w.name)+'</b><span>'+factoryName(w.factory)+' · '+(w.requiresResource?'需要設備／工位':'純人工，不需機台')+' · 核定 '+w.employeeIds.length+' 人</span></button>').join('')+
   (!workCatalog(S).length?'<div class="empty">'+tx('尚未建立獨立工作內容；不會從 1023 欄名推測技能或產能。')+'</div>':'')+
-  '<div class="hint">1023 的工作／設備／規格對照在「歷史排程 → 製作項目名冊」查看；未確認欄位保持待確認。</div>',
+  '<div class="hint">'+tx('1023 的工作／設備／規格對照在「歷史排程 → 製作項目名冊」查看；未確認欄位保持待確認。')+'</div>',
   foot:(canWorkContents()?'<button class="btn primary" data-act="work-content-new">'+tx('新增工作內容')+'</button>':'')+'<button class="btn" data-act="close">'+tx('關閉')+'</button>'});
 MODALS['work-content-edit']=m=>{
   m.draft ||= structuredClone(workCatalog(S).find(w=>w.id===m.id)||{id:uid(),name:'',factory:UI.factory==='all'?1:UI.factory,requiresResource:false,employeeIds:[],resourceIds:[],reviewStatus:'confirmed'});
