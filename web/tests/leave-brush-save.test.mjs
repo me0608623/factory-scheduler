@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {LocalStore} from '../src/store/local.js';
+import {SaxesParser} from 'saxes';
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const at=source.indexOf('case "person-day":{'),end=source.indexOf('case "person-month":',at);
 const code='this.click=a=>{switch(a.dataset.act){'+source.slice(at,end)+'}};';
@@ -107,4 +108,14 @@ test('partial request range failure preserves confirmed dates, invents no later 
   f.ctx.click({dataset:{act:'person-day',id:'test',d:'2026-10-21'}});await tick();
   assert.equal(requests,2);assert.deepEqual(Array.from(f.ctx.S.leaveRequests,r=>r.date),['2026-10-20']);
   assert.equal(f.events.filter(e=>e==='commit').length,0);assert.equal(success(f).length,0);assert.ok(f.ctx.UI.leaveBrushError);
+});
+test('actual people drawer announces saving, disables date cells and escapes the retained error',()=>{
+  const f=fixture();Object.assign(f.ctx,{shownEmployees:()=>f.ctx.S.employees,monthDates:()=>['2026-10-20','2026-10-21'],leaveState:()=> 'work',mdw:x=>x,
+    esc:s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))});
+  const at=source.indexOf('function peopleDrawerHTML(){');vm.runInContext(source.slice(at,source.indexOf('function outputDrawerHTML(){',at)),f.ctx);
+  f.ctx.UI.leaveBrushSaving={};let html=f.ctx.peopleDrawerHTML();assert.match(html,/role="status"/);
+  const dates=[],parser=new SaxesParser({fragment:true});parser.on('opentag',t=>{if(t.attributes['data-act']==='person-day')dates.push(t.attributes);});
+  parser.write(html.replace(/ disabled(?=[ >])/g,' disabled="disabled"')).close();assert.equal(dates.length,2);assert.ok(dates.every(d=>'disabled' in d));
+  f.ctx.UI.leaveBrushSaving=null;f.ctx.UI.leaveBrushError='<script>unsafe</script>';html=f.ctx.peopleDrawerHTML();
+  assert.match(html,/role="alert"/);assert.ok(!html.includes('<script>'));assert.ok(html.includes('&lt;script&gt;'));
 });

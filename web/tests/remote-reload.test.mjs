@@ -17,6 +17,13 @@ function harness(){
   return {ctx,timers,writes};
 }
 
+test('attendance request/brush in flight defers background reads until its write guard is released',async()=>{
+  const h=harness();h.ctx.UI.leaveBrushSaving={};h.ctx.onRemoteChange('leave_requests');
+  if(h.timers.length)await h.timers.shift()();assert.equal(h.writes.filter(x=>x==='load').length,0);
+  h.ctx.UI.leaveBrushSaving=null;h.ctx.maybeReload();assert.equal(h.timers.length,1);
+  await h.timers.shift()();assert.equal(h.writes.filter(x=>x==='load').length,1);
+});
+
 test('actual Store rejects an incomplete background RPC without replacing the visible board or baseline',async()=>{
   const h=harness();let data={version:1,employees:[{id:'TEST-E',name:'測試',skills:[]}],machines:[],products:[],orders:[],blocks:[],calendar:{}},history=0;
   const chain={select:()=>chain,order:()=>chain,limit:async()=>{history++;return {data:[],error:null};}};
