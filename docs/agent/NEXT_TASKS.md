@@ -1,5 +1,7 @@
 # 過夜開發待辦清單
 
+> 完整 16 缺陷總表與覆核狀態：見 **docs/agent/DEFECT_HUNT_REPORT.md**（輪 71 彙整）
+>
 > **缺陷探索系列總覽（輪 33-60，2026-10-13）**：15 個缺陷修復（全部已部署**正式站**、CI 全綠、測試 406 項）；12 項擴大覆蓋候選兩輪全覆蓋。**使用者動作僅三件**：①正式庫套用 0037（下方 migration 段）②staging web deploy hook（下方）③staging Realtime support ticket 回覆追蹤。
 
 依優先級排序（P0 最高）。每項完成後打勾並記錄 commit。
