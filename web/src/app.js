@@ -1313,7 +1313,7 @@ document.addEventListener("click",e=>{
     case "prev":UI.date=addDays(UI.date,-step);render();break;
     case "next":UI.date=addDays(UI.date,step);render();break;
     case "today":UI.date=todayStr();UI.view='day';UI.drawer=null;UI.page=null;UI.focus=null;render();break;
-    case "drawer":if(a.dataset.v==="worklog"){UI.page="worklog";UI.drawer=null;try{history.replaceState(null,"","?view=worklog");}catch{}render();window.scrollTo(0,0);flashReturnRow();break;}UI.drawer=UI.drawer===a.dataset.v?null:a.dataset.v;UI.page=null;UI.focus=null;render();requestAnimationFrame(()=>$('.ops-drawer')?.focus());break;
+    case "drawer":if(a.dataset.v==="worklog"){UI.page="worklog";UI.drawer=null;setUrlView("worklog");render();window.scrollTo(0,0);flashReturnRow();break;}UI.drawer=UI.drawer===a.dataset.v?null:a.dataset.v;UI.page=null;UI.focus=null;render();requestAnimationFrame(()=>$('.ops-drawer')?.focus());break;
     case "settings":UI.drawer='settings';UI.page=null;UI.focus=null;render();requestAnimationFrame(()=>$('.ops-drawer')?.focus());break;
     case "drawer-close":UI.drawer=null;UI.drawerZoom=false;UI.focus=null;render();break;
     case "drawer-zoom":UI.drawerZoom=!UI.drawerZoom;render();requestAnimationFrame(()=>{try{document.querySelector(".ops-drawer")?.scrollIntoView({block:"start"});}catch(e){}});break;
@@ -1407,8 +1407,8 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "leave-resolve":resolveLeaveRequest(a);break;
     case "memo-new":if(canPermission('notes.manage'))openModal({t:'memo-edit'});break;
     case "memo-pin":toggleMemoPin(a);break;
-    case "catalog":UI.page='review';UI.reviewStep ??= 1;UI.drawer=null;try{history.replaceState(null,"","?view=review");}catch{}render();window.scrollTo(0,0);break;
-    case "master":{if(PV){toast("預覽中：先按「用這套」或「取消」");break;}UI.page='catalog';UI.drawer=null;UI.focus=null;try{history.replaceState(null,"","?view=catalog");}catch{}render();window.scrollTo(0,0);break;}
+    case "catalog":UI.page='review';UI.reviewStep ??= 1;UI.drawer=null;setUrlView("review");render();window.scrollTo(0,0);break;
+    case "master":{if(PV){toast("預覽中：先按「用這套」或「取消」");break;}UI.page='catalog';UI.drawer=null;UI.focus=null;setUrlView("catalog");render();window.scrollTo(0,0);break;}
     case "pick":{const p=$("#datepick");try{p.showPicker();}catch(_){p.style.pointerEvents="auto";p.focus();p.click();}break;}
     case "view":zoomWheel.cancel();applyPinch.cancel();pinch0=null;pinchActive=false;UI.wkFit=false;UI.view=a.dataset.v;render();break;
     case "factory":{const v=a.dataset.v==="all"?"all":Number(a.dataset.v);setFactory(v);render();if(v==="all")openModal({t:'transfer-board'});break;}
@@ -1427,10 +1427,10 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "resource-load":if(!PV)openModal({t:'resource-load'});break;
     case 'work-queue':openModal({t:'work-queue'});break;
     case 'rush':UI.page='shortage';UI.drawer=null;render();window.scrollTo(0,0);break;
-    case "page":{if(PV){toast("預覽中：先按「用這套」或「取消」");break;}const map={board:null,shortage:"shortage",transfer:"transferflow",worklog:"worklog",review:"review",analytics:"analytics",floor:"floor","visual-demo":"visual-demo"};UI.page=map[a.dataset.v]??null;UI.drawer=null;UI.focus=null;UI.editCell=null;UI.confirmRow=null;try{history.replaceState(null,"",UI.page?"?view="+(UI.page==="transferflow"?"transfer":UI.page):location.pathname);}catch{}if(UI.page==="transferflow"&&canPermission("transfers.manage")){const n=tfAutoArchive();if(n)UI.tfArchivedNote="本月已歸檔 "+n+" 筆";}
+    case "page":{if(PV){toast("預覽中：先按「用這套」或「取消」");break;}const map={board:null,shortage:"shortage",transfer:"transferflow",worklog:"worklog",review:"review",analytics:"analytics",floor:"floor","visual-demo":"visual-demo"};UI.page=map[a.dataset.v]??null;UI.drawer=null;UI.focus=null;UI.editCell=null;UI.confirmRow=null;setUrlView(UI.page?(UI.page==="transferflow"?"transfer":UI.page):null);if(UI.page==="transferflow"&&canPermission("transfers.manage")){const n=tfAutoArchive();if(n)UI.tfArchivedNote="本月已歸檔 "+n+" 筆";}
       render();window.scrollTo(0,0);if(UI.page)flashReturnRow();break;}
-    case "page-return":{const p=UI.returnTo?.page||null;UI.returnTo=null;UI.page=p;try{history.replaceState(null,"",p?"?view="+(p==="transferflow"?"transfer":p):location.pathname);}catch{}render();window.scrollTo(0,0);if(p)flashReturnRow();break;}
-    case "worklog":UI.page="worklog";UI.drawer=null;try{history.replaceState(null,"","?view=worklog");}catch{}render();window.scrollTo(0,0);flashReturnRow();break;
+    case "page-return":{const p=UI.returnTo?.page||null;UI.returnTo=null;UI.page=p;setUrlView(p?(p==="transferflow"?"transfer":p):null);render();window.scrollTo(0,0);if(p)flashReturnRow();break;}
+    case "worklog":UI.page="worklog";UI.drawer=null;setUrlView("worklog");render();window.scrollTo(0,0);flashReturnRow();break;
     case "row-edit":{openTableForm(a.dataset.table,a.dataset.id);break;}
     case "col-add":customColAdd(a.dataset.v);break;
     case "rush-addrow":{openTableForm("rush");break;}
@@ -1445,7 +1445,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
       const row=(S.rushOrders||[]).find(r=>r.id===a.dataset.id);
       const code=String(row?.f1?.desc||"").trim();
       const o=S.orders.find(x=>x.code===code);
-      if(o){UI.returnTo={page:"shortage",rowId:row.id};UI.page=null;UI.focus={type:"order",id:o.id};try{history.replaceState(null,"",location.pathname);}catch{}render();window.scrollTo(0,0);toast("已高亮工單 "+code+"；要回去按上方「返回」");}
+      if(o){UI.returnTo={page:"shortage",rowId:row.id};UI.page=null;UI.focus={type:"order",id:o.id};setUrlView(null);render();window.scrollTo(0,0);toast("已高亮工單 "+code+"；要回去按上方「返回」");}
       else toast("找不到工單號 "+code+"；先在「工單」用這個品號建單，就能互跳");
       break;}
     case "tf-addrow":{openTableForm("tf");break;}
@@ -1531,7 +1531,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
       toast("已刪除");break;}
     case "tf-goto":{
       const o=transferOrders(S).find(x=>x.id===a.dataset.id);if(!o)break;
-      UI.returnTo={page:"transferflow",rowId:o.id};UI.page=null;try{history.replaceState(null,"",location.pathname);}catch{}
+      UI.returnTo={page:"transferflow",rowId:o.id};UI.page=null;setUrlView(null);
       const linked=(S.workAssignments||[]).filter(x=>x.transferBatchId&&o.batches.some(b=>b.id===x.transferBatchId));
       if(linked.length){
         const A=linked[0];
@@ -1599,7 +1599,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
       if(!d1||!d2||d1===d2){toast(tx('請選兩個不同日期'));break;}
       UI.modal.result=computeScheduleDiff(d1,d2);
       renderModal();break;}
-    case "analytics":UI.page="analytics";UI.drawer=null;try{history.replaceState(null,"","?view=analytics");}catch{}render();window.scrollTo(0,0);break;
+    case "analytics":UI.page="analytics";UI.drawer=null;setUrlView("analytics");render();window.scrollTo(0,0);break;
     case "line-notify":openModal({t:"line-notify"});break;
     case "ln-save":{const h=async a=>{if(STORE.kind==="local"){toast("本機示範模式無法設定 LINE 通知；請在雲端帳號使用");return;}a.disabled=true;try{const enabled=$("#ln-enabled")?.checked||false;const userId=$("#ln-user")?.value.trim()||"";const groupId=$("#ln-group")?.value.trim()||"";const events={};for(const el of document.querySelectorAll("[data-ln-event]"))events[el.dataset.lnEvent]=el.checked;await STORE.sb.from("line_notify_settings").upsert({user_id:STORE.session?.user?.id,enabled,line_user_id:userId,line_group_id:groupId,events},{onConflict:"user_id"});closeModal();toast("LINE 通知設定已儲存");}catch(e){a.disabled=false;toast(e.message);}};h(a);break;};
     case "feedback-send":{const h=async a=>{if(STORE.kind==="local"){toast("本機示範模式無法送出反饋；請改用下面的 Email 連結");return;}const msg=$("#fb-msg")?.value.trim()||"",cat=$("#fb-cat")?.value||"other";if(!msg){toast("請寫一些內容");return;}a.disabled=true;try{const {error}=await STORE.sb.from("feedback").insert({author_name:STORE.userName||"未命名",category:cat,message:msg,page_url:location.href,user_id:STORE.session?.user?.id});if(error)throw error;closeModal();toast("感謝！意見已送出，我們會盡快處理。"+(STORE.role==="boss"?" 到「更多功能→查看反饋」看全部。":""));}catch(e){a.disabled=false;toast(e.message);}};h(a);break;};
@@ -3284,6 +3284,8 @@ function canScenarios(){return canPermission('scenarios.manage');}
 const ROLE_NAME={boss:"老闆",lead:"組長",worker:"員工",viewer:"電視／檢視"};
 const roleName=k=>tx(ROLE_NAME[k]||'本機管理者');
 
+// 缺陷#23：?view= 導航不得清掉其他 query（local=1/mode=test），否則重載後落入登入牆
+function setUrlView(v){try{const u=new URL(location.href);if(v)u.searchParams.set("view",v);else u.searchParams.delete("view");history.replaceState(null,"",u.pathname+(u.search||"")+u.hash);}catch{}}
 function toast(msg,actLabel,fn){
   let el=$("#toast");
   if(!el){el=document.createElement("div");el.id="toast";el.className="toast";el.setAttribute("role","status");document.body.appendChild(el);}
@@ -3855,15 +3857,14 @@ function analyticsPageHTML(){
     return {name:e.name,otH:Math.round(ot/6)/10};
   }).filter(x=>x.otH>0).sort((a,b)=>b.otH-a.otH);
 
-  // 3. 工單狀態分佈
+  // 3. 工單狀態分佈（口徑＝orderStatus：完成需現場回報，與工單抽屜一致——缺陷#22 前誤把計畫量當完成量）
   const ordStats={late:0,ok:0,part:0,done:0,unplaced:0};
   for(const o of mOrders){
-    const bl=mBlocks.filter(b=>b.oid===o.id);
-    if(!bl.length){ordStats.unplaced++;continue;}
-    const totalDone=bl.reduce((t,b)=>t+effectiveBlockQty(b,S.execution||[]),0);
-    if(totalDone>=o.qty)ordStats.done++;
-    else if(o.due<today)ordStats.late++;
-    else if(totalDone>0)ordStats.part++;
+    const st=orderStatus(o);
+    if(st.k==="none"){ordStats.unplaced++;continue;}
+    if(st.k==="done")ordStats.done++;
+    else if(st.k==="late")ordStats.late++;
+    else if(st.k==="part")ordStats.part++;
     else ordStats.ok++;
   }
 
@@ -3881,7 +3882,7 @@ function analyticsPageHTML(){
   const leaveDays=mEmps.reduce((t,e)=>t+e.leaves.filter(l=>l>=monthStart&&l<=today).length,0);
 
   const head='<div class="page-top"><div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">'+tx('backToday')+'</button><div class="page-title"><h1>'+tx('產能分析')+'</h1></div></div>'+
-    '<p class="page-sub">'+today.slice(0,7).replace('-',' 年 ')+' 月（至 '+md(today)+'） · '+workDays+' 個工作天 · '+mEmps.length+' 位員工 · '+mMachs.length+' 台設備</p></div>';
+    '<p class="page-sub">'+tx('{y} 年 {m} 月（至 {d}） · {w} 個工作天 · {e} 位員工 · {n} 台設備',{y:today.slice(0,4),m:today.slice(5,7),d:md(today),w:workDays,e:mEmps.length,n:mMachs.length})+'</p></div>';
 
   const bar=(label,pct,color)=>{
     return '<div class="ana-row"><span class="ana-lab">'+esc(label)+'</span><div class="ana-bar"><div class="ana-fill" style="width:'+Math.min(100,pct)+'%;background:'+color+'"></div></div><span class="ana-val">'+pct+'%</span></div>';
@@ -3892,7 +3893,7 @@ function analyticsPageHTML(){
       (machUtil.slice(0,10).map(m=>bar(m.label+' ('+m.id+')',m.pct,m.pct>70?'#39d353':m.pct>40?'#ffe14a':'#c62828')).join('')||'<div class="hint">'+tx('尚無排程資料')+'</div>')+
     '</div></div>'+
     '<div class="ana-card"><h3>'+tx('員工加班時數（本月）')+'</h3><div class="ana-list">'+
-      (empOT.slice(0,10).map(e=>'<div class="ana-row"><span class="ana-lab">'+esc(e.name)+'</span><span class="ana-val ot">'+e.otH+' 小時</span></div>').join('')||'<div class="hint">'+tx('本月無加班')+'</div>')+
+      (empOT.slice(0,10).map(e=>'<div class="ana-row"><span class="ana-lab">'+esc(e.name)+'</span><span class="ana-val ot">'+tx('{h} 小時',{h:e.otH})+'</span></div>').join('')||'<div class="hint">'+tx('本月無加班')+'</div>')+
     '</div></div>'+
     '<div class="ana-card"><h3>'+tx('工單狀態')+'</h3><div class="ana-stats">'+
       '<div class="ana-stat"><b>'+ordStats.done+'</b><span>'+tx('已完成')+'</span></div>'+
