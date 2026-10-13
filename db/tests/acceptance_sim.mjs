@@ -115,6 +115,7 @@ function solve(request) {
     console.error('[req] machines4=' + JSON.stringify((snap.machines || []).filter(m => ['f1e','f1b'].includes(m.id))));
     console.error('[req] picked=' + JSON.stringify((snap.employees || []).filter(e => [E01,E02,E03].includes(e.id))).slice(0, 700));
   }
+  try { fs.writeFileSync("/tmp/sim-last-request.json", JSON.stringify(request)); } catch {}
   const child = spawnSync("uv", ["run", "--frozen", "python", "-m", "scripts.plan_stdio"], {
     cwd: solverDir, input: JSON.stringify(request), encoding: "utf8", timeout: 120000, maxBuffer: 32 * 1024 * 1024,
   });
