@@ -75,8 +75,8 @@ test('stale source error cannot put the newer loaded source back into error',asy
 test('actual SupabaseStore never inserts old archive payload after lookup changed account or client',async()=>{
   for(const kind of ['user','epoch','client']){
     const lookup=deferred();let inserts=0;
-    const chain={select:()=>chain,eq:()=>chain,maybeSingle:()=>lookup.promise,insert:()=>{inserts++;return chain;},single:async()=>({data:{id:'saved'},error:null})};
-    const client={from:()=>chain},store=new SupabaseStore(client);store.session={user:{id:'original'}};store.authEpoch=1;
+    const chain={setHeader:()=>chain,select:()=>chain,eq:()=>chain,maybeSingle:()=>lookup.promise,insert:()=>{inserts++;return chain;},single:async()=>({data:{id:'saved'},error:null})};
+    const client={from:()=>chain},store=new SupabaseStore(client);store.session={user:{id:'original'},access_token:'synthetic-token'};store.authEpoch=1;
     const job=store.saveLegacyArchive({sourceName:'synthetic',sourceSha256:'hash',legacy:legacy('a')});
     if(kind==='user')store.session={user:{id:'new'}};if(kind==='epoch')store.authEpoch++;if(kind==='client')store.sb={from:()=>chain};
     lookup.resolve({data:null,error:null});await assert.rejects(job,/登入狀態已變更/);assert.equal(inserts,0,kind);
@@ -103,14 +103,14 @@ test('missing history payload reports a read error instead of rendering a false 
 });
 test('actual SupabaseStore read guards reject late old-owner list and payload responses',async()=>{
   for(const method of ['listLegacyArchives','getLegacyArchive']){
-    const pending=deferred(),chain={select:()=>chain,eq:()=>chain,order:()=>pending.promise,single:()=>pending.promise},store=new SupabaseStore({from:()=>chain});
-    store.session={user:{id:'old'}};store.authEpoch=1;const job=store[method]('a');store.session={user:{id:'new'}};
+    const pending=deferred(),chain={setHeader:()=>chain,select:()=>chain,eq:()=>chain,order:()=>pending.promise,single:()=>pending.promise},store=new SupabaseStore({from:()=>chain});
+    store.session={user:{id:'old'},access_token:'synthetic-token'};store.authEpoch=1;const job=store[method]('a');store.session={user:{id:'new'}};
     pending.resolve({data:method==='getLegacyArchive'?{payload:legacy('old')}:archives,error:null});await assert.rejects(job,/登入狀態已變更/);
   }
 });
 test('actual SupabaseStore rejects stale insert acknowledgment, but accepts a same-owner token refresh and deduplicated archive',async()=>{
-  const insert=deferred(),chain={select:()=>chain,eq:()=>chain,maybeSingle:async()=>({data:null,error:null}),insert:()=>chain,single:()=>insert.promise};
-  const store=new SupabaseStore({from:()=>chain});store.session={user:{id:'old'}};store.authEpoch=1;
+  const insert=deferred(),chain={setHeader:()=>chain,select:()=>chain,eq:()=>chain,maybeSingle:async()=>({data:null,error:null}),insert:()=>chain,single:()=>insert.promise};
+  const store=new SupabaseStore({from:()=>chain});store.session={user:{id:'old'},access_token:'synthetic-token'};store.authEpoch=1;
   const job=store.saveLegacyArchive({sourceName:'synthetic',sourceSha256:'hash',legacy:legacy('a')});await new Promise(r=>setImmediate(r));
   store.authEpoch++;insert.resolve({data:{id:'saved'},error:null});await assert.rejects(job,/登入狀態已變更/);
   let inserts=0;chain.maybeSingle=async()=>({data:{id:'found'},error:null});chain.insert=()=>{inserts++;return chain;};
