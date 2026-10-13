@@ -55,7 +55,7 @@ button{cursor:pointer}
 .top-in{display:grid;gap:9px;max-width:1760px;margin:0 auto}
 .top-main{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
 .top-main{min-height:76px;padding:12px 14px;background:var(--surface);border:1px solid var(--line2);border-radius:18px;box-shadow:0 8px 28px rgba(45,55,70,.07)}
-.top-status{display:flex;align-items:center;gap:8px;margin-left:auto}
+.top-status{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-left:auto}
 .brand{display:flex;align-items:center;gap:10px;font-weight:900;font-size:20px;letter-spacing:.02em;margin-right:6px}
 .brand-mark{width:34px;height:34px;border-radius:8px;background:var(--ink);display:grid;place-items:center}
 .brand-mark span{display:block;width:18px;height:4px;background:#FFD23F;box-shadow:0 7px 0 #4CDB6E,0 -7px 0 #4FE3EE}
@@ -716,7 +716,7 @@ body:has(#ov:not([hidden])) #schedule-chat{z-index:15}
   --row-matched:#e6f4ea;--row-returned:#e6f4ea;--row-archived:#e9ebef;
   --wiz-pending-bg:#fef7e0;--wiz-pending-ink:#9a5200;--wiz-ok-bg:#e6f4ea;--wiz-ok-ink:#14672d;--wiz-foot-bg:rgba(244,245,247,.96);}
 body.pvmode ~ *{}
-.page-links{display:flex;gap:8px;margin-left:auto}
+.page-links{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto}
 .pagelink{min-height:44px;font-weight:800}
 .pagelink.shortage{background:var(--pg-f1-head);border-color:#d9c900}
 .pagelink.transfer{background:var(--pg-f2-head);border-color:#1fa33a;color:#06340f}
