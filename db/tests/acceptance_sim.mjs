@@ -146,9 +146,12 @@ const lastBlockAbs = async (code) => {
 
 // 套用方案：插入 plan_previews 並以老闆身分 apply_plan（同一連線、同一交易）
 const j = (v) => JSON.stringify(v).replace(/'/g, "''");
-async function applyOption(plan, event, optionId, title, kind = "order") {
-  const pv = await s.one(`INSERT INTO plan_previews (kind,title,event,base_version,options)
+async function insertPreview(plan, event, title, kind = "order") {
+  return s.one(`INSERT INTO plan_previews (kind,title,event,base_version,options)
     VALUES ('${kind}','${title}','${j(event)}'::jsonb,${await stateVersion()},'${j(plan.options)}'::jsonb) RETURNING id`);
+}
+async function applyOption(plan, event, optionId, title, kind = "order") {
+  const pv = await insertPreview(plan,event,title,kind);
   return s.one(`SELECT apply_plan('${pv}','${optionId}')`);
 }
 
@@ -358,9 +361,18 @@ await runCase("C5 交期不足（求解軟限制＋新單逾期套用閘門）",
   if (end <= dayIdx(D(1)) * 1440 + 1020) out.push("完工未超過交期（與逾期診斷矛盾）");
   const version=await stateVersion();
   await s.one('SAVEPOINT reject_late_order');
-  let rejected=false;
-  try{await applyOption(plan,ev,opt.id,'TEST-O5 rejected');}
-  catch(error){rejected=/不能套用/.test(error.message);}
+  const pv=await insertPreview(plan,ev,'TEST-O5 rejected');
+  // Catch the expected DB rejection inside a subtransaction. An uncaught SQL
+  // error aborts the outer transaction and also prevents Session's SELECT
+  // sentinel from running, turning a normal negative test into a 180s timeout.
+  const rejected=(await s.one(`DO $$ BEGIN
+    BEGIN
+      PERFORM apply_plan('${pv}','${opt.id}');
+    EXCEPTION WHEN SQLSTATE 'P0001' THEN
+      IF position('不能套用' in SQLERRM)=0 THEN RAISE; END IF;
+      PERFORM set_config('sim.late_order_rejected','true',true);
+    END;
+  END $$; SELECT coalesce(current_setting('sim.late_order_rejected',true),'false')`))==='true';
   await s.one('ROLLBACK TO SAVEPOINT reject_late_order');
   if(!rejected)out.push('資料庫未以不能套用拒絕逾期新單');
   if(await stateVersion()!==version||(await orderBlocks('TEST-O5'))!=='[]')out.push('拒絕逾期新單後資料／版本改變');
