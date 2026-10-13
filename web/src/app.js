@@ -2620,7 +2620,7 @@ function pvPanelHTML(o){
   const strip='<section class="pv" aria-label="'+tx('預覽')+'">'+
    '<div class="pv-h"><span class="pv-badge">'+(PV.savedScenario?'保存情境':'預覽中')+'</span><div class="pv-t"><b>'+esc(PV.title)+'</b><small>'+(PV.savedScenario?'只讀比較；正式班表與現場進度不會變更。':'還沒套用，排程不會變。左邊甘特表＝選中的那套；差異色塊＝綠新增／黃搬動／虛線會移走。　計算：'+planEngineLabel(o.solverMethod,PV.engine))+'</small></div><div class="spacer"></div>'+
    (canPermissionRaw('scenarios.manage')&&!PV.savedScenario?'<button class="btn" data-act="scenario-save">'+tx('保存試排情境')+'</button>':'')+
-   '<div class="pv-strip-actions"><button class="btn" data-act="pv-cancel">'+(PV.savedScenario?'結束查看':'取消')+'</button><button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+tx('用這套')+'</button></div></div>'+
+   '<div class="pv-strip-actions">'+(PV.applying?'<button class="btn primary" disabled>'+tx('正在儲存，請稍候…')+'</button>':'<button class="btn" data-act="pv-cancel">'+(PV.savedScenario?'結束查看':'取消')+'</button>'+(PV.savedScenario?'':'<button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+tx('用這套')+'</button>'))+'</div></div>'+
    '<div class="pv-row"><div class="seg" role="group" aria-label="'+tx('預覽圖與下方排程表顯示')+'"><button data-act="pv-mode" data-v="cmp" aria-pressed="'+(PV.mode==="cmp")+'">'+tx('對照')+'</button><button data-act="pv-mode" data-v="new" aria-pressed="'+(PV.mode==="new")+'">'+tx('調整後')+'</button><button data-act="pv-mode" data-v="orig" aria-pressed="'+(PV.mode==="orig")+'">'+tx('原本')+'</button></div>'+
    '<span class="hint">'+(PV.mode==="cmp"?"灰虛線＝原本位置，彩色＝調整後（綠新增、黃搬動）":PV.mode==="new"?"只看調整後：綠框＝新增的工作，黃框＝搬動的工作":"只看原本；紅虛線＝會被移走的工作")+'</span><div class="spacer"></div>'+
    '<div class="pv-dates"><span class="hint">'+tx('影響的日期')+'</span>'+(dates.map(ds=>'<button class="pv-date" data-act="pv-date" data-v="'+ds+'" aria-pressed="'+(ds===UI.date)+'"><b class="num">'+md(ds)+'</b><small>'+WD[parseD(ds).getUTCDay()]+' · '+d.dates[ds]+' 處</small></button>').join("")||'<span class="hint">'+tx('無')+'</span>')+'</div></div>'+
@@ -2754,15 +2754,31 @@ async function askAI(){
   if(PV===P)render();
 }
 async function pvApply(){
+  if(!PV||PV.applying||PV.savedScenario)return;
   const o=pvOpt();if(!o)return;
   if(o.applicable===false){toast('這個方案尚無法套用，請查看原因與建議');return;}
   try{assertExecutionProtected(S,o.A);}catch(e){toast(e.message);return;}
   const P=PV,noteEl=$("#pv-note");if(noteEl)P.note=noteEl.value.trim();
   if(P.previewId&&STORE.applyPlan){
-    toast("套用中…");
-    try{await STORE.applyPlan(o.previewId||P.previewId,o.id,P.note,P.ai&&P.ai.pick?{pick:P.ai.pick,reason:P.ai.reason}:null);}
-    catch(e){toast(e.message);if(e.conflict){PV=null;await reloadFromStore();}return;}
-    pushUndo();PV=null;lastLocalWrite=Date.now();await reloadFromStore();showResult();return;
+    const store=STORE,user=store.session?.user?.id,epoch=store.authEpoch,state=S,version=store.version,base=JSON.stringify(S);
+    const sameSession=()=>STORE===store&&store.session?.user?.id===user&&store.authEpoch===epoch;
+    const current=()=>sameSession()&&PV===P&&S===state&&JSON.stringify(S)===base&&store.version===version;
+    P.applying=true;render();toast("套用中…");
+    try{
+      await store.applyPlan(o.previewId||P.previewId,o.id,P.note,P.ai&&P.ai.pick?{pick:P.ai.pick,reason:P.ai.reason}:null);
+      if(!current())return;
+      pushUndo();PV=null;lastLocalWrite=Date.now();
+      const result=await reloadFromStore();
+      if(result==='applied'&&sameSession()&&!PV)showResult();
+      else pendingReload=true;
+    }catch(e){
+      if(!current())return;
+      // Missing receipt may mean committed: reconcile instead of allowing a
+      // blind resubmit or a Cancel that falsely claims nothing changed.
+      if(e.conflict||e.unconfirmed){PV=null;pendingReload=true;await reloadFromStore();}
+      if(sameSession())toast(tx(e.message));
+    }finally{P.applying=false;if(PV===P)render();}
+    return;
   }
   const sumTxt=withState(o.A,()=>pvSummary(o));
   const people=withState(o.A,()=>peopleOf(o).map(p=>({name:p.name,items:p.items.map(x=>(x.t==="in"?"新增 ":"拿掉 ")+itemTxt(x.b))})));
@@ -2781,13 +2797,13 @@ async function pvApply(){
   showResult();
 }
 Object.assign(MODAL_ACT,{
-  "pv-pick":a=>{PV.cur=a.dataset.v;const d=diffOf(pvOpt());if(!d.dates[UI.date]){const ds=Object.keys(d.dates).sort();if(ds.length)UI.date=ds.find(x=>x>=todayStr())||ds[0];}render();},
+  "pv-pick":a=>{if(!PV||PV.applying)return;PV.cur=a.dataset.v;const d=diffOf(pvOpt());if(!d.dates[UI.date]){const ds=Object.keys(d.dates).sort();if(ds.length)UI.date=ds.find(x=>x>=todayStr())||ds[0];}render();},
   "pv-mode":a=>{PV.mode=a.dataset.v;render();document.querySelector('[data-act="pv-mode"][data-v="'+CSS.escape(PV.mode)+'"]')?.focus({preventScroll:true});},
   "pv-tab":a=>{PV.tab=a.dataset.v;render();},
   "pv-date":a=>{UI.date=a.dataset.v;UI.view="day";render();},
   "pv-ai":()=>askAI(),
   "pv-apply":()=>{if(PV&&PV.kind==="manual")return pvApplyManual();pvApply();},
-  "pv-cancel":()=>{if(PV&&PV.kind==="manual")return exitManualPreview(true);restorePreviewContext(UI,PV?.returnContext,setFactory);PV=null;render();toast("已取消，排程沒有改變");maybeReload();},
+  "pv-cancel":()=>{if(PV?.applying)return;if(PV&&PV.kind==="manual")return exitManualPreview(true);restorePreviewContext(UI,PV?.returnContext,setFactory);PV=null;render();toast("已取消，排程沒有改變");maybeReload();},
   // ----- 手動預覽互動導航（只動 PV.nav／UI，不碰正式排程） -----
   "dp-nav":a=>{
     if(!PV||PV.kind!=="manual")return;

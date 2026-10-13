@@ -43,7 +43,7 @@ export class ConflictError extends Error {
 }
 
 export class UnconfirmedWriteError extends Error {
-  constructor(){super('雲端儲存結果待確認，請按重試核對；目前修改仍保留。');this.unconfirmed=true;}
+  constructor(message='雲端儲存結果待確認，請按重試核對；目前修改仍保留。'){super(message);this.unconfirmed=true;}
 }
 function confirmedVersion(value,previous,verifyWriter){
   verifyWriter();
@@ -52,11 +52,11 @@ function confirmedVersion(value,previous,verifyWriter){
   if(!Number.isSafeInteger(value)||value!==previous+1)throw new UnconfirmedWriteError();
   return value;
 }
-function confirmedReceipt(value,verifyWriter){
+function confirmedReceipt(value,verifyWriter,message){
   verifyWriter();
   // save_blocks returns the change-set UUID. Unlike void RPCs, a missing body
   // cannot confirm persistence; leave the optimistic state/baseline untouched.
-  if(typeof value!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value))throw new UnconfirmedWriteError();
+  if(typeof value!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value))throw new UnconfirmedWriteError(message);
 }
 
 export class SupabaseStore {
@@ -394,11 +394,19 @@ export class SupabaseStore {
 
   // 套用排程服務存好的方案（整批在資料庫的一個交易裡完成）
   async applyPlan(previewId, optionId, note, ai) {
-    const { error } = await this.sb.rpc("apply_plan", { p_preview: previewId, p_option: optionId, p_note: note || null, p_ai: ai || null });
+    const client=this.sb,writer=this.session?.user?.id,epoch=this.authEpoch;
+    const message='排程套用結果待確認，請更新班表核對；不要重複套用。';
+    const assertWriter=()=>{if(!writer||this.sb!==client||this.session?.user?.id!==writer||this.authEpoch!==epoch)throw new UnconfirmedWriteError(message);};
+    assertWriter();
+    const { data,error } = await client.rpc("apply_plan", { p_preview: previewId, p_option: optionId, p_note: note || null, p_ai: ai || null });
+    assertWriter();
     if (error) {
       if (error.code === "40001") throw new ConflictError("別人剛更新過排程，請重新計算方案");
       throw new Error(error.message);
     }
+    // apply_plan returns the transaction's change-set UUID, just like save_blocks.
+    // Only an accepted snapshot refresh can advance the baseline.
+    confirmedReceipt(data,assertWriter,message);
   }
 
   // ---------- 即時推送 ----------

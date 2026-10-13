@@ -11,6 +11,7 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "排程套用結果待確認，請更新班表核對；不要重複套用。": {en:"Schedule application is unconfirmed. Refresh the schedule to check; do not apply again.",vi:"Chưa xác nhận áp dụng lịch. Cập nhật bảng lịch để kiểm tra; không áp dụng lại.",th:"ยังยืนยันการใช้แผนไม่ได้ อัปเดตตารางเพื่อตรวจสอบ อย่าใช้แผนซ้ำ"},
   "正在重新連線排程服務，最多等待 45 秒；可取消。": {en:"Reconnecting to the scheduling service for up to 45 seconds. You can cancel.",vi:"Đang kết nối lại dịch vụ lập lịch, tối đa 45 giây. Bạn có thể hủy.",th:"กำลังเชื่อมต่อบริการตารางใหม่ รอสูงสุด 45 วินาที ยกเลิกได้"},
   "計算中，可取消；班表尚未變更。": {en:"Calculating. You can cancel; the schedule has not changed.",vi:"Đang tính. Bạn có thể hủy; lịch chưa thay đổi.",th:"กำลังคำนวณ ยกเลิกได้ ตารางยังไม่เปลี่ยน"},
   "排程資料已改變，請重新計算。": {en:"Schedule data changed. Please calculate again.",vi:"Dữ liệu lịch đã thay đổi. Vui lòng tính lại.",th:"ข้อมูลตารางเปลี่ยนแล้ว กรุณาคำนวณใหม่"},
