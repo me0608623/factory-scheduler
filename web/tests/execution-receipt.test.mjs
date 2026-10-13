@@ -125,6 +125,39 @@ test('real committed confirmation late ACK defers its actual protected reread un
   }finally{await db.close();}
 });
 
+test('real committed report late ACK reconciles once after a new draft closes, without a second report or event',async()=>{
+  const db=await makeDb();try{
+    const actor='44444444-4444-4444-8444-444444444444';await db.query("insert into auth.users(id,email) values($1,'synthetic-late-report@invalid')",[actor]);await db.query("update profiles set role='boss' where user_id=$1",[actor]);
+    const e=(await db.query("select id from employees where name='張三'")).rows[0].id,order=(await db.query("select id from orders where code='A01'")).rows[0].id;
+    await db.query("insert into schedule_blocks(id,order_id,step_seq,machine_id,employee_id,date,start_min,end_min,qty) values($1,$2,0,'a',$3,'2000-01-01',480,540,60)",[block,order,e]);
+    const fake=new FakeSupabase(db,{});fake.uid=actor;const reader=new SupabaseStore(fake);await reader.init();const state=await reader.load();
+    let release,started,calls=0,loads=0;const gate=new Promise(r=>release=r),ready=new Promise(r=>started=r),timers=[],events=[];
+    const sdk=createClient('https://synthetic.invalid','sb_publishable_synthetic_test_key',{accessToken:async()=> 'synthetic',global:{fetch:async(url,options)=>{
+      assert.equal(new URL(url).pathname,'/rest/v1/rpc/report_work_execution');calls++;
+      const result=await fake.rpc('report_work_execution',JSON.parse(options.body));assert.equal(result.error,null);started();await gate;
+      return new Response(JSON.stringify(result.data),{headers:{'Content-Type':'application/json'}});
+    }}});
+    const store=new SupabaseStore(sdk);store.session={user:{id:actor},access_token:'synthetic'};
+    store.load=async options=>{assert.equal(options.remember,false);loads++;return reader.load({remember:false});};
+    const ctx={S:state,UI:{date:'2000-01-01',factory:1,page:'schedule',drawer:null,modal:{t:'execution-report',id:block},prefs:{}},PV:null,drag:null,generalDrag:null,STORE:store,SYNC:{state:'ok'},syncChain:Promise.resolve(),syncPending:0,
+      lastLocalWrite:0,pendingReload:false,reloadTimer:null,remoteLoading:false,setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout:()=>{},normalizeState:()=>{},render:()=>{},
+      notificationEnabled:()=>false,showDeviceNotification:()=>{},canReport:()=>true,reportingRole:()=> 'boss',executionOf,executionRetries:new ExecutionRetries(),undoStack:['keep'],uid:()=>request.id,$:()=>({value:'0'}),
+      toast:x=>events.push(x),tx:x=>x,renderModal:()=>{},closeModal:()=>{ctx.UI.modal=null;}};
+    const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');vm.createContext(ctx);
+    let at=source.indexOf('function directWriteOwner(');vm.runInContext(source.slice(at,source.indexOf('async function runDrawerWrite(',at)),ctx);
+    at=source.indexOf('async function reloadFromStore(');vm.runInContext(source.slice(at,source.indexOf('// ---------- 帳號與連線',at)),ctx);
+    at=source.indexOf('async function reportWork(');vm.runInContext(source.slice(at,source.indexOf('// ---------- 工作內容',at)),ctx);
+    const running=ctx.reportWork({disabled:false,dataset:{v:'start'}});await ready;
+    const draft={t:'new-draft',name:'synthetic unsaved'};ctx.UI.modal=draft;ctx.undoStack=['new-draft'];release();await running;
+    assert.equal(ctx.UI.modal,draft);assert.equal(ctx.S,state);assert.equal(ctx.S.execution.length,0);assert.equal(loads,0);assert.equal(timers.length,0);
+    assert.equal(ctx.pendingReload,true);assert.equal(ctx.executionRetries.has(store),false,'valid receipt clears the dispatched retry');
+    ctx.closeModal();ctx.maybeReload();assert.equal(timers.length,1);await timers.shift()();
+    assert.equal(loads,1);assert.equal(ctx.S.execution[0].status,'running');assert.equal(ctx.S.execution[0].revision,1);assert.equal(ctx.S.version,1);assert.equal(store.version,1);assert.equal(ctx.UI.modal,null);
+    assert.equal(calls,1);assert.equal(events.length,0);assert.equal(ctx.undoStack[0],'new-draft');assert.equal((await db.query('select count(*)::int n from work_execution_events')).rows[0].n,1);
+    const planned=(await db.query('select start_min,end_min,qty from schedule_blocks where id=$1',[block])).rows[0];assert.deepEqual(planned,{start_min:480,end_min:540,qty:60});
+  }finally{await db.close();}
+});
+
 test('real migrated report lost ACK stays uncertain, then same-ID retry returns one event without a second version bump',async()=>{
   const db=await makeDb();try{
     const actor='44444444-4444-4444-8444-444444444444';await db.query("insert into auth.users(id,email) values($1,'synthetic@invalid')",[actor]);await db.query("update profiles set role='boss' where user_id=$1",[actor]);

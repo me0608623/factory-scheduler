@@ -4671,7 +4671,11 @@ async function reportWork(button){
   try{
     await syncChain;if(!owner.current())return;
     if(SYNC.state!=='ok'){m.error=tx('班表尚未確認儲存，請先核對班表儲存狀態，再回報進度。');return;}
-    executionRetries.remember(owner.store,request);dispatched=true;await owner.store.reportExecution(request);executionRetries.clear(owner.store,request);if(!owner.current())return;
+    executionRetries.remember(owner.store,request);dispatched=true;await owner.store.reportExecution(request);executionRetries.clear(owner.store,request);
+    if(!owner.current()){
+      // Keep a conclusive report fresh without touching a newer draft or actor.
+      if(owner.sameSession())pendingReload=true;return;
+    }
     m.pendingRequest=null;m.reportOwner=null;delete m.qtyDraft;undoStack=[];
     await reconcile(tx('進度已保存'));
   }
