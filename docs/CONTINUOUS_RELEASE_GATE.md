@@ -40,6 +40,11 @@
 - 沿途確認第三個私密輸出缺陷：age已正確解密但manifest JSON損壞時，原CLI會印出解密內容片段（真正age＋CLI測試修前失敗）。CLI改固定安全訊息，清除明文的既有防護仍驗證；export API保留私下caller錯誤。新增1項真正age回歸。工具**38/38**、web**449/449**與build全過；大chunk警告既有未改。
 - 密文artifact11791661615實查未過期（05:40:54Z建立），預定在同SHA CI綠後用它執行一次隔離catalog；不建立新明文備份、不讀正式DB。不把觸發workflow當還原成功，後續記錄run、各步與公開artifact內容。CI及實際PG17盤點結果待追加。
 - PR16/18仍draft，第二帳號與真正排程套用／跨端同步門檻仍缺，nightly仍disabled_manually，10分鐘Codex追蹤ACTIVE。下輪先核對本輪實證，再修permissions-drill密文相容與公開輸出，持續探索，不自行結案。
+- 修正提交 **7912a3d569d1ef2e59821012df0f650322fd0345** 已推；Tests **38379110463／38379115855**三job全success，smoke **38379115741** success。6個catalog Bash run區塊另以實際bundled Git Bash `bash -n`通過；這只作語法輔證，真SQL／CLI與以下真PG17才是功能證據。
+- 真隔離盤點 **38379527666** 使用同密文11791661615，下載、age解密與scope/checksum、新鮮度驗證、PG17 public還原、唯讀查詢、報告及always清理各step全部success。唯一公開artifact **11803036790**／catalog-inventory／942 ZIP bytes，下載實查只有inventory.md，29項統計且無原始代號、名稱、日期、排程／身份資料。副本顯示啟用產品0，缺漏站數0 **不能解讀成正式資料可排或OR-Tools通過**；這輪沒有核定資料／建立產品，也沒有碰正式1023。
+- 公開run log檢查：未出現age私鑰／JWT；模式掃描的3個UUID實查都是Actions worker或checkout暫存目錄，1個email為npm第三方公開棄用警告，非備份身份資料。查證時只顯示已遮罩的上下文，沒有把原始query stderr或解密資料追加到log。這是本run人工來源核對，不是聲稱所有歷史log無敏感資料；既有舊artifact/log保留。
+- 發現下輪必修的驗收假綠：permissions-drill D的原有rows()把docker/psql exit=1經grep -c及`|| true`轉成成功0列，預期RLS拒絕的0列斷言可能誤過。讀取原函式並在實際bundled Git Bash執行，僅mock docker回傳SYNTHETIC_SQL_FAILURE＋exit1，確實得到exit0／stdout0；沒有聯絡Docker或資料庫。首次嘗試一般Program Files Git Bash路徑不存在，改用現有hermes/git/bin/bash.exe才完成實證。**尚未修此函式，不dispatch permissions-drill**；下一輪須補QUERY_FAILED與真正0列的分辨回歸，連同密文及輸出隱私修復，不只刪除log文案。
+- PR16工作樹及remote均乾淨一致、無modifier，普通merge同步到 **63d1609232af222a00a19fbb93033a70d323cbb9** 已推，保留原banner對比與cloud-seed preflight；未force push、未合入main。Tests **38379664662／38379670951**目前in_progress，smoke **38379670925**success，下輪先核對完成結果，不冒稱最新PR16已全綠。舊nightly367614493本輪再次核對disabled_manually；不改正式/staging Render服務或環境变量。
 
 #### 2026-10-13 17:12 heartbeat：訂閱成功補漏讀取與雲端啟動失敗防護
 
