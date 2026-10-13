@@ -89,7 +89,7 @@ jobs:
           docker run --rm --network sim-net -v "$PWD/restored:/backup" -e PGPASSWORD=sim postgres:17 \
             sh -c "pg_restore --no-owner --no-privileges --exit-on-error --disable-triggers --section=pre-data --section=data -h sim-pg -U postgres -d postgres /backup/$DUMP_BASE" \
             > /tmp/p1.out 2> /tmp/p1.err || P1=$?
-          [ "$P1" = "0" ] || { echo "Phase1 failed"; tail -30 /tmp/p1.err; exit 1; }
+          [ "$P1" = "0" ] || { echo "Phase1 failed; private restore diagnostics withheld"; exit 1; }
           docker run --rm -v "$PWD/restored:/backup" postgres:17 \
             sh -c "pg_restore -f /dev/stdout --section=post-data /backup/$DUMP_BASE" > /tmp/post-data.sql 2>/dev/null || true
           FK_PAIRS=$(awk '
@@ -107,7 +107,7 @@ jobs:
           docker run --rm --network sim-net -v "$PWD/restored:/backup" -e PGPASSWORD=sim postgres:17 \
             sh -c "pg_restore --no-owner --no-privileges --exit-on-error --section=post-data -h sim-pg -U postgres -d postgres /backup/$DUMP_BASE" \
             > /tmp/p3.out 2> /tmp/p3.err || P3=$?
-          [ "$P3" = "0" ] || { echo "Phase3 failed"; tail -30 /tmp/p3.err; exit 1; }
+          [ "$P3" = "0" ] || { echo "Phase3 failed; private restore diagnostics withheld"; exit 1; }
           # 複製 Supabase 授權模型（廣泛 GRANT＋RLS；內部函式收回）
           docker exec sim-pg psql -U postgres -d postgres -q -c \
             "GRANT USAGE ON SCHEMA public, auth TO PUBLIC; \
@@ -149,3 +149,4 @@ jobs:
           docker network rm sim-net >/dev/null 2>&1 || true
           rm -rf -- "$RUNNER_TEMP/db-sim-decrypted" "$GITHUB_WORKSPACE/restored"
           rm -f -- "$RUNNER_TEMP/backup-identity"
+          rm -f -- /tmp/p1.out /tmp/p1.err /tmp/p3.out /tmp/p3.err /tmp/post-data.sql
