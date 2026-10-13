@@ -245,10 +245,17 @@ export class SupabaseStore {
   }
   async confirmExecution(blockId, confirmed) {
     const client=this.sb,assertOwner=this.requestOwnerGuard();
-    const {data,error}=await assertOwner.authorize(client.rpc('confirm_work_execution',{p_block:blockId,p_confirmed:confirmed}));assertOwner();
-    if(error)throw new Error(error.message);
+    const pending='完工確認結果待核對，請更新班表查看；不要重複送出。';
+    const {data,error,status}=await assertOwner.authorize(client.rpc('confirm_work_execution',{p_block:blockId,p_confirmed:confirmed}));assertOwner();
+    if(error){
+      if((['42501','P0001','P0002'].includes(error.code)&&(status==null||status>=400&&status<500))||
+        (error.code==='PGRST202'&&status===404))throw Object.assign(new Error(error.message),{rejected:true});
+      // A gateway failure may hide a committed confirmation. This RPC has no
+      // replay ID: ask for a read, never claim it failed or invite a resend.
+      throw new UnconfirmedWriteError(pending);
+    }
     if(!data||Array.isArray(data)||!receiptBlock(data.blockId,blockId)||typeof data.confirmed!=='boolean'||data.confirmed!==confirmed||
-      !Number.isSafeInteger(data.version)||data.version<1)throw new UnconfirmedWriteError('完工確認結果待核對，請更新班表查看；不要重複送出。');
+      !Number.isSafeInteger(data.version)||data.version<1)throw new UnconfirmedWriteError(pending);
     return data;
   }
 
