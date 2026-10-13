@@ -19,3 +19,18 @@ export function safeSnapshotDebug(snapshot,pickedIds=[]){
         (Array.isArray(e.overtime_weekdays)?!e.overtime_weekdays.includes(new Date(day+'T00:00:00Z').getUTCDay()):e.no_overtime))))).length,
   };
 }
+
+export function anonymizeSolverRequest(request){
+  const copy=structuredClone(request);
+  for(const [index,e] of (copy.snapshot?.employees||[]).entries()){
+    e.name=`TEST-E${String(index+1).padStart(2,'0')}`;
+    for(const key of ['source_ref','source_notes','source_employee_code','catalog_sources','identity_candidates'])delete e[key];
+  }
+  for(const o of copy.snapshot?.orders||[])delete o.note;
+  for(const m of copy.snapshot?.machines||[]){
+    m.label=`TEST-M${m.id}`;
+    delete m.source_ref;
+    for(const f of m.faults||[])delete f.note;
+  }
+  return copy;
+}

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {safeSnapshotDebug} from './sim-debug.mjs';
+import {safeSnapshotDebug,anonymizeSolverRequest} from './sim-debug.mjs';
 test('snapshot debug never emits names, source references, identifiers, notes or leave dates',()=>{
   const snapshot={calendar:{week:[false,true,true,true,true,true,false],
     windows:[{start:480,end:720,overtime:false,note:'PRIVATE-NOTE'}],holidays:{'2026-10-14':'PRIVATE-HOLIDAY'}},
@@ -25,4 +25,15 @@ test('empty snapshot is safe and sensitive fields are never dereferenced',()=>{
   for(const key of ['name','source_ref','source_notes'])Object.defineProperty(e,key,{get(){throw Error('private read');}});
   assert.doesNotThrow(()=>safeSnapshotDebug({employees:[e]},['1']));
   assert.equal(safeSnapshotDebug({}).counts.blocks,0);
+});
+test('solver diagnostics receive pseudonyms without altering identities, constraints or source snapshot',()=>{
+  const request={snapshot:{employees:[{id:'id1',name:'PRIVATE-NAME',source_ref:'PRIVATE-SOURCE',skills:['m1'],leaves:['2026-10-14']}],
+    orders:[{id:'o1',note:'PRIVATE-NOTE',qty:120}],machines:[{id:'m1',label:'PRIVATE-LABEL',faults:[{start:480,end:540,note:'PRIVATE-FAULT'}]}]}};
+  const copy=anonymizeSolverRequest(request);
+  assert.doesNotMatch(JSON.stringify(copy),/PRIVATE-/);
+  assert.equal(copy.snapshot.employees[0].id,'id1');
+  assert.deepEqual(copy.snapshot.employees[0].skills,['m1']);
+  assert.deepEqual(copy.snapshot.employees[0].leaves,['2026-10-14']);
+  assert.equal(request.snapshot.employees[0].name,'PRIVATE-NAME');
+  assert.equal(request.snapshot.orders[0].note,'PRIVATE-NOTE');
 });

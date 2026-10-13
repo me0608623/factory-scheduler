@@ -17,7 +17,7 @@ import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import {safeSnapshotDebug} from '../../tools/sim-debug.mjs';
+import {safeSnapshotDebug,anonymizeSolverRequest} from '../../tools/sim-debug.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const solverDir = path.resolve(root, "solver");
@@ -108,7 +108,7 @@ process.on("uncaughtException", (e) => {
 // ---------- solver（runner 上執行；失敗即整案失敗） ----------
 function solve(request) {
   const child = spawnSync("uv", ["run", "--frozen", "python", "-m", "scripts.plan_stdio"], {
-    cwd: solverDir, input: JSON.stringify(request), encoding: "utf8", timeout: 120000, maxBuffer: 32 * 1024 * 1024,
+    cwd: solverDir, input: JSON.stringify(anonymizeSolverRequest(request)), encoding: "utf8", timeout: 120000, maxBuffer: 32 * 1024 * 1024,
   });
   if (child.error || child.status !== 0) throw new Error(`solver 失敗：${clean(child.error?.message || child.stderr?.slice(-400) || "exit " + child.status)}`);
   return JSON.parse(child.stdout);
@@ -324,18 +324,33 @@ await runCase("C4 機台故障（兩階段・故障適應實際區段）", async
   return out.length ? "FAIL" : "PASS";
 });
 
-await runCase("C5 交期不足（軟限制）", async (out) => {
+await runCase("C5 交期不足（求解軟限制＋新單逾期套用閘門）", async (out) => {
   const ev = orderEvent("TEST-O5", P2, 1200, 1);
-  const plan = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: ev, now, time_limit: 3 });
+  const snapshot = JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`));
+  const plan = solve({ snapshot, event: ev, now, time_limit: 3 });
   console.error(`[選項] 共${(plan.options||[]).length}個：${(plan.options||[]).map(o=>o.id+(o.applicable?"+":"-")+(o.solver_method==="keep"?"k":"")).join("")}`);
-  const opt = plan.options.find((o) => o.applicable && o.solver_method !== "keep");
-  if (!opt) { noOpt(plan, out, "逾期訂單應仍可套用（軟限制）——卻無可套用方案"); return "FAIL"; }
+  // Solver lateness is soft, but since 2026-09-26 the product deliberately
+  // rejects inserting a newly late order (test_edges.py locks that contract).
+  // Verify both layers instead of weakening the application gate to pass QA.
+  const opt = plan.options.find((o) => ['OPTIMAL','FEASIBLE'].includes(o.status) && o.solver_method !== "keep");
+  if (!opt) { noOpt(plan, out, "軟交期仍應產出完整可行解"); return "FAIL"; }
+  if (plan.options.some(o => o.applicable)) out.push("必然逾期的新單不應有可直接套用方案");
   const summary = [JSON.stringify(plan.options.map((o) => o.diagnostics || [])), JSON.stringify(plan.summary || plan.options.map((o) => o.lines || []))].join(" ");
   if (!/超過期限/.test(summary)) out.push("方案資訊未標示逾期（超過期限）");
-  await applyOption(plan, ev, opt.id, "TEST-O5");
-  if (await stationQty("TEST-O5", 0) !== 1200 || await stationQty("TEST-O5", 1) !== 1200) out.push("站件數≠1200");
-  const end = await lastBlockAbs("TEST-O5");
+  const blocks=opt.blocks.filter(b=>b.order===ev.order.id);
+  for (const step of [0,1]) if(blocks.filter(b=>b.step===step).reduce((n,b)=>n+b.qty,0)!==1200) out.push(`站 ${step} 件數≠1200`);
+  const issues=solve({mode:'check',snapshot:{...snapshot,orders:[...snapshot.orders,ev.order],blocks:opt.blocks},now}).issues;
+  if(issues.length)out.push('逾期方案獨立驗證未過：'+clean(JSON.stringify(issues)).slice(0,300));
+  const end = blocks.length?Math.max(...blocks.map(b=>dayIdx(b.date)*1440+b.end)):-1;
   if (end <= dayIdx(D(1)) * 1440 + 1020) out.push("完工未超過交期（與逾期診斷矛盾）");
+  const version=await stateVersion();
+  await s.one('SAVEPOINT reject_late_order');
+  let rejected=false;
+  try{await applyOption(plan,ev,opt.id,'TEST-O5 rejected');}
+  catch(error){rejected=/不能套用/.test(error.message);}
+  await s.one('ROLLBACK TO SAVEPOINT reject_late_order');
+  if(!rejected)out.push('資料庫未以不能套用拒絕逾期新單');
+  if(await stateVersion()!==version||(await orderBlocks('TEST-O5'))!=='[]')out.push('拒絕逾期新單後資料／版本改變');
   return out.length ? "FAIL" : "PASS";
 });
 

@@ -44,8 +44,8 @@ def test_overlapping_real_manual_work_must_still_be_infeasible():
     snap = fixture()
     from app.schemas import WorkAssignment
     snap.work_assignments = [
-        WorkAssignment(id="TEST-W01", emp="TEST-E01", contentId="TEST-content", date="2026-10-12", s=480, e=600),
-        WorkAssignment(id="TEST-W02", emp="TEST-E01", contentId="TEST-content", date="2026-10-12", s=540, e=660),
+        WorkAssignment(id="TEST-W01", emp="TEST-E01", workId="TEST-content", date="2026-10-12", s=480, e=600),
+        WorkAssignment(id="TEST-W02", emp="TEST-E01", workId="TEST-content", date="2026-10-12", s=540, e=660),
     ]
     result = solve(snap, Now(date="2026-10-12", min=480), PRESETS["on_time"], time_limit=2)
     assert result.status == "INFEASIBLE"
