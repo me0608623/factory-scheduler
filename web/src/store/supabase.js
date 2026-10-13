@@ -222,6 +222,7 @@ export class SupabaseStore {
   async load({remember=true}={}) {
     const { data, error } = await this.sb.rpc("schedule_snapshot");
     if (error) throw new Error("讀取排程失敗：" + error.message);
+    if(!data||typeof data!=='object'||Array.isArray(data))throw new Error('讀取排程失敗：伺服器沒有回傳有效排程，請重新整理後再試');
     const S = fromSnapshot(data);
     const { data: logs } = await this.sb.from("change_sets").select("*").order("created_at", { ascending: false }).limit(200);
     S.log = (logs || []).map(logFromDb);
