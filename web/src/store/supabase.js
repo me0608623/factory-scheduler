@@ -58,6 +58,19 @@ function confirmedReceipt(value,verifyWriter,message){
   // cannot confirm persistence; leave the optimistic state/baseline untouched.
   if(typeof value!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value))throw new UnconfirmedWriteError(message);
 }
+const receiptUuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+const receiptBlock=(value,expected)=>receiptUuid(value)&&typeof expected==='string'&&value.toLowerCase()===expected.toLowerCase();
+const receiptTime=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}T/.test(value)&&Number.isFinite(Date.parse(value));
+function confirmedExecutionReceipt(value,request){
+  // A replay returns its original version, which may precede today's snapshot.
+  // Validate against the dispatched operation, not store.version + 1.
+  if(!value||Array.isArray(value)||!['start','quantity','finish'].includes(request.action)||!receiptBlock(value.blockId,request.blockId)||!receiptUuid(value.employeeId)||
+    value.status!==(request.action==='finish'?'done':'running')||!Number.isSafeInteger(value.qtyDone)||value.qtyDone<0||value.qtyDone!==request.qtyDone||
+    !Number.isSafeInteger(request.expectedRevision)||request.expectedRevision<0||!Number.isSafeInteger(value.revision)||value.revision<1||value.revision!==request.expectedRevision+1||
+    !Number.isSafeInteger(value.version)||value.version<1||!receiptTime(value.startedAt)||
+    (request.action==='finish'?(!receiptTime(value.finishedAt)||Date.parse(value.finishedAt)<Date.parse(value.startedAt)):value.finishedAt!==null))throw new UnconfirmedWriteError();
+  return value;
+}
 
 export class SupabaseStore {
   kind = "supabase";
@@ -211,14 +224,18 @@ export class SupabaseStore {
   }
   async reportExecution(request) {
     const client=this.sb,assertOwner=this.requestOwnerGuard();
-    const {data,error}=await assertOwner.authorize(client.rpc('report_work_execution',{p_request:request.id,p_block:request.blockId,p_action:request.action,p_qty:request.qtyDone,p_revision:request.expectedRevision}));assertOwner();
+    const dispatched={blockId:request.blockId,action:request.action,qtyDone:request.qtyDone,expectedRevision:request.expectedRevision};
+    const {data,error}=await assertOwner.authorize(client.rpc('report_work_execution',{p_request:request.id,p_block:dispatched.blockId,p_action:dispatched.action,p_qty:dispatched.qtyDone,p_revision:dispatched.expectedRevision}));assertOwner();
     if(error){if(error.code==='40001')throw new ConflictError('進度已被更新，請重新載入');throw Object.assign(new Error(error.message),{rejected:!!error.code});}
-    return data;
+    return confirmedExecutionReceipt(data,dispatched);
   }
   async confirmExecution(blockId, confirmed) {
     const client=this.sb,assertOwner=this.requestOwnerGuard();
-    const {error}=await assertOwner.authorize(client.rpc('confirm_work_execution',{p_block:blockId,p_confirmed:confirmed}));assertOwner();
+    const {data,error}=await assertOwner.authorize(client.rpc('confirm_work_execution',{p_block:blockId,p_confirmed:confirmed}));assertOwner();
     if(error)throw new Error(error.message);
+    if(!data||Array.isArray(data)||!receiptBlock(data.blockId,blockId)||typeof data.confirmed!=='boolean'||data.confirmed!==confirmed||
+      !Number.isSafeInteger(data.version)||data.version<1)throw new UnconfirmedWriteError('完工確認結果待核對，請更新班表查看；不要重複送出。');
+    return data;
   }
 
   // 舊版 Excel 作為獨立歷史資料儲存，絕不更動目前排程快照。

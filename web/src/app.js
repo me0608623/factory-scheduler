@@ -992,7 +992,7 @@ const priTag=o=>o.pri===0?'<span class="tag bad">'+tx('特急')+'</span> ':o.pri
 function orderRow(o){const p=prod(o.pid),route=orderRoute(o,S.products).map(factoryName).join(' → ');
   return '<button class="orow" data-act="ord" data-id="'+o.id+'"><span class="code">'+esc(o.code)+'</span><span class="meta">'+priTag(o)+esc(p?p.name:"?")+' '+o.qty+'件 · '+esc(route)+' · 期限 '+md(o.due)+(o.note?' · 備註：'+esc(String(o.note).slice(0,20)):'')+'</span>'+statusTag(o)+'</button>';}
 function logRow(l){const dt=new Date(l.t);
-  return '<button class="lrow" data-act="logone" data-id="'+l.id+'"><span class="ic '+l.kind+'">'+(LOGIC[l.kind]||"・")+'</span><span class="tx">'+esc(l.title)+'<small>'+(dt.getMonth()+1)+"/"+dt.getDate()+" "+pad(dt.getHours())+":"+pad(dt.getMinutes())+(l.lines&&l.lines.length?" · "+l.lines.length+" 項調整":"")+'</small></span></button>';}
+  return '<button class="lrow" data-act="logone" data-id="'+l.id+'"><span class="ic '+l.kind+'">'+tx(LOGIC[l.kind]||"・")+'</span><span class="tx">'+esc(l.title)+'<small>'+(dt.getMonth()+1)+"/"+dt.getDate()+" "+pad(dt.getHours())+":"+pad(dt.getMinutes())+(l.lines&&l.lines.length?" · "+tx('{n} 項調整',{n:l.lines.length}):"")+'</small></span></button>';}
 
 /* ----- 日檢視：像 Excel 的時間 × 機台表 ----- */
 function dayHTML(ctx={}){
@@ -1900,25 +1900,25 @@ function legacyCatalogHTML(catalog,factory){
 
 function resourceLoadHTML(){
   const report=resourceLoad(S,UI.date,dayInfo(UI.date).win,UI.factory);
-  const duration=n=>n===null?'待確認':n+' 分';
+  const duration=n=>n===null?tx('待確認'):tx('{n} 分',{n});
   const rows=(items,employee)=>items.map(r=>{
-    const warnings=[r.overloadMinutes>0?(employee?'超出顧機上限 ':'機台工作重疊 ')+duration(r.overloadMinutes):'',
-      r.outsideMinutes>0?'不在可用時段 '+duration(r.outsideMinutes):'',r.invalidFaults?'故障時間格式異常':''].filter(Boolean);
-    const availability=r.pending?'資料待確認':r.availableMinutes===0?(employee&&r.leave?'當日請假':'當日無可用時段'):'可用 '+duration(r.availableMinutes);
+    const warnings=[r.overloadMinutes>0?tx(employee?'超出顧機上限 {d}':'機台工作重疊 {d}',{d:duration(r.overloadMinutes)}):'',
+      r.outsideMinutes>0?tx('不在可用時段 {d}',{d:duration(r.outsideMinutes)}):'',r.invalidFaults?tx('故障時間格式異常'):''].filter(Boolean);
+    const availability=r.pending?tx('資料待確認'):r.availableMinutes===0?(employee&&r.leave?tx('當日請假'):tx('當日無可用時段')):tx('可用 {d}',{d:duration(r.availableMinutes)});
     const rate=r.utilization===null?'—':Math.round(r.utilization*100)+'%';
-    const free=r.pending?'尚不能計算空檔':r.longest?'最長空檔 '+hm(r.longest[0])+'–'+hm(r.longest[1])+'（'+duration(r.longest[1]-r.longest[0])+'）':'沒有可用空檔';
+    const free=r.pending?tx('尚不能計算空檔'):r.longest?tx('最長空檔 {a}–{b}（{d}）',{a:hm(r.longest[0]),b:hm(r.longest[1]),d:duration(r.longest[1]-r.longest[0])}):tx('沒有可用空檔');
     return '<article class="load-row"><div class="load-row-head"><b>'+esc(r.name)+'</b><span class="tag mute">'+factoryName(r.factory)+'</span><span class="spacer"></span><span>'+rate+'</span></div>'+
       '<div class="load-bar" aria-label="'+tx('{name} 可用時段占用率 {rate}',{name:esc(r.name),rate})+'"><span style="width:'+(r.utilization===null?0:Math.min(100,Math.max(0,r.utilization*100)))+'%"></span></div>'+
-      '<div class="hint">'+esc(availability)+' · 已排 '+r.blockCount+' 段 · 占用 '+duration(r.busyMinutes)+
-      (employee?' · 工作時段合計 '+duration(r.assignedMinutes)+' · 最高占用容量 '+r.peak+(r.limit===null?'（上限待確認）':' / 顧機上限 '+r.limit):r.faultMinutes>0?' · 故障占用 '+duration(r.faultMinutes):'')+'</div>'+
-      '<div class="hint">'+esc(free)+(r.pending?'':' · 總空檔 '+duration(r.freeMinutes))+'</div>'+
+      '<div class="hint">'+esc(availability)+' · '+tx('已排 {n} 段',{n:r.blockCount})+' · '+tx('占用 {d}',{d:duration(r.busyMinutes)})+
+      (employee?' · '+tx('工作時段合計 {d}',{d:duration(r.assignedMinutes)})+' · '+tx('最高占用容量 {p}',{p:r.peak})+(r.limit===null?tx('（上限待確認）'):tx('{p} / 顧機上限 {l}',{p:r.peak,l:r.limit})):r.faultMinutes>0?' · '+tx('故障占用 {d}',{d:duration(r.faultMinutes)}):'')+'</div>'+
+      '<div class="hint">'+esc(free)+(r.pending?'':' · '+tx('總空檔 {d}',{d:duration(r.freeMinutes)}))+'</div>'+
       warnings.map(t=>'<div class="issue">'+esc(t)+'</div>').join('')+'</article>';
   }).join('')||'<div class="empty">'+tx('此範圍沒有資源')+'</div>';
   const anomalies=report.invalidBlocks+report.missingResources+report.invalidWindows;
   return {title:tx('當日負荷')+' · '+mdw(UI.date),body:
-    '<div class="hint">'+esc(UI.factory==='all'?'兩廠全體資源':factoryName(UI.factory))+' · 分析目前畫面的排程，不套用名冊分組篩選，也不改排程。同步狀態請看右上角；週檢視仍分析上方選定的單日。</div>'+
-    '<div class="hint">占用率 = 可用時段內的占用時間 ÷ 可用時間。午休、停工、故障、請假及個人加班設定均扣除。一人同時顧多台時，占用時間不重複加總，機台工作合計另列；重疊或超限另外警示。</div>'+
-    '<div class="hint">空檔只代表時間未被占用，不保證技能、物料、工序或交期允許排入；負荷高也不等於已確認的生產瓶頸。待確認名冊不推測可用產能。</div>'+
+    '<div class="hint">'+esc(UI.factory==='all'?tx('兩廠全體資源'):factoryName(UI.factory))+' · '+tx('分析目前畫面的排程，不套用名冊分組篩選，也不改排程。同步狀態請看右上角；週檢視仍分析上方選定的單日。')+'</div>'+
+    '<div class="hint">'+tx('占用率 = 可用時段內的占用時間 ÷ 可用時間。午休、停工、故障、請假及個人加班設定均扣除。一人同時顧多台時，占用時間不重複加總，機台工作合計另列；重疊或超限另外警示。')+'</div>'+
+    '<div class="hint">'+tx('空檔只代表時間未被占用，不保證技能、物料、工序或交期允許排入；負荷高也不等於已確認的生產瓶頸。待確認名冊不推測可用產能。')+'</div>'+
     (anomalies?'<div class="issue">有 '+report.invalidBlocks+' 段工作時間異常、'+report.missingResources+' 段缺少人員／機台對照、'+report.invalidWindows+' 個上班時段異常；統計可能不完整，請先檢查資料。</div>':'')+
     '<h4>'+tx('機台／操作位置')+'</h4><div class="load-list">'+rows(report.machines,false)+'</div>'+
     '<h4>'+tx('員工')+'</h4><div class="load-list">'+rows(report.employees,true)+'</div>',
@@ -1932,7 +1932,7 @@ const MODALS={
     return p.steps.map((st,step)=>({o,p,st,step,remaining:remainingQty(o.qty,S.blocks,o.id,step,null,S.execution||[])}))
       .filter(x=>x.remaining>0&&(UI.factory==="all"||factoryOf(x.st)===UI.factory));
   });
-  if(!choices.length)return {title:tx('手動排班'),body:'<div class="hint">目前沒有可新增的工作：此廠工序已排滿，或尚未建立工單。可先新增工單，再回來安排人員與時段。</div>',
+  if(!choices.length)return {title:tx('手動排班'),body:'<div class="hint">'+tx('目前沒有可新增的工作：此廠工序已排滿，或尚未建立工單。可先新增工單，再回來安排人員與時段。')+'</div>',
     foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button><button class="btn primary" data-act="ord-new">'+tx('＋新增工單')+'</button>'};
   if(!m.draft){const start=UI.date===todayStr()?Math.max(DAY0,Math.ceil(nowMin()/10)*10):DAY0;
     m.draft={choice:m.choice||choices[0].o.id+":"+choices[0].step,machine:"",employee:"",s:Math.min(start,DAY1-10),e:Math.min(DAY1,Math.min(start,DAY1-10)+60)};}
@@ -1974,16 +1974,16 @@ ot(m){
   const available=shownEmployees().filter(e=>!e.leaves.includes(d)&&(m.overrides[e.id]===null?overtimeDefault(e,d):m.overrides[e.id])).length;
   const people=shownEmployees().map(e=>{
     const base=overtimeDefault(e,d),value=m.overrides[e.id],yes=value===null?base:value;
-    return '<div class="ot-person"><div class="ot-person-title"><b>'+esc(e.name)+'</b><small>固定星期：'+(base?'可加班':'不加班')+(value===null?'':' · 今天臨時調整')+(e.leaves.includes(d)?' · 請假':'')+'</small></div>'+
+    return '<div class="ot-person"><div class="ot-person-title"><b>'+esc(e.name)+'</b><small>'+tx('固定星期')+'：'+(base?tx('可加班'):tx('不加班'))+(value===null?'':' · '+tx('今天臨時調整'))+(e.leaves.includes(d)?' · '+tx('請假'):'')+'</small></div>'+
       '<div class="toggles"><button class="tg" data-act="ot-person" data-id="'+esc(e.id)+'" data-v="1" aria-label="'+tx('{name} 今天可加班',{name:esc(e.name)})+'" aria-pressed="'+!!yes+'">'+tx('今天可加班')+'</button>'+
       '<button class="tg" data-act="ot-person" data-id="'+esc(e.id)+'" data-v="0" aria-label="'+tx('{name} 今天不加班',{name:esc(e.name)})+'" aria-pressed="'+!yes+'">'+tx('今天不加班')+'</button>'+
       (value===null?'':'<button class="btn" data-act="ot-reset" data-id="'+esc(e.id)+'" aria-label="'+tx('{name} 恢復固定設定',{name:esc(e.name)})+'">'+tx('恢復固定設定')+'</button>')+'</div></div>';
   }).join("");
   return {title:tx("{date} 加班設定",{date:mdw(d)}),body:
-    '<div class="field"><span class="lab">'+tx('今天是否開放加班')+'</span><div class="toggles">'+tg("ot-day","1",m.open,"開放加班")+tg("ot-day","0",!m.open,"不開放")+'</div></div>'+
+    '<div class="field"><span class="lab">'+tx('今天是否開放加班')+'</span><div class="toggles">'+tg("ot-day","1",m.open,tx('開放加班'))+tg("ot-day","0",!m.open,tx('不開放'))+'</div></div>'+
     (m.open?'<div class="field"><label for="ot-end">'+tx('加班到幾點')+'</label><select class="inp" id="ot-end">'+[1050,1080,1110,1140,1170,1200].map(t=>'<option value="'+t+'"'+(m.otEnd===t?" selected":"")+'>'+hm(t)+'</option>').join("")+'</select></div>':"")+
-    '<div class="hint">依員工的固定星期預先顯示。下面只調整今天，不會改到其他同星期的日期；請假者仍不排工作。</div>'+
-    '<div class="field"><span class="lab">今天可加班 '+available+' 人</span><div class="ot-people">'+people+'</div></div>',
+    '<div class="hint">'+tx('依員工的固定星期預先顯示。下面只調整今天，不會改到其他同星期的日期；請假者仍不排工作。')+'</div>'+
+    '<div class="field"><span class="lab">'+tx('今天可加班 {n} 人',{n:available})+'</span><div class="ot-people">'+people+'</div></div>',
     foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="ot-save">'+tx('確認並套用到排程')+'</button>'};
 },
 emp(m){
@@ -2203,9 +2203,10 @@ MODALS.cal=m=>{
   const D=m.draft,ro=!canCalendar(),T=todayStr();
   const openD=d=>{const o=D.over[d];return o?o==="work":!!D.week[parseD(d).getUTCDay()];};
   const hol=Object.keys(HOLI).filter(d=>d>=T&&d<=addDays(T,120)).sort();
-  const body='<div class="field"><span class="lab">'+tx('每週固定上班的日子')+'</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("c-week",w,D.week[w],"週"+WD[w],"",ro)).join("")+'</div></div>'+
+  const WEEK_LABELS=["週日","週一","週二","週三","週四","週五","週六"];   // 查表避免 tx 複合鍵（終極棘輪）
+  const body='<div class="field"><span class="lab">'+tx('每週固定上班的日子')+'</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("c-week",w,D.week[w],tx(WEEK_LABELS[w]),"",ro)).join("")+'</div></div>'+
    '<div class="field"><span class="lab">'+tx('接下來的國定假日（預設照常上班，只標示工資加倍）')+'</span><div class="result">'+
-   (hol.map(d=>'<div class="rline" style="align-items:center"><span style="flex:1">'+mdw(d)+"　"+esc(HOLI[d])+'</span>'+tg("c-day",d,openD(d),openD(d)?"上班":"停工","",ro)+'</div>').join("")||'<div class="empty">'+tx('近期沒有國定假日')+'</div>')+'</div></div>'+
+   (hol.map(d=>'<div class="rline" style="align-items:center"><span style="flex:1">'+mdw(d)+"　"+esc(HOLI[d])+'</span>'+tg("c-day",d,openD(d),openD(d)?tx('上班'):tx('停工'),"",ro)+'</div>').join("")||'<div class="empty">'+tx('近期沒有國定假日')+'</div>')+'</div></div>'+
    '<div class="hint">'+tx('其他單日要停工或加開，直接到那一天按「改為停工／改為上班」。')+'</div>';
   return {title:tx('上班日設定'),body,foot:ro?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="c-save">'+tx('儲存')+'</button>'};
 };
@@ -4416,7 +4417,7 @@ Object.assign(MODAL_ACT,{
 
 // ---------- 分組：一人可多組，部門與廠別不是技能限制 ----------
 MODALS.groups=()=>({title:tx('員工分組／部門'),body:
-  '<div class="hint">分組與廠別、機台技能分開。一人可加入多組，分組可跨部門或跨廠；這不會自動修改所屬廠別或授予機台技能。原檔分組是來源紀錄，不代表已核定現在的人力配置。</div>'+
+  '<div class="hint">'+tx('分組與廠別、機台技能分開。一人可加入多組，分組可跨部門或跨廠；這不會自動修改所屬廠別或授予機台技能。原檔分組是來源紀錄，不代表已核定現在的人力配置。')+'</div>'+
   (S.groups||[]).map(g=>{const ms=S.groupMembers.filter(m=>m.groupId===g.id),pending=ms.filter(m=>m.reviewStatus==='pending').length;
     return '<button class="btn" style="display:flex;width:100%;margin:10px 0;justify-content:space-between;height:auto;min-height:46px" data-act="group-edit" data-id="'+esc(g.id)+'"><span>'+esc(g.name)+(g.department?' · '+esc(g.department):'')+'</span><span>'+esc(g.homeFactory?factoryName(g.homeFactory):'跨廠')+' · '+ms.length+' 人'+(pending?' · '+pending+' 待核對':'')+'</span></button>';
   }).join('')+((S.groups||[]).length?'':'<div class="hint">'+tx('還沒有分組，可建立第一個分組。')+'</div>'),
@@ -4527,7 +4528,7 @@ function showLogin(err="",email="",signup=false){
 // ---------- 未排工作、保存試排與現場回報 ----------
 MODALS['work-queue']=()=>{
   const rows=workQueue(S,todayStr(),UI.factory);
-  return {title:tx('未排工作與待處理差異'),body:'<div class="hint">依工單工序列出尚未排入的件數及已回報短少；不是求解器不可行性證明。交接、空檔及物料仍須在安排預覽中檢查。</div>'+
+  return {title:tx('未排工作與待處理差異'),body:'<div class="hint">'+tx('依工單工序列出尚未排入的件數及已回報短少；不是求解器不可行性證明。交接、空檔及物料仍須在安排預覽中檢查。')+'</div>'+
     rows.map(r=>'<article class="load-row"><b>'+esc(r.code+' · '+r.proc)+'</b> '+(r.overdue?'<span class="tag bad">'+tx('已過交期')+'</span>':'')+
       '<div class="hint">期限 '+esc(r.due)+' · 已排 '+r.planned+' 件 · 尚待排 '+r.remaining+' 件'+(r.shortfall?' · 回報短少 '+r.shortfall+' 件':'')+'</div>'+
       r.reasons.map(t=>'<div class="hint">'+esc(t)+'</div>').join('')+
@@ -4539,7 +4540,7 @@ async function openScenarioList(){
   try{m.items=await STORE.listScenarios();}catch(e){m.error=e.message;}m.loading=false;if(UI.modal===m)renderModal();
 }
 MODALS['scenario-list']=m=>({title:tx('保存的試排情境'),body:
-  '<div class="hint">情境與正式班表分開保存，只供原本／調整後對照，不提供直接套用。雲端只列出此帳號保存的情境，最多 20 份。</div>'+
+  '<div class="hint">'+tx('情境與正式班表分開保存，只供原本／調整後對照，不提供直接套用。雲端只列出此帳號保存的情境，最多 20 份。')+'</div>'+
   (m.loading?'<div class="hint">'+tx('讀取中…')+'</div>':m.error?'<div class="issue">'+esc(m.error)+'</div>':
     (m.items||[]).map(s=>'<button class="btn" style="width:100%;height:auto;min-height:48px;margin:8px 0" data-act="scenario-view" data-id="'+esc(s.id)+'">'+esc(s.name)+' · '+esc(s.created_at.slice(0,10))+'</button>').join('')||'<div class="hint">'+tx('還沒有保存的情境。')+'</div>'),
   foot:'<button class="btn" data-act="scenario-save">'+tx('保存目前排程')+'</button><button class="btn" data-act="close">'+tx('關閉')+'</button>'});
@@ -4564,7 +4565,7 @@ async function viewScenario(id){
   }catch(e){toast(e.message);}
 }
 const reportingRole=()=>STORE.kind==='local'||canPermission('execution.manage')?'boss':STORE.role;
-const reportStatus=r=>!r?'尚未開始':r.status==='done'?'已回報完成':'進行中';
+const reportStatus=r=>!r?tx('尚未開始'):r.status==='done'?tx('已回報完成'):tx('進行中');
 MODALS.execution=()=>{
   const worker=reportingRole()==='worker';
   const blocks=S.blocks.filter(b=>b.date===UI.date&&inFactory(mach(b.m),UI.factory)&&(!worker||b.emp===STORE.employeeId)).sort((a,b)=>a.s-b.s);
@@ -4574,11 +4575,11 @@ MODALS.execution=()=>{
   const line=worker?workerTimeline(S,STORE.employeeId,UI.date,UI.date===todayStr()?nowMin():DAY0):null;
   const workerBody=worker?'<section class="worker-console"><div class="worker-machine">'+tx('我的設備')+'　<b>'+esc(line?.machineId?(mach(line.machineId)?.label||line.machineId):'尚未指定')+'</b></div>'+ticket(line?.current,'現在')+ticket(line?.next,'下一件')+'</section>':'';
   const managerBody=!worker?blocks.map(b=>{const r=executionOf(S,b.id);return '<article class="load-row"><b>'+esc((order(b.oid)?.code||'?')+' · '+stepName(b))+'</b>'+
-      '<div class="hint">'+esc(emp(b.emp)?.name||'未指定')+' · '+esc(mach(b.m)?.label||b.m)+' · 原定 '+hm(b.s)+'–'+hm(b.e)+' · '+b.qty+' 件</div>'+
+      '<div class="hint">'+tx('{who} · {what} · 原定 {s}–{e} · {q} 件',{who:emp(b.emp)?.name||tx('未指定'),what:mach(b.m)?.label||b.m,s:hm(b.s),e:hm(b.e),q:b.qty})+'</div>'+
       '<div class="hint">'+reportStatus(r)+(r?' · 累計 '+r.qtyDone+' 件 · 差異 '+(r.qtyDone-b.qty)+' 件':'')+'</div>'+
       (canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending?'<button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">'+tx('查看／回報進度')+'</button>':'')+'</article>';}).join(''):'';
   return {title:tx('現場回報')+' · '+mdw(UI.date),body:
-    '<div class="hint">開始、做了幾件、完工都另外保存實際事實。完工少做的件數會回到未排工作，下一次重排會補足；不會悄悄改掉原定產能。</div>'+
+    '<div class="hint">'+tx('開始、做了幾件、完工都另外保存實際事實。完工少做的件數會回到未排工作，下一次重排會補足；不會悄悄改掉原定產能。')+'</div>'+
     (worker&&!STORE.employeeId?'<div class="issue">'+tx('帳號尚未綁定員工，請由管理員綁定後使用。')+'</div>':'')+
     (S.setupPending?'<div class="issue">'+tx('來源名冊與工時待確認，不能回報。')+'</div>':'')+
     workerBody+managerBody+
@@ -4605,6 +4606,9 @@ MODALS['execution-report']=m=>{
 async function reportWork(button){
   const m=UI.modal;if(m?.t!=='execution-report'||m.busy||UI.executionSaving||UI.directSaving||UI.memoSaving||UI.leaveBrushSaving||S.setupPending||PV)return;
   const b=S.blocks.find(b=>b.id===m.id);if(!b||!canReport(reportingRole(),STORE.employeeId,b))return;
+  if(SYNC.state==='error'){
+    m.qtyDraft??=$('#execution-qty')?.value;m.error=tx('班表尚未確認儲存，請先核對班表儲存狀態，再回報進度。');renderModal();return;
+  }
   const previous=m.reportOwner;
   if(previous&&(STORE!==previous.store||STORE.sb!==previous.client||STORE.session?.user?.id!==previous.user||(STORE.authEpoch||0)!==previous.epoch)){
     m.error=tx('登入狀態已變更，請重新整理後確認帳號。');renderModal();return;
@@ -4626,6 +4630,7 @@ async function reportWork(button){
   };
   try{
     await syncChain;if(!owner.current())return;
+    if(SYNC.state!=='ok'){m.error=tx('班表尚未確認儲存，請先核對班表儲存狀態，再回報進度。');return;}
     dispatched=true;await owner.store.reportExecution(m.pendingRequest);if(!owner.current())return;
     m.pendingRequest=null;m.reportOwner=null;delete m.qtyDraft;undoStack=[];
     await reconcile(tx('進度已保存'));
@@ -4648,11 +4653,11 @@ const referenceOrder=id=>order(id)||S.workReferenceOrders?.find(o=>o.id===id);
 const timeValue=t=>{const [h,m]=t.split(':').map(Number);return h*60+m;};
 const textInput=(id,label,value,type='text',off='')=>'<div class="field"><label for="'+id+'">'+label+'</label><input class="inp" id="'+id+'" type="'+type+'" value="'+esc(value)+'" '+off+'></div>';
 MODALS['work-contents']=()=>({title:tx('工作內容'),body:
-  '<div class="hint">三部分：工作內容（做什麼）、設備／工位（需要時才指定）、排班方塊（人員、時間及參考件數）。既有產品工序仍依原公式排程；下面的獨立工作不會自動算進工單完成量。</div>'+
+  '<div class="hint">'+tx('三部分：工作內容（做什麼）、設備／工位（需要時才指定）、排班方塊（人員、時間及參考件數）。既有產品工序仍依原公式排程；下面的獨立工作不會自動算進工單完成量。')+'</div>'+
   '<h4>'+tx('產品工序工作內容')+'</h4><div class="hint">'+[...new Set(S.products.flatMap(p=>p.steps.map(s=>s.proc)))].map(esc).join('、')+'</div><button class="btn" data-act="products">'+tx('查看產品工序')+'</button>'+
   '<h4>'+tx('可獨立安排的工作內容')+'</h4>'+workCatalog(S).filter(w=>inFactory(w,UI.factory)).map(w=>'<button class="rline" data-act="work-content-edit" data-id="'+esc(w.id)+'"><b>'+esc(w.name)+'</b><span>'+factoryName(w.factory)+' · '+(w.requiresResource?'需要設備／工位':'純人工，不需機台')+' · 核定 '+w.employeeIds.length+' 人</span></button>').join('')+
   (!workCatalog(S).length?'<div class="empty">'+tx('尚未建立獨立工作內容；不會從 1023 欄名推測技能或產能。')+'</div>':'')+
-  '<div class="hint">1023 的工作／設備／規格對照在「歷史排程 → 製作項目名冊」查看；未確認欄位保持待確認。</div>',
+  '<div class="hint">'+tx('1023 的工作／設備／規格對照在「歷史排程 → 製作項目名冊」查看；未確認欄位保持待確認。')+'</div>',
   foot:(canWorkContents()?'<button class="btn primary" data-act="work-content-new">'+tx('新增工作內容')+'</button>':'')+'<button class="btn" data-act="close">'+tx('關閉')+'</button>'});
 MODALS['work-content-edit']=m=>{
   m.draft ||= structuredClone(workCatalog(S).find(w=>w.id===m.id)||{id:uid(),name:'',factory:UI.factory==='all'?1:UI.factory,requiresResource:false,employeeIds:[],resourceIds:[],reviewStatus:'confirmed'});
