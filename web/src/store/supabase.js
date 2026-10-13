@@ -213,7 +213,7 @@ export class SupabaseStore {
   }
 
   // 舊版 Excel 作為獨立歷史資料儲存，絕不更動目前排程快照。
-  legacyOwnerGuard() {
+  requestOwnerGuard() {
     const client=this.sb,user=this.session?.user?.id,epoch=this.authEpoch,token=this.session?.access_token;
     const assertOwner=()=>{if(this.sb!==client||this.session?.user?.id!==user||this.authEpoch!==epoch)throw new Error('登入狀態已變更，請重新整理後確認帳號。');};
     assertOwner.authorize=query=>{
@@ -225,6 +225,7 @@ export class SupabaseStore {
     };
     return assertOwner;
   }
+  legacyOwnerGuard() { return this.requestOwnerGuard(); }
 
   async listLegacyArchives() {
     const client=this.sb,assertOwner=this.legacyOwnerGuard();
@@ -273,18 +274,24 @@ export class SupabaseStore {
   }
 
   async createLeaveRequest(request) {
-    const {error}=await this.sb.from('leave_requests').insert({id:request.id,employee_id:request.employeeId,date:request.date,note:request.note||'',status:'pending'});
+    const client=this.sb,assertOwner=this.requestOwnerGuard();
+    const {error}=await assertOwner.authorize(client.from('leave_requests').insert({id:request.id,employee_id:request.employeeId,date:request.date,note:request.note||'',status:'pending'}));
+    assertOwner();
     if(error)throw writeError('請假詢問',error,'新增');
   }
 
   async resolveLeaveRequest(id,status) {
-    const {error}=await this.sb.rpc('resolve_leave_request',{p_id:id,p_status:status});
+    const client=this.sb,assertOwner=this.requestOwnerGuard();
+    const {error}=await assertOwner.authorize(client.rpc('resolve_leave_request',{p_id:id,p_status:status}));
+    assertOwner();
     if(error)throw writeError('請假詢問',error,'處理');
   }
 
   async saveMemo(memo) {
+    const client=this.sb,assertOwner=this.requestOwnerGuard();
     const row={id:memo.id,text:memo.text,machine_id:memo.machineId||null,employee_id:memo.employeeId||null,pinned:!!memo.pinned,author:memo.author||this.userName||''};
-    const {error}=await this.sb.from('schedule_memos').upsert([row],{onConflict:'id'});
+    const {error}=await assertOwner.authorize(client.from('schedule_memos').upsert([row],{onConflict:'id'}));
+    assertOwner();
     if(error)throw writeError('備忘',error,'儲存');
   }
 
