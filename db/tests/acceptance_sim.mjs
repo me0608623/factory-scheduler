@@ -185,6 +185,8 @@ const must = async (label, sql) => { try { await s.one(sql); } catch (e) { throw
 await must("週休", `UPDATE calendar_weekly SET is_open=(weekday NOT IN (0,6))`);
 await must("停工日", `INSERT INTO calendar_days (date,is_open,note) VALUES ('${SHUTDOWN}',false,'TEST 停工日（非法定假日）') ON CONFLICT (date) DO UPDATE SET is_open=false,note=EXCLUDED.note`);
 await must("機台工序", `UPDATE machines SET process='裁切' WHERE id='f1e'; UPDATE machines SET process='焊接' WHERE id='f1b'; UPDATE machines SET process='沖壓' WHERE id='f2k'; UPDATE machines SET process='包裝' WHERE id='f2ac'`);
+// 真實備份的 1023 匯入機台可能 review_status=pending；solver 拒絕以未核定資源排程（main.py:174 同規則），基準一律視為已核定
+await must("機台核定", `UPDATE machines SET review_status='confirmed' WHERE id IN ('f1e','f1b','f2k','f2ac')`);
 await must("產品", `INSERT INTO products (id,code,name) VALUES ('11111111-aaaa-4aaa-8aaa-111111111101','TEST-P01','TEST 跨廠品'),('11111111-aaaa-4aaa-8aaa-111111111102','TEST-P02','TEST 單廠品') ON CONFLICT (code) DO NOTHING`);
 await must("工序", `INSERT INTO product_steps (product_id,seq,process,rate,transfer_batch,factory) VALUES
   ('11111111-aaaa-4aaa-8aaa-111111111101',0,'裁切',2,60,1),
@@ -200,7 +202,7 @@ await must("模具", `INSERT INTO machine_products (machine_id,product_id) VALUE
 // 員工：取碼序最小的啟用員工（內部記 id，對外只有 TEST-E01/02/03）
 // 註：外層 string_agg 不能 ORDER BY 子查詢沒輸出的欄位（先前的錯誤來源）
 const pick = async (fac, n) => {
-  const v = await s.one(`SELECT coalesce(string_agg(id::text,','),'') FROM (SELECT id FROM employees WHERE active AND factory=${fac} ORDER BY source_employee_code NULLS LAST, code LIMIT ${n}) z`);
+  const v = await s.one(`SELECT coalesce(string_agg(id::text,','),'') FROM (SELECT id FROM employees WHERE active AND factory=${fac} AND review_status='confirmed' ORDER BY source_employee_code NULLS LAST, code LIMIT ${n}) z`);
   const ids = v ? v.split(",") : [];
   if (ids.length < n || ids.some((x) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(x)))
     throw new Error(`無法選出 ${n} 位啟用員工（廠別 ${fac}，取得 ${ids.length} 筆）——案例設定未成立`);
