@@ -23,3 +23,8 @@ test('已結案的死碼類別沒有回流', () => {
   for (const c of ['more-tools','reference-panel','rush-table','rush-sec','side-chrome','drawer-grip','drawer-zoom','codelink','urgent-tag','top-actions','mobile-only','toolset','flash-new','sep-l','diff-result','brush-start','cal-brush-active'])
     assert.ok(!new RegExp('\\.' + c + '(?![a-zA-Z0-9_-])').test(css), '.'+c+' 已結案移除，不應回流');
 });
+
+test('輪122：頂欄快捷列必須可換行（360px 手機不得橫向溢流）', () => {
+  assert.match(css, /\.page-links\{display:flex;flex-wrap:wrap/, 'page-links 須 flex-wrap:wrap（缺陷#24：360px 手機溢流）');
+  assert.match(css, /\.top-status\{display:flex;flex-wrap:wrap/, 'top-status 須 flex-wrap:wrap（英文標籤 360px 溢流）');
+});
