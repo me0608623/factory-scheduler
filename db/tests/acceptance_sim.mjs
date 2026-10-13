@@ -337,11 +337,14 @@ await runCase("C5 交期不足（求解軟限制＋新單逾期套用閘門）",
   if (plan.options.some(o => o.applicable)) out.push("必然逾期的新單不應有可直接套用方案");
   const summary = [JSON.stringify(plan.options.map((o) => o.diagnostics || [])), JSON.stringify(plan.summary || plan.options.map((o) => o.lines || []))].join(" ");
   if (!/超過期限/.test(summary)) out.push("方案資訊未標示逾期（超過期限）");
-  const blocks=opt.blocks.filter(b=>b.order===ev.order.id);
-  for (const step of [0,1]) if(blocks.filter(b=>b.step===step).reduce((n,b)=>n+b.qty,0)!==1200) out.push(`站 ${step} 件數≠1200`);
-  const issues=solve({mode:'check',snapshot:{...snapshot,orders:[...snapshot.orders,ev.order],blocks:opt.blocks},now}).issues;
+  // Plan options serialize blocks for the DB RPC, not the solver Snapshot.
+  const blocks=opt.blocks.filter(b=>b.order_id===ev.order.id);
+  for (const step of [0,1]) if(blocks.filter(b=>b.step_seq===step).reduce((n,b)=>n+b.qty,0)!==1200) out.push(`站 ${step} 件數≠1200`);
+  const solverBlocks=opt.blocks.map(b=>({id:b.id,order:b.order_id,step:b.step_seq,machine:b.machine_id,
+    employee:b.employee_id,date:b.date,start:b.start_min,end:b.end_min,qty:b.qty,pinned:b.pinned}));
+  const issues=solve({mode:'check',snapshot:{...snapshot,orders:[...snapshot.orders,ev.order],blocks:solverBlocks},now}).issues;
   if(issues.length)out.push('逾期方案獨立驗證未過：'+clean(JSON.stringify(issues)).slice(0,300));
-  const end = blocks.length?Math.max(...blocks.map(b=>dayIdx(b.date)*1440+b.end)):-1;
+  const end = blocks.length?Math.max(...blocks.map(b=>dayIdx(b.date)*1440+b.end_min)):-1;
   if (end <= dayIdx(D(1)) * 1440 + 1020) out.push("完工未超過交期（與逾期診斷矛盾）");
   const version=await stateVersion();
   await s.one('SAVEPOINT reject_late_order');
