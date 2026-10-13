@@ -233,6 +233,9 @@ export class SupabaseStore {
       // PostgREST maps transaction rollback (40*) to HTTP 500. Other 5xx
       // gateway responses cannot conclusively invalidate the original request.
       if(error.code==='40001'&&(status==null||status===500||status>=400&&status<500))throw new ConflictError('進度已被更新，請重新載入');
+      // Explicit conflict SQLSTATE avoids the legacy serialization retry loop.
+      // Only its canonical HTTP409 is conclusive, never a gateway's 5xx body.
+      if(error.code==='PT409'&&status===409)throw new ConflictError('進度已被更新，請重新載入');
       // Only this RPC's known SQL rejections are conclusive. Unknown/proxy
       // failures may hide a committed request; keep its id for explicit replay.
       if(['42501','P0001'].includes(error.code)&&(status==null||status>=400&&status<500))throw Object.assign(new Error(error.message),{rejected:true});

@@ -1,5 +1,24 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-14 06:51 checkpoint：真 PostgREST 有界合成對照
+
+- 起點 **6e0b4005e1512ac5c563bf9de5a05a1da05e52da** clean，已讀指定交接與本檔最新checkpoint、fetch main無新提交；process僅既有dev/esbuild與本輪shell，沒有另一modifier/deploy。本輪完全不連Supabase、不用Secrets、不改正式1023/setup_pending/Auth/角色/schema/RPC、不重套0037、不重匯測試資料、不報工/套用/存檔；沒有Render更新、stage branch push或nightly重啟，PR16/18仍draft。
+- **cc4037827f3324d6713bb3bdc5e64d8d4ca438d3**新增專用`Synthetic PostgREST retry comparison`及runner工具。官方GitHub release實際存在14.18/16.4，取其linux static binary並驗官方asset SHA256（98de1c0… / b47ecc8…）、執行`--version`再比對；Postgres16真容器digest **sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d**。不是PGlite/mock fetch或root自報版號。
+- 只用新建GitHub runner的`retry_probe`合成DB/`probe_anon`角色/兩個raise函式，HTTP固定127.0.0.1:55440/55441，不接受外部DB URL、key或繼承專案Secrets。非交易sequence在rollback後仍保留attempts，**每case只POST一次**；ping readiness不算case。40001函式25ms延遲，**第50次改raise PT503安全終止**，request1500ms、psql8秒、binary驗證5秒、runner6分鐘上限；每case finally只停止自己spawn的child，TERM後1秒KILL、3秒cleanup上限。GitHub cleanup成功移除其自有容器/network，沒有docker prune/全系統終止或任何真庫backend操作。
+- 實際push **38480309043**及PR **38480313750**各4case成功、SHA256兩檔OK、Stop containers成功。兩套結果逐項一致：
+
+  | 官方 binary | SQLSTATE | HTTP | 單一請求的SQL次數 |
+  | --- | --- | --- | --- |
+  | 14.18 | 40001 | 503（測試上限PT503） | 50 |
+  | 16.4 | 40001 | 500 | 1 |
+  | 14.18 | PT409 | 409 | 1 |
+  | 16.4 | PT409 | 409 | 1 |
+
+- 這是**合成DB的真HTTP交易重試實證**，不是已觀測無限執行（被50次上限截斷）、不是真平台回503，也不代表本專案雲端已裝14.18/16.4或已修平台問題。上一輪匿名401/管理頁無版本仍是未驗證，不重複探測/不升權讀取。依[Supabase官方風險說明](https://supabase.com/docs/guides/troubleshooting/high-cpu-and-infinite-transaction-retries-when-using-custom-error-codes-in-rpc-functions-77326b)及[PostgREST上游修正](https://github.com/PostgREST/postgrest/pull/4222)校對原因；文件中的改函式/terminate/restart建議不是新增正式授權，本輪**沒有修正式或staging RPC**。
+- 新工具本機4/4真函式安全限制測試通過，普通本機呼叫在SQL/spawn之前fail closed；CI另實際跑上述binary/HTTP/sequence。全套Tests **38480308838/38480313688**與smoke **38480313825**現已全success；真CI **tools57/57、web772/772、build**通過，兩版synthetic比較另2runs成功。本機缺age情況未重跑/偷skip，這輪不新增備份/restore或明文真資料artifact，合成實驗無artifact，不把age fixture成功當新真專案完整還原。
+- PR16工作區clean、branch正確，local/tracking/ls-remote/PR head均 **6208a2484ae862e9a37e22755f4a4ea4a830bc4f**；只有既有node19520/esbuilddev與本輪shell，無modifier。來源5runs全成功後普通merge成 **c0a026d6e3de71a679578c0eb82484eea6777953**，工具4/4通過、原5檔105insert/3delete逐項保留，non-force push；沒有runtime差異不重build/stagepush/deploy。PR16新Tests **38480638686/38480644296**、smoke **38480644294**及synthetic **38480638658/38480644287**仍in_progress，待下一輪查結果，不冒稱PR16已全綠。
+- 下一候選已用**actual SDK＋合成Response**（不送任何網路、不接DB）最小探測：HTTP409/PT409目前`conflict:false/unconfirmed:true`；HTTP503/PT409亦unknown，後者應繼續保護已dispatch的ID。這是客戶端契約候選，不是真平台曾回PT409，也還不是真SQL/handler回歸。下一輪先補本機真SQL＋SDK fixture的RED，再評估最小相容修正；**本輪沒改產品或migration**。未查真平台版本之前不以此改正式schema或宣稱雲端已修。仍缺真第二actor、真正套用/兩端sync及正式VITE_TEST門檻，正式不強發；本追蹤持續ACTIVE，下一輪繼續具體安全工作。
+
 ## 2026-10-14 06:39 checkpoint：平台40001風險查證／安全探測器
 
 - 起點 **6ac95e6** clean，已核對process僅既有dev/本輪shell、無本目錄另一modifier/deploy；讀CONTINUOUS/HANDOFF/缺陷總表/NEXT_TASKS/測試模式交接，fetch main無新增提交。正式1023/setup_pending/Auth/角色/個人授權未動，不再0037、不改其他schema/RPC、不terminate backend/restart/新增付費服務/匯入seed；沒有cloud報工/套用/保存，沒有新明文真資料artifact/log。
