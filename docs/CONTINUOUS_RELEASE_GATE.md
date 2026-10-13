@@ -30,6 +30,13 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13使用者要求線上測試資料／同意自行處理測試登入
+
+- 使用者要求實際部署網站可測拖曳，並回覆「你自行處理，沒有密碼就創新帳號，不要再詢問我而停止作業」。視為同意前一題具體的測試帳號設定信用途；既有帳號存在，不額外建立重複帳號，也不替本人輸入／修改新密碼。**先前寄信同意尚缺的阻礙已解除**，不要再沿用舊段落或重複詢問／重寄。
+- 真 staging tab20 普通網址 **https://factory-scheduler-web-staging.onrender.com/** 仍 qa-lead session；10/15／1廠確見原20個可操作色塊，包含 M20 的13:00–14:50及測試裁切／沖壓／焊接／組裝工序，沒有重匯／reset／改排程。既有12人8資源20單103段的匯入及先前單段move/undo實證不重做；本輪不是新部署，也不把正式網址 ?mode=test 尚未配置當已可用。
+- 另開 Chrome 獨立未登入頁，既有登入UI填 **me0608623+test-lead@gmail.com** 後單次按「忘記密碼／設定邀請帳號密碼」，先見disabled，再真正顯示「若此帳號存在，密碼設定信已寄出。請開啟信中的連結。」這是服務接受寄信請求，不是親自核對信箱送達或第二帳號登入成功；沒有讀或猜密碼／權杖、沒有新增帳號或改角色。新密碼須本人在手機收信後自行完成，不可由agent代填。Chrome tab1703573257保留handoff；本機證據outputs/staging-test-password-request-20261013.png，不公開artifact上傳。
+- 手機交付：使用上述獨立staging網址、該測試Email，選2026-10-15／1廠，先測 M20 下午段往後10分鐘→預覽取消，再確認套用／復原。資料不共用正式1023；目前Realtime仍中斷，另一裝置需按「更新班表」補讀。正式測試模式發布、不同帳號角色／自動同步／ORTools真套用等門檻仍未全過，不合PR16/18或正式部署。本輪只有獲准測試Auth寄信請求及UI導航，正式1023零寫入。持續追蹤未停止，接續安全競爭測試，不因等待本人設定密碼而停止其他工作。
+
 #### 2026-10-13 22:17：依本人回覆縮小 Render App 倉庫授權
 
 - 使用者明確選擇「只允許 factory-scheduler」。既有 installation **170996374** 從 All repositories 改為 Only select repositories，僅選 **me0608623/factory-scheduler** 後按 Save；GitHub 導回 Render，重新開原 Configure 讀取已保存狀態：Only select repositories checked、Selected 1 repository、只有 factory-scheduler、Save/Cancel disabled。沒有新增授權、改密碼或重裝 App；其他公開倉庫仍有 GitHub 頁面註明的 read-only 例外，不宣稱完全禁止讀所有公開程式碼。
