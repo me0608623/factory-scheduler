@@ -30,6 +30,16 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 23:19 heartbeat／23:38：雲端方案套用的連點、舊回應與回條缺陷
+
+- 起點 **1a1ee4d** 乾淨、fetch後main仍498d5ec，無其他modifier／部署。必讀交接已核對；PR16 **9047987** Tests **38420624877／38420617060**及smoke **38420625094／38420617046**實查completed/success；ada整合CI亦已全綠。PR16/18仍draft/CLEAN，不等於發布門檻通過。未重做0037、備份或種子匯入。
+- 原本要驗真OR-Tools維持現狀套用，先查RPC/handler發現風險，改做有界最小重現，**本輪未按雲端用這套／未送apply_plan/save_blocks**。修前新增7項實際函式測試 **5失敗／2通過**：快速雙確認送出2次RPC；late reply清掉另一個預覽；快照補讀失敗仍showResult；apply_plan成功HTTP但null回條未拒；帳號/client/authEpoch變更後仍接受舊回條。資料庫本來已有preview FOR UPDATE／applied_option及版本鎖，**沒有聲稱重現兩次DB提交／資料損壞**，問題是前端重送與誤導成功／狀態競爭。
+- runtime **b188b33d208dbb37627a894371593968285d8538**：同步設PV.applying、重複確認／取消／換方案handler不執行；桌面頂列與手機既有底列均以同一儲存中文字停用。捕捉原store/user/authEpoch/PV/S物件、內容及version，RPC回來再核對；reload只有真applied且同登入／未進新預覽才showResult。store要求apply_plan契約的UUID change-set回條，空／ malformed不算確認；讀回真快照之前不前移baseline/version。未確認結果離開預覽先補讀，提示「排程套用結果待確認，請更新班表核對；不要重複套用。」四語，不盲重送，也不讓取消誤稱排程未變。
+- 新增 **12項實際app/Store函式回歸**（連點、替換preview/store/user/epoch/S、原物件內容修改、version、補讀失敗／補讀時換帳號、取消／換方案、回條空值、無登入、保存情境唯讀）；手機HTML真函式＋解析測試延伸auto儲存中。另新增 **真PGlite＋完整migration apply_plan回條遺失**：DB確實提交、版本1／一段／一筆稽核／applied_option=A，原baseline仍0且未提前接受；一次補讀恢復真值，RPC只送1次。這是本機隔離SQL，不是staging真ORTools E2E。
+- 最終全套web **551/551**（`node --test --test-reporter=dot tests/*.test.mjs` exit0；前一輪TAP亦551/551）、最終聚焦28/28與cloud12/12、build成功 **index-C9j4oXHx.js**；既有大chunk警告保留。Impeccable全文/context一次/harden/craft-floor完整、detector app一次 **[]**，技能只影響儲存／失敗回饋，不重設計Gantt或CSS。
+- **尚未部署b188b33**，新同SHA CI待推送後核對；staging仍已驗58b73ba/index-BnYNQgRr.js，不拿此舊E2E冒稱新修復通過。沒有新Render資源／費用、沒有正式部署／正式DB/Auth/角色／1023/setup_pending寫入。IAB20/24/25/21/23已markHandoff，沒有開新設定信、猜密碼或改憑證；20/24仍同qa-lead，不是跨帳號。
+- 下一輪優先核b188b33同SHA CI，綠後安全FF既有staging前端並核版本／bundle；用真雲端測试「維持現狀」套用一次，觀察一筆apply_plan、回條後班表及手動补讀一致，保留正常版本／稽核，不reset。補桌面／手機儲存中按鈕可見、不可取消／連點的真操作證據，測試失敗不盲重送。之後安全同步PR16，真正不同帳號／角色、Realtime、offline409、原生Safari與正式VITE_TEST_*門檻未全過仍不得合併／正式部署；nightly仍不能啟用。10分鐘追蹤保持ACTIVE，修完此項繼續下一缺陷。
+
 #### 2026-10-13 23:01 heartbeat／23:16：安全重連新版部署及真網路失敗／取消驗收
 
 - 起點798aaa0乾淨、無其他modifier／deploy，指定交接已讀。58b Tests **38417929344／38417923759**及smoke **38417929361／38417923758**、PR16 f11 Tests **38417980873／38417972686**及smoke **38417980692／38417972734**實查全completed/success。Render-deploy全文、deployment-details/post-deploy-checks已讀；只有staging前端FF **dfc2486→58b73baa78ce3281e38ae0d58027582dda5c41c3**，沒有manual trigger/toggle/cache或新增費用，未改solver／正式服務／1023/setup_pending/角色授權。
