@@ -30,6 +30,20 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 約15:15 台灣時間更新（以下本段優先於舊輪次敘述）
+
+- 正式0037已由run38355345279安全提交；不重跑。新密文備份及真正完整還原、同SHA CI、交易內資料保護均通過。正式1023／Auth／個人權限／setup_pending未改。
+- 最新runtime **c88a7ee6046118ea42a34707716223e05fec4cbb**；Tests38359130441全部成功，smoke38359130405成功。本機web **415/415**、build通過；工具26/26和真SQL回滾演練先前已通過。
+- staging web dep-db6tc33rjlhs7396vvkg於06:56:30Z live c88a7ee，實際bundle index-BecRRKb0.js。staging solver仍是dep-db6solij9qps73adm3a0／2cde149（最新前端修正未改solver，不冒稱兩個SHA相同）。沒有新增服務／費用，沒有合併PR或部署正式Render。
+- 已修兩個取消缺陷：取消預覽恢復進入時日期／廠別／檢視／聚焦；同步還原既有廠別偏好，reload不再跳到預覽中臨時切換的廠別。純UI context，不寫排程store。5純模組＋2實際handler VM回歸；確認套用不還原預覽入口日期。
+- 桌面已實測取消回到10/12、1廠，19個方塊id／label／text／style完全一致；最新reload仍1廠。手機390×844也以真qa-lead session、真OR-Tools三方案測到選最佳化／切2廠／取消，**先收合方案抽屜後**回10/12、1廠及19段完全一致，reload仍1廠。未按「用這套」。手機證據outputs/staging-mobile-cancel-20261013.png；真機iPhone Safari未測。
+- **新增Major待修（下一輪第一優先）**：手機展開方案比較抽屜佔住可視區，預覽「取消／用這套」被遮；直接locator click取消未生效，收合後才生效。不是取消context回歸；應確保展開抽屜仍有可見、可點的44px取消／套用入口，補實際遮擋／點擊回歸。因此手機驗收未全過，不能發布。
+- 一次reload後計算明確顯示「瀏覽器備援」，後續手機與桌面另次計算明確顯示「OR-Tools」；冷啟動／健康探測原因仍待查，不能把全部嘗試稱ORTools。
+- PR16/18均draft。跨帳號權限、套用／Realtime同步與離線衝突未通過；正式VITE_TEST_*未設定。與最新main普通merge時先查其新增真實request dump上傳，禁止新明文資料artifact；保留其他agent提交、不force。
+- 舊nightly ID367614493仍disabled_manually；加密版本通過但尚未進main，安全合併後才能啟用，避免舊main繼續上傳明文。既有明文artifact/log依使用者要求保留。10分鐘Codex追蹤維持ACTIVE，不因本輪完成自行結案。
+
+#### 先前輪次紀錄（已被上段取代的待辦不重做）
+
 - **正式0037已套用**：runtime2cde149，Tests38354810746／完整還原＋guarded0037演練38354811296／純關卡38355195539全成功後，正式apply=true run38355345279於06:11:59Z提交。交易內所有public資料、Auth users/identities、角色／RLS／序列指紋不變；沒有改正式1023或解除setup_pending。詳見MIGRATION_0037_GATE_2026-10-13.md；不要重複套用。
 - 工具26/26及真SQL回滾測試通過，不靠源碼字串。演練receipt artifact11792422005不含資料；私密診斷／fingerprints不上傳。
 - staging solver分支non-force FF至2cde149，repo hooks=[]且staging不自動部署（觀測後仍cdfc40c），手動deploy dep-db6solij9qps73adm3a0已live於2cde149，health database=true／OR-Tools9.15.6755。06:15:26Z至06:19:59Z app error logs=0。
