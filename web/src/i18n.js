@@ -11,6 +11,12 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "雲端已儲存": {en:"Saved to cloud",vi:"Đã lưu lên đám mây",th:"บันทึกบนคลาวด์แล้ว"},
+  "即時已連線": {en:"Live channel connected",vi:"Đã kết nối thời gian thực",th:"เชื่อมต่อเรียลไทม์แล้ว"},
+  "即時連線中": {en:"Connecting live updates",vi:"Đang kết nối cập nhật",th:"กำลังเชื่อมต่อเรียลไทม์"},
+  "即時更新中斷": {en:"Live updates disconnected",vi:"Mất kết nối cập nhật",th:"การอัปเดตเรียลไทม์ขาดการเชื่อมต่อ"},
+  "即時更新未連線，請完成目前操作後重新整理。": {en:"Live updates are not connected. Finish your current task before reloading.",vi:"Cập nhật chưa kết nối. Hoàn tất thao tác trước khi tải lại.",th:"ยังไม่เชื่อมต่อการอัปเดต กรุณาทำงานปัจจุบันให้เสร็จก่อนโหลดใหม่"},
+  "資料已儲存；即時通道已連線，不代表另一裝置已完成更新。": {en:"Data is saved and the live channel is connected. This does not confirm delivery to another device.",vi:"Đã lưu và kết nối trực tiếp; chưa xác nhận thiết bị khác đã cập nhật.",th:"บันทึกแล้วและช่องเรียลไทม์เชื่อมต่ออยู่ แต่ยังไม่ยืนยันว่าอุปกรณ์อื่นอัปเดตแล้ว"},
   "測試模式 · 不影響正式資料": { en: "Test mode · Production data unchanged", vi: "Chế độ thử · Không ảnh hưởng dữ liệu chính thức", th: "โหมดทดสอบ · ไม่กระทบข้อมูลจริง" },
   "回正式資料": { en: "Back to production", vi: "Về dữ liệu chính thức", th: "กลับสู่ข้อมูลจริง" },
   "進入測試模式": { en: "Enter test mode", vi: "Vào chế độ thử", th: "เข้าโหมดทดสอบ" },

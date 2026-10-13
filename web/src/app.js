@@ -19,6 +19,7 @@ import { executionOf, canReport, assertExecutionProtected } from './execution.js
 import { workCatalog,assignments,occupiedWork,assignmentIssues,validateGeneralWork } from './general-work.js';
 import { newNav, navPush, navBack, opKey, suggestList, impactList, dueList, opDetail, dueDetail, boardTarget } from './preview-nav.js';
 import { capturePreviewContext, restorePreviewContext } from './preview-context.js';
+import { syncStatusView } from './cloud-status.js';
 import { RUNTIME, TEST_AVAILABLE, modeUrl, authReturnUrl } from './runtime-config.js';
 import { legacyFieldMap } from './legacy-field-map.js';
 import {transferOrders,materialWarning,transferPlanWarnings,batchOf,validateTransfers,transferSummary} from './transfers.js';
@@ -1605,7 +1606,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "feedback-send":{const h=async a=>{if(STORE.kind==="local"){toast("本機示範模式無法送出反饋；請改用下面的 Email 連結");return;}const msg=$("#fb-msg")?.value.trim()||"",cat=$("#fb-cat")?.value||"other";if(!msg){toast("請寫一些內容");return;}a.disabled=true;try{const {error}=await STORE.sb.from("feedback").insert({author_name:STORE.userName||"未命名",category:cat,message:msg,page_url:location.href,user_id:STORE.session?.user?.id});if(error)throw error;closeModal();toast("感謝！意見已送出，我們會盡快處理。"+(STORE.role==="boss"?" 到「更多功能→查看反饋」看全部。":""));}catch(e){a.disabled=false;toast(e.message);}};h(a);break;};
     case "feedback-list":{if(STORE.role!=="boss"){toast("只有老闆可以查看全部反饋");break;}if(STORE.kind==="local"){toast("查看反饋需要雲端模式；本機示範資料沒有反饋紀錄");break;}openModal({t:"feedback-list",loading:true,items:[]});(async()=>{try{const {data}=await STORE.sb.rpc("list_feedback",{p_limit:50});if(UI.modal?.t==="feedback-list"){UI.modal.loading=false;UI.modal.items=data||[];renderModal();}}catch(e){toast(e.message);closeModal();}})();break;}
     case "undo":undo();break;
-    case "sync":if(SYNC.state==="error")queueSync(null);else toast(STORE.kind==="local"?tx('資料存在這台電腦的瀏覽器'):tx('已和雲端資料庫同步'));break;
+    case "sync":if(SYNC.state==="error")queueSync(null);else toast(STORE.kind==="local"?tx('資料存在這台電腦的瀏覽器'):SYNC.state==="busy"?tx('同步中'):SYNC.realtime==='SUBSCRIBED'?tx('資料已儲存；即時通道已連線，不代表另一裝置已完成更新。'):tx('即時更新未連線，請完成目前操作後重新整理。'));break;
     case "account":openModal({t:"account"});break;
     case "export":openModal({t:"export"});break;
     case "erp-export":{
@@ -3276,7 +3277,7 @@ async function downloadCSV(){
 let SAMPLE=null,toastT=null;          // AI 助理下一階段改由伺服器提供
 let STORE=null;                        // LocalStore 或 SupabaseStore（main.js 決定）
 let scheduleChat=null;
-const SYNC={state:"ok",msg:""};
+const SYNC={state:"ok",msg:"",realtime:null};
 let lastLocalWrite=0,pendingReload=false,reloadTimer=null;
 // 職位只提供預設值；正式可寫範圍由老闆逐項授權，畫面與資料庫使用同一組權限鍵。
 function canPermissionRaw(key){return !STORE||STORE.kind==='local'||(STORE.can?STORE.can(key):effectivePermission(STORE.role,STORE.permissions,key));}
@@ -3311,8 +3312,8 @@ function saveFile(name,blob){
 // ---------- 同步狀態 ----------
 function syncChipHTML(){
   if(!STORE)return "";
-  const txt=SYNC.state==="busy"?tx('同步中')+"…":SYNC.state==="error"?tx('同步失敗，按這裡重試'):STORE.kind==="local"?tx('已存在這台電腦'):tx('已同步');
-  return '<button class="btn sync-chip '+SYNC.state+'" id="syncchip" data-act="sync" title="'+esc(SYNC.msg||"")+'">'+IC.save+'<span class="lbl">'+txt+'</span></button>';
+  const v=syncStatusView(STORE.kind,SYNC.state,SYNC.realtime);
+  return '<button class="btn sync-chip '+v.tone+'" id="syncchip" data-act="sync" title="'+esc(SYNC.msg||"")+'">'+IC.save+'<span class="lbl">'+tx(v.text)+(SYNC.state==='busy'?'…':'')+(v.detail?'<small>'+tx(v.detail)+'</small>':'')+'</span></button>';
 }
 function updateSyncChip(){const el=$("#syncchip");if(el)el.outerHTML=syncChipHTML();}
 let syncChain=Promise.resolve(),syncPending=0;
@@ -4488,7 +4489,7 @@ async function start(){
   render();
   if(UI.page)flashReturnRow();
   if(!tourDone()&&!UI.tv&&!UI.page)setTimeout(()=>startTour(TOUR_STEPS,{tx}),600);
-  STORE.subscribe(onRemoteChange);
+  STORE.subscribe(onRemoteChange,status=>{SYNC.realtime=status;updateSyncChip();});
   scheduleChat?.destroy();scheduleChat=installScheduleChat({snapshot:()=>({...toSnapshot(S,HOLI),work_execution:structuredClone(S.execution||[])}),view:()=>({date:UI.date,factory:UI.factory}),store:()=>STORE,enabled:()=>!UI.tv&&canPermission('schedule.manage'),stamp:()=>scenarioKey(S)+'|'+UI.date+'|'+UI.factory});
   SOLVER.check().then(up=>{updateSyncChip();scheduleChat?.refresh();if(up)toast("已連上 OR-Tools 排程服務");});
   setInterval(()=>{if(!drag&&!generalDrag&&!UI.modal&&!PV&&UI.view==="day"&&UI.date===todayStr())render();},60000);
