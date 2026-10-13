@@ -11,6 +11,11 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "操作儲存中，請稍候。": {en:"Saving this change. Please wait.",vi:"Đang lưu thay đổi. Vui lòng đợi.",th:"กำลังบันทึกการเปลี่ยนแปลง กรุณารอ"},
+  "操作已保存；尚未讀到最新資料，請更新核對。": {en:"Change saved, but the latest data has not been read. Refresh to check.",vi:"Đã lưu thay đổi nhưng chưa đọc được dữ liệu mới nhất. Cập nhật để kiểm tra.",th:"บันทึกการเปลี่ยนแปลงแล้ว แต่ยังอ่านข้อมูลล่าสุดไม่ได้ กรุณาอัปเดตเพื่อตรวจสอบ"},
+  "詢問已送出；尚未讀到最新資料，請更新核對。": {en:"Leave request submitted, but the latest data has not been read. Refresh to check.",vi:"Đã gửi yêu cầu nghỉ nhưng chưa đọc được dữ liệu mới nhất. Cập nhật để kiểm tra.",th:"ส่งคำขอลาแล้ว แต่ยังอ่านข้อมูลล่าสุดไม่ได้ กรุณาอัปเดตเพื่อตรวจสอบ"},
+  "詢問送出中；關閉視窗不會取消已送出的請求。": {en:"Submitting the request. Closing this dialog does not cancel the submitted request.",vi:"Đang gửi yêu cầu. Đóng cửa sổ không hủy yêu cầu đã gửi.",th:"กำลังส่งคำขอ การปิดหน้าต่างไม่ยกเลิกคำขอที่ส่งแล้ว"},
+  "送出中…": {en:"Submitting…",vi:"Đang gửi…",th:"กำลังส่ง…"},
   "備忘儲存中；關閉視窗不會取消已送出的儲存。": {en:"Saving memo. Closing this dialog does not cancel the submitted save.",vi:"Đang lưu ghi chú. Đóng cửa sổ không hủy yêu cầu lưu đã gửi.",th:"กำลังบันทึกโน้ต การปิดหน้าต่างไม่ยกเลิกคำขอบันทึกที่ส่งแล้ว"},
   "備忘已保存；尚未讀到最新資料，請更新核對。": {en:"Memo saved, but the latest data has not been read. Refresh to check.",vi:"Đã lưu ghi chú nhưng chưa đọc được dữ liệu mới nhất. Cập nhật để kiểm tra.",th:"บันทึกโน้ตแล้ว แต่ยังอ่านข้อมูลล่าสุดไม่ได้ กรุณาอัปเดตเพื่อตรวจสอบ"},
   "歷史資料儲存中；關閉視窗不會取消已送出的儲存。": {en:"Saving the archive. Closing this dialog does not cancel the submitted save.",vi:"Đang lưu dữ liệu lịch sử. Đóng hộp thoại không hủy yêu cầu lưu đã gửi.",th:"กำลังบันทึกข้อมูลย้อนหลัง การปิดหน้าต่างไม่ยกเลิกคำขอบันทึกที่ส่งแล้ว"},
