@@ -327,6 +327,7 @@ export const UI_TEXT = {
   "LINE 群組 ID（選填）": { en: "LINE group ID (optional)", vi: "ID nhóm LINE (không bắt buộc)", th: "ID กลุ่ม LINE (ไม่บังคับ)" },
   "要通知的事件": { en: "Events to notify", vi: "Sự kiện cần báo", th: "เหตุการณ์ที่แจ้ง" },
   "啟動失敗": { en: "Failed to start", vi: "Khởi động thất bại", th: "เริ่มไม่สำเร็จ" },
+  "重新整理後再試": { en: "Reload and retry", vi: "Tải lại và thử lại", th: "โหลดใหม่แล้วลองอีกครั้ง" },
   "員工／可用班別": { en: "Employee / shifts", vi: "Nhân viên / ca", th: "พนักงาน / กะ" },
   "已排時數": { en: "Scheduled hours", vi: "Giờ đã xếp", th: "ชั่วโมงที่จัดแล้ว" },
   "未排班": { en: "Unscheduled", vi: "Chưa xếp ca", th: "ยังไม่ได้จัดกะ" },

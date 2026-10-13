@@ -30,6 +30,16 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 18:58 heartbeat／19:06：啟動失敗的同環境重試與初始化保護
+
+- 起點dde5a6c乾淨、無其他modifier／部署（只找到本輪自己的pwsh）；指定交接全部讀取。最新main11c7d9c相較已整合1e019僅另一agent進度文件，0037/C1–C7/密文消費者已過不重做；歷史NEXT_TASKS仍列待辦不當新授權。正式1023、setup_pending、帳號角色、測試資料完全不寫入。
+- 使用Impeccable harden：全文、context一次、harden/craft-floor已讀，保持窄域既有login-card／btn／色彩與版面。7項新真main入口VM回歸修前 **6失敗／1通過**：沒有原環境重試入口；同步createClient/LocalStore初始化例外繞過catch；reject(null)讓catch再次拋錯。DOM與client邊界明確mock，不當Supabase Auth／跨端證據。
+- main將constructor及boot納入async start的同一錯誤界線；錯誤頁有「重新整理後再試」按鈕，保留同網址／模式，連點只觸發一次reload並disabled。僅test模式顯示測試標示與明確「回正式資料」次入口，使用modeUrl去mode與auth hash，保留path/view；production/local錯誤不再用誤導的「回正式資料」代替retry。錯誤用textContent且null-safe、role=alert，初始焦點在retry；長字串overflow-wrap:anywhere。新增文案en/vi/th完整，不改班表、抽屜或日週切換。
+- 新7項全通過，聚焦 **28/28**，全web **466/466**、build通過（原chunk警告保留）。Impeccable detector一次發現7個styles.css既有其他介面border/transition警告，與本輪單行overflow-wrap無關，不越域重新設計它們；main/i18n無新警告。
+- 本機真正瀏覽器 http://127.0.0.1:5202/?mode=test&view=catalog 以未設定測試連線的fail-closed路徑呈現錯誤：桌面Enter及手機390×844實際click retry均重新載入並保持mode=test/view=catalog，沒有建立雲端client或改任何資料。手機兩入口44px／中心命中，無頁面水平溢出；桌面48px／命中，Tab到退出link、Shift+Tab回retry，初始焦點正確。此案例缺設定故重試後仍報相同錯誤，**不是**成功復原雲端連線、HTTP200畸形RPC負向E2E或真機Safari。
+- 桌面computed樣式對比：error約7.24、retry約7.36、exit約6.64（精確數值以本轮工具計算為準），大於4.5；截圖 `outputs/startup-recovery-mobile-20261013.png`、`outputs/startup-recovery-desktop-20261013.png` 保存在本機，不新增公開身份資料artifact。viewport已reset，local QA與原staging session均markHandoff；5202專屬dev server保留。
+- 同SHA CI／staging部署尚待核對，PR16/18不合入正式，nightly仍維持停用至加密main發布；Codex10分鐘追蹤持續ACTIVE。下一步同SHA CI綠後僅更新既有staging web，驗普通root既有qa-lead班表、test模式retry，再安全同步PR16。第二帳號密碼設定信仍未有同意，不寄信／猜密碼。
+
 #### 2026-10-13 18:22 heartbeat／18:58覆核：雲端快照契約與基準防護
 
 - 起點fd279a2乾淨、無其他modifier／deploy；全部指定交接已核對。PR16 2c105b3的Tests38382783155補查三job成功（另一38382788656需再核對），不把歷史docs的0037／模擬失敗當新工作。正式資料、帳號權限及schema皆不動。
