@@ -7,12 +7,16 @@ on:
       - "web/**"
       - "solver/**"
       - ".github/workflows/tests.yml"
+      - ".github/workflows/acceptance-sim.yml"
+      - "tools/**"
   pull_request:
     paths:
       - "db/**"
       - "web/**"
       - "solver/**"
       - ".github/workflows/tests.yml"
+      - ".github/workflows/acceptance-sim.yml"
+      - "tools/**"
 
 jobs:
   database:
@@ -49,6 +53,7 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
         working-directory: web
+      - run: node --test tools/*.test.mjs
       - run: npm test
         working-directory: web
       - run: npm run build

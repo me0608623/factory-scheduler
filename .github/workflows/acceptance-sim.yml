@@ -25,6 +25,13 @@ jobs:
       - name: 取得程式碼
         uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 驗證備份搜尋與下載防護
+        run: node --test tools/backup-artifact.test.mjs
+
       - name: 驗證基準日是週一
         run: |
           M="${{ inputs.monday }}"
@@ -34,18 +41,11 @@ jobs:
           echo "T=$M（週一）✓"
 
       - name: 下載備份（記錄檔名供版本比對）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BACKUP_ARTIFACT_ID: ${{ inputs.artifact_id }}
         run: |
-          if [ -n "${{ inputs.artifact_id }}" ]; then
-            ID="${{ inputs.artifact_id }}"
-          else
-            ID=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-              "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?per_page=20" | \
-              jq -r '.artifacts[] | select(.name | startswith("db-backup-")) | .id' | head -1)
-          fi
-          [ -n "$ID" ] || { echo "找不到備份 artifact"; exit 1; }
-          echo "ARTIFACT_ID=$ID" >> "$GITHUB_ENV"
-          curl -s -L -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ID/zip" -o backup.zip
+          node tools/backup-artifact.mjs
           unzip -o backup.zip -d restored/
           echo "使用備份：$(ls restored/*.dump)"
 
