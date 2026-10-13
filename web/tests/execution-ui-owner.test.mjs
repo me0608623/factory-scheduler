@@ -29,6 +29,37 @@ function change(f,kind){
   if(kind==='date')f.ctx.UI.date='2026-10-15';if(kind==='permission')f.ctx.canReport=()=>false;
 }
 const changes=['user','client','epoch','store','modal','preview','state','mutation','date','permission'];
+function reportReconcile(f){
+  const timers=[],loads=[];f.ctx.S.log=[];Object.assign(f.ctx,{drag:null,generalDrag:null,syncPending:0,lastLocalWrite:0,pendingReload:false,reloadTimer:null,remoteLoading:false,
+    setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout:()=>{},normalizeState:()=>{},render:()=>{},notificationEnabled:()=>false,showDeviceNotification:()=>{}});
+  f.ctx.STORE.version=1;f.ctx.STORE.load=async()=>{loads.push('read');return {...f.ctx.S,version:2,execution:[{blockId:'B',status:'running',qtyDone:25,revision:2}]};};
+  const at=source.indexOf('async function reloadFromStore(');vm.runInContext(source.slice(at,source.indexOf('// ---------- 帳號與連線',at)),f.ctx);
+  return {timers,loads};
+}
+
+test('late valid report ACK after close queues one protected read without reopening or replaying',async()=>{
+  const f=fixture(),h=reportReconcile(f),job=f.run();f.queue.resolve();await tick();f.ctx.closeModal();f.write.resolve();await job;
+  assert.equal(h.timers.length,1);assert.equal(f.ctx.UI.modal,null);assert.equal(f.ctx.executionRetries.has(f.ctx.STORE),false);
+  await h.timers.shift()();assert.equal(h.loads.length,1);assert.equal(f.ctx.S.execution[0].revision,2);assert.equal(f.ctx.UI.modal,null);
+  assert.equal(f.writes.length,1);assert.equal(f.ctx.undoStack[0],'original');assert.equal(f.events.filter(e=>e?.type==='toast').length,0);
+});
+
+test('late valid report ACK preserves a new draft or preview until safe reconciliation',async()=>{
+  for(const kind of ['modal','preview','date','state']){
+    const f=fixture(),h=reportReconcile(f),job=f.run();f.queue.resolve();await tick();change(f,kind);const modal=f.ctx.UI.modal,state=f.ctx.S;
+    f.ctx.undoStack=['new-draft'];f.write.resolve();await job;assert.equal(f.ctx.UI.modal,modal);assert.equal(f.ctx.S,state);assert.equal(h.loads.length,0);
+    assert.equal(f.ctx.pendingReload,true);assert.equal(h.timers.length,0);assert.equal(f.ctx.undoStack[0],'new-draft');
+    f.ctx.UI.modal=null;f.ctx.PV=null;f.ctx.maybeReload();assert.equal(h.timers.length,1);await h.timers.shift()();
+    assert.equal(h.loads.length,1);assert.equal(f.ctx.S.execution[0].revision,2);assert.equal(f.writes.length,1);
+  }
+});
+
+test('late report ACK from a different store, client, user or epoch never queues a new-account read',async()=>{
+  for(const kind of ['store','client','user','epoch']){
+    const f=fixture(),h=reportReconcile(f),job=f.run();f.queue.resolve();await tick();change(f,kind);f.ctx.UI.modal=null;f.write.resolve();await job;
+    assert.equal(f.ctx.pendingReload,false);assert.equal(h.timers.length,0);assert.equal(h.loads.length,0);
+  }
+});
 test('queued report never dispatches after identity, view, state or permission changes',async()=>{
   for(const kind of changes){const f=fixture(),job=f.run();change(f,kind);f.queue.resolve();f.write.resolve();await job;
     assert.equal(f.writes.length,0,kind);assert.equal(f.events.filter(e=>e?.type==='reload').length,0,kind);assert.equal(f.events.filter(e=>e?.type==='toast').length,0,kind);}
