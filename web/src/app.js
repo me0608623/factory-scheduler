@@ -780,7 +780,7 @@ function topHTML(){
   '<button class="iconbtn" data-act="next" aria-label="'+tx('往後')+'">›</button></div>'+
   (S.demo?'<span class="demo-chip">'+tx('示範資料')+'</span>':'')+(readOnly&&!PV?'<span class="ro-chip">'+tx('排程唯讀')+'</span>':'')+
   (S.setupPending?'<button class="btn primary verify-entry" data-act="catalog">'+tx('初次核對資料')+'</button>':'')+
-  (UI.returnTo?'<button class="btn pagelink return-chip" data-act="page-return">↩ 返回'+(UI.returnTo.page==='shortage'?'欠缺品項':UI.returnTo.page==='worklog'?'工作紀錄':'給二廠／回一廠')+'</button>':'')+
+  (UI.returnTo?'<button class="btn pagelink return-chip" data-act="page-return">↩ '+tx('返回')+(UI.returnTo.page==='shortage'?tx('欠缺品項'):UI.returnTo.page==='worklog'?tx('工作紀錄'):tx('給二廠／回一廠'))+'</button>':'')+
   '<div class="top-status">'+syncChipHTML()+
   '<button class="btn" data-act="settings" title="'+esc(tx('settings'))+'">'+IC.user+'<span class="lbl">'+esc(STORE&&STORE.kind==="supabase"?(STORE.userName||tx('帳號')):tx('本機'))+'</span></button></div></div></div></header>';
 }
@@ -882,7 +882,7 @@ function peopleDrawerHTML(){
   const weekdays='一二三四五六日'.split('').map(x=>'<span>'+x+'</span>').join('');
   const days=selected?monthDates(UI.date).map(d=>d?'<button class="calendar-day '+leaveState(S,selected.id,d)+'" data-act="person-day" data-id="'+esc(selected.id)+'" data-d="'+d+'"><b>'+Number(d.slice(-2))+'</b><i></i></button>':'<span class="calendar-day blank"></span>').join(''):'';
   const requests=pending.map(r=>'<article class="leave-request"><b>'+esc(emp(r.employeeId)?.name||'未設定人員')+'詢問 '+mdw(r.date)+' 請假</b><p>'+esc(r.note||'未填說明')+'</p><small>'+tx('核准前不列入正式請假，也不會觸發重排。')+'</small>'+(canIncidents()?'<div><button class="approve" data-act="leave-resolve" data-id="'+r.id+'" data-v="approved">'+tx('准假')+'</button><button class="deny" data-act="leave-resolve" data-id="'+r.id+'" data-v="rejected">'+tx('駁回')+'</button></div>':'')+'</article>').join('');
-  return '<section class="absence-box"><b>今日缺席　'+absent.length+' 人</b><span>'+esc(absent.map(x=>x.name).join('、')||'無')+'</span></section>'+
+  return '<section class="absence-box"><b>'+tx('今日缺席 {n} 人',{n:absent.length})+'</b><span>'+esc(absent.map(x=>x.name).join('、')||tx('無'))+'</span></section>'+
     '<div class="people-pills">'+people.map(e=>'<button data-act="focus-person" data-id="'+e.id+'" aria-pressed="'+(selected?.id===e.id)+'">'+esc(e.name)+'</button>').join('')+'</div>'+
     '<div class="traffic-legend"><span><i class="green"></i>'+tx('在班')+'</span><span><i class="red"></i>'+tx('請假')+'</span><span><i class="yellow"></i>'+tx('uncertain')+'</span><span><i class="gray"></i>'+tx('待確認')+'</span></div>'+
     (selected?'<section class="people-calendar"><header><b>'+esc(selected.name)+'</b><span>'+UI.date.slice(0,7).replace('-',' 年 ')+' 月</span>'+(canIncidents()?'<button class="btn" data-act="person-month" data-id="'+esc(selected.id)+'">'+tx('整月設定')+'</button>':'')+'</header><div class="calendar-week">'+weekdays+'</div><div class="calendar-grid">'+days+'</div>'+(canIncidents()?'<div class="toggles cal-brush">'+'<button class="tg brush-leave'+(UI.leaveBrush==="leave"?" on":"")+'" data-act="cal-brush" data-v="leave" aria-pressed="'+(UI.leaveBrush==="leave")+'">'+tx('leave')+'</button><button class="tg brush-work'+(UI.leaveBrush==="work"?" on":"")+'" data-act="cal-brush" data-v="work" aria-pressed="'+(UI.leaveBrush==="work")+'">'+tx('work')+'</button><button class="tg brush-uncertain'+(UI.leaveBrush==="uncertain"?" on":"")+'" data-act="cal-brush" data-v="uncertain" aria-pressed="'+(UI.leaveBrush==="uncertain")+'">'+tx('uncertain')+'</button>'+'</div><div class="drawer-hint">'+(UI.leaveBrush?('已選「'+(UI.leaveBrush==="leave"?"休假":UI.leaveBrush==="uncertain"?"未確定":"上班")+'」：連點日期或框選範圍套用'):'先選「上班」「休假」「未確定」，再點日期套用')+'</div>':'')+'</section>':'<div class="drawer-empty">'+tx('此廠尚未設定人員')+'</div>')+
@@ -892,8 +892,8 @@ function peopleDrawerHTML(){
 function outputDrawerHTML(){
   const machines=shownMachines(),data=productionSummary(S,UI.date,machines.map(x=>x.id));
   const rows=data.rows.map(r=>{const selected=UI.focus?.type==='machine'&&UI.focus.id===r.machine.id,ratio=r.planned?Math.min(100,r.actual/r.planned*100):0;
-    return '<button class="output-row'+(selected?' selected':'')+'" data-act="focus-machine" data-id="'+r.machine.id+'"><span><b>'+esc(r.machine.id+' '+r.machine.label)+'</b><strong>計畫 '+r.planned+(r.hasReport?'｜回報 '+r.actual:'')+'</strong></span>'+(r.hasReport?'<i class="output-track"><u style="width:100%"></u><em style="width:'+ratio+'%"></em></i>':'<small>'+tx('尚未回報')+'</small>')+'</button>';}).join('');
-  return '<section class="output-total"><b>'+data.planned+'</b><span>'+mdw(UI.date)+' 計畫總件數</span></section><div class="drawer-list">'+(rows||'<div class="drawer-empty">'+tx('此廠沒有機台資料')+'</div>')+'</div><div class="drawer-hint">'+tx('藍色為現場實際回報；沒有回報時不以 0 或估算值代替。')+'</div>';
+    return '<button class="output-row'+(selected?' selected':'')+'" data-act="focus-machine" data-id="'+r.machine.id+'"><span><b>'+esc(r.machine.id+' '+r.machine.label)+'</b><strong>'+(r.hasReport?tx('計畫 {p}｜回報 {a}',{p:r.planned,a:r.actual}):tx('計畫 {p}',{p:r.planned}))+'</strong></span>'+(r.hasReport?'<i class="output-track"><u style="width:100%"></u><em style="width:'+ratio+'%"></em></i>':'<small>'+tx('尚未回報')+'</small>')+'</button>';}).join('');
+  return '<section class="output-total"><b>'+data.planned+'</b><span>'+tx('{date} 計畫總件數',{date:mdw(UI.date)})+'</span></section><div class="drawer-list">'+(rows||'<div class="drawer-empty">'+tx('此廠沒有機台資料')+'</div>')+'</div><div class="drawer-hint">'+tx('藍色為現場實際回報；沒有回報時不以 0 或估算值代替。')+'</div>';
 }
 
 function memoLabel(m){const E=emp(m.employeeId),M=mach(m.machineId);return [m.author||STORE.userName||'未署名',M&&M.label,E&&E.name].filter(Boolean).join('・');}
@@ -973,7 +973,7 @@ function moreDrawerHTML(){
   const schedGate=S.setupPending?"":btn('manual-add',tx('＋手動排班'),readOnly?'disabled':'')+btn('auto',tx('⚡ 自動排班'),readOnly?'disabled':'')+btn('incident',tx('故障／請假'),!canIncidents()?'disabled':'');
   return '<section class="more-group"><h3>'+tx('班表')+'</h3><div class="more-grid"><div class="seg" role="group" aria-label="'+tx('檢視')+'"><button data-act="view" data-v="day" aria-pressed="'+(UI.view==='day')+'">'+tx('日班表')+'</button><button data-act="view" data-v="week" aria-pressed="'+(UI.view==='week')+'">'+tx('週班表')+'</button></div><div class="seg" role="group" aria-label="'+tx('查看方式')+'"><button data-act="layout" data-v="resource" aria-pressed="'+(UI.layout==='resource')+'">'+tx('按設備')+'</button><button data-act="layout" data-v="work" aria-pressed="'+(UI.layout==='work')+'">'+tx('按工作')+'</button></div>'+schedGate+btn('undo',tx('復原上一步'),readOnly||!undoStack.length?'disabled':'')+'</div></section>'+
     '<section class="more-group"><h3>'+tx('工作與人員')+'</h3><div class="more-grid">'+btn('work-queue',tx('未排工作'))+btn('execution',tx('現場回報'))+btn('resource-load',tx('當日負荷'))+btn('rosters',tx('輪班表'))+btn('work-contents',tx('工作內容'))+btn('transfers',tx('跨廠加工'))+btn('rush',tx('欠缺品項'))+btn('groups',tx('員工分組'))+(STORE.role==='boss'?btn('access',tx('權限管理')):'')+(canScenarios()?btn('scenarios',tx('試排情境')):'')+'</div></section>'+
-    '<section class="more-group"><h3>'+tx('資料與設定')+'</h3><div class="more-grid">'+btn('settings',tx('⚙ 設定'))+btn('master',tx('員工、設備與工單'))+(canArchive()?btn('history',tx('歷史班表')):'')+btn('export',tx('匯出／匯入 Excel'))+btn('log',tx('全部紀錄'))+btn('tv',UI.tv?'管理模式':'大螢幕')+btn('help',tx('操作說明'))+btn('feedback',tx('意見反饋'))+btn('analytics',tx('產能分析'))+btn('schedule-diff',tx('排程比對'))+btn('line-notify',tx('LINE 通知'))+(STORE.role==='boss'?btn('feedback-list',tx('查看反饋')):'')+btn('tour',tx('新手導覽'))+(STORE.kind==='supabase'?btn('account',STORE.userName?STORE.userName.split('@')[0]+' · '+tx('登出'):'帳號與登出'):'')+'</div></section>';
+    '<section class="more-group"><h3>'+tx('資料與設定')+'</h3><div class="more-grid">'+btn('settings',tx('⚙ 設定'))+btn('master',tx('員工、設備與工單'))+(canArchive()?btn('history',tx('歷史班表')):'')+btn('export',tx('匯出／匯入 Excel'))+btn('log',tx('全部紀錄'))+btn('tv',UI.tv?tx('管理模式'):tx('大螢幕'))+btn('help',tx('操作說明'))+btn('feedback',tx('意見反饋'))+btn('analytics',tx('產能分析'))+btn('schedule-diff',tx('排程比對'))+btn('line-notify',tx('LINE 通知'))+(STORE.role==='boss'?btn('feedback-list',tx('查看反饋')):'')+btn('tour',tx('新手導覽'))+(STORE.kind==='supabase'?btn('account',STORE.userName?STORE.userName.split('@')[0]+' · '+tx('登出'):'帳號與登出'):'')+'</div></section>';
 }
 function statusTag(o){
   const st=orderStatus(o);
@@ -3682,7 +3682,7 @@ function shortagePageHTML(){
         '</tr>';
     }).join("")||'<tr><td colspan="12"><div class="empty">'+tx('還沒有資料，按「＋加一列」開始記')+'</div></td></tr>')+
     '</tbody></table></div>';
-  return pageShell("欠缺品項","左邊一廠欠貨，右邊二廠何時補。同一列同一張單。",head+bar+table,ro,"rush-addrow");
+  return pageShell(tx('欠缺品項'),tx('左邊一廠欠貨，右邊二廠何時補。同一列同一張單。'),head+bar+table,ro,"rush-addrow");
 }
 const pendingDate=v=>v&&!/^\d{4}-\d{2}-\d{2}$/.test(String(v));
 // 有原始文字（08\16 這類）的日期格：只顯示該文字、不再多一個「—」；點它仍可改選真日期
@@ -3732,7 +3732,7 @@ function transferFlowPageHTML(){
         '</tr>';
     }).join("")||'<tr><td colspan="12"><div class="empty">'+tx('還沒有資料，按「＋加一列」開始記')+'</div></td></tr>')+
     '</tbody></table></div>';
-  return pageShell("給二廠／回一廠","料送二廠加工，何時要回一廠。與欠缺品項分開。",bar+table,ro,"tf-addrow");
+  return pageShell(tx('給二廠／回一廠'),tx('料送二廠加工，何時要回一廠。與欠缺品項分開。'),bar+table,ro,"tf-addrow");
 }
 /* ---------- 日班表列印（A4 公佈欄格式） ---------- */
 function printDaySchedule(){
@@ -4091,7 +4091,7 @@ function workLogPageHTML(){
     }).join("")||'<tr><td colspan="10"><div class="empty">'+tx('還沒有資料，按下方加一列')+'</div></td></tr>')+
     '</tbody></table></div>';
   const filterBar='<div class="wl-filter"><label for="wl-date">'+tx('依日期篩')+'</label><input type="date" id="wl-date" value="'+esc(filter)+'" data-act-change="wl-filter"><button class="btn" data-act="wl-clearfilter">'+tx('清除')+'</button></div>';
-  return pageShell("工作紀錄","",filterBar+table,ro,"wl-addrow");
+  return pageShell(tx('工作紀錄'),"",filterBar+table,ro,"wl-addrow");
 }
 
 MODALS['memo-edit']=m=>({title:tx('新增備忘'),body:
