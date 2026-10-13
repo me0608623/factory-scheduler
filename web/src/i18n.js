@@ -11,6 +11,10 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "已儲存": {en:"Saved",vi:"Đã lưu",th:"บันทึกแล้ว"},
+  "排班狀態未全部完成；部分日期可能已儲存，請更新班表核對。": {en:"Attendance update is incomplete. Some dates may have been saved; refresh the schedule to check.",vi:"Chưa cập nhật xong trạng thái đi làm. Một số ngày có thể đã được lưu; cập nhật lịch để kiểm tra.",th:"อัปเดตสถานะยังไม่ครบ บางวันอาจบันทึกแล้ว กรุณาอัปเดตตารางเพื่อตรวจสอบ"},
+  "正在儲存排班狀態，請稍候。": {en:"Saving attendance status. Please wait.",vi:"Đang lưu trạng thái đi làm. Vui lòng đợi.",th:"กำลังบันทึกสถานะการทำงาน กรุณารอ"},
+  "排班狀態尚未確認儲存；請按上方儲存狀態重試。": {en:"Attendance save is unconfirmed. Tap the save status above to retry.",vi:"Chưa xác nhận lưu trạng thái đi làm. Nhấn trạng thái lưu phía trên để thử lại.",th:"ยังยืนยันการบันทึกสถานะไม่ได้ แตะสถานะการบันทึกด้านบนเพื่อลองใหม่"},
   "正在儲存匯入資料，請稍候；此時無法取消。": {en:"Saving imported data. Please wait; cancellation is unavailable while saving.",vi:"Đang lưu dữ liệu nhập. Vui lòng đợi; không thể hủy khi đang lưu.",th:"กำลังบันทึกข้อมูลนำเข้า กรุณารอ ไม่สามารถยกเลิกระหว่างบันทึกได้"},
   "匯入尚未確認儲存；資料仍保留，請重試儲存。": {en:"Import save is unconfirmed. Your data is preserved; retry saving.",vi:"Chưa xác nhận lưu dữ liệu nhập. Dữ liệu vẫn được giữ; hãy thử lưu lại.",th:"ยังยืนยันการบันทึกข้อมูลนำเข้าไม่ได้ ข้อมูลยังคงอยู่ กรุณาลองบันทึกใหม่"},
   "重試儲存": {en:"Retry saving",vi:"Thử lưu lại",th:"ลองบันทึกใหม่"},
