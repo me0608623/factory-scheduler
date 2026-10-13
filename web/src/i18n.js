@@ -11,6 +11,9 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "正在儲存匯入資料，請稍候；此時無法取消。": {en:"Saving imported data. Please wait; cancellation is unavailable while saving.",vi:"Đang lưu dữ liệu nhập. Vui lòng đợi; không thể hủy khi đang lưu.",th:"กำลังบันทึกข้อมูลนำเข้า กรุณารอ ไม่สามารถยกเลิกระหว่างบันทึกได้"},
+  "匯入尚未確認儲存；資料仍保留，請重試儲存。": {en:"Import save is unconfirmed. Your data is preserved; retry saving.",vi:"Chưa xác nhận lưu dữ liệu nhập. Dữ liệu vẫn được giữ; hãy thử lưu lại.",th:"ยังยืนยันการบันทึกข้อมูลนำเข้าไม่ได้ ข้อมูลยังคงอยู่ กรุณาลองบันทึกใหม่"},
+  "重試儲存": {en:"Retry saving",vi:"Thử lưu lại",th:"ลองบันทึกใหม่"},
   "{n} 段排班在其他機台": {en:"{n} scheduled blocks are on other machines",vi:"{n} khối lịch ở các máy khác",th:"มีงานตามตาราง {n} ช่วงอยู่ที่เครื่องอื่น"},
   "查看排班": {en:"Find scheduled work",vi:"Tìm công việc đã xếp lịch",th:"ดูงานที่จัดตารางแล้ว"},
   "目前沒有修改排程的權限": {en:"You do not currently have permission to change the schedule.",vi:"Hiện bạn không có quyền chỉnh sửa lịch.",th:"ขณะนี้คุณไม่มีสิทธิ์แก้ไขตาราง"},

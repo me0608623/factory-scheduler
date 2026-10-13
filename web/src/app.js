@@ -1788,6 +1788,8 @@ function openModal(m){
   UI.modal=m;renderModal();
 }
 function closeModal(){
+  // An import already writing cannot be cancelled by Escape, the overlay or X.
+  if(UI.modal?.t==='import-preview'&&UI.modal.saving)return;
   cancelPlanCalculation();
   UI.modal=null;const r=$("#modal-root");if(r)r.innerHTML="";maybeReload();
   const target=modalReturnFocus;modalReturnFocus=null;
@@ -1829,7 +1831,9 @@ function renderModal(){
   const c=f(m);if(!c){closeModal();return;}
   const keep=root.querySelector(".overlay"),focusToken=keep&&root.contains(document.activeElement)?modalFocusToken(document.activeElement):null;
   const st=keep?keep.scrollTop:0;
-  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!m.planBusy+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close" aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
+  const importBusy=m.t==='import-preview'&&m.saving;
+  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!(m.planBusy||importBusy)+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close"'+(importBusy?' disabled':'')+' aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
+  if(importBusy)root.querySelectorAll('input,select,textarea,button').forEach(el=>el.disabled=true);
   if(m.planBusy)root.querySelectorAll('input,select,textarea,button:not([data-act="close"])').forEach(el=>el.disabled=true);
   const ov=$("#ov");ov.scrollTop=st;
   const cb=$("#cbx"),modal=ov.querySelector(".modal");
@@ -2129,8 +2133,8 @@ export(){
   const warning=hasGeneral?'<div class="issues"><div class="issue">'+tx('匯入範本尚未包含獨立工作內容與一般工作排班，不能覆蓋已建立的資料。歷史排程仍可獨立匯入。')+'</div></div>':hasGroups?'<div class="issues"><div class="issue">'+tx('目前匯入範本未包含分組與組員對照，不能覆蓋已建立分組的正式名冊。歷史排程仍可獨立匯入。')+'</div></div>':hasSecondFactory?'<div class="issues"><div class="issue">'+tx('目前匯入範本沒有廠別欄，系統已有 2 廠資料。為避免整批覆蓋，這次不能確認匯入。')+'</div></div>':
     !m.errors.length?'<div class="issues"><div class="issue">'+tx('確認後將以 Excel 內容取代現有員工、機台、產品工序與工單，並清空現有 {n} 段排程；上班日設定保留。匯入後再按「自動排程」建立新班表。',{n:S.blocks.length})+'</div></div>':'';
   return {title:tx(m.errors.length?'Excel 匯入 · 請修正檔案':'Excel 匯入 · 確認取代資料'),
-    body:'<div class="hint">'+tx('檔案：')+esc(m.filename)+'</div>'+summary+problems+warning,
-    foot:'<button class="btn" data-act="close">'+tx('取消')+'</button>'+(m.errors.length||hasSecondFactory||hasGroups||hasGeneral?'':'<button class="btn primary" data-act="x-import-confirm">'+tx('確認匯入並清空舊排程')+'</button>')};
+    body:'<div class="hint">'+tx('檔案：')+esc(m.filename)+'</div>'+summary+problems+(m.importCandidate?'':warning)+(m.saving?'<div class="hint" role="status">'+tx('正在儲存匯入資料，請稍候；此時無法取消。')+'</div>':'')+(m.importError?'<div class="issues" role="alert"><div class="issue">'+esc(m.importError)+'</div></div>':''),
+    foot:'<button class="btn" data-act="close"'+(m.saving?' disabled':'')+'>'+tx(m.importCandidate?'關閉':'取消')+'</button>'+(m.errors.length||!m.data||hasSecondFactory||hasGroups||hasGeneral||(m.importCandidate&&!m.importRetryable)?'':'<button class="btn primary" data-act="x-import-confirm"'+(m.saving?' disabled':'')+'>'+tx(m.saving?'儲存中…':m.importCandidate?'重試儲存':'確認匯入並清空舊排程')+'</button>')};
 },
 "legacy-preview"(m){
   const legacy=m.legacy,day=legacy.days[m.date]||{"1廠":[],"2廠":[],overtime:{}};
@@ -3262,17 +3266,37 @@ Object.assign(MODAL_ACT,{
     document.body.appendChild(a);a.click();a.remove();
   },
   "x-import":()=>$("#xlsx-import")?.click(),
-  "x-import-confirm":()=>{
-    const m=UI.modal;if(!m||m.t!=="import-preview"||m.errors.length||!canMaster())return;
+  "x-import-confirm":async()=>{
+    const m=UI.modal;if(!m||m.t!=="import-preview"||m.saving||m.loading||m.errors.length||!m.data||!canMaster())return;
+    if(!['employees','machines','products','orders'].every(k=>Array.isArray(m.data[k])))return;
+    const store=STORE,writer=store?.session?.user?.id,epoch=store?.authEpoch;
+    const owner=()=>STORE===store&&store?.session?.user?.id===writer&&store?.authEpoch===epoch;
+    const retry=!!m.importCandidate;
+    if(retry&&(!m.importRetryable||m.importOwner.store!==store||m.importOwner.writer!==writer||m.importOwner.epoch!==epoch||S!==m.importCandidate||JSON.stringify(S)!==m.importExpected)){
+      m.importRetryable=false;m.importError=tx('排程已更新，請重新選擇 Excel 檔案預覽');renderModal();return;
+    }
     if(workCatalog(S).length||assignments(S).length||transferOrders(S).length){toast(tx('匯入範本不含一般工作／跨廠加工資料，不能覆蓋目前名冊'));return;}
     if((S.groups||[]).length){toast(tx('目前匯入範本不含分組，不能覆蓋已有分組的正式名冊'));return;}
     if(S.employees.some(e=>factoryOf(e)===2)||S.machines.some(x=>factoryOf(x)===2)||S.products.some(p=>p.steps.some(s=>factoryOf(s)===2))){
       toast(tx('目前範本沒有廠別欄，不能覆蓋已設定的 2 廠資料'));return;}
-    if(JSON.stringify(S)!==m.base){closeModal();toast(tx('排程已更新，請重新選擇 Excel 檔案預覽'));return;}
-    if(readOnly&&S.blocks.length){toast(tx('匯入會清空既有排程；還需要「調整與自動排程」權限'));return;}
-    pushUndo();S={...S,...m.data,blocks:[],demo:false};
-    commit({kind:"edit",title:tx('Excel 匯出／匯入')+"："+S.employees.length+" 位員工、"+S.machines.length+" 台機台、"+S.products.length+" 種產品、"+S.orders.length+" 張工單",lines:[{k:"info",t:"已清空原排程，請重新執行自動排程"}]},"master.manage");
-    closeModal();toast(tx('Excel 匯入完成。請建立新排程'),tx('自動排程'),runAuto);
+    if(!retry&&JSON.stringify(S)!==m.base){closeModal();toast(tx('排程已更新，請重新選擇 Excel 檔案預覽'));return;}
+    if(readOnly&&(retry?m.importNeedsSchedule:S.blocks.length)){toast(tx('匯入會清空既有排程；還需要「調整與自動排程」權限'));return;}
+    if(!retry){
+      m.importNeedsSchedule=S.blocks.length>0;m.importOwner={store,writer,epoch};
+      pushUndo();S={...S,...m.data,blocks:[],demo:false};m.importCandidate=S;
+    }
+    m.saving=true;m.importError='';m.importRetryable=true;renderModal();
+    let saved=false;
+    try{
+      const writing=commit(retry?null:{kind:"edit",title:tx('Excel 匯出／匯入')+"："+S.employees.length+" 位員工、"+S.machines.length+" 台機台、"+S.products.length+" 種產品、"+S.orders.length+" 張工單",lines:[{k:"info",t:"已清空原排程，請重新執行自動排程"}]},"master.manage");
+      // commit adds its log synchronously; compare against that exact candidate.
+      m.importExpected=JSON.stringify(S);saved=await writing;
+    }catch{saved=false;}
+    m.saving=false;
+    if(UI.modal!==m||!owner())return;
+    m.importRetryable=S===m.importCandidate&&JSON.stringify(S)===m.importExpected;
+    if(saved&&m.importRetryable){closeModal();toast(tx('Excel 匯入完成。請建立新排程'),tx('自動排程'),runAuto);return;}
+    m.importError=tx(m.importRetryable?'匯入尚未確認儲存；資料仍保留，請重試儲存。':'排程已更新，請重新選擇 Excel 檔案預覽');renderModal();
   },
   "legacy-save":async()=>{
     const m=UI.modal;if(m?.t!=="legacy-preview"||m.saving||!canArchive())return;

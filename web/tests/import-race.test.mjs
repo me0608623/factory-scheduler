@@ -12,7 +12,7 @@ function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve
 function fixture(){
   let handler,parses=0;const requests=new Map(),digest=deferred(),opened=[];
   const ctx={S:{blocks:[{id:'preserved'}]},UI:{modal:null},STORE:{kind:'local',session:{user:{id:'test-user'}},authEpoch:0},
-    canArchive:()=>true,canMaster:()=>true,crypto:{subtle:{digest:()=>digest.promise}},Uint8Array,
+    canArchive:()=>true,canMaster:()=>true,tx:x=>x,crypto:{subtle:{digest:()=>digest.promise}},Uint8Array,
     loadExcel:async()=>({readImportXlsx:async(bytes,name)=>{parses++;return requests.get(name).promise;}}),
     openModal:m=>{ctx.UI.modal=m;opened.push(m);},document:{addEventListener:(type,fn)=>{assert.equal(type,'change');handler=fn;}}};
   vm.createContext(ctx);vm.runInContext(handlerCode,ctx);
