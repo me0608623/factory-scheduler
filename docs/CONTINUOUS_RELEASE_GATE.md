@@ -1,5 +1,12 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-14 手機空表回報：已重現顯示問題，尚未修復
+
+- 使用者回報手機看不到測試排班；已詢問手機完整網址／日期截圖，尚未收到，不能斷言其個人手機根因。
+- 真實 staging qa-lead session、2026-10-15／1廠，在 Chromium 390×844 有20段測試方塊。初始水平位置0先顯示5個空示範設備，第一個測試設備tst01方塊位於右側約1339px，初始手機可視欄沒有任何工作方塊。資料不是被刪除；正式網站尚未完成PR16測試模式發布，不能混稱正式已有可用測試入口。
+- 透過正常點擊「測試M20 裁切360件08:00–12:00」開啟詳情，確認tst01／測試-張五，再關閉（沒有儲存），表格水平定位1214.67px後兩個M20方塊可見。截圖 `outputs/test-mobile-data-visible-20261014.png` 已目視覆核。原生scroll及CDP wheel兩次未移動，不能以此冒稱真機滑動通過；非iPhone Safari實測。
+- 未修改任何正式／測試排班資料、角色或帳號，臨時手機viewport已還原。後续最小修正候選：清楚的有排班機台定位入口／空可視區提示，不默默刪除空設備或重匯測試資料。先等網址釐清是否另有正式／測試入口混淆。
+
 ## 授權與排程
 
 - 使用者於2026-10-13授權：依序修復備份搜尋／模擬驗收、更新測試環境與登入權限同步驗收、確認備份後套用正式0037、全部發布門檻通過後合併PR #16並部署。
@@ -29,6 +36,33 @@
 ## 下一步
 
 ### 最新checkpoint（接續時優先讀本段）
+
+#### 2026-10-13 23:59 heartbeat／2026-10-14 00:17：備援套用不等儲存與失敗前通知修復
+
+- 起點 **00dbc7c38825c4f4b5a773a7302ed1a09322437f** 乾淨、fetch無額外main更新，無重疊modifier／部署，必讀交接已核對。90bf552 Tests **38426008893／38426003626**與smoke **38426008887／38426003528**、PR16 aa920f6既有四項CI全success。不重做上輪staging真ORTools C套用／版本8→9，不重寄信、猜密碼、匯入種子或碰正式1023。午夜後環境日期已10/14，記錄不沿用10/13的today。
+- 新最小重現 **6/6失敗**：真pvApply備援支線沒有await commit，等待／寫入false亦先showResult；舊帳號／新preview／新state期間回應仍開舊成功結果；權限撤回後先換S與pushUndo再拒存；實際commit+queueSync+LocalStore儲存額度失敗時pvApply先返回、SYNC仍busy；共用commit先送LINE才等儲存。因此不是上輪apply_plan回條分支的回歸，是未經RPC preview的本機／雲端瀏覽器備援支線及共用通知時序。
+- runtime **b2f39d3933eb72d074a8b612cfc9cb86ac19d76a**：備援套用前核對當前原始permission與P.base，拒絕時不改S/log/undo或送寫入；確認後等待commit，只有真saved且原store/user/authEpoch、同候選S物件／內容、沒有進新PV才showResult。失敗保留現有待重試候選，由既有queueSync維持「沒存到」/重試，沒有拿成功結果蓋掉失敗回饋或丟掉要重試的快照。共用commit在permission拒絕前不加假紀錄；LINE改為確認saved後才發，捕捉原帳號／store/authEpoch，不拿新登入的JWT發舊事件，通知失敗仍不影響已確認儲存。
+- 新增 **10項實际函式回歸**：在途、false、晚回應（含新草稿內容／store／帳號／epoch／PV）、撤權、stale base、真LocalStore quota failure（明確assert SYNC.msg含儲存空間不足）、通知時序／只成功一次、permission拒絕零副作用、换帳號不發、通知同步/非同步失敗不改saved。quota是假測試儲存層內的真正LocalStore+commit+queueSync執行，不是瀏覽器CDP改localStorage，也不是正式／staging的quota E2E；LINE只用合成通知器，未發實際外部訊息。
+- 第一輪全套 **560/563，3失敗**，因此沒有build／發布（PowerShell明確檢LASTEXITCODE失敗即throw）。修復漏加的權限提示三語；另兩個既有SupabaseStore回歸硬編10/6的fault/overtime在DB today翻到10/14時掉出schedule_snapshot預設七日前下限，不是修改app/Store引起。改用各自真DB `current_date`建立同樣fixture，保留4列audit、note/orig、ot_end=1200、加班授權等所有原断言，不更改SQL讀取範圍或正式資料。3失敗項聚焦重跑全過；最終全web **563/563**（53.65秒）＋build **index-Ro2yQp4p.js**（9.32秒）通過，最後增加quota訊息assert後10/10再過。大chunk警告仍在。
+- Impeccable全文、harden/craft-floor全文，沿用先前session context不重跑；本輪detector app/i18n一次 **[]**。沒有新CSS／版型／機台Gantt／日週切換變動。只以確認結果／權限拒絕／錯誤時序減少誤導，沒有全面設計重做。
+- 真本機 **tab25 / localhost:5202/?local=1**（非staging）正常更多→自動排班→計算→真「瀏覽器備援」三方案→選C維持現狀→填QA備註→對用這套按Enter一次，才出成功modal／本機儲存狀態。**390×844** modal無水平溢出，X/復原/知道了均44px，備註可見，證據 **outputs/fallback-confirmed-local-mobile-20261014.png**已目視。正常reload→更多/全部紀錄→00:14詳情仍有「QA fallback confirmed-save 2026-10-14」，證明真LocalStore持久化；未操作復原。收尾Emulation.clear、modal/More/PV皆關閉，本機留10/14。20/24/25/21/23保留handoff。沒有state注入、quota瀏覽器猴補丁或任何雲端寫入。
+- b2f39d3已推，Tests **38429113037／38429104456**在00:17仍in_progress，smoke **38429113212／38429104378**success；**尚未部署此修復或90bf552匯入翻譯整合版**，staging仍已驗6dc3c6d/index-D7tYAvVb.js。新共用commit涵蓋其他手動/事件流程，要等同SHA跨層回歸及後續staging驗收，不能拿本機通過冒稱雲端LINE／離線／不同角色通過。PR16仍aa920f6，下一輪安全同步最新修復前先核干淨／無modifier／remote一致；PR16/18仍draft。
+- 下一輪先核含b2f39d3的最新head CI，安全部署既有staging前端再只讀核對版本／匯入翻譯與備援失敗UI；不要重做已過ORTools C寫入。可在隔離staging暫阻出站log_change/save_blocks，先證明沒有DB提交及沒有提早LINE/成功modal，再考慮正常重試一次，不能盲重送或丟未存草稿。其他安全候選：套用中卡片／條件重排disabled一致性與其他commit呼叫者是否等待saved。真正不同帳號/角色、Realtime自動同步、offline409與原生Safari、正式VITE_TEST_*門檻仍未全過，不合main／正式部署／額外migration。正式0037不重套，正式1023/setup_pending/Auth/授權零改動。nightly仍待加密版本安全進main；10分鐘追蹤ACTIVE，繼續探索，不自行停用。
+
+#### 2026-10-13 23:40 heartbeat／23:57：真 OR-Tools 單次套用、回條／版本／第二分頁補讀通過
+
+- 起點 **6dc3c6d07b93b3a6aacca2030d06afab2c2ca532** 乾淨，只有既有Vite／本輪readcheck，無重疊modifier或部署。必讀交接已讀；舊寄信「未同意」敘述不採用，使用者已授權且一封已提交，不重寄／猜密碼／改憑證；仍無第二個可用不同帳號。Render-deploy全文與deployment-details/post-deploy-checks已讀，只更新既有staging web，不新增服務或費用。
+- 6dc3c6d Tests **38423986027** frontend/database/solver全completed/success、smoke **38423985990**success後，non-force FF既有staging分支 **58b73ba→6dc3c6d**。自動new_commit部署 **dep-db7533mq1p3s73f1g7ig** 於 **15:43:36Z live**。staging同SHA新增Tests **38424459789**及smoke **38424460402**亦success。solver程式未改，不重部署。部署後staging error級日誌查詢0筆，不宣稱整个平台無故障。
+- 普通root首次仍提供舊index-BnYNQgRr.js，單次`?release=6dc3c6d`取得新 **index-D7tYAvVb.js**；完成驗收後再正常root進入已是同新bundle，未重部署／清buildcache。真qa-lead組長session正常；選10/15、1廠、20段原測試工作。日期欄在AX叫textbox但locator角色不匹配；改用已觀察的真`#datepick`填值/Tab，屬工具語意差異，未改頁面或app state。
+- 正常更多→自動排班→計算，Network單次POST **staging /plans/db200**（另OPTIONS為CORS）；真OR-Tools **3套**，選中的C「維持現狀」換0人、無工單時間改變、O17/O18既有逾期。因無影響日期PV先定位today10/13，正常日期欄再定位10/15後，**20段id/label/text/style與進入前逐筆相同**，才正常填備註「QA 2026-10-13 維持現狀套用驗收」並按**一次用這套**。沒有盲重送／第二次確認／重設種子。
+- 在此tab暫阻staging `/notify/line*`防驗收外部通知，並加6秒診斷延遲，非真故障。單次在途套用：桌面 **1440×900** 頂列及手機 **390×844** 底列均為disabled「正在儲存，請稍候…」，DOM **pv-apply=0／pv-cancel=0**；手機48px、center elementFromPoint命中自身、可見／無水平溢出。截圖 **outputs/cloud-apply-desktop-b188b33-20261013.png、outputs/cloud-apply-mobile-b188b33-20261013.png** 均目視核對，僅本機保存。沒有用保留handler注入連點，連點/取消/換方案由前輪12項實際handler測試覆蓋；本輪是正常一次儲存鎖定真UI。
+- Network真正 **1筆POST /rpc/apply_plan200 → 1筆POST /rpc/schedule_snapshot200**，沒有save_blocks。僅在已觀察的測試RPC回應內部解析必要格式／數字，**不輸出/保存原response body、headers、JWT或SQL快照**：有效UUID回條，與重新讀回change_sets中的**唯一QA備註稽核**id一致，**version_before=8、version_after=9**，快照version9。結果modal顯示「重新排程：採用維持現狀」、QA備註、既有逾期與3個短段提示；不是靠HTTP200或徽章冒充儲存驗收。UI20段還原同桌面版面後id/label/text/style全一致。保留這個正常版本與稽核，沒有復原／直接刪除／rollback版本。
+- **第二分頁24仍是同qa-lead且舊bundle index-Cm7LbyXf.js**，不是另一角色／帳號。無草稿/預覽時正常按「按此更新班表」→成功提示→更多/全部紀錄→23:47那筆詳情，確見相同QA備註；20段ID、名稱／工作時間／件數一致。不同版面尺寸比較style不相同，不能當排程異動；已用同尺寸寫端全欄與讀端語意/ID對照。Realtime仍「即時更新中斷」，因此**只認同帳號跨分頁手動補讀通過，不認跨帳號、自動同步或不同角色通過**。
+- 收尾關閉兩端modal/More，寫端回普通root/新bundle、10/15/1廠/20段，PV及modal皆0。明確還原blockedURLs=[]、offline=false/latency0/throughput-1、Network.disable、Emulation.clear；限工具捕获範圍warn/error0。IAB20/24/25/21/23已markHandoff。正式服務/DB/1023/Auth/角色授權/setup_pending及0037未改，既有測試12人8資源20單103段未重匯；本輪唯一雲端排程提交為上述隔離庫C方案。
+- 最新origin/main **5ce857f**含他人 **a6b7e4a**（匯入13鍵三語、2項實際modal/翻譯回歸）與文件，讀diff後普通merge保留為 **90bf55276b258896c3aff9cecd71abced5addb9c**並推；不是部署到正式。整合版本機`node --test --test-reporter=dot tests/*.test.mjs`與build exit0，新本機bundle **index-CLoEQO2V.js**。此整合版新CI Tests **38426008893／38426003626**在23:55仍in_progress，smoke **38426008887／38426003528**success；尚未部署90bf552，不用已驗6dc3c6d冒稱新版全部E2E。
+- PR16 worktree HEAD/remote9047987、乾淨、modifier只原Vite後，普通merge90bf552为 **aa920f6ad413876ae89ca3ce118038679cb22a99**，本機全套與build exit0 **index-Lj8WiijM.js**，保留seed preflight/CSS/docs差異；已推，該新SHA CI需下輪核對。PR16/18仍draft，不能因本次真套用通過就合main／正式部署。
+- 收尾最新核對：PR16 aa920f6 Tests **38426297478／38426289216**及smoke **38426297476／38426288816**已全部completed/success，優先於上一項的待核狀態。仍未部署該整合版或通過不同帳號／自動同步門檻；不重做真C方案写入。
+- 下一輪先核最新head及90bf552/aa920f6 CI，綠後僅部署尚未上線的匯入翻譯整合版並只讀驗收，不重做已過C方案寫入。可續查方案套用中仍看似可選的卡片／條件重排入口（handler已擋pv-pick，但視覺disabled是否一致須先真重現），以及失敗/409/草稿保護等安全缺陷。真正不同帳號/角色、Realtime自動更新、offline409及原生Safari/正式VITE_TEST_*仍未全過；nightly367614493仍需等加密版本安全進main才啟用。10分鐘追蹤ACTIVE，不自行停止。
 
 #### 2026-10-13 23:19 heartbeat／23:38：雲端方案套用的連點、舊回應與回條缺陷
 

@@ -20,6 +20,7 @@ import { workCatalog,assignments,occupiedWork,assignmentIssues,validateGeneralWo
 import { newNav, navPush, navBack, opKey, suggestList, impactList, dueList, opDetail, dueDetail, boardTarget } from './preview-nav.js';
 import { capturePreviewContext, restorePreviewContext } from './preview-context.js';
 import { syncStatusView } from './cloud-status.js';
+import { initScheduleLocator, locateSchedule } from './board-locate.js';
 import { RUNTIME, TEST_AVAILABLE, modeUrl, authReturnUrl } from './runtime-config.js';
 import { legacyFieldMap } from './legacy-field-map.js';
 import {transferOrders,materialWarning,transferPlanWarnings,batchOf,validateTransfers,transferSummary} from './transfers.js';
@@ -168,15 +169,19 @@ function makeDemo(){
 /* ===== 4. 變更與復原（實際寫入由資料層 STORE 負責，見第 12 節） ===== */
 function pushUndo(){undoStack.push(JSON.stringify(S));if(undoStack.length>40)undoStack.shift();}
 function commit(entry,permission="schedule.manage"){
+  if(!canPermission(permission))return Promise.resolve(false);
+  const store=STORE,writer=store?.session?.user?.id,epoch=store?.authEpoch;
   if(entry){entry.id=uid();entry.t=Date.now();S.log.unshift(entry);if(S.log.length>200)S.log.length=200;}
   render();
-  // LINE 通知：排程相關事件推播（不阻塞主流程、失敗不影響操作）
-  if(entry&&STORE&&STORE.kind==="supabase"&&entry.kind!=="edit"&&SOLVER?.url){
-    const nm={ot:"schedule_change",leave:"leave_request",fault:"fault",order:"rush_order",auto:"schedule_change",move:"schedule_change",recover:"fault"};
-    const ev=nm[entry.kind];
-    if(ev)sendLineNotify(SOLVER.url,STORE.jwt(),ev,entry.title||"排程有變更").catch(()=>{});
-  }
-  return canPermission(permission)?queueSync(entry):Promise.resolve(false);
+  return queueSync(entry).then(saved=>{
+    // Never notify about an unconfirmed/failed write, or reuse a new account's JWT.
+    if(saved&&STORE===store&&store?.session?.user?.id===writer&&store?.authEpoch===epoch&&entry&&store.kind==="supabase"&&entry.kind!=="edit"&&SOLVER?.url){
+      const nm={ot:"schedule_change",leave:"leave_request",fault:"fault",order:"rush_order",auto:"schedule_change",move:"schedule_change",recover:"fault"};
+      const ev=nm[entry.kind];
+      try{if(ev)sendLineNotify(SOLVER.url,store.jwt(),ev,entry.title||"排程有變更").catch(()=>{});}catch{}
+    }
+    return saved;
+  });
 }
 async function undo(){
   if(!undoStack.length){toast("沒有可以復原的動作");return;}
@@ -685,6 +690,7 @@ function render(){ I18N.lang=UI.prefs.language; ensureVisualStyles();
   $("#app").innerHTML=html;
   const sc2=$(".scroller");if(sc2)sc2.scrollLeft=sl;
   window.scrollTo(0,sy);
+  initScheduleLocator(document.querySelector('.board.szoom'));
   if(UI.page==='floor')initFloor();
   if(UI.page==='visual-demo')initVisualDemo();
   initFloatWins();
@@ -1019,6 +1025,7 @@ function dayHTML(ctx={}){
     (leave.length?'<span class="tag bad" style="font-size:15px;padding:4px 10px">請假：'+esc(leave.map(e=>e.name).join("、"))+'</span>':"")+
     (nBad?'<button class="btn danger" data-act="issues">'+nBad+' 個問題</button>':(blocks.length?'<span class="tag ok" style="font-size:15px;padding:4px 10px">'+tx('沒有衝突')+'</span>':""))+
     '<div class="spacer"></div><div class="legend"><span><i style="background:var(--lunch)"></i>'+tx('午休')+'</span><span><i style="background:var(--ot)"></i>'+tx('加班')+'</span><span><i style="background:var(--bad-bg);border-color:var(--bad)"></i>'+tx('故障')+'</span><span>'+tx('顏色 = 員工')+'</span><span>'+tx('上班日／加班開關目前兩廠共用')+'</span>'+(readOnly||S.setupPending?"":"<span>"+tx('拖動方塊可改時段，拉底邊可改工作長度')+"</span>")+'</div>'+(readOnly||ctx.pv||S.setupPending?"":'<button class="btn primary" data-act="manual-add">'+tx('＋手動排班')+'</button>')+otBtn+'</div>'+
+    (!ctx.pv&&blocks.length?'<div class="board-locate" hidden><span>'+tx('{n} 段排班在其他機台',{n:blocks.length})+'</span><button class="btn" data-act="board-locate">'+tx('查看排班')+'</button></div>':'')+
     (ms.length?'<div class="scroller"><div class="grid" style="grid-template-columns:64px repeat('+ms.length+',minmax('+zw+'px,1fr))">'+
     '<div class="corner"></div>'+heads+'<div class="times">'+times+'</div>'+cols+'</div></div>':
     '<div class="empty factory-empty">'+tx('此廠尚未設定機台與員工；「歷史排程」是獨立的唯讀原表，不會自動變成正式排程。')+'</div>')+
@@ -1312,6 +1319,7 @@ document.addEventListener("click",e=>{
   if(act.startsWith('b-')&&executionOf(S,UI.modal?.id)){toast('已有現場回報，不能修改這段排程');return;}
   const step=UI.view==="week"?7:1;
   switch(act){
+    case "board-locate":locateSchedule(a.closest('.board.szoom'));break;
     case "prev":UI.date=addDays(UI.date,-step);render();break;
     case "next":UI.date=addDays(UI.date,step);render();break;
     case "today":UI.date=todayStr();UI.view='day';UI.drawer=null;UI.page=null;UI.focus=null;render();break;
@@ -2780,21 +2788,30 @@ async function pvApply(){
     }finally{P.applying=false;if(PV===P)render();}
     return;
   }
+  const permission=["fault","leave","recover"].includes(P.kind)?"incidents.manage":P.kind==="order"?"orders.manage":"schedule.manage";
+  if(!canPermissionRaw(permission)){toast(tx('目前沒有修改排程的權限'));return;}
+  if(JSON.stringify(S)!==P.base){toast(tx('排程已更新，請重新計算方案'));return;}
   const sumTxt=withState(o.A,()=>pvSummary(o));
   const people=withState(o.A,()=>peopleOf(o).map(p=>({name:p.name,items:p.items.map(x=>(x.t==="in"?"新增 ":"拿掉 ")+itemTxt(x.b))})));
   const shifts=o.mt.shifts.map(s=>({code:s.code,b:s.b,a:s.a}));
+  const store=STORE,user=store.session?.user?.id,epoch=store.authEpoch;
   pushUndo();S=JSON.parse(o.state);
+  const next=S,sameOwner=()=>STORE===store&&store.session?.user?.id===user&&store.authEpoch===epoch&&S===next&&!PV;
   if(P.kind==="fault"&&P.fid){
     const now=nowAbs();
     for(const M of S.machines)for(const f of M.faults)if(f.id===P.fid)
       f.orig=diffOf(o).gone.filter(b=>bEnd(b)>now).map(({oid,step,date,s,e,m,emp,qty})=>({oid,step,date,s,e,m,emp,qty}));
   }
   PV=null;
-  commit({kind:P.kind==="recover"?"fault":P.kind,title:P.logTitle+"：採用「"+o.name+"」",lines:o.lines,sum:sumTxt,shifts,people,
+  const saving=commit({kind:P.kind==="recover"?"fault":P.kind,title:P.logTitle+"：採用「"+o.name+"」",lines:o.lines,sum:sumTxt,shifts,people,
     ai:P.ai&&P.ai.pick?{pick:P.ai.pick,reason:P.ai.reason}:null,note:P.note,
     alts:P.opts.map(x=>"「"+x.name+"」：延誤 "+x.mt.lateCodes.length+"、異動 "+x.mt.moved+"、影響他天 "+x.mt.otherDays+"、加班 "+x.mt.otH+" 小時"+(x===o?"（採用）":""))},
-    ["fault","leave","recover"].includes(P.kind)?"incidents.manage":P.kind==="order"?"orders.manage":"schedule.manage");
-  showResult();
+    permission);
+  const expected=JSON.stringify(next);
+  const saved=await saving;
+  // Failure feedback and retry belong to queueSync. Keep its unsaved candidate
+  // rather than opening a success modal or discarding the snapshot to retry.
+  if(saved&&sameOwner()&&JSON.stringify(S)===expected)showResult();
 }
 Object.assign(MODAL_ACT,{
   "pv-pick":a=>{if(!PV||PV.applying)return;PV.cur=a.dataset.v;const d=diffOf(pvOpt());if(!d.dates[UI.date]){const ds=Object.keys(d.dates).sort();if(ds.length)UI.date=ds.find(x=>x>=todayStr())||ds[0];}render();},
