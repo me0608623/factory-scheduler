@@ -30,13 +30,16 @@ test('actual Store rejects an incomplete background RPC without replacing the vi
   assert.equal(history,1);assert.deepEqual(h.writes,[],'no rendered empty board or optimistic write');
 });
 test('remote timer rechecks preview/modal/drag/write guards before reading',async()=>{
-  for(const mode of ['preview','modal','drag','generalDrag','writing','unsaved']){
+  for(const mode of ['preview','modal','drag','generalDrag','writing','unsaved','cell','confirm','profile']){
     const h=harness();h.ctx.onRemoteChange('orders');
     if(mode==='preview')h.ctx.PV={kind:'manual'};
     if(mode==='modal')h.ctx.UI.modal={draft:{name:'not saved'}};
     if(mode==='drag'||mode==='generalDrag')h.ctx[mode]={};
     if(mode==='writing')h.ctx.SYNC.state='busy';
     if(mode==='unsaved')h.ctx.SYNC.state='error';
+    if(mode==='cell')h.ctx.UI.editCell={table:'rush',id:'TEST-ROW',key:'code'};
+    if(mode==='confirm')h.ctx.UI.confirmRow='del:TEST-ROW';
+    if(mode==='profile')h.ctx.UI.drawer='settings';
     await h.timers.shift()();
     assert.deepEqual(h.writes,[],mode+' must defer without reading or rerendering');
     assert.equal(h.ctx.pendingReload,true);

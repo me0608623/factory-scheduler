@@ -30,6 +30,17 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 19:52 heartbeat／20:08：斷線單次補讀與非彈窗草稿保護
+
+- 起點7751ce8乾淨，無其他modifier／deploy，僅專屬Vite/esbuild。最新main仍11c7d9c，新增提交僅兩份agent文件；不重做正式0037、備份還原、C1–C7或測試資料匯入。7751ce8同SHA Tests **38392987907／38392982273**、smoke **38392987997／38392982212**全部success，實查frontend log **474 tests／474 pass／0 fail**，補足上一輪追加測試後完整回歸的證據。
+- 上一輪同帳號tab20確實在Realtime中斷時維持舊M20時段，只有reload才見雲端寫入。本輪以真正sync switch case＋真正reloadFromStore/remote guards的VM執行重現：舊按鈕完全不讀取，9項中的初始6項 **5 fail／1 pass**。新增單次手動補讀，沿用remember=false speculative snapshot及接受前後state/store/user/version/write/draft檢核；不新增定時輪詢、不寫資料、不變日期／廠別、不整頁reload、不宣稱Realtime恢复。連點在途只提示，無額外排隊；讀取失敗不立即重試。原本機說明、寫入error重試、寫入busy提示、已連線說明均保留。
+- 頂部及sidebar於未連線且寫入ok時加「按此更新班表」，真實寫入／連線狀態仍分開顯示；6個新增提示en/vi/th齊全。Impeccable main/context及harden/craft-floor全文已讀，維持既有Gantt與抽屜，沒有CSS重設。detector app/i18n一次為[]；此為機械輔證，不是手機新文字版型或真雲端新按鈕E2E。
+- 第二個真錯誤：傳輸reject null時原catch再讀e.message，造成未處理TypeError。新增真函式測試修前 **8 pass／1 fail**，修後null/undefined/string/object都回固定可讀錯誤並保留原班表，沒有假成功。正常Error保留原訊息。
+- 第三個保護缺口：inline表格UI.editCell、二次刪除UI.confirmRow及設定抽屜的profile-display-name都不在原remoteReloadBlocked內，儲存格及姓名草稿只在DOM而非S。擴充真timer／manual測試修前 **18 pass／2 fail**；修後三種狀態都不讀取。守住settings整個抽屜是保守選擇，請完成／取消並關閉後再按補讀；本輪未新增全頁定時刷新，也沒有把來源讀碼當「實際雲端姓名遺失」的瀏覽器證據。
+- 新增manual-refresh **9項**：執行真正case、補讀函式；另用真正SupabaseStore加明確mock RPC驗完整snapshot可接受、畸形{}不清空可見班表或寫入baseline。覆蓋連點、離線、讀取中開草稿、版本／帳號／store切換、正常／畸形RPC、非Error失敗及舊路徑；相關測試加翻譯棘輪 **38/38**。中途480、482、483通過不取代最後結果；三項草稿guard增加後重新完整跑 **483/483／0 fail**（89秒）及最終build成功（index-BWR-IV48.js）。舊大chunk警告保留。推送後同SHA CI仍待核對，不把本機回歸當staging E2E。
+- Render tab17仍是Sign In，未重複詢問／猜密碼／改配置／手動trigger；新版尚未stage live，不能把5476的真雲端手動套用／復原當此新補讀或7751提示修復的E2E。沒有第二帳號或寄設定信同意，PR16/18維持draft、未合main或正式部署。nightly **367614493仍disabled_manually**（用api實查；workflow view不支援--json的首次工具查詢已改正）。Codex10分鐘追蹤ACTIVE，保留5個QA/login handoff。
+- 本輪正式1023、setup_pending、角色／個人授權與測試Supabase均未寫入；上一輪測試M20正常apply＋undo的兩個版本／稽核仍保留，沒有倒轉或重置。下一步核對最新CI、安全同步PR16與main文件、取得Render登入後核對真正部署SHA，再驗新補讀兩端與離線／409；不同帳號、OR-Tools真正套用與原生Safari門檻仍未過，不能提前發布。
+
 #### 2026-10-13 19:31 heartbeat／19:49：真雲端手動套用、復原與成功提示時序
 
 - 起點763795b乾淨、無其他modifier／部署，全部指定交接已讀。e0c0e4a的Tests **38390490847／38390484974**及smoke **38390490985／38390485079**成功；docs-only763795b的Tests **38390675837**及smoke **38390676007**成功。最新main仍11c7d9c，沒有新增runtime。PR16仍1451cff、staging來源8ffa、live5476，不把舊heartbeat的f6部署當新版。

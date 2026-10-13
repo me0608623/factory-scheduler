@@ -11,6 +11,12 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "無法讀取最新班表，請稍後再試。": {en:"Could not read the latest schedule. Please try again later.",vi:"Không thể đọc lịch mới nhất. Vui lòng thử lại sau.",th:"ไม่สามารถอ่านตารางล่าสุดได้ กรุณาลองใหม่ภายหลัง"},
+  "按此更新班表": {en:"Tap to refresh schedule",vi:"Nhấn để cập nhật lịch",th:"แตะเพื่ออัปเดตตาราง"},
+  "請先完成或取消目前操作，再更新班表。": {en:"Finish or cancel your current task before refreshing the schedule.",vi:"Hoàn tất hoặc hủy thao tác hiện tại trước khi cập nhật lịch.",th:"ทำงานปัจจุบันให้เสร็จหรือยกเลิกก่อนอัปเดตตาราง"},
+  "正在讀取最新班表…": {en:"Reading the latest schedule…",vi:"Đang đọc lịch mới nhất…",th:"กำลังอ่านตารางล่าสุด…"},
+  "已讀取最新班表；即時連線狀態請看上方提示。": {en:"Latest schedule loaded. Check the live connection status above.",vi:"Đã đọc lịch mới nhất. Xem trạng thái kết nối trực tiếp phía trên.",th:"อ่านตารางล่าสุดแล้ว ตรวจสอบสถานะการเชื่อมต่อด้านบน"},
+  "已保留目前操作；完成或取消後再更新班表。": {en:"Your current task is preserved. Finish or cancel it before refreshing.",vi:"Đã giữ thao tác hiện tại. Hoàn tất hoặc hủy trước khi cập nhật.",th:"เก็บงานปัจจุบันไว้แล้ว ทำให้เสร็จหรือยกเลิกก่อนอัปเดต"},
   "雲端已儲存": {en:"Saved to cloud",vi:"Đã lưu lên đám mây",th:"บันทึกบนคลาวด์แล้ว"},
   "即時已連線": {en:"Live channel connected",vi:"Đã kết nối thời gian thực",th:"เชื่อมต่อเรียลไทม์แล้ว"},
   "即時連線中": {en:"Connecting live updates",vi:"Đang kết nối cập nhật",th:"กำลังเชื่อมต่อเรียลไทม์"},
