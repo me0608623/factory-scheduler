@@ -983,7 +983,7 @@ const priTag=o=>o.pri===0?'<span class="tag bad">'+tx('特急')+'</span> ':o.pri
 function orderRow(o){const p=prod(o.pid),route=orderRoute(o,S.products).map(factoryName).join(' → ');
   return '<button class="orow" data-act="ord" data-id="'+o.id+'"><span class="code">'+esc(o.code)+'</span><span class="meta">'+priTag(o)+esc(p?p.name:"?")+' '+o.qty+'件 · '+esc(route)+' · 期限 '+md(o.due)+(o.note?' · 備註：'+esc(String(o.note).slice(0,20)):'')+'</span>'+statusTag(o)+'</button>';}
 function logRow(l){const dt=new Date(l.t);
-  return '<button class="lrow" data-act="logone" data-id="'+l.id+'"><span class="ic '+l.kind+'">'+(LOGIC[l.kind]||"・")+'</span><span class="tx">'+esc(l.title)+'<small>'+(dt.getMonth()+1)+"/"+dt.getDate()+" "+pad(dt.getHours())+":"+pad(dt.getMinutes())+(l.lines&&l.lines.length?" · "+l.lines.length+" 項調整":"")+'</small></span></button>';}
+  return '<button class="lrow" data-act="logone" data-id="'+l.id+'"><span class="ic '+l.kind+'">'+tx(LOGIC[l.kind]||"・")+'</span><span class="tx">'+esc(l.title)+'<small>'+(dt.getMonth()+1)+"/"+dt.getDate()+" "+pad(dt.getHours())+":"+pad(dt.getMinutes())+(l.lines&&l.lines.length?" · "+tx('{n} 項調整',{n:l.lines.length}):"")+'</small></span></button>';}
 
 /* ----- 日檢視：像 Excel 的時間 × 機台表 ----- */
 function dayHTML(ctx={}){
@@ -4233,7 +4233,7 @@ function showLogin(err="",email="",signup=false){
 // ---------- 未排工作、保存試排與現場回報 ----------
 MODALS['work-queue']=()=>{
   const rows=workQueue(S,todayStr(),UI.factory);
-  return {title:tx('未排工作與待處理差異'),body:'<div class="hint">依工單工序列出尚未排入的件數及已回報短少；不是求解器不可行性證明。交接、空檔及物料仍須在安排預覽中檢查。</div>'+
+  return {title:tx('未排工作與待處理差異'),body:'<div class="hint">'+tx('依工單工序列出尚未排入的件數及已回報短少；不是求解器不可行性證明。交接、空檔及物料仍須在安排預覽中檢查。')+'</div>'+
     rows.map(r=>'<article class="load-row"><b>'+esc(r.code+' · '+r.proc)+'</b> '+(r.overdue?'<span class="tag bad">'+tx('已過交期')+'</span>':'')+
       '<div class="hint">期限 '+esc(r.due)+' · 已排 '+r.planned+' 件 · 尚待排 '+r.remaining+' 件'+(r.shortfall?' · 回報短少 '+r.shortfall+' 件':'')+'</div>'+
       r.reasons.map(t=>'<div class="hint">'+esc(t)+'</div>').join('')+
@@ -4245,7 +4245,7 @@ async function openScenarioList(){
   try{m.items=await STORE.listScenarios();}catch(e){m.error=e.message;}m.loading=false;if(UI.modal===m)renderModal();
 }
 MODALS['scenario-list']=m=>({title:tx('保存的試排情境'),body:
-  '<div class="hint">情境與正式班表分開保存，只供原本／調整後對照，不提供直接套用。雲端只列出此帳號保存的情境，最多 20 份。</div>'+
+  '<div class="hint">'+tx('情境與正式班表分開保存，只供原本／調整後對照，不提供直接套用。雲端只列出此帳號保存的情境，最多 20 份。')+'</div>'+
   (m.loading?'<div class="hint">'+tx('讀取中…')+'</div>':m.error?'<div class="issue">'+esc(m.error)+'</div>':
     (m.items||[]).map(s=>'<button class="btn" style="width:100%;height:auto;min-height:48px;margin:8px 0" data-act="scenario-view" data-id="'+esc(s.id)+'">'+esc(s.name)+' · '+esc(s.created_at.slice(0,10))+'</button>').join('')||'<div class="hint">'+tx('還沒有保存的情境。')+'</div>'),
   foot:'<button class="btn" data-act="scenario-save">'+tx('保存目前排程')+'</button><button class="btn" data-act="close">'+tx('關閉')+'</button>'});
@@ -4270,7 +4270,7 @@ async function viewScenario(id){
   }catch(e){toast(e.message);}
 }
 const reportingRole=()=>STORE.kind==='local'||canPermission('execution.manage')?'boss':STORE.role;
-const reportStatus=r=>!r?'尚未開始':r.status==='done'?'已回報完成':'進行中';
+const reportStatus=r=>!r?tx('尚未開始'):r.status==='done'?tx('已回報完成'):tx('進行中');
 MODALS.execution=()=>{
   const worker=reportingRole()==='worker';
   const blocks=S.blocks.filter(b=>b.date===UI.date&&inFactory(mach(b.m),UI.factory)&&(!worker||b.emp===STORE.employeeId)).sort((a,b)=>a.s-b.s);
@@ -4280,11 +4280,11 @@ MODALS.execution=()=>{
   const line=worker?workerTimeline(S,STORE.employeeId,UI.date,UI.date===todayStr()?nowMin():DAY0):null;
   const workerBody=worker?'<section class="worker-console"><div class="worker-machine">'+tx('我的設備')+'　<b>'+esc(line?.machineId?(mach(line.machineId)?.label||line.machineId):'尚未指定')+'</b></div>'+ticket(line?.current,'現在')+ticket(line?.next,'下一件')+'</section>':'';
   const managerBody=!worker?blocks.map(b=>{const r=executionOf(S,b.id);return '<article class="load-row"><b>'+esc((order(b.oid)?.code||'?')+' · '+stepName(b))+'</b>'+
-      '<div class="hint">'+esc(emp(b.emp)?.name||'未指定')+' · '+esc(mach(b.m)?.label||b.m)+' · 原定 '+hm(b.s)+'–'+hm(b.e)+' · '+b.qty+' 件</div>'+
+      '<div class="hint">'+tx('{who} · {what} · 原定 {s}–{e} · {q} 件',{who:emp(b.emp)?.name||tx('未指定'),what:mach(b.m)?.label||b.m,s:hm(b.s),e:hm(b.e),q:b.qty})+'</div>'+
       '<div class="hint">'+reportStatus(r)+(r?' · 累計 '+r.qtyDone+' 件 · 差異 '+(r.qtyDone-b.qty)+' 件':'')+'</div>'+
       (canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending?'<button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">'+tx('查看／回報進度')+'</button>':'')+'</article>';}).join(''):'';
   return {title:tx('現場回報')+' · '+mdw(UI.date),body:
-    '<div class="hint">開始、做了幾件、完工都另外保存實際事實。完工少做的件數會回到未排工作，下一次重排會補足；不會悄悄改掉原定產能。</div>'+
+    '<div class="hint">'+tx('開始、做了幾件、完工都另外保存實際事實。完工少做的件數會回到未排工作，下一次重排會補足；不會悄悄改掉原定產能。')+'</div>'+
     (worker&&!STORE.employeeId?'<div class="issue">'+tx('帳號尚未綁定員工，請由管理員綁定後使用。')+'</div>':'')+
     (S.setupPending?'<div class="issue">'+tx('來源名冊與工時待確認，不能回報。')+'</div>':'')+
     workerBody+managerBody+
