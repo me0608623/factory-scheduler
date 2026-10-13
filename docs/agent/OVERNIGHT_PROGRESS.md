@@ -1099,3 +1099,13 @@
 - **已排除的假設**：①既有占用（blocks=0／orders=0／execution=0／faults=0＝備份幾乎無排程資料）②行事曆（週一二三五開、over 空）③機台核定/廠別（四台廠別正確、confirmed、模具數正確）④TEST 產品工序（F1/F1 兩步、rate/batch 如期寫入）
 - **假設收斂至**：solver 對「近空底＋單一新單」輸入的語義邊界——最可疑＝TEST-P02 第 2 站 transfer_batch=0（10-02 綠跑時 solver 對 batch=0 的解釋可能不同於現行）與快照 `work_windows` 鍵名（dump 顯示 undefined＝欄位名待對）。**下輪**：對照 solver 0026→main 對 batch=0 與空底快照的處理變更；或 sim 暫改 batch=0→60 驗證
 - **本輪成果**：③兩層排查證據＋dump 工具（可重用）
+
+### 缺陷探索輪 78（2026-10-14 12:00–12:50）——sim 排查：請求/回應 ground truth 入庫＋兩個排除實驗；solver「空板排不進 180 分鐘工作」之謎確立
+
+- **工具（main `b269863`）**：solve() 在 SIM_DEBUG 下完整輸出請求（逐鍵計數＋測試機器＋挑中員工）與 solver 原始回應——前次自動patch anchor 未中（已教訓：字串 patch 要驗證生效，本輪以 Edit 直改＋log 驗證 0→25 行）
+- **請求 ground truth（關鍵數據）**：blocks=0、orders=0、wa=0、tf=0、work_windows=標準 8-12/13-17 週一至五、E01 技能 f1e+f1b 可跑兩站、四台機器 confirmed 廠別正確、now=10-12 08:00、TEST-O1 120件 due 10-26——**輸入完全可排**
+- **回應 ground truth**：四方案全 INFEASIBLE、metrics 顯示 **late_days=5、pieces_total=0**——solver 認為「空板上 180 分鐘的工作最早 10-31 完成」＝行為矛盾證據（對照：staging /plans/db 同真實資料三方案可套用＝輪 65）
+- **實驗2（`5760a1e`）**：清 74 張真實跨廠單 → 仍 FAIL（排除）；**實驗3（`7f3df00`）**：連清 rush_orders 31＋leave_requests 14 → 仍 FAIL（排除）——真实資料的 volatile 表全清仍不可行
+- **假設空間（已收斂到）**：30 名真實員工的形態（leaves 分布/no_overtime/ot_weekdays 空）或 45 台真實機器的某欄位使 solver 的 timeline/产能模型誤判；與「近空底＋新單插入」路徑（sim）vs「既有單全量」（staging app）的行為差
+- **下輪計畫**：CI 內最小重現二分——在 workflow 加 debug step，把請求快照逐類剝除（員工→只剩 E01-03、機器→只剩四台、移除 staff_groups 等）二分定位使 solver 誤判的欄位；這是結案路徑
+- **成果**：①除錯工具入庫 ③兩個排除實驗＋請求/回應 ground truth

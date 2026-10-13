@@ -107,11 +107,22 @@ process.on("uncaughtException", (e) => {
 
 // ---------- solver（runner 上執行；失敗即整案失敗） ----------
 function solve(request) {
+  if (process.env.SIM_DEBUG) {
+    const snap = request.snapshot || {};
+    console.error('[req] keys=' + Object.keys(request).join(',') + ' event=' + JSON.stringify(request.event).slice(0, 200));
+    console.error('[req] snapKeys=' + Object.keys(snap).join(','));
+    console.error('[req] now=' + JSON.stringify(request.now) + ' limit=' + request.time_limit);
+    for (const k of Object.keys(snap)) { const v = snap[k]; console.error('[req] ' + k + '=' + (Array.isArray(v) ? v.length : JSON.stringify(v).slice(0, 120))); }
+    console.error('[req] machines4=' + JSON.stringify((snap.machines || []).filter(m => ['f1e','f1b'].includes(m.id))));
+    console.error('[req] picked=' + JSON.stringify((snap.employees || []).filter(e => [E01,E02,E03].includes(e.id))).slice(0, 700));
+  }
   const child = spawnSync("uv", ["run", "--frozen", "python", "-m", "scripts.plan_stdio"], {
     cwd: solverDir, input: JSON.stringify(anonymizeSolverRequest(request)), encoding: "utf8", timeout: 120000, maxBuffer: 32 * 1024 * 1024,
   });
   if (child.error || child.status !== 0) throw new Error(`solver 失敗：${clean(child.error?.message || child.stderr?.slice(-400) || "exit " + child.status)}`);
-  return JSON.parse(child.stdout);
+  const out = JSON.parse(child.stdout);
+  if (process.env.SIM_DEBUG) console.error('[res] ' + JSON.stringify(out).slice(0, 800));
+  return out;
 }
 
 // 選項診斷摘要（找不到可套用方案時列原因）
@@ -187,6 +198,8 @@ await must("週休", `UPDATE calendar_weekly SET is_open=(weekday NOT IN (0,6))`
 await must("停工日", `INSERT INTO calendar_days (date,is_open,note) VALUES ('${SHUTDOWN}',false,'TEST 停工日（非法定假日）') ON CONFLICT (date) DO UPDATE SET is_open=false,note=EXCLUDED.note`);
 // 情境隔離：清掉真實資料的跨廠加工單（sim 不測 tf 整合；74 張真實單的物料期望會約束 timeline 模型）
 await must("清跨廠單", `DELETE FROM transfer_orders`);
+// 實驗3：連趕貨紀錄（31）與請假詢問（14）一併清——排除最後兩個非零真實資料表
+await must("清趕貨與請假詢問", `DELETE FROM rush_orders; DELETE FROM leave_requests`);
 await must("機台工序", `UPDATE machines SET process='裁切' WHERE id='f1e'; UPDATE machines SET process='焊接' WHERE id='f1b'; UPDATE machines SET process='沖壓' WHERE id='f2k'; UPDATE machines SET process='包裝' WHERE id='f2ac'`);
 // 真實備份的 1023 匯入機台可能 review_status=pending；solver 拒絕以未核定資源排程（main.py:174 同規則），基準一律視為已核定
 await must("機台核定", `UPDATE machines SET review_status='confirmed' WHERE id IN ('f1e','f1b','f2k','f2ac')`);
