@@ -202,7 +202,7 @@ await must("模具", `INSERT INTO machine_products (machine_id,product_id) VALUE
 // 員工：取碼序最小的啟用員工（內部記 id，對外只有 TEST-E01/02/03）
 // 註：外層 string_agg 不能 ORDER BY 子查詢沒輸出的欄位（先前的錯誤來源）
 const pick = async (fac, n) => {
-  const v = await s.one(`SELECT coalesce(string_agg(id::text,','),'') FROM (SELECT id FROM employees WHERE active AND factory=${fac} AND review_status='confirmed' ORDER BY source_employee_code NULLS LAST, code LIMIT ${n}) z`);
+  const v = await s.one(`SELECT coalesce(string_agg(id::text,','),'') FROM (SELECT id FROM employees WHERE active AND factory=${fac} ORDER BY source_employee_code NULLS LAST, code LIMIT ${n}) z`);
   const ids = v ? v.split(",") : [];
   if (ids.length < n || ids.some((x) => !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(x)))
     throw new Error(`無法選出 ${n} 位啟用員工（廠別 ${fac}，取得 ${ids.length} 筆）——案例設定未成立`);
@@ -210,6 +210,8 @@ const pick = async (fac, n) => {
 };
 const eF1 = await pick(1, 2), eF2 = await pick(2, 1);
 const [E01, E02, E03] = [...eF1, ...eF2];
+// 員工也一體核定（真實備份的 1023 匯入員工可能 pending；solver 不排未核定人員）
+await must("員工核定", `UPDATE employees SET review_status='confirmed' WHERE id IN ('${E01}','${E02}','${E03}')`);
 await must("技能", `INSERT INTO employee_skills (employee_id,machine_id) VALUES ('${E01}','f1e'),('${E01}','f1b'),('${E02}','f1e'),('${E03}','f2k'),('${E03}','f2ac') ON CONFLICT DO NOTHING`);
 const boss = await s.one("SELECT user_id FROM profiles WHERE role='boss' LIMIT 1");
 await must("身分", `SET request.jwt.claim.sub='${boss}'`);
