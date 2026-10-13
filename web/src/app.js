@@ -3277,7 +3277,7 @@ let SAMPLE=null,toastT=null;          // AI 助理下一階段改由伺服器提
 let STORE=null;                        // LocalStore 或 SupabaseStore（main.js 決定）
 let scheduleChat=null;
 const SYNC={state:"ok",msg:"",realtime:null};
-let lastLocalWrite=0,pendingReload=false,reloadTimer=null;
+let lastLocalWrite=0,pendingReload=false,reloadTimer=null,remoteLoading=false;
 // 職位只提供預設值；正式可寫範圍由老闆逐項授權，畫面與資料庫使用同一組權限鍵。
 function canPermissionRaw(key){return !STORE||STORE.kind==='local'||(STORE.can?STORE.can(key):effectivePermission(STORE.role,STORE.permissions,key));}
 function canPermission(key){return !PV&&canPermissionRaw(key);}
@@ -3334,7 +3334,7 @@ function queueSync(entry){
       else toast("沒存到："+e.message,"重試",()=>queueSync(null));
       return false;
     }
-    finally{syncPending--;if(syncPending>0)SYNC.state="busy";updateSyncChip();}
+    finally{syncPending--;if(syncPending>0)SYNC.state="busy";updateSyncChip();if(syncPending===0&&SYNC.state==='ok')maybeReload();}
   });
   syncChain=task.then(()=>undefined);
   return task;
@@ -3358,29 +3358,42 @@ function normalizeState(){
   for(const p of S.products)for(const st of p.steps)st.factory=factoryOf(st);
   if(S.holidays)Object.assign(HOLI,S.holidays);
 }
-async function reloadFromStore(){
-  try{const s=await STORE.load();if(s){S=s;normalizeState();}render();}
-  catch(e){toast(e.message);}
+async function reloadFromStore({background=false}={}){
+  const activeStore=STORE,before=S,beforeJSON=background?JSON.stringify(S):null;
+  const version=STORE.version,savedAt=lastLocalWrite,user=STORE.session?.user?.id;
+  const accept=()=>!background||(!remoteReloadBlocked()&&STORE===activeStore&&S===before&&JSON.stringify(S)===beforeJSON&&STORE.version===version&&lastLocalWrite===savedAt&&STORE.session?.user?.id===user);
+  if(!accept()){pendingReload=true;return 'deferred';}
+  try{
+    const s=await activeStore.load({remember:!background});
+    if(background&&(!s||!accept())){pendingReload=true;return 'deferred';}
+    if(s){if(background)activeStore.acceptLoaded?.(s);S=s;normalizeState();}render();return 'applied';
+  }catch(e){if(background)pendingReload=true;toast(e.message);return 'failed';}
 }
+function remoteReloadBlocked(){return !!(PV||drag||generalDrag||UI.modal||syncPending>0||SYNC.state!=='ok');}
 function onRemoteChange(source){
   if(source==="account_permissions"){
     readOnly=STORE.kind==="supabase"&&!STORE.can("schedule.manage");
     closeModal();render();toast("老闆已更新你的功能權限");return;
   }
-  if(PV||drag||generalDrag||UI.modal||SYNC.state==="busy"){pendingReload=true;return;}
+  if(remoteReloadBlocked()||remoteLoading){pendingReload=true;return;}
   clearTimeout(reloadTimer);
   reloadTimer=setTimeout(async()=>{
+    if(remoteReloadBlocked()||remoteLoading){pendingReload=true;return;}
+    remoteLoading=true;let result='failed';
+    try{
     const mine=Date.now()-lastLocalWrite<4000;
-    await reloadFromStore();
+    result=await reloadFromStore({background:true});
+    if(result!=='applied')return;
     const l=S.log[0];
     if(!mine&&notificationEnabled(UI.prefs,source)){
       const recent=l&&Date.now()-l.t<120000,title=recent?'有新的變更：'+l.title:source==='leave_requests'||source==='leaves'?'請假資料有更新':source==='schedule_memos'?'現場備忘有更新':'排程資料有更新';
       if(recent)toast(title,"看細節",()=>openModal({t:"logone",id:l.id}));else toast(title);
       showDeviceNotification(title);
     }
+    }finally{remoteLoading=false;if(result!=='failed')maybeReload();}
   },600);
 }
-function maybeReload(){if(pendingReload&&!PV&&!UI.modal&&!drag&&!generalDrag){pendingReload=false;onRemoteChange();}}
+function maybeReload(){if(pendingReload&&!remoteReloadBlocked()&&!remoteLoading){pendingReload=false;onRemoteChange();}}
 
 // ---------- 帳號與連線 ----------
 MODALS.account=()=>({title:tx('帳號與連線'),

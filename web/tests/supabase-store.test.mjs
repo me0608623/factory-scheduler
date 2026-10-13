@@ -320,6 +320,18 @@ test('套用後立即復原（同使用者）不被自己的版本鎖擋住', as
   assert.equal(fresh.version, 2, '版本正常推進，未被 40001 擋下');
 });
 
+test('speculative remote load does not advance write baseline until accepted',async()=>{
+  const {db,store}=await setup(),lead=await store('lead@x');
+  await lead.load();
+  const baseline=JSON.stringify({version:lead.version,base:lead.base,blocks:lead.baseBlocks,protected:lead.protectedBase,transfer:lead.transferBase});
+  await db.query('update schedule_state set version=version+1');
+  const remote=await lead.load({remember:false});
+  assert.equal(remote.version,1);
+  assert.equal(JSON.stringify({version:lead.version,base:lead.base,blocks:lead.baseBlocks,protected:lead.protectedBase,transfer:lead.transferBase}),baseline,'discarded read must not update optimistic-lock or diff baseline');
+  lead.acceptLoaded(remote);assert.equal(lead.version,1);
+  const ordinary=await lead.load();assert.equal(ordinary.version,lead.version,'normal foreground reads still remember by default');
+});
+
 test("格式轉換：畫面 → 快照 → 畫面", () => {
   const S = { cal: { week: [false, true, true, true, true, true, true], over: { "2026-10-01": "off" } }, dayOT: { "2026-10-02": true },
     employees: [{ id: "e", name: "甲", factory: 2, color: 1, skills: ["a"], maxMachines: 2, leaves: ["2026-10-03"], noOT: true, reviewStatus: 'confirmed', sourceRef: null,

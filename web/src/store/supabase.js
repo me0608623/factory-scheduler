@@ -219,16 +219,19 @@ export class SupabaseStore {
   }
 
   // ---------- 讀 ----------
-  async load() {
+  async load({remember=true}={}) {
     const { data, error } = await this.sb.rpc("schedule_snapshot");
     if (error) throw new Error("讀取排程失敗：" + error.message);
     const S = fromSnapshot(data);
     const { data: logs } = await this.sb.from("change_sets").select("*").order("created_at", { ascending: false }).limit(200);
     S.log = (logs || []).map(logFromDb);
-    this.version = S.version;
-    this._remember(S);
+    // Background reads are speculative. The UI accepts the state and baseline
+    // together, synchronously, only after checking that no edit/save intervened.
+    if(remember)this.acceptLoaded(S);
     return S;
   }
+
+  acceptLoaded(S){this._remember(S);this.version=S.version;}
 
   _remember(S) {
     this.protectedBase=structuredClone({blocks:S.blocks,execution:S.execution||[],employees:S.employees.map(e=>({id:e.id})),machines:S.machines.map(m=>({id:m.id})),orders:S.orders.map(o=>({id:o.id}))});

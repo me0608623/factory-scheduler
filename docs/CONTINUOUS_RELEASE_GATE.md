@@ -30,6 +30,15 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 16:12 heartbeat：背景補讀競爭修復（發布狀態見後續追加）
+
+- 本輪開始 own worktree 乾淨，沒有其他修改／部署程序在此目錄；不改共享checkout。canonical staging root 已實查 CF-Cache-Status=EXPIRED 並提供 **index-6NbuiVNe.js**，fcd9d2e 的舊首頁快取阻礙解除，沒有重部署舊版或清除build cache。
+- 執行真正的 app 背景補讀函式（VM＋可控非同步store與timer）修前 **4/4失敗**：600ms timer排入後進入草稿／預覽仍讀取並render；HTTP在途後開草稿仍接受；本機完成較新儲存後接受較舊遠端結果；讀取失敗仍通知有更新。不是源碼字串斷言。
+- 最小修正：timer執行及HTTP結果接受前兩次檢核草稿／預覽／拖曳／在途寫入／未存成功狀態；並檢核store、登入者、state內容、版本與本機寫入標記。過期結果不render、不更新寫入diff基準；沒有安全狀態時延後，關閉草稿或完成成功儲存後再補讀。多個事件合併而不並行HTTP，失敗不立即無限重試或假通知成功。
+- SupabaseStore 新增 speculative `load({remember:false})`，讀取快照不修改version／base／protectedBase；真正接受畫面時同步acceptLoaded，避免「畫面拒收、寫入基準卻已更新」。預設load仍維持既有行為。真PGlite＋全部migration回歸實證拒收時基準逐位元組不變、接受後版本前進；沒有存取或寫入正式DB。
+- 新增10項 app 執行期回歸＋1真SQL store回歸：安全重讀、六種busy／未存狀態、等待中開草稿、完成儲存、同物件未儲存更動、切換帳號／store、失敗不通知不迴圈、多事件合併與關閉草稿後補讀。全web **440/440**、build通過；工具 **26/26**。工具首跑因未加 age工具到此PowerShell PATH有5項環境失敗（不是產品缺陷），補既有已驗證工具路徑後26項真正執行通過，沒有跳過。一次誤用不存在tools/tests glob產生0測試，不作通過證據。Impeccable harden只影響本輪資料更新／錯誤安全，detector app.js無輸出，不做畫面重設計。
+- 真staging平台即時通道中斷與第二帳號未登入仍是發布門檻，本輪程式測試不冒稱真兩端同步已通過，也未新增自動輪詢。寄設定信仍待本人同意，不能讀舊SQL／猜或改密碼。0037不重套、正式1023不動，PR16/18仍draft、nightly仍停用直到加密main安全發布。10分鐘追蹤ACTIVE。
+
 #### 2026-10-13 16:00 台灣時間：即時通道狀態修復與登入阻礙
 
 - 本輪07:32 heartbeat執行中又收到07:52 heartbeat，仍在同一工作目錄接續，沒有並行第二份修改／部署。工作區開始乾淨，只有本輪PowerShell命令在此目錄。
