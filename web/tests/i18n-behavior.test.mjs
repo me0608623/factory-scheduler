@@ -153,3 +153,19 @@ test('輪116 查證：正在解析 Excel… 三語有譯文', () => {
   }
   I18N.lang = 'zh-TW';
 });
+
+test('輪120 查證：排程比對結果鍵三語有譯文＋佔位符正確', () => {
+  const cjk = /[\u4e00-\u9fff]/;
+  const keys = ['{a} 段 vs {b} 段 · 共同 {c} 段 · {m1} 台 vs {m2} 台 · {e1} 人 vs {e2} 人', '只在 {d}（被移除或改時間）', '只在 {d}（新增或改時間）', '請選兩個不同日期'];
+  for (const lang of ['en', 'vi', 'th']) {
+    I18N.lang = lang;
+    for (const k of keys) {
+      const out = tx(k, { a: 2, b: 2, c: 1, m1: 2, m2: 2, e1: 1, e2: 2, d: '10/21' });
+      assert.notEqual(out, k, `${lang} 缺譯：${k}`);
+      assert.ok(!cjk.test(out), `${lang} 譯文含中文：${out}`);
+    }
+  }
+  I18N.lang = 'en';
+  assert.equal(tx('{a} 段 vs {b} 段 · 共同 {c} 段 · {m1} 台 vs {m2} 台 · {e1} 人 vs {e2} 人', { a: 2, b: 2, c: 1, m1: 2, m2: 2, e1: 1, e2: 2 }), '2 blocks vs 2 blocks · 1 in common · 2 vs 2 machines · 1 vs 2 people');
+  I18N.lang = 'zh-TW';
+});

@@ -1596,7 +1596,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "schedule-diff":openModal({t:"schedule-diff"});break;
     case "diff-run":{
       const d1=$("#diff-date1")?.value,d2=$("#diff-date2")?.value;
-      if(!d1||!d2||d1===d2){toast("請選兩個不同日期");break;}
+      if(!d1||!d2||d1===d2){toast(tx('請選兩個不同日期'));break;}
       UI.modal.result=computeScheduleDiff(d1,d2);
       renderModal();break;}
     case "analytics":UI.page="analytics";UI.drawer=null;try{history.replaceState(null,"","?view=analytics");}catch{}render();window.scrollTo(0,0);break;
@@ -3452,9 +3452,9 @@ MODALS['schedule-diff']=m=>{
     foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="diff-run">'+tx('比較')+'</button>'};
   const st=r.summary;
   return {title:tx('排程比對')+'：'+md(r.d1)+' vs '+md(r.d2),body:
-    '<div class="hint">'+st.total1+' 段 vs '+st.total2+' 段 · 共同 '+r.common+' 段 · '+st.machines1+' 台 vs '+st.machines2+' 台 · '+st.employees1+' 人 vs '+st.employees2+' 人</div>'+
-    '<div class="field"><span class="lab">只在 '+md(r.d1)+'（被移除或改時間）</span><div class="result">'+(r.only1.map(item).join("")||'<div class="okbox">'+tx('無')+'</div>')+'</div></div>'+
-    '<div class="field"><span class="lab">只在 '+md(r.d2)+'（新增或改時間）</span><div class="result">'+(r.only2.map(item).join("")||'<div class="okbox">'+tx('無')+'</div>')+'</div></div>',
+    '<div class="hint">'+tx('{a} 段 vs {b} 段 · 共同 {c} 段 · {m1} 台 vs {m2} 台 · {e1} 人 vs {e2} 人',{a:st.total1,b:st.total2,c:r.common,m1:st.machines1,m2:st.machines2,e1:st.employees1,e2:st.employees2})+'</div>'+
+    '<div class="field"><span class="lab">'+tx('只在 {d}（被移除或改時間）',{d:md(r.d1)})+'</span><div class="result">'+(r.only1.map(item).join("")||'<div class="okbox">'+tx('無')+'</div>')+'</div></div>'+
+    '<div class="field"><span class="lab">'+tx('只在 {d}（新增或改時間）',{d:md(r.d2)})+'</span><div class="result">'+(r.only2.map(item).join("")||'<div class="okbox">'+tx('無')+'</div>')+'</div></div>',
     foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button><button class="btn" data-act="schedule-diff">'+tx('重選日期')+'</button>'};
 };
 /* ---------- 意見反饋 ---------- */
