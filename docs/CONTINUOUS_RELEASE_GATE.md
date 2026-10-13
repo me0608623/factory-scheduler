@@ -30,6 +30,17 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 18:13 heartbeat：權限演練假綠與密文消費防護
+
+- 起點3c51519乾淨、無其他modifier／deploy；讀取所有指定交接，歷史fs-hunt尚稱0037未完成等內容不當成新授權。PR16的63d1609 Tests **38379664662／38379670951**三job全success，補核對完成結果；正式與staging資料／服務／環境变量不變，不重新套正式0037。
+- 真Bash回歸修前3失敗／1通過：SQL exit1被rows映射成成功0列；expect輸出私密actual；非預期錯誤直接印stderr。改共享permissions-drill.sh：psql強制ON_ERROR_STOP與-X，查詢失败QUERY_FAILED；真正成功0列與1列可區分；rejection分MATCHED／WRONG_ERROR／NO_ERROR／QUERY_FAILED，連線失敗不能冒充另一種SQL約束拒絕。expect只公開固定測試名稱，不印期待／原始回傳，必要setup與版本讀取失敗會中止，不吞錯後續跑。
+- 新增7項真Bash／workflow入口執行期回歸：正確0/1列、SQL/連線失敗、私密比較與stderr防洩、正確拒絕與無錯誤、setup/version失敗停止、帳號變數shell-local不外傳。Docker/SQL傳輸是明確mock，不冒稱已驗真Auth／跨端同步。
+- 沿途額外確認原演練廣泛revoke所有底線函式，會把唯讀snapshot invoker鏈一起鎖掉。新增PGlite跑全部真migrations並執行工作流實際grant/revoke SQL，修前**42501 permission denied for _snapshot_before_layout**；修後保留已由migrations明確授權的_snapshot_before_*，viewer能真正查schedule_snapshot，_guard_work_execution私有寫入guard仍無EXECUTE。這是副本授權模型修正，沒有變更正式ACL。初次SQL抽取與syntax block數量的測試程式有問題，已修正再取得上述功能實證；不把測試程式錯誤當產品bug。
+- permissions-drill改為指定同密文／encryptedOnly、不回退明文，沿用已驗catalog的ZIP白名單、真age解密／scope／24小時checksum／PG17 public還原；stdout/stderr/SQL全部在受限runner.temp、always清除本輪副本／身份檔，不上傳任何artifact。auth stub與人造grant模型僅作DB流程演練，**不是完整還原證明或真雲端角色验收**。
+- 備份05:40早於正式0037的06:11，因此只在拋棄式容器套repo0037以測目前15鍵／組長12預設，正式不重套。保留原A-I權限、覆寫、RLS、版本409、報工開始/件數/完工/確認及撤回檢查；補notes/rush/worklog鍵。取消確認RPC單獨驗成功，空plan_previews會建立僅副本的synthetic preview來驗viewer被拒，不再靜默SKIP；不把此preview當ORTools真方案套用。
+- 重要隱私補強：Actions會自動列GITHUB_ENV，不能只刪echo UUID；BOSS/LEAD/VIEWER改存受限accounts.sh，BASH_ENV只載入shell-local並export -n，沒有UUID進GITHUB_ENV/log。其值先驗UUID格式；所有報工fixture mutation都只在拋棄式容器，不更改測試cloud或正式名冊。原第三方／Actions worker metadata不是備份身份資料，不偽稱全log零UUID。
+- 工具 **46/46**（含8新真執行期／SQL測試）通過；18個實際workflow Bash區塊語法也通過。這輪沒有web/solver程式修改，前輪已驗449與build不重做，將以同SHA CI回歸後才dispatch密文11791661615的真PG17演練。CI／實際副本A-I結果待追加，未驗證前不宣稱全過；PR16/18仍draft、nightly仍停用，持續追蹤ACTIVE。
+
 #### 2026-10-13 17:50 heartbeat：加密資料盤點與公開輸出安全
 
 - 起點cb7edcb乾淨、沒有其他modifier／deploy程序；正式1023、0037、角色及測試資料皆不寫入。這輪沒有web/solver執行期修改，不重複部署Render，也不重做C1–C7或既有還原證明。
