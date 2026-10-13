@@ -58,3 +58,20 @@ test('wrong project, incomplete scope and extra payload all fail closed',()=>fix
 test('missing encryption key never falls back to plaintext',async()=>{
   await assert.rejects(packBackup({recipient:''}),/recipient/);
 });
+
+test('actual decrypt CLI rejects malformed private manifest without echoing its contents',()=>fixture(async ctx=>{
+  await packBackup(ctx);
+  const marker='PRIVATE-MANIFEST-email@example.test';
+  await writeFile(join(ctx.sourceDir,'manifest.json'),marker);
+  const archive=join(ctx.root,'malformed.tar'),encrypted=join(ctx.root,'malformed.age');
+  assert.equal(spawnSync('tar',['-cf',archive,'-C',ctx.sourceDir,
+    'full.dump','public.dump','roles.sql','inventory.json','manifest.json'],{windowsHide:true}).status,0);
+  assert.equal(spawnSync(ctx.age,['-r',ctx.recipient,'-o',encrypted,archive],{windowsHide:true}).status,0);
+  const outDir=join(ctx.root,'cli-restore');
+  const result=spawnSync(process.execPath,['tools/encrypted-backup.mjs','unpack'],{windowsHide:true,encoding:'utf8',
+    env:{...process.env,AGE_BIN:ctx.age,BACKUP_ENCRYPTED_FILE:encrypted,BACKUP_IDENTITY_FILE:ctx.identity,BACKUP_RESTORE_DIR:outDir}});
+  assert.equal(result.status,1);assert.equal(result.stdout,'');
+  assert.doesNotMatch(result.stderr,/PRIVATE-|example\.test/);
+  assert.equal(result.stderr.trim(),'Encrypted backup validation failed; private diagnostics withheld');
+  assert.deepEqual(await readdir(outDir),[],'no decrypted payload retained after rejection');
+}));

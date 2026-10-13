@@ -30,6 +30,17 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 17:50 heartbeat：加密資料盤點與公開輸出安全
+
+- 起點cb7edcb乾淨、沒有其他modifier／deploy程序；正式1023、0037、角色及測試資料皆不寫入。這輪沒有web/solver執行期修改，不重複部署Render，也不重做C1–C7或既有還原證明。
+- 已讀catalog-inventory與permissions-drill全部流程。兩者都排除db-backup-encrypted，且舊盤點會把資源名稱／產品代號／日期寫入公開報告，權限演練仍會印帳號UUID、原始RPC與SQL錯誤。因此先修catalog；permissions-drill仍不安全，**不得dispatch**，後續另修，不能把本輪通過冒稱權限演練已通過。
+- 新backup-artifact encryptedOnly選項：只取未過期真正密文備份，保留其他舊消費者原有行為；指定明文ID也拒絕。兩項mock HTTP回歸修前確實失敗（誤選較新明文、明文ID未拒絕），修後通過。catalog新增artifact_id輸入可固定同一密文，ZIP只允許database.tar.age，age真正解密、scope／24小時新鮮度／checksum沿用原驗證，不回退舊明文。
+- catalog只在拋棄式PG17還原public，auth為stub，明確不是完整資料庫還原證明／solver可行性測試。查詢BEGIN READ ONLY；公開結果改固定29項數值白名單，沒有姓名、資源／產品代號、個人日期、工單／請假／報工明細。缺欄、額外欄、字串、負值、不安全整數與非法provenance拒絕，CLI不印JSON來源、檔案路徑或資料庫錯誤。所有restore stdout/stderr只在受限runner.temp，錯誤不忽略；always清理本輪副本、SQL、身份金鑰，不刪旧GitHub artifact/log。
+- PGlite合成fixture真正執行舊string_agg查询，確定會輸出PRIVATE-MACHINE；替換SQL實際執行得到員工／技能／機台／模具缺漏等正確數值、唯讀交易結束無資料變動。新增4項SQL／輸出／CLI回歸；不是源碼字串断言。
+- 沿途確認第三個私密輸出缺陷：age已正確解密但manifest JSON損壞時，原CLI會印出解密內容片段（真正age＋CLI測試修前失敗）。CLI改固定安全訊息，清除明文的既有防護仍驗證；export API保留私下caller錯誤。新增1項真正age回歸。工具**38/38**、web**449/449**與build全過；大chunk警告既有未改。
+- 密文artifact11791661615實查未過期（05:40:54Z建立），預定在同SHA CI綠後用它執行一次隔離catalog；不建立新明文備份、不讀正式DB。不把觸發workflow當還原成功，後續記錄run、各步與公開artifact內容。CI及實際PG17盤點結果待追加。
+- PR16/18仍draft，第二帳號與真正排程套用／跨端同步門檻仍缺，nightly仍disabled_manually，10分鐘Codex追蹤ACTIVE。下輪先核對本輪實證，再修permissions-drill密文相容與公開輸出，持續探索，不自行結案。
+
 #### 2026-10-13 17:12 heartbeat：訂閱成功補漏讀取與雲端啟動失敗防護
 
 - 本輪891b0cd起點乾淨、沒有其他modifier／deploy程序；不再整合相同main或重跑已過C5。依Impeccable harden只補資料更新／失敗路徑，保留班表、抽屜、日週切換及午休背景；context已執行一次，craft-floor全文已讀，最終detector app.js為空結果。
