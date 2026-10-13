@@ -124,8 +124,8 @@ jobs:
         with:
           name: acceptance-report-${{ inputs.monday }}
           path: |
-          /tmp/acceptance-report.md
-          /tmp/sim-*.json
+            /tmp/acceptance-report.md
+            /tmp/sim-*.json
           retention-days: 30
 
       - name: 清理
