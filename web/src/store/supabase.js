@@ -228,8 +228,14 @@ export class SupabaseStore {
   async reportExecution(request) {
     const client=this.sb,assertOwner=this.requestOwnerGuard();
     const dispatched={blockId:request.blockId,action:request.action,qtyDone:request.qtyDone,expectedRevision:request.expectedRevision};
-    const {data,error}=await assertOwner.authorize(client.rpc('report_work_execution',{p_request:request.id,p_block:dispatched.blockId,p_action:dispatched.action,p_qty:dispatched.qtyDone,p_revision:dispatched.expectedRevision}));assertOwner();
-    if(error){if(error.code==='40001')throw new ConflictError('進度已被更新，請重新載入');throw Object.assign(new Error(error.message),{rejected:!!error.code});}
+    const {data,error,status}=await assertOwner.authorize(client.rpc('report_work_execution',{p_request:request.id,p_block:dispatched.blockId,p_action:dispatched.action,p_qty:dispatched.qtyDone,p_revision:dispatched.expectedRevision}));assertOwner();
+    if(error){
+      if(error.code==='40001')throw new ConflictError('進度已被更新，請重新載入');
+      // Only this RPC's known SQL rejections are conclusive. Unknown/proxy
+      // failures may hide a committed request; keep its id for explicit replay.
+      if(['42501','P0001'].includes(error.code)&&(status==null||status>=400&&status<500))throw Object.assign(new Error(error.message),{rejected:true});
+      throw new UnconfirmedWriteError();
+    }
     return confirmedExecutionReceipt(data,dispatched);
   }
   async confirmExecution(blockId, confirmed) {

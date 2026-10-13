@@ -4,6 +4,9 @@ import {createClient} from '@supabase/supabase-js';
 import {SupabaseStore} from '../src/store/supabase.js';
 import {makeDb,FakeSupabase} from './fake-supabase.mjs';
 import {requestQuery} from './request-query.mjs';
+import vm from 'node:vm';
+import {readFileSync} from 'node:fs';
+import {executionOf} from '../src/execution.js';
 const block='abcdefab-1111-4111-8111-111111111111',employee='22222222-2222-4222-8222-222222222222';
 const request={id:'33333333-3333-4333-8333-333333333333',blockId:block,action:'start',qtyDone:0,expectedRevision:0};
 const receipt={blockId:block,employeeId:employee,status:'running',qtyDone:0,revision:1,version:1,startedAt:'2026-10-13T08:00:00+00:00',finishedAt:null};
@@ -57,5 +60,49 @@ test('real migrated report lost ACK stays uncertain, then same-ID retry returns 
     await assert.rejects(store.confirmExecution(block,true),err=>err.unconfirmed===true);const after=await store.load();assert.equal(after.execution[0].confirmed,true);assert.equal(after.version,3);
     assert.equal((await db.query('select count(*)::int n from change_sets')).rows[0].n,3);
     const planned=(await db.query('select start_min,end_min,qty from schedule_blocks where id=$1',[block])).rows[0];assert.deepEqual(planned,{start_min:480,end_min:540,qty:60});
+  }finally{await db.close();}
+});
+test('actual SDK distinguishes known transaction rejections from unknown gateway or server codes',async()=>{
+  for(const code of ['SYNTHETIC_GATEWAY_UNKNOWN','XX000','PGRST000','',null,'P0001','42501']){
+    const client=createClient('https://synthetic.invalid','sb_publishable_synthetic_test_key',{accessToken:async()=> 'synthetic',global:{fetch:async()=>new Response(JSON.stringify({code,message:'Synthetic uncertain response'}),{status:503,headers:{'Content-Type':'application/json'}})}});
+    const store=new SupabaseStore(client);store.session={user:{id:'A'},access_token:'synthetic'};
+    await assert.rejects(store.reportExecution(request),e=>e.unconfirmed===true&&!e.rejected&&!e.conflict,code||'no code');
+  }
+  for(const code of ['42501','P0001','40001']){
+    const client=createClient('https://synthetic.invalid','sb_publishable_synthetic_test_key',{accessToken:async()=> 'synthetic',global:{fetch:async()=>new Response(JSON.stringify({code,message:'Synthetic rejection'}),{status:400,headers:{'Content-Type':'application/json'}})}});
+    const store=new SupabaseStore(client);store.session={user:{id:'A'},access_token:'synthetic'};
+    await assert.rejects(store.reportExecution(request),e=>code==='40001'?e.conflict===true:e.rejected===true&&!e.unconfirmed);
+  }
+});
+test('real committed report hidden by a gateway error keeps its UI request ID, and an explicit retry creates only one event',async()=>{
+  const db=await makeDb();try{
+    const actor='44444444-4444-4444-8444-444444444444';await db.query("insert into auth.users(id,email) values($1,'synthetic-retry@invalid')",[actor]);await db.query("update profiles set role='boss' where user_id=$1",[actor]);
+    const e=(await db.query("select id from employees where name='張三'")).rows[0].id,order=(await db.query("select id from orders where code='A01'")).rows[0].id;
+    await db.query("insert into schedule_blocks(id,order_id,step_seq,machine_id,employee_id,date,start_min,end_min,qty) values($1,$2,0,'a',$3,'2000-01-01',480,540,60)",[block,order,e]);
+    const fake=new FakeSupabase(db,{});fake.uid=actor;const reader=new SupabaseStore(fake);await reader.init();const state=await reader.load();
+    let obscure=true;const writes=[];
+    const sdk=createClient('https://synthetic.invalid','sb_publishable_synthetic_test_key',{accessToken:async()=> 'synthetic',global:{fetch:async(url,options)=>{
+      assert.equal(new URL(url).pathname,'/rest/v1/rpc/report_work_execution');const args=JSON.parse(options.body);writes.push(args.p_request);
+      const result=await fake.rpc('report_work_execution',args);assert.equal(result.error,null);
+      return obscure?new Response(JSON.stringify({code:'SYNTHETIC_GATEWAY_UNKNOWN',message:'Synthetic uncertain response'}),{status:503,headers:{'Content-Type':'application/json'}}):new Response(JSON.stringify(result.data),{headers:{'Content-Type':'application/json'}});
+    }}});
+    const store=new SupabaseStore(sdk);store.session={user:{id:actor},access_token:'synthetic'};store.role='boss';
+    const ctx={S:state,UI:{date:'2000-01-01',factory:1,page:'schedule',drawer:null,modal:{t:'execution-report',id:block}},PV:null,STORE:store,SYNC:{state:'ok'},syncChain:Promise.resolve(),undoStack:[],
+      canReport:()=>true,reportingRole:()=> 'boss',executionOf,uid:()=>crypto.randomUUID(),$:()=>({value:'0'}),tx:x=>x,renderModal:()=>{},maybeReload:()=>{},toast:()=>{},
+      closeModal:()=>{ctx.UI.modal=null;},reloadFromStore:async()=>{ctx.S=await reader.load();return 'applied';}};
+    const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');vm.createContext(ctx);
+    let at=source.indexOf('function directWriteOwner(');vm.runInContext(source.slice(at,source.indexOf('async function runDrawerWrite(',at)),ctx);
+    at=source.indexOf('async function reportWork(');vm.runInContext(source.slice(at,source.indexOf('// ---------- 工作內容',at)),ctx);
+    const m=ctx.UI.modal,planned=JSON.stringify(state.blocks);await ctx.reportWork({disabled:false,dataset:{v:'start'}});
+    assert.equal(m.pendingRequest?.id,writes[0]);assert.equal(m.qtyDraft,0);assert.match(m.error,/尚未確認/);
+    assert.equal((await db.query('select count(*)::int n from work_execution_events')).rows[0].n,1);
+    obscure=false;await ctx.reportWork({disabled:false,dataset:{v:'retry'}});
+    assert.equal(writes.length,2);assert.equal(writes[0],writes[1]);assert.equal(m.pendingRequest,null);assert.equal(ctx.S.execution[0].revision,1);
+    assert.equal((await db.query('select count(*)::int n from work_execution_events')).rows[0].n,1);assert.equal((await db.query('select version from schedule_state')).rows[0].version,1);
+    const before=JSON.parse(planned)[0],after=ctx.S.blocks[0];assert.deepEqual([after.s,after.e,after.qty],[before.s,before.e,before.qty]);
+    await assert.rejects(reader.reportExecution({...request,id:crypto.randomUUID(),action:'quantity',qtyDone:61,expectedRevision:1}),e=>e.rejected===true&&!e.unconfirmed);
+    await db.query("update profiles set role='viewer' where user_id=$1",[actor]);
+    await assert.rejects(reader.reportExecution({...request,id:crypto.randomUUID(),action:'quantity',qtyDone:10,expectedRevision:1}),e=>e.rejected===true&&!e.unconfirmed);
+    assert.equal((await db.query('select count(*)::int n from work_execution_events')).rows[0].n,1);
   }finally{await db.close();}
 });
