@@ -75,7 +75,14 @@ test('actual SDK distinguishes known transaction rejections from unknown gateway
     await assert.rejects(store.reportExecution(request),e=>code==='40001'?e.conflict===true:e.rejected===true&&!e.unconfirmed);
   }
 });
-test('real committed report hidden by a gateway error keeps its UI request ID, and an explicit retry creates only one event',async()=>{
+test('actual SDK keeps 40001 with noncanonical gateway statuses uncertain, but preserves canonical HTTP 500 rollback conflicts',async()=>{
+  for(const status of [502,503,504,400,409,500]){
+    const sdk=createClient('https://synthetic.invalid','sb_publishable_synthetic_test_key',{accessToken:async()=> 'synthetic',global:{fetch:async()=>new Response(JSON.stringify({code:'40001',message:'Synthetic response'}),{status,headers:{'Content-Type':'application/json'}})}});
+    const store=new SupabaseStore(sdk);store.session={user:{id:'A'},access_token:'synthetic'};
+    await assert.rejects(store.reportExecution(request),e=>status>=502?e.unconfirmed===true&&!e.conflict:e.conflict===true&&!e.unconfirmed,'HTTP '+status);
+  }
+});
+for(const gatewayCode of ['SYNTHETIC_GATEWAY_UNKNOWN','40001'])test('real committed report hidden by gateway '+gatewayCode+' keeps its UI request ID, and an explicit retry creates only one event',async()=>{
   const db=await makeDb();try{
     const actor='44444444-4444-4444-8444-444444444444';await db.query("insert into auth.users(id,email) values($1,'synthetic-retry@invalid')",[actor]);await db.query("update profiles set role='boss' where user_id=$1",[actor]);
     const e=(await db.query("select id from employees where name='張三'")).rows[0].id,order=(await db.query("select id from orders where code='A01'")).rows[0].id;
@@ -84,8 +91,10 @@ test('real committed report hidden by a gateway error keeps its UI request ID, a
     let obscure=true;const writes=[];
     const sdk=createClient('https://synthetic.invalid','sb_publishable_synthetic_test_key',{accessToken:async()=> 'synthetic',global:{fetch:async(url,options)=>{
       assert.equal(new URL(url).pathname,'/rest/v1/rpc/report_work_execution');const args=JSON.parse(options.body);writes.push(args.p_request);
-      const result=await fake.rpc('report_work_execution',args);assert.equal(result.error,null);
-      return obscure?new Response(JSON.stringify({code:'SYNTHETIC_GATEWAY_UNKNOWN',message:'Synthetic uncertain response'}),{status:503,headers:{'Content-Type':'application/json'}}):new Response(JSON.stringify(result.data),{headers:{'Content-Type':'application/json'}});
+      const result=await fake.rpc('report_work_execution',args);
+      // Match PostgREST's documented 40* -> 500 for an actual SQL rollback.
+      if(result.error)return new Response(JSON.stringify(result.error),{status:result.error.code==='40001'?500:400,headers:{'Content-Type':'application/json'}});
+      return obscure?new Response(JSON.stringify({code:gatewayCode,message:'Synthetic uncertain response'}),{status:503,headers:{'Content-Type':'application/json'}}):new Response(JSON.stringify(result.data),{headers:{'Content-Type':'application/json'}});
     }}});
     const store=new SupabaseStore(sdk);store.session={user:{id:actor},access_token:'synthetic'};store.role='boss';
     const ctx={S:state,UI:{date:'2000-01-01',factory:1,page:'schedule',drawer:null,modal:{t:'execution-report',id:block}},PV:null,STORE:store,SYNC:{state:'ok'},syncChain:Promise.resolve(),undoStack:[],
@@ -105,6 +114,8 @@ test('real committed report hidden by a gateway error keeps its UI request ID, a
     assert.equal(writes.length,2);assert.equal(writes[0],writes[1]);assert.equal(reopened.pendingRequest,null);assert.equal(ctx.S.execution[0].revision,1);assert.equal(ctx.executionRetries.has(store),false);
     assert.equal((await db.query('select count(*)::int n from work_execution_events')).rows[0].n,1);assert.equal((await db.query('select version from schedule_state')).rows[0].version,1);
     const before=JSON.parse(planned)[0],after=ctx.S.blocks[0];assert.deepEqual([after.s,after.e,after.qty],[before.s,before.e,before.qty]);
+    await assert.rejects(store.reportExecution({...request,id:crypto.randomUUID(),action:'quantity',qtyDone:10,expectedRevision:0}),e=>e.conflict===true&&!e.unconfirmed);
+    assert.equal((await db.query('select version from schedule_state')).rows[0].version,1);
     await assert.rejects(reader.reportExecution({...request,id:crypto.randomUUID(),action:'quantity',qtyDone:61,expectedRevision:1}),e=>e.rejected===true&&!e.unconfirmed);
     await db.query("update profiles set role='viewer' where user_id=$1",[actor]);
     await assert.rejects(reader.reportExecution({...request,id:crypto.randomUUID(),action:'quantity',qtyDone:10,expectedRevision:1}),e=>e.rejected===true&&!e.unconfirmed);

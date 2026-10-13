@@ -230,7 +230,9 @@ export class SupabaseStore {
     const dispatched={blockId:request.blockId,action:request.action,qtyDone:request.qtyDone,expectedRevision:request.expectedRevision};
     const {data,error,status}=await assertOwner.authorize(client.rpc('report_work_execution',{p_request:request.id,p_block:dispatched.blockId,p_action:dispatched.action,p_qty:dispatched.qtyDone,p_revision:dispatched.expectedRevision}));assertOwner();
     if(error){
-      if(error.code==='40001')throw new ConflictError('進度已被更新，請重新載入');
+      // PostgREST maps transaction rollback (40*) to HTTP 500. Other 5xx
+      // gateway responses cannot conclusively invalidate the original request.
+      if(error.code==='40001'&&(status==null||status===500||status>=400&&status<500))throw new ConflictError('進度已被更新，請重新載入');
       // Only this RPC's known SQL rejections are conclusive. Unknown/proxy
       // failures may hide a committed request; keep its id for explicit replay.
       if(['42501','P0001'].includes(error.code)&&(status==null||status>=400&&status<500))throw Object.assign(new Error(error.message),{rejected:true});
