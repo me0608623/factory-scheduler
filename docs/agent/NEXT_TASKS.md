@@ -1,5 +1,7 @@
 # 過夜開發待辦清單
 
+> **缺陷探索系列總覽（輪 33-60，2026-10-13）**：15 個缺陷修復（全部已部署**正式站**、CI 全綠、測試 406 項）；12 項擴大覆蓋候選兩輪全覆蓋。**使用者動作僅三件**：①正式庫套用 0037（下方 migration 段）②staging web deploy hook（下方）③staging Realtime support ticket 回覆追蹤。
+
 依優先級排序（P0 最高）。每項完成後打勾並記錄 commit。
 
 ## P2（重要改善）
@@ -52,7 +54,7 @@
 
 ## 待使用者設定（機器無法代勞）
 
-- [ ] **RENDER_STAGING_WEB_DEPLOY_HOOK**：Render → factory-scheduler-web-staging → Settings → Create Deploy Hook → 貼到 GitHub Secrets。設好後 staging web 可用「部署 Render staging 網站」workflow 手動更新（目前 staging 跑的是 10/11 前的舊版）
+- [ ] **RENDER_STAGING_WEB_DEPLOY_HOOK**：Render → factory-scheduler-web-staging → Settings → Create Deploy Hook → 貼到 GitHub Secrets。**現況（輪 60 指紋實證）**：staging web 仍是輪 43 之前的版本（EN 模式日期仍「（二）」非「(Tue)」）＝不含輪 37-51 的前端修復（輪班#9/聊天#10-11/平面圖#12/產能入口#13/反饋#14/情境#15）；staging 資料庫已有 0037（輪 36），故雲端權限管理在舊前端上仍可運作。設好 hook 後一鍵更新
 - [ ] **正式站測試模式啟用**：Render web 服務的環境變數已預留 VITE_TEST_* 四個欄位（render.yaml，輪次 111）——只需在 Dashboard 填 staging 的值即可（步驟見 docs/TEST_MODE.md；填好後登入頁會出現「進入測試模式」按鈕）
 
 ## 依賴升級待辦（破壞性跨度，需獨立輪驗證）
