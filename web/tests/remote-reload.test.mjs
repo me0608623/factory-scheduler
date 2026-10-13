@@ -30,6 +30,13 @@ test('closed memo dialog with its write still pending defers remote reads until 
   await h.timers.shift()();assert.equal(h.writes.filter(x=>x==='load').length,1);
 });
 
+test('leave/pin direct request continues protecting background reads after its drawer or dialog closes',async()=>{
+  const h=harness();h.ctx.UI.directSaving={drawer:'people'};h.ctx.onRemoteChange('leave_requests');
+  if(h.timers.length)await h.timers.shift()();assert.equal(h.writes.filter(x=>x==='load').length,0);
+  h.ctx.UI.directSaving=null;h.ctx.maybeReload();assert.equal(h.timers.length,1);
+  await h.timers.shift()();assert.equal(h.writes.filter(x=>x==='load').length,1);
+});
+
 test('actual Store rejects an incomplete background RPC without replacing the visible board or baseline',async()=>{
   const h=harness();let data={version:1,employees:[{id:'TEST-E',name:'測試',skills:[]}],machines:[],products:[],orders:[],blocks:[],calendar:{}},history=0;
   const chain={select:()=>chain,order:()=>chain,limit:async()=>{history++;return {data:[],error:null};}};

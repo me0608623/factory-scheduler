@@ -112,6 +112,7 @@ test('partial request range failure preserves confirmed dates, invents no later 
 test('actual people drawer announces saving, disables date cells and escapes the retained error',()=>{
   const f=fixture();Object.assign(f.ctx,{shownEmployees:()=>f.ctx.S.employees,monthDates:()=>['2026-10-20','2026-10-21'],leaveState:()=> 'work',mdw:x=>x,
     esc:s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))});
+  const helper=source.indexOf('function directWriteStatus(');vm.runInContext(source.slice(helper,source.indexOf('function releaseDirectWrite(',helper)),f.ctx);
   const at=source.indexOf('function peopleDrawerHTML(){');vm.runInContext(source.slice(at,source.indexOf('function outputDrawerHTML(){',at)),f.ctx);
   f.ctx.UI.leaveBrushSaving={};let html=f.ctx.peopleDrawerHTML();assert.match(html,/role="status"/);
   const dates=[],parser=new SaxesParser({fragment:true});parser.on('opentag',t=>{if(t.attributes['data-act']==='person-day')dates.push(t.attributes);});

@@ -790,7 +790,7 @@ function topHTML(){
   '<button class="iconbtn" data-act="next" aria-label="'+tx('往後')+'">›</button></div>'+
   (S.demo?'<span class="demo-chip">'+tx('示範資料')+'</span>':'')+(readOnly&&!PV?'<span class="ro-chip">'+tx('排程唯讀')+'</span>':'')+
   (S.setupPending?'<button class="btn primary verify-entry" data-act="catalog">'+tx('初次核對資料')+'</button>':'')+
-  (UI.returnTo?'<button class="btn pagelink return-chip" data-act="page-return">↩ 返回'+(UI.returnTo.page==='shortage'?'欠缺品項':UI.returnTo.page==='worklog'?'工作紀錄':'給二廠／回一廠')+'</button>':'')+
+  (UI.returnTo?'<button class="btn pagelink return-chip" data-act="page-return">↩ '+tx('返回')+(UI.returnTo.page==='shortage'?tx('欠缺品項'):UI.returnTo.page==='worklog'?tx('工作紀錄'):tx('給二廠／回一廠'))+'</button>':'')+
   '<div class="top-status">'+syncChipHTML()+
   '<button class="btn" data-act="settings" title="'+esc(tx('settings'))+'">'+IC.user+'<span class="lbl">'+esc(STORE&&STORE.kind==="supabase"?(STORE.userName||tx('帳號')):tx('本機'))+'</span></button></div></div></div></header>';
 }
@@ -890,8 +890,8 @@ function peopleDrawerHTML(){
   const pending=(S.leaveRequests||[]).filter(x=>x.status==='pending'&&people.some(e=>e.id===x.employeeId)).sort((a,b)=>a.date.localeCompare(b.date));
   const weekdays='一二三四五六日'.split('').map(x=>'<span>'+x+'</span>').join('');
   const days=selected?monthDates(UI.date).map(d=>d?'<button class="calendar-day '+leaveState(S,selected.id,d)+'"'+(UI.leaveBrushSaving?' disabled':'')+' data-act="person-day" data-id="'+esc(selected.id)+'" data-d="'+d+'"><b>'+Number(d.slice(-2))+'</b><i></i></button>':'<span class="calendar-day blank"></span>').join(''):'';
-  const requests=pending.map(r=>'<article class="leave-request"><b>'+esc(emp(r.employeeId)?.name||'未設定人員')+'詢問 '+mdw(r.date)+' 請假</b><p>'+esc(r.note||'未填說明')+'</p><small>'+tx('核准前不列入正式請假，也不會觸發重排。')+'</small>'+(canIncidents()?'<div><button class="approve" data-act="leave-resolve" data-id="'+r.id+'" data-v="approved">'+tx('准假')+'</button><button class="deny" data-act="leave-resolve" data-id="'+r.id+'" data-v="rejected">'+tx('駁回')+'</button></div>':'')+'</article>').join('');
-  return (UI.leaveBrushSaving?'<div class="drawer-hint" role="status">'+tx('正在儲存排班狀態，請稍候。')+'</div>':'')+(UI.leaveBrushError?'<div class="issues" role="alert"><div class="issue">'+esc(UI.leaveBrushError)+'</div></div>':'')+'<section class="absence-box"><b>今日缺席　'+absent.length+' 人</b><span>'+esc(absent.map(x=>x.name).join('、')||'無')+'</span></section>'+
+  const requests=pending.map(r=>'<article class="leave-request"><b>'+esc(emp(r.employeeId)?.name||'未設定人員')+'詢問 '+mdw(r.date)+' 請假</b><p>'+esc(r.note||'未填說明')+'</p><small>'+tx('核准前不列入正式請假，也不會觸發重排。')+'</small>'+(canIncidents()?'<div><button class="approve" data-act="leave-resolve" data-direct-write-control'+(UI.directSaving?' disabled':'')+' data-id="'+r.id+'" data-v="approved">'+tx('准假')+'</button><button class="deny" data-act="leave-resolve" data-direct-write-control'+(UI.directSaving?' disabled':'')+' data-id="'+r.id+'" data-v="rejected">'+tx('駁回')+'</button></div>':'')+'</article>').join('');
+  return directWriteStatus('people')+(UI.leaveBrushSaving?'<div class="drawer-hint" role="status">'+tx('正在儲存排班狀態，請稍候。')+'</div>':'')+(UI.leaveBrushError?'<div class="issues" role="alert"><div class="issue">'+esc(UI.leaveBrushError)+'</div></div>':'')+'<section class="absence-box"><b>'+tx('今日缺席 {n} 人',{n:absent.length})+'</b><span>'+esc(absent.map(x=>x.name).join('、')||tx('無'))+'</span></section>'+
     '<div class="people-pills">'+people.map(e=>'<button data-act="focus-person" data-id="'+e.id+'" aria-pressed="'+(selected?.id===e.id)+'">'+esc(e.name)+'</button>').join('')+'</div>'+
     '<div class="traffic-legend"><span><i class="green"></i>'+tx('在班')+'</span><span><i class="red"></i>'+tx('請假')+'</span><span><i class="yellow"></i>'+tx('uncertain')+'</span><span><i class="gray"></i>'+tx('待確認')+'</span></div>'+
     (selected?'<section class="people-calendar"><header><b>'+esc(selected.name)+'</b><span>'+UI.date.slice(0,7).replace('-',' 年 ')+' 月</span>'+(canIncidents()?'<button class="btn" data-act="person-month" data-id="'+esc(selected.id)+'">'+tx('整月設定')+'</button>':'')+'</header><div class="calendar-week">'+weekdays+'</div><div class="calendar-grid">'+days+'</div>'+(canIncidents()?'<div class="toggles cal-brush">'+'<button class="tg brush-leave'+(UI.leaveBrush==="leave"?" on":"")+'" data-act="cal-brush" data-v="leave" aria-pressed="'+(UI.leaveBrush==="leave")+'">'+tx('leave')+'</button><button class="tg brush-work'+(UI.leaveBrush==="work"?" on":"")+'" data-act="cal-brush" data-v="work" aria-pressed="'+(UI.leaveBrush==="work")+'">'+tx('work')+'</button><button class="tg brush-uncertain'+(UI.leaveBrush==="uncertain"?" on":"")+'" data-act="cal-brush" data-v="uncertain" aria-pressed="'+(UI.leaveBrush==="uncertain")+'">'+tx('uncertain')+'</button>'+'</div><div class="drawer-hint">'+(UI.leaveBrush?('已選「'+(UI.leaveBrush==="leave"?"休假":UI.leaveBrush==="uncertain"?"未確定":"上班")+'」：連點日期或框選範圍套用'):'先選「上班」「休假」「未確定」，再點日期套用')+'</div>':'')+'</section>':'<div class="drawer-empty">'+tx('此廠尚未設定人員')+'</div>')+
@@ -901,14 +901,14 @@ function peopleDrawerHTML(){
 function outputDrawerHTML(){
   const machines=shownMachines(),data=productionSummary(S,UI.date,machines.map(x=>x.id));
   const rows=data.rows.map(r=>{const selected=UI.focus?.type==='machine'&&UI.focus.id===r.machine.id,ratio=r.planned?Math.min(100,r.actual/r.planned*100):0;
-    return '<button class="output-row'+(selected?' selected':'')+'" data-act="focus-machine" data-id="'+r.machine.id+'"><span><b>'+esc(r.machine.id+' '+r.machine.label)+'</b><strong>計畫 '+r.planned+(r.hasReport?'｜回報 '+r.actual:'')+'</strong></span>'+(r.hasReport?'<i class="output-track"><u style="width:100%"></u><em style="width:'+ratio+'%"></em></i>':'<small>'+tx('尚未回報')+'</small>')+'</button>';}).join('');
-  return '<section class="output-total"><b>'+data.planned+'</b><span>'+mdw(UI.date)+' 計畫總件數</span></section><div class="drawer-list">'+(rows||'<div class="drawer-empty">'+tx('此廠沒有機台資料')+'</div>')+'</div><div class="drawer-hint">'+tx('藍色為現場實際回報；沒有回報時不以 0 或估算值代替。')+'</div>';
+    return '<button class="output-row'+(selected?' selected':'')+'" data-act="focus-machine" data-id="'+r.machine.id+'"><span><b>'+esc(r.machine.id+' '+r.machine.label)+'</b><strong>'+(r.hasReport?tx('計畫 {p}｜回報 {a}',{p:r.planned,a:r.actual}):tx('計畫 {p}',{p:r.planned}))+'</strong></span>'+(r.hasReport?'<i class="output-track"><u style="width:100%"></u><em style="width:'+ratio+'%"></em></i>':'<small>'+tx('尚未回報')+'</small>')+'</button>';}).join('');
+  return '<section class="output-total"><b>'+data.planned+'</b><span>'+tx('{date} 計畫總件數',{date:mdw(UI.date)})+'</span></section><div class="drawer-list">'+(rows||'<div class="drawer-empty">'+tx('此廠沒有機台資料')+'</div>')+'</div><div class="drawer-hint">'+tx('藍色為現場實際回報；沒有回報時不以 0 或估算值代替。')+'</div>';
 }
 
 function memoLabel(m){const E=emp(m.employeeId),M=mach(m.machineId);return [m.author||STORE.userName||'未署名',M&&M.label,E&&E.name].filter(Boolean).join('・');}
 function notesDrawerHTML(){
   const memos=visibleMemos(S,factoryOf,UI.factory);
-  return '<div class="memo-grid">'+memos.map(m=>'<article class="memo-card'+(m.pinned?' pinned':'')+'" data-act="focus-memo" data-id="'+m.id+'"><button class="memo-pin" data-act="memo-pin" data-id="'+m.id+'" aria-label="'+(m.pinned?tx('取消釘選'):tx('釘選'))+'">'+(m.pinned?'●':'○')+'</button><b>'+esc(memoLabel(m))+'</b><p>'+esc(m.text)+'</p><small>'+esc((m.createdAt||'').slice(0,16).replace('T',' '))+'</small></article>').join('')+'</div>'+(!memos.length?'<div class="drawer-empty">'+tx('目前沒有備忘')+'</div>':'')+(canPermission('notes.manage')?'<button class="drawer-primary" data-act="memo-new">'+tx('＋新增備忘')+'</button>':'');
+  return directWriteStatus('notes')+'<div class="memo-grid">'+memos.map(m=>'<article class="memo-card'+(m.pinned?' pinned':'')+'" data-act="focus-memo" data-id="'+m.id+'"><button class="memo-pin" data-act="memo-pin" data-direct-write-control'+(UI.directSaving||UI.memoSaving||!canPermission('notes.manage')?' disabled':'')+' data-id="'+m.id+'" aria-label="'+(m.pinned?tx('取消釘選'):tx('釘選'))+'">'+(m.pinned?'●':'○')+'</button><b>'+esc(memoLabel(m))+'</b><p>'+esc(m.text)+'</p><small>'+esc((m.createdAt||'').slice(0,16).replace('T',' '))+'</small></article>').join('')+'</div>'+(!memos.length?'<div class="drawer-empty">'+tx('目前沒有備忘')+'</div>':'')+(canPermission('notes.manage')?'<button class="drawer-primary" data-act="memo-new">'+tx('＋新增備忘')+'</button>':'');
 }
 
 function settingChoices(key,items){
@@ -982,7 +982,7 @@ function moreDrawerHTML(){
   const schedGate=S.setupPending?"":btn('manual-add',tx('＋手動排班'),readOnly?'disabled':'')+btn('auto',tx('⚡ 自動排班'),readOnly?'disabled':'')+btn('incident',tx('故障／請假'),!canIncidents()?'disabled':'');
   return '<section class="more-group"><h3>'+tx('班表')+'</h3><div class="more-grid"><div class="seg" role="group" aria-label="'+tx('檢視')+'"><button data-act="view" data-v="day" aria-pressed="'+(UI.view==='day')+'">'+tx('日班表')+'</button><button data-act="view" data-v="week" aria-pressed="'+(UI.view==='week')+'">'+tx('週班表')+'</button></div><div class="seg" role="group" aria-label="'+tx('查看方式')+'"><button data-act="layout" data-v="resource" aria-pressed="'+(UI.layout==='resource')+'">'+tx('按設備')+'</button><button data-act="layout" data-v="work" aria-pressed="'+(UI.layout==='work')+'">'+tx('按工作')+'</button></div>'+schedGate+btn('undo',tx('復原上一步'),readOnly||!undoStack.length?'disabled':'')+'</div></section>'+
     '<section class="more-group"><h3>'+tx('工作與人員')+'</h3><div class="more-grid">'+btn('work-queue',tx('未排工作'))+btn('execution',tx('現場回報'))+btn('resource-load',tx('當日負荷'))+btn('rosters',tx('輪班表'))+btn('work-contents',tx('工作內容'))+btn('transfers',tx('跨廠加工'))+btn('rush',tx('欠缺品項'))+btn('groups',tx('員工分組'))+(STORE.role==='boss'?btn('access',tx('權限管理')):'')+(canScenarios()?btn('scenarios',tx('試排情境')):'')+'</div></section>'+
-    '<section class="more-group"><h3>'+tx('資料與設定')+'</h3><div class="more-grid">'+btn('settings',tx('⚙ 設定'))+btn('master',tx('員工、設備與工單'))+(canArchive()?btn('history',tx('歷史班表')):'')+btn('export',tx('匯出／匯入 Excel'))+btn('log',tx('全部紀錄'))+btn('tv',UI.tv?'管理模式':'大螢幕')+btn('help',tx('操作說明'))+btn('feedback',tx('意見反饋'))+btn('analytics',tx('產能分析'))+btn('schedule-diff',tx('排程比對'))+btn('line-notify',tx('LINE 通知'))+(STORE.role==='boss'?btn('feedback-list',tx('查看反饋')):'')+btn('tour',tx('新手導覽'))+(STORE.kind==='supabase'?btn('account',STORE.userName?STORE.userName.split('@')[0]+' · '+tx('登出'):'帳號與登出'):'')+'</div></section>';
+    '<section class="more-group"><h3>'+tx('資料與設定')+'</h3><div class="more-grid">'+btn('settings',tx('⚙ 設定'))+btn('master',tx('員工、設備與工單'))+(canArchive()?btn('history',tx('歷史班表')):'')+btn('export',tx('匯出／匯入 Excel'))+btn('log',tx('全部紀錄'))+btn('tv',UI.tv?tx('管理模式'):tx('大螢幕'))+btn('help',tx('操作說明'))+btn('feedback',tx('意見反饋'))+btn('analytics',tx('產能分析'))+btn('schedule-diff',tx('排程比對'))+btn('line-notify',tx('LINE 通知'))+(STORE.role==='boss'?btn('feedback-list',tx('查看反饋')):'')+btn('tour',tx('新手導覽'))+(STORE.kind==='supabase'?btn('account',STORE.userName?STORE.userName.split('@')[0]+' · '+tx('登出'):'帳號與登出'):'')+'</div></section>';
 }
 function statusTag(o){
   const st=orderStatus(o);
@@ -1864,7 +1864,7 @@ function renderModal(){
   const keep=root.querySelector(".overlay"),focusToken=keep&&root.contains(document.activeElement)?modalFocusToken(document.activeElement):null;
   const st=keep?keep.scrollTop:0;
   const importBusy=m.t==='import-preview'&&m.saving;
-  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!(m.planBusy||importBusy||m.t==='legacy-preview'&&m.saving||m.t==='memo-edit'&&m.saving||m.t==='legacy-history'&&m.loading)+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close"'+(importBusy?' disabled':'')+' aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
+  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!(m.planBusy||importBusy||m.t==='legacy-preview'&&m.saving||['memo-edit','leave-request'].includes(m.t)&&m.saving||m.t==='legacy-history'&&m.loading)+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close"'+(importBusy?' disabled':'')+' aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
   if(importBusy)root.querySelectorAll('input,select,textarea,button').forEach(el=>el.disabled=true);
   if(m.planBusy)root.querySelectorAll('input,select,textarea,button:not([data-act="close"])').forEach(el=>el.disabled=true);
   const ov=$("#ov");ov.scrollTop=st;
@@ -3477,7 +3477,7 @@ function sideHealthHTML(){
 function updateSyncChip(){const el=$("#syncchip");if(el)el.outerHTML=syncChipHTML();const side=$(".side-health");if(side)side.outerHTML=sideHealthHTML();}
 let syncChain=Promise.resolve(),syncPending=0,syncEpoch=0,lastSyncState='ok';
 // 同步進行中關閉分頁＝靜默丟失變更：離開前提示（僅在真的有寫入在途時）
-addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state==="busy"||UI.leaveBrushSaving||UI.memoSaving){e.preventDefault();e.returnValue="";}});
+addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state==="busy"||UI.leaveBrushSaving||UI.memoSaving||UI.directSaving){e.preventDefault();e.returnValue="";}});
 function queueSync(entry){
   if(STORE.kind==='supabase'&&!STORE.session?.user?.id){changedWriteSession();return Promise.resolve(false);}
   const snapshot=structuredClone(S),epoch=syncEpoch,activeStore=STORE,writer=STORE.session?.user?.id,authEpoch=STORE.authEpoch||0;
@@ -3570,7 +3570,7 @@ async function refreshCloudSnapshot(){
     else if(result==='deferred')toast(tx('已保留目前操作；完成或取消後再更新班表。'));
   }finally{remoteLoading=false;if(result!=='failed')maybeReload();}
 }
-function remoteReloadBlocked(){return !!(PV||drag||generalDrag||UI.modal||UI.editCell||UI.confirmRow||UI.leaveBrushSaving||UI.memoSaving||UI.drawer==='settings'||syncPending>0||SYNC.state!=='ok');}
+function remoteReloadBlocked(){return !!(PV||drag||generalDrag||UI.modal||UI.editCell||UI.confirmRow||UI.leaveBrushSaving||UI.memoSaving||UI.directSaving||UI.drawer==='settings'||syncPending>0||SYNC.state!=='ok');}
 function onRealtimeStatus(status){
   const previous=SYNC.realtime;SYNC.realtime=status;updateSyncChip();
   // The stream cannot replay every missed database event. Also reconcile the
@@ -3700,12 +3700,14 @@ MODALS['feedback']=()=>({title:tx('意見反饋'),body:
 MODALS['feedback-list']=m=>m.loading?{title:tx('查看反饋'),body:'<div class="hint">'+tx('讀取中…')+'</div>'}:{title:tx('查看反饋')+'（最近 50 筆）',body:
   (m.items||[]).map(x=>'<div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0"><b>'+esc(x.author)+'</b> <span class="tag">'+esc(FEEDBACK_CATS.find(c=>c[0]===x.category)?.[1]||x.category)+'</span> <span class="tag '+(x.status==='resolved'?'ok':x.status==='read'?'mute':'warn')+'">'+(x.status==='new'?'新':x.status==='read'?'已讀':'已解決')+'</span><p style="margin:6px 0">'+esc(x.message)+'</p><small style="color:var(--muted)">'+esc((x.createdAt||'').replace('T',' ').slice(0,16))+(x.pageUrl?' · '+esc(x.pageUrl.replace(location.origin,'')):'')+'</small></div>').join('')||'<div class="hint">'+tx('還沒有反饋。')+'</div>',
   foot:'<button class="btn primary" data-act="close">'+tx('關閉')+'</button>'};
-MODALS['leave-request']=m=>({title:tx('新增請假詢問'),body:
+MODALS['leave-request']=m=>{const d=m.leaveDraft||{date:m.date||UI.date,note:m.note||''};return {title:tx('新增請假詢問'),body:
   '<div class="hint">詢問送出後不會立刻成為正式請假，也不會觸發自動重排；必須由有「故障與請假」權限的人准假。</div>'+
-  '<div class="field"><label for="leave-request-employee">'+tx('人員')+'</label><select class="inp" id="leave-request-employee">'+shownEmployees().map(e=>'<option value="'+e.id+'">'+esc(e.name)+'</option>').join('')+'</select></div>'+
-  '<div class="field"><label for="leave-request-date">'+tx('日期')+'</label><input class="inp" id="leave-request-date" type="date" value="'+esc(m.date||UI.date)+'"></div>'+
-  '<div class="field"><label for="leave-request-note">'+tx('一句說明')+'</label><input class="inp" id="leave-request-note" maxlength="140" value="'+esc(m.note||'')+'"></div>',
-  foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="leave-request-save">'+tx('送出詢問')+'</button>'});
+  (m.saving?'<div class="hint" role="status">'+tx('詢問送出中；關閉視窗不會取消已送出的請求。')+'</div>':'')+
+  (m.error?'<div class="hint error" role="alert">'+esc(m.error)+'</div>':'')+
+  '<div class="field"><label for="leave-request-employee">'+tx('人員')+'</label><select class="inp" id="leave-request-employee">'+shownEmployees().map(e=>'<option value="'+esc(e.id)+'"'+(d.employeeId===e.id?' selected':'')+'>'+esc(e.name)+'</option>').join('')+'</select></div>'+
+  '<div class="field"><label for="leave-request-date">'+tx('日期')+'</label><input class="inp" id="leave-request-date" type="date" value="'+esc(d.date)+'"></div>'+
+  '<div class="field"><label for="leave-request-note">'+tx('一句說明')+'</label><input class="inp" id="leave-request-note" maxlength="140" value="'+esc(d.note)+'"></div>',
+  foot:'<button class="btn" data-act="close">'+tx(m.saving?'關閉':'取消')+'</button><button class="btn primary" data-act="leave-request-save"'+(m.saving?' disabled':'')+'>'+tx(m.saving?'送出中…':'送出詢問')+'</button>'};};
 /* ---------- 員工月曆：單日休假／上班、整月每週固定班 ---------- */
 MODALS['person-day']=m=>{
   const E=emp(m.id);if(!E)return null;
@@ -3912,7 +3914,7 @@ function shortagePageHTML(){
         '</tr>';
     }).join("")||'<tr><td colspan="12"><div class="empty">'+tx('還沒有資料，按「＋加一列」開始記')+'</div></td></tr>')+
     '</tbody></table></div>';
-  return pageShell("欠缺品項","左邊一廠欠貨，右邊二廠何時補。同一列同一張單。",head+bar+table,ro,"rush-addrow");
+  return pageShell(tx('欠缺品項'),tx('左邊一廠欠貨，右邊二廠何時補。同一列同一張單。'),head+bar+table,ro,"rush-addrow");
 }
 const pendingDate=v=>v&&!/^\d{4}-\d{2}-\d{2}$/.test(String(v));
 // 有原始文字（08\16 這類）的日期格：只顯示該文字、不再多一個「—」；點它仍可改選真日期
@@ -3962,7 +3964,7 @@ function transferFlowPageHTML(){
         '</tr>';
     }).join("")||'<tr><td colspan="12"><div class="empty">'+tx('還沒有資料，按「＋加一列」開始記')+'</div></td></tr>')+
     '</tbody></table></div>';
-  return pageShell("給二廠／回一廠","料送二廠加工，何時要回一廠。與欠缺品項分開。",bar+table,ro,"tf-addrow");
+  return pageShell(tx('給二廠／回一廠'),tx('料送二廠加工，何時要回一廠。與欠缺品項分開。'),bar+table,ro,"tf-addrow");
 }
 /* ---------- 日班表列印（A4 公佈欄格式） ---------- */
 function printDaySchedule(){
@@ -4321,7 +4323,7 @@ function workLogPageHTML(){
     }).join("")||'<tr><td colspan="10"><div class="empty">'+tx('還沒有資料，按下方加一列')+'</div></td></tr>')+
     '</tbody></table></div>';
   const filterBar='<div class="wl-filter"><label for="wl-date">'+tx('依日期篩')+'</label><input type="date" id="wl-date" value="'+esc(filter)+'" data-act-change="wl-filter"><button class="btn" data-act="wl-clearfilter">'+tx('清除')+'</button></div>';
-  return pageShell("工作紀錄","",filterBar+table,ro,"wl-addrow");
+  return pageShell(tx('工作紀錄'),"",filterBar+table,ro,"wl-addrow");
 }
 
 MODALS['memo-edit']=m=>{const d=m.memoDraft||{text:m.text||''};return {title:tx('新增備忘'),body:
@@ -4334,22 +4336,63 @@ MODALS['memo-edit']=m=>{const d=m.memoDraft||{text:m.text||''};return {title:tx(
   '<label class="permission-row"><input id="memo-pinned" type="checkbox"'+(d.pinned?' checked':'')+'><span><b>'+tx('釘選')+'</b><small>'+tx('固定顯示在其他備忘前面')+'</small></span></label>',
   foot:'<button class="btn" data-act="close">'+tx(m.saving?'關閉':'取消')+'</button><button class="btn primary" data-act="memo-save"'+(m.saving?' disabled':'')+'>'+tx(m.saving?'儲存中…':'儲存備忘')+'</button>'};};
 
+function directWriteStatus(drawer){
+  return (UI.directSaving?.drawer===drawer?'<div class="drawer-hint" data-direct-write-status role="status">'+tx('操作儲存中，請稍候。')+'</div>':'')+
+    (UI.directWriteError?.drawer===drawer?'<div class="hint error" role="alert">'+esc(UI.directWriteError.text)+'</div>':'');
+}
+function releaseDirectWrite(operation){
+  if(UI.directSaving!==operation)return;UI.directSaving=null;
+  // Update only request controls, never rerender a newer draft to clear a stale spinner.
+  if(typeof document!=='undefined'){
+    document.querySelectorAll('[data-direct-write-control]').forEach(b=>{b.disabled=b.dataset.act==='memo-pin'?!canPermission('notes.manage')||!!UI.memoSaving:!canIncidents()||!!UI.leaveBrushSaving;});
+    document.querySelectorAll('[data-direct-write-status]').forEach(b=>b.remove());
+  }
+}
+function directWriteOwner(permission){
+  const store=STORE,client=store.client,user=store.session?.user?.id,epoch=store.authEpoch||0,state=S,json=JSON.stringify(S),modal=UI.modal,
+    date=UI.date,factory=UI.factory,page=UI.page,drawer=UI.drawer,focus=JSON.stringify(UI.focus);
+  const sameView=()=>STORE===store&&STORE.client===client&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===epoch&&permission()&&!PV&&
+    UI.date===date&&UI.factory===factory&&UI.page===page&&UI.drawer===drawer&&JSON.stringify(UI.focus)===focus;
+  return {store,sameView,current:()=>sameView()&&UI.modal===modal&&S===state&&JSON.stringify(S)===json};
+}
+async function runDrawerWrite(button,permission,write,success){
+  if(!permission()||UI.directSaving||UI.memoSaving||UI.leaveBrushSaving||UI.modal||PV)return;
+  const owner=directWriteOwner(permission),operation={drawer:UI.drawer};UI.directSaving=operation;UI.directWriteError=null;button.disabled=true;render();
+  try{
+    await write(owner.store);if(!owner.current())return;
+    releaseDirectWrite(operation);
+    const result=await reloadFromStore({background:true});if(!owner.sameView()||UI.modal)return;
+    render();toast(result==='applied'?success:tx('操作已保存；尚未讀到最新資料，請更新核對。'));
+  }catch(e){if(owner.current()){UI.directWriteError={drawer:operation.drawer,text:e.message};releaseDirectWrite(operation);render();toast(e.message);}}
+  finally{button.disabled=false;releaseDirectWrite(operation);maybeReload();}
+}
 async function resolveLeaveRequest(button){
-  if(!canIncidents())return;button.disabled=true;
-  try{await STORE.resolveLeaveRequest(button.dataset.id,button.dataset.v);UI.drawer='people';await reloadFromStore();toast(button.dataset.v==='approved'?'已准假並寫入正式請假':'已駁回，班表不變');}
-  catch(e){button.disabled=false;toast(e.message);}
+  const id=button.dataset.id,status=button.dataset.v;
+  if(!['approved','rejected'].includes(status)||!(S.leaveRequests||[]).some(r=>r.id===id&&r.status==='pending'))return;
+  await runDrawerWrite(button,()=>canIncidents(),store=>store.resolveLeaveRequest(id,status),status==='approved'?'已准假並寫入正式請假':'已駁回，班表不變');
 }
 async function toggleMemoPin(button){
-  if(!canPermission('notes.manage'))return;const memo=(S.memos||[]).find(x=>x.id===button.dataset.id);if(!memo)return;button.disabled=true;
-  try{await STORE.saveMemo({...memo,pinned:!memo.pinned});UI.drawer='notes';await reloadFromStore();toast(memo.pinned?'已取消釘選':'已釘選備忘');}
-  catch(e){button.disabled=false;toast(e.message);}
+  const memo=(S.memos||[]).find(x=>x.id===button.dataset.id);if(!memo)return;
+  await runDrawerWrite(button,()=>canPermission('notes.manage'),store=>store.saveMemo({...memo,pinned:!memo.pinned}),memo.pinned?'已取消釘選':'已釘選備忘');
 }
 Object.assign(MODAL_ACT,{
-  'leave-request-save':async button=>{if(!canIncidents())return;const employeeId=$('#leave-request-employee')?.value,date=$('#leave-request-date')?.value,note=$('#leave-request-note')?.value.trim();if(!employeeId||!date){toast('請選擇人員與日期');return;}button.disabled=true;try{await STORE.createLeaveRequest({id:uid(),employeeId,date,note,status:'pending'});
-  if(STORE.kind==='supabase'&&SOLVER?.url){const en=emp(employeeId);sendLineNotify(SOLVER.url,STORE.jwt(),'leave_request','請假待批：'+(en?en.name:'有人')+' '+md(date)).catch(()=>{});}
-  closeModal();await reloadFromStore();UI.drawer='people';render();toast('已送出請假詢問，尚未成為正式請假');}catch(e){button.disabled=false;toast(e.message);}},
+  'leave-request-save':async button=>{
+    const m=UI.modal;if(m?.t!=='leave-request'||m.saving||UI.directSaving||UI.memoSaving||UI.leaveBrushSaving||!canIncidents()||PV)return;
+    const employeeId=$('#leave-request-employee')?.value,date=$('#leave-request-date')?.value,note=$('#leave-request-note')?.value.trim()||'';
+    if(!employeeId||!date){toast('請選擇人員與日期');return;}
+    const owner=directWriteOwner(()=>canIncidents()),url=SOLVER?.url,token=owner.store.kind==='supabase'?owner.store.jwt():null,en=emp(employeeId);
+    const operation={drawer:UI.drawer};m.leaveDraft={employeeId,date,note};m.error=null;m.saving=true;UI.directSaving=operation;button.disabled=true;renderModal();
+    try{
+      await owner.store.createLeaveRequest({id:uid(),employeeId,date,note,status:'pending'});if(!owner.current())return;
+      if(url&&token)sendLineNotify(url,token,'leave_request','請假待批：'+(en?en.name:'有人')+' '+md(date)).catch(()=>{});
+      m.saving=false;releaseDirectWrite(operation);closeModal();
+      const result=await reloadFromStore({background:true});if(!owner.sameView()||UI.modal)return;
+      UI.drawer='people';render();toast(result==='applied'?'已送出請假詢問，尚未成為正式請假':tx('詢問已送出；尚未讀到最新資料，請更新核對。'));
+    }catch(e){if(owner.current()){m.error=e.message;m.saving=false;renderModal();}}
+    finally{m.saving=false;button.disabled=false;releaseDirectWrite(operation);maybeReload();}
+  },
   'memo-save':async button=>{
-    const m=UI.modal;if(m?.t!=='memo-edit'||m.saving||UI.memoSaving||!canPermission('notes.manage'))return;
+    const m=UI.modal;if(m?.t!=='memo-edit'||m.saving||UI.memoSaving||UI.directSaving||!canPermission('notes.manage'))return;
     const text=$('#memo-text')?.value.trim(),machineId=$('#memo-machine')?.value||null,employeeId=$('#memo-employee')?.value||null;
     if(!text){toast('請填寫一句備忘');return;}if(!machineId&&!employeeId){toast('請至少指定一台機台或一位人員');return;}
     const activeStore=STORE,user=STORE.session?.user?.id,epoch=STORE.authEpoch||0,before=S,beforeJSON=JSON.stringify(S),date=UI.date,factory=UI.factory;

@@ -202,3 +202,17 @@ test('輪121 棘輪：?view= 導航不得清掉其他 query 參數（缺陷#23 l
   const callSites = (app.match(/setUrlView\(/g) || []).length;
   assert.ok(callSites >= 10, `setUrlView 呼叫點應≥10（helper+9 站點），實得 ${callSites}`);
 });
+
+test('輪124 查證：掃描批次②新鍵三語有譯文（聊天鈕/管理模式/缺席/計畫/頁標）', () => {
+  const cjk = /[\u4e00-\u9fff]/;
+  const keys = ['✦ 排程助理', '管理模式', '今日缺席 {n} 人', '計畫 {p}', '計畫 {p}｜回報 {a}', '{date} 計畫總件數', '左邊一廠欠貨，右邊二廠何時補。同一列同一張單。', '料送二廠加工，何時要回一廠。與欠缺品項分開。'];
+  for (const lang of ['en', 'vi', 'th']) {
+    I18N.lang = lang;
+    for (const k of keys) {
+      const out = tx(k, { n: 0, p: 100, a: 80, date: '10/14 (Wed)' });
+      assert.notEqual(out, k, `${lang} 缺譯：${k}`);
+      assert.ok(!cjk.test(out), `${lang} 譯文含中文：${out}`);
+    }
+  }
+  I18N.lang = 'zh-TW';
+});
