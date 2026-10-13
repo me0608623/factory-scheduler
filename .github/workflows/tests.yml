@@ -8,6 +8,7 @@ on:
       - "solver/**"
       - ".github/workflows/tests.yml"
       - ".github/workflows/acceptance-sim.yml"
+      - ".github/workflows/nightly-backup.yml"
       - "tools/**"
   pull_request:
     paths:
@@ -16,6 +17,7 @@ on:
       - "solver/**"
       - ".github/workflows/tests.yml"
       - ".github/workflows/acceptance-sim.yml"
+      - ".github/workflows/nightly-backup.yml"
       - "tools/**"
 
 jobs:
@@ -53,6 +55,7 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
         working-directory: web
+      - run: sudo apt-get update -qq && sudo apt-get install -y age
       - run: node --test tools/*.test.mjs
       - run: npm test
         working-directory: web

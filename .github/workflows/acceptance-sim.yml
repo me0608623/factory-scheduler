@@ -49,6 +49,21 @@ jobs:
           unzip -o backup.zip -d restored/
           echo "使用備份：$(ls restored/*.dump)"
 
+      - name: 解密新格式並只取模擬所需 public 副本
+        env:
+          BACKUP_AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
+          BACKUP_ENCRYPTED_FILE: restored/database.tar.age
+          BACKUP_IDENTITY_FILE: ${{ runner.temp }}/backup-identity
+          BACKUP_RESTORE_DIR: ${{ runner.temp }}/db-sim-decrypted
+        run: |
+          if [ -f "$BACKUP_ENCRYPTED_FILE" ]; then
+            umask 077
+            sudo apt-get update -qq && sudo apt-get install -y age
+            printf '%s\n' "$BACKUP_AGE_IDENTITY" > "$BACKUP_IDENTITY_FILE"
+            node tools/encrypted-backup.mjs unpack
+            cp "$BACKUP_RESTORE_DIR/public.dump" restored/public.dump
+          fi
+
       - name: 還原到拋棄式 PostgreSQL 17（兩階段 + Supabase stub + 授權模型）
         run: |
           DUMP=$(ls restored/*.dump | head -1)
@@ -131,3 +146,5 @@ jobs:
         run: |
           docker rm -f sim-pg >/dev/null 2>&1 || true
           docker network rm sim-net >/dev/null 2>&1 || true
+          rm -rf -- "$RUNNER_TEMP/db-sim-decrypted" "$GITHUB_WORKSPACE/restored"
+          rm -f -- "$RUNNER_TEMP/backup-identity"

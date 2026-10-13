@@ -5,12 +5,26 @@ name: 備份還原演練
 on:
   schedule:
     - cron: "0 18 1 * *"  # 每月 1 日 18:00 UTC
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      create:
+        description: '建立及加解密完整 DB 備份（不冒稱完整 DB 還原）'
+        type: boolean
+        default: false
 
 jobs:
+  encrypted-backup:
+    if: github.event_name == 'workflow_dispatch' && inputs.create
+    uses: ./.github/workflows/nightly-backup.yml
+    secrets: inherit
   drill:
+    if: github.event_name != 'workflow_dispatch' || !inputs.create
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - name: 下載最新備份
         run: |
           ARTIFACTS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
@@ -21,6 +35,21 @@ jobs:
             "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACTS/zip" -o backup.zip
           unzip -o backup.zip -d restored/
           echo "Backup downloaded: $(ls -lh restored/)"
+
+      - name: 解密新格式（本演練仍僅驗 public 副本，不證明完整 Auth 還原）
+        env:
+          BACKUP_AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
+          BACKUP_ENCRYPTED_FILE: restored/database.tar.age
+          BACKUP_IDENTITY_FILE: ${{ runner.temp }}/backup-identity
+          BACKUP_RESTORE_DIR: ${{ runner.temp }}/db-drill-decrypted
+        run: |
+          if [ -f "$BACKUP_ENCRYPTED_FILE" ]; then
+            umask 077
+            sudo apt-get update -qq && sudo apt-get install -y age
+            printf '%s\n' "$BACKUP_AGE_IDENTITY" > "$BACKUP_IDENTITY_FILE"
+            node tools/encrypted-backup.mjs unpack
+            cp "$BACKUP_RESTORE_DIR/public.dump" restored/public.dump
+          fi
 
       - name: 驗證備份完整性（PG17 Docker 容器跑 pg_restore --list）
         run: |
@@ -170,6 +199,12 @@ jobs:
             docker rm -f drill-pg; exit 1
           fi
           echo ""
-          echo "✓✓✓ Backup restore drill FULLY PASSED ✓✓✓"
+          echo "✓ Public-schema application restore passed; NOT full Auth/project recovery proof"
           docker rm -f drill-pg
           docker network rm drill-net 2>/dev/null || true
+
+      - name: 清除解密暫存
+        if: always()
+        run: |
+          rm -rf -- "$RUNNER_TEMP/db-drill-decrypted" "$GITHUB_WORKSPACE/restored"
+          rm -f -- "$RUNNER_TEMP/backup-identity"
