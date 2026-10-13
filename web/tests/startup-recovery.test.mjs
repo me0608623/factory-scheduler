@@ -4,20 +4,28 @@ import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {createClient as realCreateClient} from '@supabase/supabase-js';
 import {modeUrl} from '../src/runtime-config.js';
+import {loadPreferences,applyPreferences,SETTINGS_KEY} from '../src/settings.js';
+import {I18N,tx,UI_TEXT} from '../src/i18n.js';
 
 // Execute the actual entry point with explicit DOM/client boundaries mocked.
 const entry=readFileSync(new URL('../src/main.js',import.meta.url),'utf8').replace(/^import .*;\r?\n/gm,'');
-async function startup({mode='test',configError,bootError=new Error('SYNTHETIC_READ_FAILURE'),constructorError,clientFactory,localError,href='https://factory.example/?mode=test&view=catalog#access_token=PRIVATE',success=false}={}){
-  let clients=0,boots=0,reloads=0,focused=null;
+async function startup({mode='test',configError,bootError=new Error('SYNTHETIC_READ_FAILURE'),constructorError,clientFactory,localError,href='https://factory.example/?mode=test&view=catalog#access_token=PRIVATE',success=false,preferenceValue,blockedStorage=false,blockedGetter=false}={}){
+  let clients=0,boots=0,reloads=0,focused=null,preferenceReads=0,preferenceLoads=0;
+  const root={attrs:{},props:{},lang:'zh-Hant',setAttribute(k,v){this.attrs[k]=v;},removeAttribute(k){delete this.attrs[k];},style:{setProperty(k,v){root.props[k]=v;}}};
+  const storage={getItem(k){preferenceReads++;if(blockedStorage)throw new Error('STORAGE_BLOCKED');return k===SETTINGS_KEY?preferenceValue??null:null;},setItem(){assert.fail('startup recovery must never write preferences');}};
   const elements=new Map([['app',{_html:'',set innerHTML(value){this._html=value;for(const [,id] of value.matchAll(/id="([^"]+)"/g))elements.set(id,{id,textContent:'',disabled:false,focus(){focused=id;}});},get innerHTML(){return this._html;}}]]);
   const loc=new URL(href);loc.reload=()=>{reloads++;};
-  const context={URLSearchParams,location:loc,document:{getElementById:id=>elements.get(id)},modeUrl,
-    RUNTIME:{mode,error:configError,url:'https://test.example',anon:'PUBLIC',authOptions:{}},tx:key=>key,console:{error:()=>{}},
+  const context={URLSearchParams,location:loc,document:{getElementById:id=>elements.get(id),documentElement:root},modeUrl,
+    loadPreferences:()=>{preferenceLoads++;if(blockedGetter)throw new Error('STORAGE_GETTER_BLOCKED');return loadPreferences(storage);},applyPreferences:p=>applyPreferences(p,root),I18N,
+    RUNTIME:{mode,error:configError,url:'https://test.example',anon:'PUBLIC',authOptions:{}},tx,console:{error:()=>{}},
     createClient:()=>{clients++;if(constructorError)throw constructorError;return clientFactory?clientFactory():{};},
     SupabaseStore:class {constructor(){this.kind='supabase';}},LocalStore:class{constructor(){if(localError)throw localError;this.kind='local';}},
     boot:async()=>{boots++;if(!success)throw bootError;}};
-  vm.createContext(context);vm.runInContext(entry,context);await new Promise(resolve=>setImmediate(resolve));
-  return {elements,context,clients:()=>clients,boots:()=>boots,reloads:()=>reloads,focused:()=>focused};
+  const previousLanguage=I18N.lang;I18N.lang='zh-TW';
+  try{
+    vm.createContext(context);vm.runInContext(entry,context);await new Promise(resolve=>setImmediate(resolve));
+    return {elements,context,root,preferenceLoads:()=>preferenceLoads,preferenceReads:()=>preferenceReads,clients:()=>clients,boots:()=>boots,reloads:()=>reloads,focused:()=>focused};
+  }finally{I18N.lang=previousLanguage;}
 }
 
 test('test startup failure offers same-environment retry, not just exit to production',async()=>{
@@ -63,4 +71,27 @@ test('null and markup failures are rendered as text, not a second uncaught error
 
 test('successful boot does not create failure controls or trigger a reload',async()=>{
   const h=await startup({success:true});assert.equal(h.boots(),1);assert.equal(h.elements.get('app').innerHTML,'');assert.equal(h.reloads(),0);
+});
+
+test('startup failure preserves the real device language, large text and appearance without writes',async()=>{
+  for(const language of ['en','vi','th']){
+    const h=await startup({preferenceValue:JSON.stringify({language,theme:'light',font:'clear',scale:1.15,accent:'green'}),configError:new Error('測試環境尚未設定完成，已停止連線；不會使用正式資料。')});
+    assert.equal(h.root.lang,language);assert.equal(h.root.attrs['data-app-theme'],'light');assert.equal(h.root.attrs['data-font'],'clear');
+    assert.equal(h.root.props['--z'],1.15);assert.equal(h.root.attrs['data-accent'],'green');
+    assert.ok(h.elements.get('app').innerHTML.includes(UI_TEXT['重新整理後再試'][language]));
+    assert.equal(h.elements.get('startup-error').textContent,UI_TEXT['測試環境尚未設定完成，已停止連線；不會使用正式資料。']?.[language]);
+    assert.equal(h.clients(),0);assert.equal(h.boots(),0);
+  }
+});
+
+test('unreadable device storage cannot prevent startup recovery controls',async()=>{
+  for(const options of [{blockedGetter:true},{blockedStorage:true},{preferenceValue:'{invalid'}]){
+    const h=await startup(options);assert.ok(h.elements.get('startup-retry'));assert.equal(h.elements.get('startup-error').textContent,'SYNTHETIC_READ_FAILURE');
+    assert.equal(h.focused(),'startup-retry');assert.equal(h.preferenceLoads(),1);
+  }
+});
+
+test('normal boot retains ownership of preferences; failure renderer never applies them on success',async()=>{
+  const h=await startup({success:true,preferenceValue:JSON.stringify({language:'en',theme:'light',scale:1.3})});
+  assert.equal(h.preferenceReads(),0);assert.equal(h.root.lang,'zh-Hant');assert.deepEqual(h.root.attrs,{});
 });

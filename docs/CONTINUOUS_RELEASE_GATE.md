@@ -30,6 +30,18 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 19:13 heartbeat／19:28：失敗畫面保留裝置偏好與部署診斷
+
+- 起點920fc9a工作樹乾淨、沒有其他modifier／deploy，只見專屬Vite的esbuild；所有指定交接與最新checkpoint已讀，不重做密文還原、C1–C7或正式0037。前輪test-only920fc9a的Tests **38388544855／38388540284**及smoke **38388544964／38388540111**全部success。
+- 實際缺陷重現（僅本機5202）：新開local QA介面自動建立本機示範資料，沒有任何Supabase連線／匯入；從真正設定頁選Light、Large115%、高辨識、English，DOM明確lang=en/theme=light/font=clear/--z=1.15。另一同origin的mode=test失敗頁reload卻回zh-Hant/theme=null/font=null/--z空及中文retry。首次用AX的checkbox角色找選项失敗；DOM snapshot證明其實為button[aria-pressed]，改用真button後完成實測，這是測試角色映射問題，不是產品按鈕壞掉。
+- 使用Impeccable harden，main/context一次及harden/craft-floor全文已讀；不重設版面，只在失敗catch以現有loadPreferences/applyPreferences讀取裝置偏好並套用I18N，正常boot不提前接管偏好。getter被拒、storage不可讀／JSON損毀仍有安全重試；不寫偏好、不更改雲端／帳號。錯誤textContent經tx，4個已知測試設定／私密金鑰／無效快照提示補en/vi/th；未知SDK／動態錯誤仍原文textContent，不插入HTML。
+- 新3項真main＋真settings＋真i18n回歸，修前總10項 **2失敗／8通過**（偏好未套及未進讀取保護路徑）；修後10/10，聚焦 **37/37**、全web **469/469**、build成功。測試以mock DOM/storage/client邊界但執行真偏好讀取、正規化、套用及翻譯，明確不是雲端登入或跨端同步。成功boot不讀錯誤頁偏好回歸及blocked getter、storage、JSON案例都執行。detector一次main/i18n為[]，原chunk警告保留。
+- 真桌面及 **390×844 Chromium** 失敗頁均保留lang=en、light、clear、1.15，英文錯誤與retry可讀；手機Enter真的reload，URL仍?mode=test&view=catalog，兩鈕 **50.59px**且中心命中，pageOverflow=false。第一次viewport設定作用於另一現用tab而讀到1280×720，已明確排除、未當手機通過；重新在當前新QA tab核實390×844後才截圖與量測。不是原生Safari／故障雲端成功復原／畸形HTTP200 RPC負向E2E。
+- before/after截圖 `outputs/startup-preferences-before-20261013.png`、`outputs/startup-preferences-after-desktop-20261013.png`、`outputs/startup-preferences-after-mobile-20261013.png` 保存在本機並目視覆核。viewport已reset，重複手機tab19已關閉；原staging qa-lead、local錯誤與設定QA保留handoff。5202本機偏好保留供後續，不影響staging/正式host。
+- Render-debug診斷：staging web API仍autoDeploy=yes／commit，來源8ffa已推，latest只有 **5476 live／dep-db70mojrjlhs739hte6g**，沒有新queued/failed部署，不當作build失敗。GitHub /user/installations因現有CLI token不是App授權而403，**不能據此判定Render App未安裝**。Render Dashboard已登出，第一次登入redirect沿用歷史正式env next，未登入或讀env；已安全改next到staging service登入頁並handoff，請使用者登入Render（不索取密碼）。未建立GitHub App授權、未改服務配置、未清cache或再手動trigger autoDeploy服務。
+- 官方[Render部署文件](https://render.com/docs/deploys)明確說自動部署需要connected Git provider、public Git URL來源須人工部署；這只是可檢查假設，**尚未證明本服務屬此來源或具體根因**。Repo hooks=0不足以排除GitHub App。缺後台登入不擅自擴權／切autoDeploy來繞過工具限制。CI綠／source已推不能冒稱新版live。
+- 本輪修正與同SHA CI尚待推送／核對；PR16/18不合main、不正式部署，正式1023/setup_pending/帳號權限及測試雲端資料均未寫入。nightly維持disabled、10分鐘Codex追蹤ACTIVE。下一輪先查本輪CI、自動部署／登入，再在唯一有效qa-lead的隔離staging做真正套用及安全復原驗收（不重匯或reset資料）；同帳號两tab只能作單帳號兩端驗收，不能冒稱不同角色／跨帳號門檻通過。第二帳號設定信授權仍未答，不寄信、不猜密碼。
+
 #### 2026-10-13 18:58 heartbeat／19:06：啟動失敗的同環境重試與初始化保護
 
 - 起點dde5a6c乾淨、無其他modifier／部署（只找到本輪自己的pwsh）；指定交接全部讀取。最新main11c7d9c相較已整合1e019僅另一agent進度文件，0037/C1–C7/密文消費者已過不重做；歷史NEXT_TASKS仍列待辦不當新授權。正式1023、setup_pending、帳號角色、測試資料完全不寫入。
