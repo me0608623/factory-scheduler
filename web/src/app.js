@@ -3301,18 +3301,22 @@ document.addEventListener("change",async e=>{
     openModal({t:"import-preview",filename:file.name,base,errors:["請選擇小於 5 MB 的 .xlsx 檔案"],data:null});return;
   }
   openModal({t:"import-preview",filename:file.name,base,loading:true,errors:[],data:null});   // 首次載入 excel 模組可能數秒，先給回饋
+  const request=UI.modal,store=STORE,userId=store?.session?.user?.id??null,authEpoch=store?.authEpoch??0;
+  const ownsImport=()=>STORE===store&&(store?.session?.user?.id??null)===userId&&(store?.authEpoch??0)===authEpoch&&canArchive();
   try{
     const {readImportXlsx}=await import("./excel.js");
+    if(UI.modal!==request||!ownsImport()||!UI.modal.loading)return;
     const bytes=await file.arrayBuffer(),result=await readImportXlsx(bytes,file.name);
-    if(UI.modal?.t!=="import-preview"||!UI.modal.loading)return;   // 使用者已關窗或另開操作，結果作廢
+    if(UI.modal!==request||!ownsImport()||!UI.modal.loading)return;   // 只接受原登入的同一次匯入
     if(result.legacy){
       const digest=await crypto.subtle.digest("SHA-256",bytes);
+      if(UI.modal!==request||!ownsImport()||!UI.modal.loading)return;
       const sourceSha256=[...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,"0")).join("");
       openModal({t:"legacy-preview",filename:file.name,sourceSha256,legacy:result.legacy,date:result.legacy.selectedDate});
     }else if(canMaster())openModal({t:"import-preview",filename:file.name,base,...result});
     else openModal({t:"import-preview",filename:file.name,base,errors:["只有老闆可以匯入員工、機台、產品工序和工單。舊版排程可由組長存成歷史資料。"],data:null});
   }catch(err){
-    if(UI.modal?.t!=="import-preview"||!UI.modal.loading)return;
+    if(UI.modal!==request||!ownsImport()||!UI.modal.loading)return;
     openModal({t:"import-preview",filename:file.name,base,errors:["無法讀取 Excel："+err.message],data:null});
   }
 });
