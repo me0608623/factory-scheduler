@@ -182,9 +182,9 @@ export class SupabaseStore {
 
   async updateProfile({displayName}) {
     const name=String(displayName||'').trim();if(name.length<1||name.length>60)throw new Error('顯示名稱需要 1–60 個字');
-    const client=this.sb,user=this.session?.user?.id,epoch=this.authEpoch;
-    const {data,error}=await client.rpc('update_own_profile',{p_display_name:name});
-    if(this.sb!==client||this.session?.user?.id!==user||this.authEpoch!==epoch)throw new Error('登入狀態已變更，請重新整理後確認帳號。');
+    const client=this.sb,assertOwner=this.requestOwnerGuard();
+    const {data,error}=await assertOwner.authorize(client.rpc('update_own_profile',{p_display_name:name}));
+    assertOwner();
     if(error)throw new Error('儲存個人資料失敗：'+error.message);this.userName=data?.displayName||name;
   }
 
@@ -213,12 +213,12 @@ export class SupabaseStore {
   }
 
   // 舊版 Excel 作為獨立歷史資料儲存，絕不更動目前排程快照。
-  requestOwnerGuard() {
+  requestOwnerGuard(failure=()=>new Error('登入狀態已變更，請重新整理後確認帳號。')) {
     const client=this.sb,user=this.session?.user?.id,epoch=this.authEpoch,token=this.session?.access_token;
-    const assertOwner=()=>{if(this.sb!==client||this.session?.user?.id!==user||this.authEpoch!==epoch)throw new Error('登入狀態已變更，請重新整理後確認帳號。');};
+    const assertOwner=()=>{if(this.sb!==client||this.session?.user?.id!==user||this.authEpoch!==epoch)throw failure();};
     assertOwner.authorize=query=>{
       assertOwner();
-      if(!user||!token)throw new Error('登入狀態已變更，請重新整理後確認帳號。');
+      if(!user||!token)throw failure();
       // Supabase fetchWithAuth awaits its mutable session even after the builder
       // is created. Pin this query only; never mutate shared client headers.
       return query.setHeader('Authorization','Bearer '+token);
@@ -329,8 +329,7 @@ export class SupabaseStore {
 
   // ---------- 寫：只寫有變的列；排程方塊整批用 save_blocks（有版本號檢查） ----------
   async sync(S, entry) {
-    const writer=this.session?.user?.id,epoch=this.authEpoch,client=this.sb;
-    const assertWriter=()=>{if(this.session?.user?.id!==writer||this.authEpoch!==epoch||this.sb!==client)throw new UnconfirmedWriteError();};
+    const client=this.sb,assertWriter=this.requestOwnerGuard(()=>new UnconfirmedWriteError());
     try{validateRosters(S);}catch(e){e.permission=true;throw e;}
     try{validateTransfers(S,{before:this.transferBase});}catch(e){e.permission=true;throw e;}
     try{validateGeneralWork(S,{today:new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Taipei'}).format(new Date()),baseAssignments:JSON.parse(this.baseGeneral||'{}').assignments||[]});if(this.protectedBase){assertExecutionProtected(this.protectedBase,S);
@@ -340,14 +339,14 @@ export class SupabaseStore {
     if(rosterKey(S)!==this.baseRosters){
       if(Object.values(d).some(c=>c.upsert.length||c.del.length)||blocksKey(S)!==this.baseBlocks||generalKey(S)!==this.baseGeneral||transferKey(S)!==this.baseTransfers||JSON.stringify(groupCatalog(S))!==this.baseGroups)
         throw Object.assign(new Error('請將輪班草稿與產線排程／基本資料分開儲存'),{permission:true});
-      const {data,error}=await this.sb.rpc('save_staff_rosters',{p_version:this.version,p_rosters:S.staffRosters||[]});
+      const {data,error}=await assertWriter.authorize(client.rpc('save_staff_rosters',{p_version:this.version,p_rosters:S.staffRosters||[]}));
       if(error){if(error.code==='40001')throw new ConflictError();throw Object.assign(new Error(error.message),{permission:true});}
       S.version=this.version=confirmedVersion(data,this.version,assertWriter);this._remember(S);return;
     }
     if(transferKey(S)!==this.baseTransfers){
       if(Object.values(d).some(c=>c.upsert.length||c.del.length)||blocksKey(S)!==this.baseBlocks||generalKey(S)!==this.baseGeneral||JSON.stringify(groupCatalog(S))!==this.baseGroups)
         throw Object.assign(new Error('請將跨廠加工紀錄與排程／基本資料分開儲存'),{permission:true});
-      const {data,error}=await this.sb.rpc('save_transfer_orders',{p_version:this.version,p_orders:S.transferOrders||[]});
+      const {data,error}=await assertWriter.authorize(client.rpc('save_transfer_orders',{p_version:this.version,p_orders:S.transferOrders||[]}));
       if(error){if(error.code==='40001')throw new ConflictError();throw Object.assign(new Error(error.message),{permission:true});}
       S.version=this.version=confirmedVersion(data,this.version,assertWriter);this._remember(S);return;
     }
@@ -355,7 +354,7 @@ export class SupabaseStore {
       if(Object.values(d).some(c=>c.upsert.length||c.del.length)||blocksKey(S)!==this.baseBlocks||generalKey(S)!==this.baseGeneral||transferKey(S)!==this.baseTransfers||JSON.stringify(groupCatalog(S))!==this.baseGroups)
         throw Object.assign(new Error('請將特別趕貨紀錄與排程／基本資料分開儲存'),{permission:true});
       try{validateRush(S.rushOrders||[]);}catch(e){throw Object.assign(e,{permission:true});}
-      const {data,error}=await this.sb.rpc('save_rush_orders',{p_version:this.version,p_orders:S.rushOrders||[]});
+      const {data,error}=await assertWriter.authorize(client.rpc('save_rush_orders',{p_version:this.version,p_orders:S.rushOrders||[]}));
       if(error){if(error.code==='40001')throw new ConflictError();throw Object.assign(new Error(error.message),{permission:true});}
       S.version=this.version=confirmedVersion(data,this.version,assertWriter);this._remember(S);return;
     }
@@ -363,7 +362,7 @@ export class SupabaseStore {
       if(Object.values(d).some(c=>c.upsert.length||c.del.length)||blocksKey(S)!==this.baseBlocks||generalKey(S)!==this.baseGeneral||transferKey(S)!==this.baseTransfers||rushKey(S)!==this.baseRush||JSON.stringify(groupCatalog(S))!==this.baseGroups)
         throw Object.assign(new Error('請將工作紀錄與排程／基本資料分開儲存'),{permission:true});
       try{validateWorkLog(S.workLog||[]);}catch(e){throw Object.assign(e,{permission:true});}
-      const {data,error}=await this.sb.rpc('save_work_log',{p_version:this.version,p_rows:S.workLog||[]});
+      const {data,error}=await assertWriter.authorize(client.rpc('save_work_log',{p_version:this.version,p_rows:S.workLog||[]}));
       if(error){if(error.code==='40001')throw new ConflictError();throw Object.assign(new Error(error.message),{permission:true});}
       S.version=this.version=confirmedVersion(data,this.version,assertWriter);this._remember(S);return;
     }
@@ -373,7 +372,7 @@ export class SupabaseStore {
       const contentsChanged=JSON.stringify(S.workContents||[])!==this.baseContents;
       if(contentsChanged&&JSON.stringify(S.workAssignments||[])!==JSON.stringify(JSON.parse(this.baseGeneral).assignments))throw new Error('請先儲存工作內容，再安排工作');
       const args=contentsChanged?{p_version:this.version,p_contents:S.workContents||[]}:{p_version:this.version,p_assignments:(S.workAssignments||[]).map(assignmentToDb)};
-      const {data,error}=await this.sb.rpc(contentsChanged?'save_work_contents':'save_work_assignments',args);
+      const {data,error}=await assertWriter.authorize(client.rpc(contentsChanged?'save_work_contents':'save_work_assignments',args));
       if(error){if(error.code==='40001')throw new ConflictError();throw Object.assign(new Error(error.message),{permission:true});}
       S.version=this.version=confirmedVersion(data,this.version,assertWriter);this._remember(S);return;
     }
@@ -381,29 +380,29 @@ export class SupabaseStore {
     if(groupsChanged){
       if(Object.values(d).some(c=>c.upsert.length||c.del.length)||blocksKey(S)!==this.baseBlocks)
         throw new Error('請將員工分組與排班／基本資料分開儲存');
-      const {data,error}=await this.sb.rpc('save_staff_groups',{p_base_version:this.version,p_groups:catalog.groups,p_members:catalog.members,p_title:entry?.title||'更新員工分組'});
+      const {data,error}=await assertWriter.authorize(client.rpc('save_staff_groups',{p_base_version:this.version,p_groups:catalog.groups,p_members:catalog.members,p_title:entry?.title||'更新員工分組'}));
       if(error){if(error.code==='40001')throw new ConflictError();throw writeError('員工分組',error,'修改');}
       S.version=this.version=confirmedVersion(data,this.version,assertWriter);this._remember(S);return;
     }
     // 基本資料逐表寫入，若排程版本已過期，應在第一筆寫入前先拒絕；
     // 否則後續 save_blocks 才報衝突時，工單等列可能已部分留下。
     if (Object.values(d).some(change => change.upsert.length || change.del.length)) {
-      const { data, error } = await this.sb.from("schedule_state").select("version").single();
+      const { data, error } = await assertWriter.authorize(client.from("schedule_state").select("version")).single();
       assertWriter();
       if (error) throw new Error("檢查排程版本失敗：" + error.message);
       if (Number(data.version) !== this.version) throw new ConflictError();
     }
     for (const t of UPSERT_ORDER) {
       if (!d[t]?.upsert.length) continue;
-      const { error } = await this.sb.from(t).upsert(d[t].upsert, { onConflict: TABLE_KEYS[t].join(",") });
+      const { error } = await assertWriter.authorize(client.from(t).upsert(d[t].upsert, { onConflict: TABLE_KEYS[t].join(",") }));
       assertWriter();
       if (error) throw writeError(t, error, "修改");
     }
     if (blocksKey(S) !== this.baseBlocks) {
-      const { data, error } = await this.sb.rpc("save_blocks", {
+      const { data, error } = await assertWriter.authorize(client.rpc("save_blocks", {
         p_base_version: this.version, p_blocks: S.blocks.map(blockToDb),
         p_title: entry?.title || "調整排程", p_detail: detailOf(entry), p_kind: KIND_TO_DB[entry?.kind] || "edit",
-      });
+      }));
       if (error) {
         if (error.code === "40001") throw new ConflictError();
         throw new Error("儲存排程失敗：" + error.message);
@@ -412,13 +411,13 @@ export class SupabaseStore {
       this.version += 1;
       S.version = this.version;
     } else if (entry) {
-      const { error } = await this.sb.rpc("log_change", { p_kind: KIND_TO_DB[entry.kind] || "edit", p_title: entry.title, p_detail: detailOf(entry) });
+      const { error } = await assertWriter.authorize(client.rpc("log_change", { p_kind: KIND_TO_DB[entry.kind] || "edit", p_title: entry.title, p_detail: detailOf(entry) }));
       assertWriter();
       if (error) throw new Error("寫入紀錄失敗：" + error.message);
     }
     for (const t of DELETE_ORDER) {
       for (const row of d[t]?.del || []) {
-        let q = this.sb.from(t).delete();
+        let q = assertWriter.authorize(client.from(t).delete());
         for (const k of TABLE_KEYS[t]) q = q.eq(k, row[k]);
         const { error } = await q;
         assertWriter();
@@ -430,11 +429,10 @@ export class SupabaseStore {
 
   // 套用排程服務存好的方案（整批在資料庫的一個交易裡完成）
   async applyPlan(previewId, optionId, note, ai) {
-    const client=this.sb,writer=this.session?.user?.id,epoch=this.authEpoch;
+    const client=this.sb;
     const message='排程套用結果待確認，請更新班表核對；不要重複套用。';
-    const assertWriter=()=>{if(!writer||this.sb!==client||this.session?.user?.id!==writer||this.authEpoch!==epoch)throw new UnconfirmedWriteError(message);};
-    assertWriter();
-    const { data,error } = await client.rpc("apply_plan", { p_preview: previewId, p_option: optionId, p_note: note || null, p_ai: ai || null });
+    const assertWriter=this.requestOwnerGuard(()=>new UnconfirmedWriteError(message));
+    const { data,error } = await assertWriter.authorize(client.rpc("apply_plan", { p_preview: previewId, p_option: optionId, p_note: note || null, p_ai: ai || null }));
     assertWriter();
     if (error) {
       if (error.code === "40001") throw new ConflictError("別人剛更新過排程，請重新計算方案");

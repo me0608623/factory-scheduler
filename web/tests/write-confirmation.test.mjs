@@ -7,6 +7,7 @@ import {makeDb,FakeSupabase} from './fake-supabase.mjs';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {UI_TEXT} from '../src/i18n.js';
+import {requestQuery} from './request-query.mjs';
 
 const work={id:'TEST-W',name:'Test manual work',factory:1,requiresResource:false,employeeIds:['TEST-E'],resourceIds:[],reviewStatus:'confirmed'};
 const cases=[
@@ -21,7 +22,8 @@ const cases=[
 function setup(init,change,response){
   const calls=[],s=fromSnapshot({version:12,employees:[{id:'TEST-E',name:'Test',factory:1,skills:[]}],machines:[],products:[],orders:[],blocks:[],calendar:{}});
   init(s);
-  const store=new SupabaseStore({rpc:async(name,args)=>{calls.push({name,args});return response;},from:()=>assert.fail('no unrelated table writes')});
+  const store=new SupabaseStore({rpc:(name,args)=>requestQuery(()=>{calls.push({name,args});return response;}),from:()=>assert.fail('no unrelated table writes')});
+  store.session={user:{id:'TEST-A'},access_token:'synthetic-token'};
   store.acceptLoaded(s);const baseline=store.base,protectedBase=store.protectedBase;
   const candidate=structuredClone(s);change(candidate);
   return {store,candidate,calls,baseline,protectedBase};
@@ -76,7 +78,7 @@ test('actual queue/store/SQL preserves an uncertain write and retry reconciles w
     const store=new SupabaseStore(sb);await store.init();const state=await store.load();
     state.groups=[{id:'00000000-0000-4000-8000-0000000000a1',name:'TEST-ACK'}];
     const rpc=sb.rpc.bind(sb),calls=[];let drop=true;
-    sb.rpc=async(name,args)=>{calls.push(name);const response=await rpc(name,args);if(name==='save_staff_groups'&&drop){drop=false;assert.equal(response.error,null);return {data:null,error:null};}return response;};
+    sb.rpc=(name,args)=>requestQuery(async()=>{calls.push(name);const response=await rpc(name,args);if(name==='save_staff_groups'&&drop){drop=false;assert.equal(response.error,null);return {data:null,error:null};}return response;});
     const messages=[],ctx={STORE:store,S:state,SYNC:{state:'ok',msg:''},syncChain:Promise.resolve(),syncPending:0,syncEpoch:0,lastSyncState:'ok',lastLocalWrite:0,structuredClone,
       tx:x=>x,toast:x=>messages.push(x),updateSyncChip:()=>{},maybeReload:()=>{}};
     ctx.reloadFromStore=async()=>{ctx.S=await store.load();return 'applied';};vm.createContext(ctx);
@@ -98,7 +100,7 @@ test('queued older snapshots cannot replay over another writer after the first r
     const store=new SupabaseStore(sb);await store.init();const initial=await store.load();
     const rpc=sb.rpc.bind(sb);let releaseFirst,first=true,started;
     const firstStarted=new Promise(resolve=>started=resolve);
-    sb.rpc=async(name,args)=>{if(name==='save_staff_groups'&&first){first=false;await new Promise(resolve=>{releaseFirst=resolve;started();});}return rpc(name,args);};
+    sb.rpc=(name,args)=>requestQuery(async()=>{if(name==='save_staff_groups'&&first){first=false;await new Promise(resolve=>{releaseFirst=resolve;started();});}return rpc(name,args);});
     const group=(n,name)=>({id:'00000000-0000-4000-8000-'+n.padStart(12,'0'),name});
     const messages=[],ctx={STORE:store,S:structuredClone(initial),SYNC:{state:'ok',msg:''},syncChain:Promise.resolve(),syncPending:0,syncEpoch:0,lastSyncState:'ok',lastLocalWrite:0,structuredClone,
       tx:x=>x,toast:x=>messages.push(x),updateSyncChip:()=>{},maybeReload:()=>{}};
@@ -169,7 +171,7 @@ test('real save_blocks commit with a lost UUID receipt is recovered without a du
   try{
     const store=new SupabaseStore(sb);await store.init();const state=await store.load();state.blocks.push(structuredClone(block));
     const rpc=sb.rpc.bind(sb);let drop=true,actualReceipt;
-    sb.rpc=async(name,args)=>{const response=await rpc(name,args);if(name==='save_blocks'&&drop){drop=false;assert.equal(response.error,null);actualReceipt=response.data;return {data:null,error:null};}return response;};
+    sb.rpc=(name,args)=>requestQuery(async()=>{const response=await rpc(name,args);if(name==='save_blocks'&&drop){drop=false;assert.equal(response.error,null);actualReceipt=response.data;return {data:null,error:null};}return response;});
     const h=queueHarness();h.ctx.STORE=store;h.ctx.S=state;h.ctx.reloadFromStore=async()=>{h.ctx.S=await store.load();return 'applied';};
     assert.equal(await h.ctx.queueSync({kind:'move',title:'TEST-SAVE-ACK'}),false);
     assert.match(actualReceipt,/^[0-9a-f-]{36}$/);assert.equal(store.version,0);assert.equal(h.ctx.SYNC.state,'error');assert.match(h.messages.at(-1),/結果待確認/);
@@ -193,9 +195,10 @@ test('queued writes belong to their original store, account and login lifetime',
 test('late RPC replies cannot replace another account or login lifetime baseline; same-account token refresh remains valid',async()=>{
   for(const mode of ['account','login','client','token']){
     const h=setup(()=>{},s=>{s.groups=[{id:'TEST-G',name:'Test'}];},{data:13,error:null});
-    h.store.session={user:{id:'TEST-A'},access_token:'synthetic-old'};let finish;
-    h.store.sb.rpc=()=>new Promise(resolve=>finish=resolve);
+    h.store.session={user:{id:'TEST-A'},access_token:'synthetic-old'};let finish,entered;const ready=new Promise(resolve=>entered=resolve);
+    h.store.sb.rpc=()=>requestQuery(()=>new Promise(resolve=>{finish=resolve;entered();}));
     const pending=h.store.sync(h.candidate);
+    await ready;
     if(mode==='account')h.store.session={user:{id:'TEST-B'}};
     if(mode==='login')h.store.authEpoch=2;
     if(mode==='client')h.store.sb={};

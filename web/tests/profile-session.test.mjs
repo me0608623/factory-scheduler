@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {SupabaseStore} from '../src/store/supabase.js';
+import {requestQuery} from './request-query.mjs';
 
 const identity=id=>({user:{id,email:id+'@invalid'},access_token:'synthetic-'+id});
 function profileClient({profile,permissions,rpc}={}){
   const queries=[];
-  const client={queries,rpc:rpc||(async()=>({data:{displayName:'TEST-A-SAVED'},error:null})),from:table=>{
+  const client={queries,rpc:(...args)=>requestQuery(()=>rpc?rpc(...args):({data:{displayName:'TEST-A-SAVED'},error:null})),from:table=>{
     const q={select(){return q;},eq(key,value){queries.push({table,key,value});return q;},
       maybeSingle:async()=>profile?profile():({data:{role:'lead',display_name:'TEST-A',employee_id:'TEST-A-E'},error:null}),
       then(resolve,reject){return Promise.resolve(permissions?permissions():({data:[],error:null})).then(resolve,reject);}};
@@ -45,9 +46,10 @@ test('role and grants are accepted atomically; failed refresh revokes stale cach
 
 test('late profile save cannot rename a new account or login lifetime; token refresh stays valid',async()=>{
   for(const mode of ['account','login','client','token']){
-    let finish;const store=new SupabaseStore(profileClient({rpc:()=>new Promise(resolve=>finish=resolve)}));
+    let finish,entered;const ready=new Promise(resolve=>entered=resolve),store=new SupabaseStore(profileClient({rpc:()=>new Promise(resolve=>{finish=resolve;entered();})}));
     store.session=identity('TEST-A');store.userName='ORIGINAL';
     const task=store.updateProfile({displayName:'TEST-A-SAVED'});
+    await ready;
     if(mode==='token')store.session={...identity('TEST-A'),access_token:'synthetic-refreshed'};else fresh(store,mode);
     finish({data:{displayName:'TEST-A-SAVED'},error:null});
     if(mode==='token'){await task;assert.equal(store.userName,'TEST-A-SAVED');}
