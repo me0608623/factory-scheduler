@@ -1,4 +1,9 @@
 import { toSnapshot, newId } from './convert.js';
+const factoryDateFormat=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'});
+export function scenarioCreatedDate(value){
+  if(typeof value!=='string'||!value.trim())return '';
+  const date=new Date(value);return Number.isFinite(date.getTime())?factoryDateFormat.format(date):'';
+}
 const canonical=v=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
 export function scenarioKey(S) {
   const snap=toSnapshot(S,S.holidays||{});

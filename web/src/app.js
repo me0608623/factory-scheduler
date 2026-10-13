@@ -11,7 +11,7 @@ import { acceptManualPreview, placementConflicts } from "./manual-apply.js";
 import { employeeGroups, groupedEmployees, memberStatus } from "./groups.js";
 import { resourceLoad } from "./resource-load.js";
 import { workQueue } from './work-queue.js';
-import { makeScenario, scenarioStale, validateScenario, scenarioKey } from './scenarios.js';
+import { makeScenario, scenarioStale, validateScenario, scenarioKey, scenarioCreatedDate } from './scenarios.js';
 import { reflowAllWindows } from './win.js';
 import { applySort, sortTh, sortBar, TF_SORT, RUSH_SORT, WL_SORT } from './table-sort.js';
 import { markOf, setMark, markRowAttrs, markBtns, MARK_COLORS, changeMarkColor } from './table-marks.js';
@@ -1840,11 +1840,11 @@ function renderModal(){
   const keep=root.querySelector(".overlay"),focusToken=keep&&root.contains(document.activeElement)?modalFocusToken(document.activeElement):null;
   const st=keep?keep.scrollTop:0;
   const importBusy=m.t==='import-preview'&&m.saving;
-  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!(m.confirmBusy||m.planBusy||importBusy||m.t==='legacy-preview'&&m.saving||['memo-edit','leave-request','scenario-save'].includes(m.t)&&m.saving||m.t==='execution-report'&&m.busy||m.t==='legacy-history'&&m.loading)+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close"'+(importBusy?' disabled':'')+' aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
+  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!(m.viewLoading||m.t==='scenario-list'&&m.loading||m.confirmBusy||m.planBusy||importBusy||m.t==='legacy-preview'&&m.saving||['memo-edit','leave-request','scenario-save'].includes(m.t)&&m.saving||m.t==='execution-report'&&m.busy||m.t==='legacy-history'&&m.loading)+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close"'+(importBusy?' disabled':'')+' aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
   if(importBusy)root.querySelectorAll('input,select,textarea,button').forEach(el=>el.disabled=true);
   if(['memo-edit','leave-request'].includes(m.t)&&m.saving)root.querySelectorAll('input,select,textarea').forEach(el=>el.disabled=true);
   if(m.t==='execution-report'&&m.busy)root.querySelectorAll('input,select,textarea,button:not([data-act="close"])').forEach(el=>el.disabled=true);
-  if(m.confirmBusy||m.planBusy||m.t==='scenario-save'&&m.saving)root.querySelectorAll('input,select,textarea,button:not([data-act="close"])').forEach(el=>el.disabled=true);
+  if(m.viewLoading||m.confirmBusy||m.planBusy||m.t==='scenario-save'&&m.saving)root.querySelectorAll('input,select,textarea,button:not([data-act="close"])').forEach(el=>el.disabled=true);
   const ov=$("#ov");ov.scrollTop=st;
   const cb=$("#cbx"),modal=ov.querySelector(".modal");
   const restore=modalFocusFromToken(modal,focusToken);
@@ -4510,9 +4510,18 @@ MODALS['work-queue']=()=>{
       (r.canArrange&&!readOnly?'<button class="btn" data-act="queue-arrange" data-id="'+esc(r.oid)+'" data-step="'+r.step+'">'+tx('安排此工序')+'</button>':'')+'</article>').join('')+
       (!rows.length?'<div class="okbox">'+tx('此範圍目前没有未排量或已回報短少。這不等於工作已實際完成。')+'</div>':''),foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button>'};
 };
+function scenarioReadOwner(m){
+  const store=STORE,client=store.sb,user=store.session?.user?.id,epoch=store.authEpoch||0,state=S,json=JSON.stringify(S),preview=PV,
+    date=UI.date,factory=UI.factory,page=UI.page,drawer=UI.drawer,focus=JSON.stringify(UI.focus);
+  return {store,current:()=>STORE===store&&STORE.sb===client&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===epoch&&
+    canPermissionRaw('scenarios.manage')&&UI.modal===m&&PV===preview&&S===state&&JSON.stringify(S)===json&&
+    UI.date===date&&UI.factory===factory&&UI.page===page&&UI.drawer===drawer&&JSON.stringify(UI.focus)===focus};
+}
 async function openScenarioList(){
-  if(!canPermissionRaw('scenarios.manage'))return;openModal({t:'scenario-list',loading:true});const m=UI.modal;
-  try{m.items=await STORE.listScenarios();}catch(e){m.error=e.message;}m.loading=false;if(UI.modal===m)renderModal();
+  if(!canPermissionRaw('scenarios.manage'))return;openModal({t:'scenario-list',loading:true});const m=UI.modal,owner=scenarioReadOwner(m);
+  try{const items=await owner.store.listScenarios();if(!owner.current())return;m.items=items;}
+  catch(e){if(!owner.current())return;m.error=tx(e.message);}
+  if(owner.current()){m.loading=false;renderModal();}
 }
 async function changeExecutionConfirmation(button,confirmed){
   if(!canPermission('execution.manage')||S.setupPending||PV||UI.executionSaving||UI.directSaving||UI.memoSaving||UI.leaveBrushSaving)return;
@@ -4539,8 +4548,10 @@ async function changeExecutionConfirmation(button,confirmed){
 }
 MODALS['scenario-list']=m=>({title:tx('保存的試排情境'),body:
   '<div class="hint">'+tx('情境與正式班表分開保存，只供原本／調整後對照，不提供直接套用。雲端只列出此帳號保存的情境，最多 20 份。')+'</div>'+
-  (m.loading?'<div class="hint">'+tx('讀取中…')+'</div>':m.error?'<div class="issue">'+esc(m.error)+'</div>':
-    (m.items||[]).map(s=>'<button class="btn" style="width:100%;height:auto;min-height:48px;margin:8px 0" data-act="scenario-view" data-id="'+esc(s.id)+'">'+esc(s.name)+' · '+esc(s.created_at.slice(0,10))+'</button>').join('')||'<div class="hint">'+tx('還沒有保存的情境。')+'</div>'),
+  (m.viewLoading?'<div class="hint" role="status">'+tx('正在讀取情境，可取消。')+'</div>':'')+
+  (m.viewError?'<div class="issue" role="alert">'+esc(tx(m.viewError))+'</div>':'')+
+  (m.loading?'<div class="hint" role="status">'+tx('讀取中…')+'</div>':m.error?'<div class="issue" role="alert">'+esc(m.error)+'</div>':
+    (m.items||[]).map(s=>{const date=scenarioCreatedDate(s.created_at);return '<button class="btn" style="width:100%;height:auto;min-height:48px;margin:8px 0" data-act="scenario-view" data-id="'+esc(s.id)+'">'+esc(s.name)+(date?' · '+esc(date):'')+'</button>';}).join('')||'<div class="hint">'+tx('還沒有保存的情境。')+'</div>'),
   foot:'<button class="btn" data-act="scenario-save">'+tx('保存目前排程')+'</button><button class="btn" data-act="close">'+tx('關閉')+'</button>'});
 MODALS['scenario-save']=m=>({title:tx('保存試排情境'),body:'<div class="hint">只保存比較資料，不套用、不寫入正式班表。之後排程、名冊、技能或現場進度改變，會提示這份情境與現況不同。</div>'+
   (m.saving?'<div class="hint" role="status">'+tx('正在保存情境；關閉視窗不會取消已送出的保存。')+'</div>':'')+
@@ -4563,15 +4574,18 @@ async function saveScenarioFromModal(button){
   finally{if(UI.scenarioSaving===operation)UI.scenarioSaving=null;m.saving=false;button.disabled=false;if(current())renderModal();maybeReload();}
 }
 async function viewScenario(id){
-  if(!canPermissionRaw('scenarios.manage'))return;
+  const m=UI.modal;if(!canPermissionRaw('scenarios.manage')||m?.t!=='scenario-list'||m.loading||m.viewLoading)return;
+  const owner=scenarioReadOwner(m);m.viewLoading=true;m.viewError=null;renderModal();
   try{
-    const item=await STORE.getScenario(id);if(!item)throw new Error('找不到情境');validateScenario(item.payload);
+    const item=await owner.store.getScenario(id);if(!owner.current())return;
+    if(!item||item.id!==id)throw new Error('找不到情境');validateScenario(item.payload);
     const stale=scenarioStale(item,S),B=item.payload.base,A=item.payload.candidate,ev={date:item.payload.date||UI.date};
     const opts=[{id:'S',name:item.name,desc:item.payload.description||'保存的情境',A,state:JSON.stringify(A),
       lines:[],mt:measure(B,A,ev),applicable:false,diagnostics:[stale?'此情境的基準與現況不同；僅供查看，不可覆蓋目前班表':'保存的情境僅供比較，不可直接套用'],best:false}];
     enterPreview({title:tx('保存試排情境')+'：'+item.name,logTitle:item.name,kind:'edit',base:JSON.stringify(B),B,opts,ev,
       extra:{savedScenario:true,engine:'歷史試排資料'}});
-  }catch(e){toast(e.message);}
+  }catch(e){if(owner.current()){m.viewError=e.message;toast(tx(e.message));}}
+  finally{m.viewLoading=false;if(owner.current())renderModal();}
 }
 const reportingRole=()=>STORE.kind==='local'||canPermission('execution.manage')?'boss':STORE.role;
 const reportStatus=r=>!r?tx('尚未開始'):r.status==='done'?tx('已回報完成'):tx('進行中');
