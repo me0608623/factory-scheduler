@@ -1,0 +1,53 @@
+name: Synthetic PostgREST retry comparison
+
+on:
+  push:
+    paths:
+      - .github/workflows/postgrest-retry-experiment.yml
+      - tools/postgrest-retry-experiment.mjs
+      - tools/postgrest-retry-experiment.test.mjs
+  pull_request:
+    paths:
+      - .github/workflows/postgrest-retry-experiment.yml
+      - tools/postgrest-retry-experiment.mjs
+      - tools/postgrest-retry-experiment.test.mjs
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: probe_admin
+          POSTGRES_PASSWORD: synthetic_ci_only
+          POSTGRES_DB: retry_probe
+        ports:
+          - 55439:5432
+        options: >-
+          --health-cmd "pg_isready -U probe_admin -d retry_probe"
+          --health-interval 2s --health-timeout 2s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fetch official pinned static binaries and verify published SHA256
+        shell: bash
+        run: |
+          set -euo pipefail
+          probe_dir="$RUNNER_TEMP/postgrest-retry-probe"
+          mkdir -p "$probe_dir/v14.18" "$probe_dir/v16.4"
+          curl --fail --location --max-time 60 --proto '=https' --proto-redir '=https' https://github.com/PostgREST/postgrest/releases/download/v14.18/postgrest-v14.18-linux-static-x86-64.tar.xz --output "$probe_dir/v14.18/binary.tar.xz"
+          curl --fail --location --max-time 60 --proto '=https' --proto-redir '=https' https://github.com/PostgREST/postgrest/releases/download/v16.4/postgrest-v16.4-linux-static-x86-64.tar.xz --output "$probe_dir/v16.4/binary.tar.xz"
+          printf '%s  %s\n' 98de1c0be7787aea5f5e11a25f303ea0077634d6fc1000b687bfa825fd27d299 "$probe_dir/v14.18/binary.tar.xz" b47ecc82fce1dcebbbc4183d839e52f07f7630c9d7ad0f54db753d1939299354 "$probe_dir/v16.4/binary.tar.xz" | sha256sum --check
+          tar -xJf "$probe_dir/v14.18/binary.tar.xz" -C "$probe_dir/v14.18" postgrest
+          tar -xJf "$probe_dir/v16.4/binary.tar.xz" -C "$probe_dir/v16.4" postgrest
+      - run: node --test tools/postgrest-retry-experiment.test.mjs
+      - name: Real HTTP and transaction retry evidence (all data synthetic)
+        run: node tools/postgrest-retry-experiment.mjs "$RUNNER_TEMP/postgrest-retry-probe/v14.18/postgrest" "$RUNNER_TEMP/postgrest-retry-probe/v16.4/postgrest"
+      # No dumps, request snapshots, secrets, or artifacts. The runner owns and removes its service.
