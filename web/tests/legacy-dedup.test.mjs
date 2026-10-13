@@ -9,10 +9,10 @@ const duplicate={code:'23505',message:'duplicate key violates unique constraint'
 function deferred(){let resolve;const promise=new Promise(r=>{resolve=r;});return {promise,resolve};}
 function fixture({insertError=duplicate,recovered={data:row,error:null},insertPending=null,readPending=null}={}){
   const events=[];let reads=0;
-  const client={from(){const q={select(){return q;},eq(key,value){events.push({type:'eq',key,value});return q;},
+  const client={from(){const q={setHeader(){return q;},select(){return q;},eq(key,value){events.push({type:'eq',key,value});return q;},
     maybeSingle(){reads++;events.push({type:'lookup',n:reads});return reads===1?Promise.resolve({data:null,error:null}):readPending?.promise??Promise.resolve(recovered);},
     insert(){events.push({type:'insert'});return q;},single(){return insertPending?.promise??Promise.resolve({data:null,error:insertError});}};return q;}};
-  const store=new SupabaseStore(client);store.session={user:{id:'original'}};store.authEpoch=1;
+  const store=new SupabaseStore(client);store.session={user:{id:'original'},access_token:'synthetic-token'};store.authEpoch=1;
   return {store,events};
 }
 
@@ -36,7 +36,7 @@ test('two actual Store saves whose lookups both miss converge on one real SQL ar
       }
     }
     const clients=[new CollisionClient(db,{}),new CollisionClient(db,{})];clients.forEach(c=>{c.uid=uid;});
-    const stores=clients.map(c=>{const s=new SupabaseStore(c);s.session={user:{id:uid}};return s;});
+    const stores=clients.map(c=>{const s=new SupabaseStore(c);s.session={user:{id:uid},access_token:'synthetic-token'};return s;});
     const before=await stores[0].load();
     const outcomes=await Promise.allSettled(stores.map(s=>s.saveLegacyArchive(input)));
     assert.equal(initialReads,2);assert.deepEqual(errors,['23505']);

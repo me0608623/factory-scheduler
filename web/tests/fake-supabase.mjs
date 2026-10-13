@@ -88,6 +88,7 @@ export class FakeSupabase {
     const self = this;
     const q = { op: "select", cols: "*", where: [], order: null, limit: null, single: false, insertRows: null };
     const b = {
+      setHeader() { return b; }, // Transport headers are exercised with the real SDK in legacy-sdk-auth.test.mjs.
       select(cols = "*") { q.cols = cols; return b; },
       eq(col, v) { q.where.push([col, v]); return b; },
       order(col, { ascending = true } = {}) { q.order = `${col} ${ascending ? "asc" : "desc"}`; return b; },
