@@ -42,6 +42,16 @@ export class ConflictError extends Error {
   constructor(msg = "別人剛更新過排程") { super(msg); this.conflict = true; }
 }
 
+export class UnconfirmedWriteError extends Error {
+  constructor(){super('雲端儲存結果待確認，請按重試核對；目前修改仍保留。');this.unconfirmed=true;}
+}
+function confirmedVersion(value,previous){
+  // These seven RPCs return the incremented bigint, not a nullable/void result.
+  // An HTTP success alone must not reset the version or accept a new baseline.
+  if(!Number.isSafeInteger(value)||value!==previous+1)throw new UnconfirmedWriteError();
+  return value;
+}
+
 export class SupabaseStore {
   kind = "supabase";
 
@@ -260,14 +270,14 @@ export class SupabaseStore {
         throw Object.assign(new Error('請將輪班草稿與產線排程／基本資料分開儲存'),{permission:true});
       const {data,error}=await this.sb.rpc('save_staff_rosters',{p_version:this.version,p_rosters:S.staffRosters||[]});
       if(error){if(error.code==='40001')throw new ConflictError();throw Object.assign(new Error(error.message),{permission:true});}
-      S.version=this.version=Number(data);this._remember(S);return;
+      S.version=this.version=confirmedVersion(data,this.version);this._remember(S);return;
     }
     if(transferKey(S)!==this.baseTransfers){
       if(Object.values(d).some(c=>c.upsert.length||c.del.length)||blocksKey(S)!==this.baseBlocks||generalKey(S)!==this.baseGeneral||JSON.stringify(groupCatalog(S))!==this.baseGroups)
         throw Object.assign(new Error('請將跨廠加工紀錄與排程／基本資料分開儲存'),{permission:true});
       const {data,error}=await this.sb.rpc('save_transfer_orders',{p_version:this.version,p_orders:S.transferOrders||[]});
       if(error){if(error.code==='40001')throw new ConflictError();throw Object.assign(new Error(error.message),{permission:true});}
-      S.version=this.version=Number(data);this._remember(S);return;
+      S.version=this.version=confirmedVersion(data,this.version);this._remember(S);return;
     }
     if(rushKey(S)!==this.baseRush){
       if(Object.values(d).some(c=>c.upsert.length||c.del.length)||blocksKey(S)!==this.baseBlocks||generalKey(S)!==this.baseGeneral||transferKey(S)!==this.baseTransfers||JSON.stringify(groupCatalog(S))!==this.baseGroups)
@@ -275,7 +285,7 @@ export class SupabaseStore {
       try{validateRush(S.rushOrders||[]);}catch(e){throw Object.assign(e,{permission:true});}
       const {data,error}=await this.sb.rpc('save_rush_orders',{p_version:this.version,p_orders:S.rushOrders||[]});
       if(error){if(error.code==='40001')throw new ConflictError();throw Object.assign(new Error(error.message),{permission:true});}
-      S.version=this.version=Number(data);this._remember(S);return;
+      S.version=this.version=confirmedVersion(data,this.version);this._remember(S);return;
     }
     if(workLogKey(S)!==this.baseWorkLog){
       if(Object.values(d).some(c=>c.upsert.length||c.del.length)||blocksKey(S)!==this.baseBlocks||generalKey(S)!==this.baseGeneral||transferKey(S)!==this.baseTransfers||rushKey(S)!==this.baseRush||JSON.stringify(groupCatalog(S))!==this.baseGroups)
@@ -283,7 +293,7 @@ export class SupabaseStore {
       try{validateWorkLog(S.workLog||[]);}catch(e){throw Object.assign(e,{permission:true});}
       const {data,error}=await this.sb.rpc('save_work_log',{p_version:this.version,p_rows:S.workLog||[]});
       if(error){if(error.code==='40001')throw new ConflictError();throw Object.assign(new Error(error.message),{permission:true});}
-      S.version=this.version=Number(data);this._remember(S);return;
+      S.version=this.version=confirmedVersion(data,this.version);this._remember(S);return;
     }
     if(generalKey(S)!==this.baseGeneral){
       if(Object.values(d).some(c=>c.upsert.length||c.del.length)||blocksKey(S)!==this.baseBlocks||JSON.stringify(groupCatalog(S))!==this.baseGroups)
@@ -293,7 +303,7 @@ export class SupabaseStore {
       const args=contentsChanged?{p_version:this.version,p_contents:S.workContents||[]}:{p_version:this.version,p_assignments:(S.workAssignments||[]).map(assignmentToDb)};
       const {data,error}=await this.sb.rpc(contentsChanged?'save_work_contents':'save_work_assignments',args);
       if(error){if(error.code==='40001')throw new ConflictError();throw Object.assign(new Error(error.message),{permission:true});}
-      S.version=this.version=Number(data);this._remember(S);return;
+      S.version=this.version=confirmedVersion(data,this.version);this._remember(S);return;
     }
     const catalog=groupCatalog(S),groupsChanged=JSON.stringify(catalog)!==this.baseGroups;
     if(groupsChanged){
@@ -301,7 +311,7 @@ export class SupabaseStore {
         throw new Error('請將員工分組與排班／基本資料分開儲存');
       const {data,error}=await this.sb.rpc('save_staff_groups',{p_base_version:this.version,p_groups:catalog.groups,p_members:catalog.members,p_title:entry?.title||'更新員工分組'});
       if(error){if(error.code==='40001')throw new ConflictError();throw writeError('員工分組',error,'修改');}
-      S.version=this.version=Number(data);this._remember(S);return;
+      S.version=this.version=confirmedVersion(data,this.version);this._remember(S);return;
     }
     // 基本資料逐表寫入，若排程版本已過期，應在第一筆寫入前先拒絕；
     // 否則後續 save_blocks 才報衝突時，工單等列可能已部分留下。

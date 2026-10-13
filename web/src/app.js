@@ -3323,19 +3323,30 @@ function sideHealthHTML(){
   return '<button class="side-health '+v.tone+'" data-act="sync"><i></i><span><b>'+tx('系統連線')+'</b><small>'+esc(tx(v.detail||v.text))+'</small>'+hint+'</span></button>';
 }
 function updateSyncChip(){const el=$("#syncchip");if(el)el.outerHTML=syncChipHTML();const side=$(".side-health");if(side)side.outerHTML=sideHealthHTML();}
-let syncChain=Promise.resolve(),syncPending=0;
+let syncChain=Promise.resolve(),syncPending=0,syncEpoch=0,lastSyncState='ok';
 // 同步進行中關閉分頁＝靜默丟失變更：離開前提示（僅在真的有寫入在途時）
 addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state==="busy"){e.preventDefault();e.returnValue="";}});
 function queueSync(entry){
-  const snapshot=structuredClone(S);
+  const snapshot=structuredClone(S),epoch=syncEpoch;
   syncPending++;SYNC.state="busy";updateSyncChip();
   const task=syncChain.then(async()=>{
-    try{await STORE.sync(snapshot,entry);SYNC.state="ok";SYNC.msg="";lastLocalWrite=Date.now();return true;}
+    try{
+      // Never rebase older queued snapshots onto a recovered remote baseline.
+      if(epoch!==syncEpoch){SYNC.state=lastSyncState;return false;}
+      await STORE.sync(snapshot,entry);SYNC.state=lastSyncState="ok";SYNC.msg="";lastLocalWrite=Date.now();return true;
+    }
     catch(e){
-      SYNC.state="error";SYNC.msg=e.message;
-      if(e.conflict){toast("別人剛更新過排程，已載入最新版本，請再做一次你的調整");await reloadFromStore();SYNC.state="ok";}
-      else if(e.permission){toast(e.message+"，已還原");await reloadFromStore();SYNC.state="ok";}
-      else toast("沒存到："+e.message,"重試",()=>queueSync(null));
+      SYNC.state=lastSyncState="error";SYNC.msg=e.message;
+      if(e.conflict||e.permission){
+        // Invalidate jobs captured before and during the recovery read.
+        syncEpoch++;let result='failed';
+        try{result=await reloadFromStore();}catch{result='failed';}finally{syncEpoch++;}
+        if(result==='applied'){
+          SYNC.state=lastSyncState='ok';SYNC.msg='';
+          toast(e.conflict?"別人剛更新過排程，已載入最新版本，請再做一次你的調整":e.message+"，已還原");
+        }else{SYNC.msg=tx('無法載入最新版本，尚未確認儲存；請重試。');toast(SYNC.msg,"重試",()=>queueSync(null));}
+      }
+      else toast(e.unconfirmed?tx(e.message):"沒存到："+e.message,"重試",()=>queueSync(null));
       return false;
     }
     finally{syncPending--;if(syncPending>0)SYNC.state="busy";updateSyncChip();if(syncPending===0&&SYNC.state==='ok')maybeReload();}
