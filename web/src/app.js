@@ -3461,7 +3461,7 @@ function sideHealthHTML(){
 function updateSyncChip(){const el=$("#syncchip");if(el)el.outerHTML=syncChipHTML();const side=$(".side-health");if(side)side.outerHTML=sideHealthHTML();}
 let syncChain=Promise.resolve(),syncPending=0,syncEpoch=0,lastSyncState='ok';
 // 同步進行中關閉分頁＝靜默丟失變更：離開前提示（僅在真的有寫入在途時）
-addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state==="busy"||UI.leaveBrushSaving||UI.memoSaving||UI.directSaving||UI.executionSaving||UI.scenarioSaving||executionRetries.has(STORE)){e.preventDefault();e.returnValue="";}});
+addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state==="busy"||UI.leaveBrushSaving||UI.memoSaving||UI.directSaving||UI.executionSaving||UI.scenarioSaving||executionRetries.has(STORE)||STORE.hasPendingConfirmations?.()){e.preventDefault();e.returnValue="";}});
 function queueSync(entry){
   if(STORE.kind==='supabase'&&!STORE.session?.user?.id){changedWriteSession();return Promise.resolve(false);}
   const snapshot=structuredClone(S),epoch=syncEpoch,activeStore=STORE,writer=STORE.session?.user?.id,authEpoch=STORE.authEpoch||0;
@@ -4608,7 +4608,8 @@ MODALS.execution=m=>{
       '<div class="hint">'+reportStatus(r)+(r?' · 累計 '+r.qtyDone+' 件 · 差異 '+(r.qtyDone-b.qty)+' 件':'')+'</div>'+
       (canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending?'<button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">'+tx('查看／回報進度')+'</button>':'')+
       (r?.status==='done'?'<div class="hint">'+tx(r.confirmed?'已確認完工':'完工待確認')+'</div>'+(!S.setupPending&&canPermission('execution.manage')?
-        '<button class="btn" data-act="'+(r.confirmed?'exec-unconfirm':'exec-confirm')+'" data-id="'+esc(b.id)+'">'+tx(r.confirmed?'取消確認':'確認完工')+'</button>':''):'')+'</article>';}).join(''):'';
+        (STORE.hasPendingConfirmation?.(b.id)?'<div class="issue" role="alert">'+tx('完工確認結果待核對，請更新班表查看；不要重複送出。')+'</div>':
+          '<button class="btn" data-act="'+(r.confirmed?'exec-unconfirm':'exec-confirm')+'" data-id="'+esc(b.id)+'">'+tx(r.confirmed?'取消確認':'確認完工')+'</button>'):''):'')+'</article>';}).join(''):'';
   return {title:tx('現場回報')+' · '+mdw(UI.date),body:
     '<div class="hint">'+tx('開始、做了幾件、完工都另外保存實際事實。完工少做的件數會回到未排工作，下一次重排會補足；不會悄悄改掉原定產能。')+'</div>'+
     (worker&&!STORE.employeeId?'<div class="issue">'+tx('帳號尚未綁定員工，請由管理員綁定後使用。')+'</div>':'')+
