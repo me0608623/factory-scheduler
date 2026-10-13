@@ -1092,3 +1092,10 @@
 - **INFEASIBLE 根因仍未定位**：核定修復後 C1/2/4/5/6/7 仍全案不可行（零排程、當時排程：(無)）。**排除**：review_status（已修）、基準設定（12 項全過）、solver 版本（新舊同紅）。**續查方向**（下輪）：真實備份的既有 blocks/faults/work_execution 在測試窗占滿或觸發保護（app 內同資料可排＝輪 65 旁證，但 app 走「全單重排」、sim 走「新單插入」路徑不同）；在 sim 加快照計數輸出（blocks/machines/employees/ot 設定）對照 staging
 - **誠實記錄**：本輪未能結案；P1 保持開放，已累積兩個已證事實＋一個待驗假設
 - **下輪**：sim 加快照 dump 除錯輸出→ 定位占滿/保護來源
+
+### 缺陷探索輪 76（2026-10-14 11:10–11:40）——sim INFEASIBLE 排查：兩層快照 dump 完成，假設空間收斂
+
+- **dump 工具入庫（main `ba148c4`＋`cd02118`）**：基準後輸出快照占用（SIM_DEBUG）——排查專用，正式碼不動
+- **已排除的假設**：①既有占用（blocks=0／orders=0／execution=0／faults=0＝備份幾乎無排程資料）②行事曆（週一二三五開、over 空）③機台核定/廠別（四台廠別正確、confirmed、模具數正確）④TEST 產品工序（F1/F1 兩步、rate/batch 如期寫入）
+- **假設收斂至**：solver 對「近空底＋單一新單」輸入的語義邊界——最可疑＝TEST-P02 第 2 站 transfer_batch=0（10-02 綠跑時 solver 對 batch=0 的解釋可能不同於現行）與快照 `work_windows` 鍵名（dump 顯示 undefined＝欄位名待對）。**下輪**：對照 solver 0026→main 對 batch=0 與空底快照的處理變更；或 sim 暫改 batch=0→60 驗證
+- **本輪成果**：③兩層排查證據＋dump 工具（可重用）
