@@ -30,6 +30,17 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13使用者續作：最新CI全綠，GitHub Render App未安裝，停在新增授權前
+
+- 持久工作樹7309aaa乾淨，無其他modifier／deploy；僅專屬Vite/esbuild。main仍c58032b、staging source仍ae1bbb4，沒有改共享checkout或正式1023／setup_pending／帳號權限；沒有雲端資料寫入。
+- 6f37083的Tests **38404332390／38404326289**、smoke **38404332297／38404326429**全部success；PR16 e76796c Tests **38404364111／38404358613**、smoke **38404364044／38404358653**全部success。兩個Tests各frontend/database/solver jobs全success，不把CI當登入／同步E2E。
+- 使用Render-debug及render-deploy（全文及deployment-details/post-deploy-checks），MCP再核staging web：autoDeploy=yes／commit、root=web、source branch正確；latest只有5476a60 live／dep-db70mojrjlhs739hte6g，沒有新queued/failed deploy，故不是建置失敗。正式web/solver未觸碰，不手動deploy autoDeploy服務或toggle/cache繞過限制。
+- 真UI核對：Render服務Source→Edit的Git Provider面板顯示Connect Git provider；但Account settings又確實有既有me0608623部署憑證。因此**更正先前簡化推論**：不是單憑Connect字樣就宣稱沒有任何Git credential。GitHub已登入同一個me0608623，Installed GitHub Apps清單**沒有Render**；依官方git-provider文件進既有診斷連結，最後是Install Render新安裝頁（非既有Configure），這才是新確認的缺失。Render殘留credential不代表GitHub App實際安裝／webhook可用；安裝後是否真的恢復auto仍需push＋deploy事件實證，尚不當已修復。
+- 點Render的GitHub/Configure on GitHub按鈕都沒有出現新分頁（IAB inventory及console無可確認結果），未盲目重點／JS window.open。改用已登入GitHub的標準Installed Apps頁及官方連結，只讀／選取安裝預覽，不增權限。API key欄未展開或讀值，沒有新增credential／PAT／hook或secret。
+- 安裝預覽已選**Only select repositories → me0608623/factory-scheduler（僅1個）**，尚未按Install。頁面要求讀code/metadata/Dependabot及讀寫Actions/checks/status/deployments/environments/issues/PR/hooks/workflows，並標明公開repo亦可read-only；屬新增security-sensitive授權，必須使用者當下確認，不能把「全權處理／更新測試站」當本次授權同意。正向Git部署憑證仍保留，沒有Disconnect；Render設定未存任何改動。
+- 本機授權截圖outputs/render-app-install-review-20261013.png已保存及目視，未上傳公開artifact。GitHub tab23停在Install前，Render tab21與qa-lead測試tab20均handoff；user tab22保留。下一步等使用者確認最小Repo Render App權限，再核裝好且source能列repo；CI綠後安全FF既有staging來源到新runtime、查真auto事件/live SHA/bundle、再做實際測試。沒有更新成功前不拿舊版5476的DOM當新版回歸，不合PR16/18或部署正式。
+- 第二帳號登入／設定信同意仍未收到，不猜／改密碼或寄信。不同角色、跨帳號同步、OR-Tools真套用、offline／409與原生Safari仍未通過。新備份安全版尚未main，nightly維持停用；Codex10分鐘追蹤繼續ACTIVE，授權阻礙不停止其他安全缺陷測試。
+
 #### 2026-10-13 20:50延續／21:16 heartbeat：UUID儲存回條與帳號生命週期競爭防護
 
 - 起點4a44611；8份未提交檔是本對話上一轮留下的修正／測試，沒有他人modifier，只有專屬Vite/esbuild。本輪延續它們而非重寫或丟棄。最新main c58032b相較11c7d9c只新增另一agent進度文件；普通merge保留，沒有改共享checkout／force。全部指定交接與最新checkpoint已讀；歷史NEXT_TASKS仍有已完成0037等條目，不照過時清單重做。
