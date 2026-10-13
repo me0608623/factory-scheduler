@@ -41,6 +41,7 @@
 - 聚焦首次50項有2項失敗是既有VM harness缺新增tx邊界；補tx mock而未鬆斷言。初始全套507/509不當通過；修harness後重新完整跑 **509/509／0 fail**（56.4秒），包含上述所有新增測試。另manual refresh/reload/auth/undo **29/29**及build成功（index-CPs1acFX.js），既有chunk警告保留。Impeccable context一次及harden/craft-floor全文、detector app/i18n/store一次[]；只改既有安全錯誤回饋，未改Gantt／抽屜／灰底／字體設計，不當全面視覺QA。
 - runtime **2b5bf92**提交後普通merge最新main為 **6f37083**已推；PR16事前乾淨且e00c61e本地/remote一致，僅既有Vite/esbuild，普通merge為 **e76796ce6fd8feca0a1d7c5621002dba6cd7dc1e**已推，原3份runtime/test差異與2份docs保留。最新SHA CI待核對，不用ae1綠冒稱新版本綠。PR16/18仍draft、沒有合main／正式部署；nightly仍等待安全加密版进入main，Codex10分鐘追蹤繼續ACTIVE。
 - 本輪正式1023／setup_pending／0037／角色授權、測試Supabase完全未寫入；新mutation僅本機拋棄式DB。缺第二帳號登入／寄信同意、OR-Tools真套用、真不同角色與跨帳號同步／409／offline、原生Safari仍未過。舊live5476的手動M20 apply＋undo不能當新帳號防護雲端E2E。下一輪先查6f37083/e76796c同SHA CI及staging自動部署原因；**log_change也回UUID但無version，回條遺失的安全冪等恢復尚未處理**，不可盲套save_blocks重試策略。另_profile/updateProfile等非schedule寫入的身份切換仍待真函式重現，不宣稱全Auth路徑已保護。
+- 21:23實查：6f37083 Tests **38404332390／38404326289**仍in_progress，smoke **38404332297／38404326429**success；PR16 e76796c Tests **38404364111／38404358613**仍in_progress，smoke **38404364044／38404358653**success。用完整40位SHA查證；首次短SHA查回[]不能當沒有CI。nightly **367614493**再查disabled_manually。tab21交付、tab20 handoff已重新標記，本機與持久分支保留；不因509綠停止追蹤。
 
 #### 2026-10-13 20:12 heartbeat／20:45：儲存確認、衝突佇列覆写及Render既有登入恢復
 
