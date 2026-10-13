@@ -11,6 +11,8 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "班表尚未確認儲存，請先核對班表儲存狀態，再回報進度。": {en:"Schedule saving is unconfirmed. Check the schedule save status before reporting progress.",vi:"Chưa xác nhận lưu lịch. Kiểm tra trạng thái lưu lịch trước khi báo cáo tiến độ.",th:"ยังยืนยันการบันทึกตารางไม่ได้ ตรวจสอบสถานะการบันทึกตารางก่อนรายงานความคืบหน้า"},
+  "完工確認結果待核對，請更新班表查看；不要重複送出。": {en:"Completion confirmation is unverified. Refresh the schedule to check; do not submit again.",vi:"Chưa xác minh kết quả xác nhận hoàn thành. Cập nhật lịch để kiểm tra; không gửi lại.",th:"ยังตรวจสอบผลการยืนยันงานเสร็จไม่ได้ อัปเดตตารางเพื่อตรวจสอบ อย่าส่งซ้ำ"},
   "回報處理中；關閉視窗不會取消已送出的回報。": {en:"Processing the report. Closing this dialog does not cancel a submitted report.",vi:"Đang xử lý báo cáo. Đóng cửa sổ không hủy báo cáo đã gửi.",th:"กำลังประมวลผลรายงาน การปิดหน้าต่างไม่ยกเลิกรายงานที่ส่งแล้ว"},
   "尚未確認儲存這筆回報；請按「重試上一筆回報」，不要另送新的一筆。": {en:"This report's save is unconfirmed. Use Retry previous report; do not submit a new report.",vi:"Chưa xác nhận lưu báo cáo này. Hãy thử lại báo cáo trước, không gửi báo cáo mới.",th:"ยังยืนยันการบันทึกรายงานนี้ไม่ได้ ใช้ลองรายงานเดิมใหม่ อย่าส่งรายงานใหม่"},
   "回報已處理；尚未讀到最新資料，請更新核對。": {en:"Report processed, but the latest data has not been read. Refresh to check.",vi:"Đã xử lý báo cáo nhưng chưa đọc được dữ liệu mới nhất. Cập nhật để kiểm tra.",th:"ประมวลผลรายงานแล้ว แต่ยังอ่านข้อมูลล่าสุดไม่ได้ กรุณาอัปเดตเพื่อตรวจสอบ"},

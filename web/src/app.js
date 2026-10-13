@@ -4605,6 +4605,9 @@ MODALS['execution-report']=m=>{
 async function reportWork(button){
   const m=UI.modal;if(m?.t!=='execution-report'||m.busy||UI.executionSaving||UI.directSaving||UI.memoSaving||UI.leaveBrushSaving||S.setupPending||PV)return;
   const b=S.blocks.find(b=>b.id===m.id);if(!b||!canReport(reportingRole(),STORE.employeeId,b))return;
+  if(SYNC.state==='error'){
+    m.qtyDraft??=$('#execution-qty')?.value;m.error=tx('班表尚未確認儲存，請先核對班表儲存狀態，再回報進度。');renderModal();return;
+  }
   const previous=m.reportOwner;
   if(previous&&(STORE!==previous.store||STORE.sb!==previous.client||STORE.session?.user?.id!==previous.user||(STORE.authEpoch||0)!==previous.epoch)){
     m.error=tx('登入狀態已變更，請重新整理後確認帳號。');renderModal();return;
@@ -4626,6 +4629,7 @@ async function reportWork(button){
   };
   try{
     await syncChain;if(!owner.current())return;
+    if(SYNC.state!=='ok'){m.error=tx('班表尚未確認儲存，請先核對班表儲存狀態，再回報進度。');return;}
     dispatched=true;await owner.store.reportExecution(m.pendingRequest);if(!owner.current())return;
     m.pendingRequest=null;m.reportOwner=null;delete m.qtyDraft;undoStack=[];
     await reconcile(tx('進度已保存'));

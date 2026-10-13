@@ -11,7 +11,7 @@ function fixture(){
   const queue=deferred(),write=deferred(),writes=[],events=[];
   const ctx={UI:{date:'2026-10-14',factory:1,page:'schedule',drawer:null,modal:{t:'execution-report',id:'B'}},PV:null,
     S:{blocks:[{id:'B',qty:100}]},STORE:{employeeId:'E',session:{user:{id:'A'}},sb:{},authEpoch:1,reportExecution:r=>{writes.push(r);return write.promise;}},
-    syncChain:queue.promise,undoStack:['original'],canReport:()=>true,reportingRole:()=> 'lead',executionOf:()=>({qtyDone:10,revision:1}),
+    syncChain:queue.promise,SYNC:{state:'ok'},undoStack:['original'],canReport:()=>true,reportingRole:()=> 'lead',executionOf:()=>({qtyDone:10,revision:1}),
     $:()=>({value:'25'}),uid:()=> 'synthetic-request',tx:x=>x,toast:text=>events.push({type:'toast',text}),renderModal:()=>events.push('render'),
     closeModal:()=>{events.push('close');ctx.UI.modal=null;},maybeReload:()=>{},reloadFromStore:async options=>{events.push({type:'reload',options});return 'applied';}};
   vm.createContext(ctx);const helper=source.indexOf('function directWriteOwner(');
@@ -79,6 +79,18 @@ test('confirmed revision conflict clears the stale retry and quantity only after
   const f=fixture(),job=f.run();f.queue.resolve();await tick();f.write.reject(Object.assign(new Error('SYNTHETIC_CONFLICT'),{conflict:true}));await job;
   assert.equal(f.m.pendingRequest,null);assert.equal(f.m.reportOwner,null);assert.equal(f.m.qtyDraft,undefined);assert.equal(f.ctx.UI.modal,f.m);
   assert.equal(f.events.find(e=>e?.type==='reload').options.background,true);assert.equal(f.events.filter(e=>e?.type==='toast').at(-1).text,'SYNTHETIC_CONFLICT');
+});
+test('unconfirmed schedule state cannot start a new report or replay an uncertain one',async()=>{
+  for(const retry of [false,true]){const f=fixture();f.ctx.SYNC.state='error';if(retry)f.m.pendingRequest={id:'original',blockId:'B',action:'quantity',qtyDone:25,expectedRevision:1};
+    f.queue.resolve();f.write.resolve();await f.run();assert.equal(f.writes.length,0);assert.match(f.m.error,/班表.*尚未確認/);if(retry)assert.equal(f.m.pendingRequest.id,'original');}
+});
+test('failed schedule sync while queued blocks dispatch, preserves quantity and releases pending guards',async()=>{
+  const f=fixture(),job=f.run();f.ctx.SYNC.state='error';f.queue.resolve();f.write.resolve();await job;
+  assert.equal(f.writes.length,0);assert.equal(f.m.qtyDraft,25);assert.equal(f.m.pendingRequest,null);assert.match(f.m.error,/班表.*尚未確認/);assert.equal(f.ctx.UI.executionSaving,null);
+});
+test('a retry queued behind an unconfirmed sync keeps the original ID for later reconciliation',async()=>{
+  const f=fixture(),original=f.m.pendingRequest={id:'original',blockId:'B',action:'quantity',qtyDone:25,expectedRevision:1},job=f.run();
+  f.ctx.SYNC.state='error';f.queue.resolve();f.write.resolve();await job;assert.equal(f.writes.length,0);assert.equal(f.m.pendingRequest,original);
 });
 test('actual LocalStore report and protected reread accept real progress without altering the planned times or quantity',async()=>{
   const previous=globalThis.localStorage,data=new Map();globalThis.localStorage={getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v)};

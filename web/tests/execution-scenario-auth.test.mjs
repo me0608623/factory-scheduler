@@ -22,8 +22,8 @@ const actions=[
   ['listScenarios',s=>s.listScenarios(),[]],
   ['getScenario',s=>s.getScenario(id),{id,payload:{}}],
   ['saveScenario',s=>s.saveScenario({id,name:'Synthetic scenario',payload:{}}),id],
-  ['reportExecution',s=>s.reportExecution({id,blockId:id,action:'start',qtyDone:0,expectedRevision:0}),{status:'running',revision:1}],
-  ['confirmExecution',s=>s.confirmExecution(id,true),null],
+  ['reportExecution',s=>s.reportExecution({id,blockId:id,action:'start',qtyDone:0,expectedRevision:0}),{blockId:id,employeeId:id,status:'running',qtyDone:0,revision:1,version:1,startedAt:'2026-10-13T08:00:00Z',finishedAt:null}],
+  ['confirmExecution',s=>s.confirmExecution(id,true),{blockId:id,confirmed:true,version:1}],
 ];
 for(const [name,invoke,data] of actions)test(`actual SDK ${name} cannot use a switched account token or accept its result`,async()=>{
   const f=fixture(data);f.pause();const task=invoke(f.store).then(value=>({value}),error=>({error}));await f.entered.promise;
