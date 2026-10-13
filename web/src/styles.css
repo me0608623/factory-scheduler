@@ -651,6 +651,7 @@ body.tv .blk .d{font-size:16px}
 .login{min-height:100vh;display:grid;place-items:center;padding-inline:16px;padding-block:24px}
 .login-card{width:min(420px,100%);background:var(--surface);border:1px solid var(--line2);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:16px;box-shadow:var(--shadow)}
 .login-card .brand{font-size:24px}
+#startup-error{overflow-wrap:anywhere}
 .load-list{display:grid;gap:12px}
 .load-row{padding:12px;border:1px solid var(--line2);border-radius:10px;min-width:0}
 .load-row-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
