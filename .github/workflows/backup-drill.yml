@@ -68,12 +68,31 @@ jobs:
           docker exec full-recovery-pg pg_restore -U supabase_admin -d postgres --single-transaction --clean --if-exists --no-owner --exit-on-error /backup/full.dump > "$RUNNER_TEMP/full-recovery.log" 2>&1 || { echo 'Full database restore failed; sensitive diagnostics withheld'; exit 1; }
           docker exec full-recovery-pg psql -U supabase_admin -d postgres -X -v ON_ERROR_STOP=1 -t -A -f /tools/recovery-proof.sql > "$RUNNER_TEMP/full-recovery-proof.json"
           node -e 'const p=JSON.parse(require("fs").readFileSync(process.env.RUNNER_TEMP+"/full-recovery-proof.json"));if(p.auth_users<1||p.employees<10||p.machines<1||p.profiles_without_auth!==0||p.public_rls<1)process.exit(1);console.log("Full database restore checks passed (no personal data logged)")'
+      - name: 隔離完整副本套用0037，交易內驗證所有應用資料不變
+        env:
+          MIGRATION: 0037_permission_whitelist_complete.sql
+          GUARDED_MIGRATION_FILE: ${{ runner.temp }}/full-recovery/guarded-0037.sql
+        run: |
+          node tools/migration-guard.mjs
+          docker exec full-recovery-pg psql -U supabase_admin -d postgres -X --single-transaction -v ON_ERROR_STOP=1 -q -f /backup/guarded-0037.sql > "$RUNNER_TEMP/migration-rehearsal.log" 2>&1 || { echo 'Guarded 0037 rehearsal failed; no release proof issued'; exit 1; }
+          echo '0037 full-copy rehearsal passed with rows/roles/RLS/sequences unchanged'
+      - name: 產生無個資的還原證據（綁定artifact、密文SHA、版本與0037）
+        env:
+          BACKUP_ENCRYPTED_FILE: ${{ runner.temp }}/encrypted/database.tar.age
+          RECOVERY_RECEIPT_FILE: ${{ runner.temp }}/recovery-receipt.json
+        run: node tools/recovery-receipt.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: full-recovery-proof-${{ github.run_id }}
+          path: ${{ runner.temp }}/recovery-receipt.json
+          retention-days: 7
+          if-no-files-found: error
       - name: 清除解密及完整還原暫存（不發布明文）
         if: always()
         run: |
           docker rm -f full-recovery-pg >/dev/null 2>&1 || true
           rm -rf -- "$RUNNER_TEMP/full-recovery" "$RUNNER_TEMP/encrypted"
-          rm -f -- "$RUNNER_TEMP/backup-identity" "$RUNNER_TEMP/roles-recovery.log" "$RUNNER_TEMP/full-recovery.log" "$RUNNER_TEMP/full-recovery-proof.json"
+          rm -f -- "$RUNNER_TEMP/backup-identity" "$RUNNER_TEMP/roles-recovery.log" "$RUNNER_TEMP/full-recovery.log" "$RUNNER_TEMP/full-recovery-proof.json" "$RUNNER_TEMP/migration-rehearsal.log" "$RUNNER_TEMP/recovery-receipt.json"
   drill:
     if: github.event_name != 'workflow_dispatch' || (!inputs.create && !inputs.full)
     runs-on: ubuntu-latest

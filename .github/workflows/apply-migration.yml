@@ -1,59 +1,71 @@
-# 手動套用資料庫 migration 到正式 Supabase（用 GitHub secret SUPABASE_DB_URL，
-# 金鑰不落地、不進 Git）。套用前會先確認最新備份存在且可下載。
-# 依交接規則：任何 schema migration 前必須有可還原的備份。
 name: 套用資料庫 migration
-
 on:
   workflow_dispatch:
     inputs:
       migration:
-        description: 'migration 檔名（例如 0035_execution_confirm.sql）'
+        description: '僅允許已審核0037'
+        required: true
+        type: choice
+        options: [0037_permission_whitelist_complete.sql]
+      backup_artifact_id:
+        description: '24小時內完整加密備份artifact ID'
         required: true
         type: string
-
+      restore_run_id:
+        description: '同一備份的完整還原＋0037副本演練成功run ID'
+        required: true
+        type: string
+      apply:
+        description: '真的套用正式0037；未勾選只核對關卡，不連正式DB'
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: production-schema-migration
+  cancel-in-progress: false
 jobs:
   apply:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - name: 取得程式碼
-        uses: actions/checkout@v4
-
-      - name: 檢查 migration 檔案存在且檔名合法
-        run: |
-          M="${{ inputs.migration }}"
-          case "$M" in
-            *[!/A-Za-z0-9_.-]*|*..*|"") echo "✗ 檔名不合法：$M"; exit 1;;
-          esac
-          [ -f "db/migrations/$M" ] || { echo "✗ 找不到 db/migrations/$M"; exit 1; }
-          echo "MIGRATION=$M" >> "$GITHUB_ENV"
-
-      - name: 確認有最新備份（migration 前置條件）
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 新鮮密文、完整還原證據、0037副本演練與本SHA全套CI關卡
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BACKUP_ARTIFACT_ID: ${{ inputs.backup_artifact_id }}
+          RESTORE_RUN_ID: ${{ inputs.restore_run_id }}
         run: |
-          ARTIFACTS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?per_page=5" | \
-            jq -r '.artifacts[] | select(.name | startswith("db-backup-")) | (.created_at + " id=" + (.id|tostring))' | head -1)
-          if [ -z "$ARTIFACTS" ]; then echo "✗ 沒有備份 artifact，請先執行每日備份工作流"; exit 1; fi
-          AGE_DAYS=$(( ( $(date +%s) - $(date -d "$(echo "$ARTIFACTS" | sed 's/T.*//;s/ .*//')" +%s) ) / 86400 ))
-          echo "最新備份：$ARTIFACTS（約 ${AGE_DAYS} 天前）"
-          if [ "$AGE_DAYS" -gt 1 ]; then echo "⚠️ 備份超過 1 天，建議先重跑每日備份再套用"; fi
-
-      - name: 套用 migration（先測 syntax 再執行）
+          node tools/release-backup-gate.mjs
+      - name: 核對演練版本不是不相干的程式分支
+        run: git merge-base --is-ancestor "$VERIFIED_RESTORE_SHA" HEAD
+      - name: 編譯唯一授權migration與資料不变guard
+        env:
+          MIGRATION: ${{ inputs.migration }}
+          GUARDED_MIGRATION_FILE: ${{ runner.temp }}/migration/guarded-0037.sql
+        run: |
+          mkdir "$RUNNER_TEMP/migration"
+          node tools/migration-guard.mjs
+      - name: 正式套用（同一交易；任何資料／角色變動則整筆回滾）
+        if: inputs.apply
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
-          echo "套用 $MIGRATION ..."
-          R=0
-          docker run --rm -e DATABASE_URL -v "$PWD/db/migrations:/migrations" postgres:17 \
-            sh -c 'psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f /migrations/'"$MIGRATION"'' || R=$?
-          if [ "$R" -ne 0 ]; then echo "✗ migration 失敗（exit $R）"; exit 1; fi
-          echo "✓ 套用完成"
-
-      - name: 驗證連線與版本
-        env:
-          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+          set -euo pipefail
+          node --input-type=module -e 'import {productionConnectionAllowed} from "./tools/migration-guard.mjs"; if(!productionConnectionAllowed(process.env.DATABASE_URL)) {console.error("Production connection mismatch");process.exit(1)}'
+          docker run --rm -e DATABASE_URL -v "$RUNNER_TEMP/migration:/migration:ro" postgres:17 sh -ec 'psql "$DATABASE_URL" -X --single-transaction -v ON_ERROR_STOP=1 -q -f /migration/guarded-0037.sql' > "$RUNNER_TEMP/migration-private.log" 2>&1 || { echo '0037 transaction rejected; no partial migration committed'; exit 1; }
+          echo 'Reviewed 0037 committed; transaction guards confirmed existing rows/roles/RLS/sequences unchanged'
+      - name: 未套用說明
+        if: ${{ !inputs.apply }}
+        run: echo 'Release evidence checked only; production database NOT connected or modified'
+      - name: 清除暫存（不公開SQL診斷或資料指紋）
+        if: always()
         run: |
-          docker run --rm -e DATABASE_URL postgres:17 \
-            sh -c 'psql "$DATABASE_URL" -t -A -c "SELECT version()"' || { echo "✗ 套用後連線驗證失敗"; exit 1; }
-          echo "✓ 套用後連線正常。建議：手動觸發「每日資料庫備份」產生含新結構的備份，再跑「備份還原演練」確認。"
+          rm -rf -- "$RUNNER_TEMP/migration"
+          rm -f -- "$RUNNER_TEMP/migration-private.log" release-proof.zip release-backup.zip

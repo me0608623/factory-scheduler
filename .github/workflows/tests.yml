@@ -9,6 +9,8 @@ on:
       - ".github/workflows/tests.yml"
       - ".github/workflows/acceptance-sim.yml"
       - ".github/workflows/nightly-backup.yml"
+      - ".github/workflows/apply-migration.yml"
+      - ".github/workflows/backup-drill.yml"
       - "tools/**"
   pull_request:
     paths:
@@ -18,6 +20,8 @@ on:
       - ".github/workflows/tests.yml"
       - ".github/workflows/acceptance-sim.yml"
       - ".github/workflows/nightly-backup.yml"
+      - ".github/workflows/apply-migration.yml"
+      - ".github/workflows/backup-drill.yml"
       - "tools/**"
 
 jobs:
