@@ -1,5 +1,19 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-14 07:53 checkpoint：成功報工晚到後安全補讀
+
+- **07:58收尾（取代下文stage待確認）**：stage Tests **38487179649**與smoke **38487179646**全success；Render app error於23:58:16Z後查實際 **23:56:06–23:58:08Z**窗 **0/hasMorefalse**，只输出彙總、不是真長期健康/Realtime恢復。PR16與PR18實查OPEN/draft/MERGEABLE，不因全綠或可merge而放行正式。6QA tabs/dev保留，doc-only不更新stage/solver，持久worktree供下一輪繼續。
+
+- 起點 **46c47bbe540490abc5b0861d0318b4806d9c5d0f** clean；指定交接/缺陷總表/NEXT_TASKS/測試模式與最新checkpoint已讀。process僅既有esbuild/本輪shell，無第二modifier/deploy。fetch main新 **7d74ce8**只有他人12行紀錄，普通merge **52884b4**保留，不切換共享checkout、不覆蓋他人改動。上一輪CI/live/22段已過，不重做備份/0037/手機抽屜。
+- 探索→RED：actual `reportWork`＋actual remote reload/timer的3新測 **2 RED/1 PASS**；report valid ACK在原視窗已關或新draft/preview/date/state後到達，S舊revision而pendingReload仍false。另真PGlite migrated SQL＋actual SDK＋handler/timer新測RED：SQL已提交start/revision1/version1，hold成功ACK→新draft→釋放ACK，草稿不變但不排補讀。**共4新測修前3 RED/1 PASS**，不是源碼字串/HTTP200檢查；合成傳輸延遲不是真平台慢網路或跨actor雲端寫入證據。
+- **909d1c0a6c77df264483220aa522cac14ef6438d**僅app報工valid receipt清retry後，owner失效而sameSession仍成立時設pendingReload；finally既有maybeReload/600ms timer用草稿/preview/拖曳/在途/失敗寫入與前後state基準guard安全補讀。沒有重送report、新requestID、輪詢、改server RPC/migration/Store分類或新的UI文案。新actor/store/client/epoch不排舊actor補讀，舊toast/modal/新undo不被覆蓋；unknown/known rejection的原重試ID保留/清理規則保持。
+- 修後 **70/70**聚焦回歸、完整本機web dot exit0、build **index-s1dDG2OA.js**通過；CI真實 **792/792 web、57/57工具**，來源Tests **38486819368/38486823470**、smoke **38486819328/38486823364**、synthetic **38486823339**全success。真SQL證實新draft/舊S保留，關閉draft後read1次才更新running/revision1/version1與accepted Store baseline，report RPC1次/events1筆，480–540/60件不變，undo仍new-draft且無舊toast。既有chunk>500k warning保留，不重跑age缺依賴6項/skip/stub，不新增備份或把fixture當真完整還原。
+- Impeccable harden/craft-floor/context沿用既有操作世界；本sessioncontext不重跑，detector一次無輸出，不稱全a11y驗證。只有既有handler邊界變化，HTML/CSS/字典不變，不再重複手机44px/已修抽屜。Computer Use skill已讀，只用既有IAB供只讀部署核對；真qa-lead普通root **10/14/1廠22段/dialog0**基準保留，6QA tabs/dev留下。
+- PR16 clean/無modifier，local/tracking/ls-remote **aa32bde**一致（process只有既有node19520/esbuild36560/本輪shell）後普通merge **b9ee82c3d8c878aefe98b861e901267dd14b3276**，原5檔105insert/3delete保留；70/70聚焦/build **index-D0S_d2Pa.js**後non-force push。PR16 Tests **38486959504/38486963805**、smoke **38486959450/38486963810**、synthetic **38486963794**現全success。
+- Render deploy/monitor/post-deploy指引已讀，list_services核實既有 **srv-daubq860tbcc73eq5s6g / codex/excel-friendly-ui-20260930 / autoDeploy=yes / rootDir=web**。來源5runs全成功，remote精確b7e36cf＋ancestor後non-force stage推 **909d1c0**；auto new_commit **dep-db7ca06gekts73docv8g**於 **23:56:05.390717Z live909d1c0**；普通rootHTTP200/**CF MISS/index-raVtIbq-.js**，真qa-lead普通reload同bundle，等雲端heading完成後 **10/14／1廠22段DOM id/label/text/style一致、dialog0/browser error0**。只讀load相容，不是慢網路晚ACK在真平台已觸發/真正跨actorsync；未按開工/件數/完工/確認/套用。Stage smoke **38487179646**success、Tests **38487179649**與2分鐘app error窗待收尾。solver/tools/workflow零差異，不主動重deploy solver/env/cache/新建付費資源。
+- 正式1023/setup_pending/Auth/角色/授權/schema/資料未動，不重套0037；沒有cloud報工/確認/套用/seed重匯、帳號/密碼/寄信、新明文真資料公開artifact/log或費用。PR16/18仍draft，真不同actor權限/真套用/手機桌面sync/斷線衝突/正式VITE_TEST門檻未全過，不合main/正式deploy；nightly367614493保持停用，本追蹤ACTIVE。
+- 下一候選已只讀收斂：`runDrawerWrite`（請假審核/備忘釘選）及`leave-request-save`成功回覆owner失效時同樣直接return，是否造成儲存/顯示分歧尚未實際重現；下一輪先actual handler/隔離SQL測試，不以相似源碼冒稱已確認缺陷、不cloud請假/審核/備忘寫入。另同block重開表單遇valid晚ACK與跨reload/newlogin核對/確認server去重仍不能冒稱已全面解決。
+
 ## 2026-10-14 07:45 checkpoint：成功確認晚到後安全補讀
 
 - **07:48收尾（取代下文PR16/stage待確認）**：PR16 Tests **38486032292/38486038365**、smoke **38486032370/38486038380**、synthetic **38486038371**現全success；stage Tests **38486128946**與smoke **38486128948**全success。Render app error於23:47:56Z後查實際 **23:45:38–23:47:40Z**窗 **0/hasMorefalse**，只输出彙總、不是真長期健康/平台Realtime恢復。PR16實查OPEN/draft/MERGEABLE；PR18 OPEN/draft、mergeable暫UNKNOWN，**不是衝突證據**，不為此force push/rebase。doc-only收尾不更新stage/solver、不部署無runtime變化的服務，持久環境保留繼續。
