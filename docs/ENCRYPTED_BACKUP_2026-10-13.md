@@ -1,6 +1,6 @@
 # 公開倉庫的加密備份切換
 
-使用者2026-10-13明確選擇保留公開GitHub、改用加密備份。不得新增明文備份artifact，既有舊artifact尚未刪除（本次沒有刪除授權，且加密不能撤回過去已下載的內容）。
+使用者2026-10-13明確選擇保留公開GitHub、改用加密備份；再明確選「先保留舊檔，只改新備份」。不得新增明文備份artifact，既有舊artifact／log不得自行刪除，加密不能撤回過去已下載的內容。
 
 ## 密鑰與安全性
 
@@ -22,6 +22,11 @@
 
 ## 已驗證／未驗證
 
-- 本機6項真實age執行測試通過：逐byte round-trip、錯私鑰、竄改密文、過期manifest、錯專案／不完整範圍／多餘檔案、缺公鑰拒絕；不是源碼字串斷言。
-- 完整Postgres dump／角色匯出是否在正式連線權限下可完成、Auth實際還原、Storage物件數與是否需物件備份：待CI真實唯讀備份及隔離演練。
+- 本機6項真實age執行測試通過；所有工具20/20通過，另有PGlite真正執行recovery-proof SQL測試。不是只靠源碼字串斷言。
+- 真實唯讀正式備份run **38352489633** 成功，artifact **11791661615** / `db-backup-encrypted-38352489633`，上傳僅1份`database.tar.age`（約1.2MB）。同run真正解密驗SHA256；本機從GitHub下載同密文、以本機私鑰解密再次通過，副本位於本人＋SYSTEM ACL限制的private-backups目錄，不在Git工作目錄。
+- inventory含auth/extensions/graphql/graphql_public/public/realtime/storage/vault；Storage物件數0，不需另匯Storage檔案。本次只證明完整DB範圍，不涵蓋所有平台設定／外部環境密鑰。
+- 完整還原run **38353201806** 在`supabase/postgres:17.6.1.136`真的還原角色SQL＋full.dump（ACL保留、owner按標準no-owner），single-transaction/exit-on-error，不使用auth.users stub，不忽略ALTER／GRANT／pg_restore錯誤；真實Auth存在、profiles全部有Auth FK、employees/machines及RLS檢核通過。
+- 首次run38352882183還原命令已成功，但最後驗收SQL錯寫profiles.id而非user_id而FAIL；修正驗收並新增可執行SQL回歸，沒有放寬還原錯誤處理。
+- 03451e1的兩份Tests run38352492485／38352488598均成功；1986377最新Tests38353205423／38353200703也全成功（web/database/solver含跨層整合）。同新密文C1–C7 run38353425842待核對最後結果。
 - 新夜間工作流尚未發布至main，暫停狀態保留，防止舊main再上傳明文。
+- 正式0037未套用；接續須補migration工作流的新鮮完整還原證據／原資料指紋與single-transaction關卡，不沿用只看前5 artifact、過舊只警告的舊邏輯。PR16與正式測試模式／同步發布門檻仍保留。
