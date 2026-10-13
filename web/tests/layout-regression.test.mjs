@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SupabaseStore } from '../src/store/supabase.js';
 
 const src = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'src');
 const css = fs.readFileSync(path.join(src, 'styles.css'), 'utf8');
@@ -143,11 +144,12 @@ test('功能解說主題選單：捲動容器與樣式', () => {
 });
 
 test('即時頻道：重複訂閱與登出必須先移除舊頻道（re-login 後 .on() 不再拋錯）', () => {
-  const sb = fs.readFileSync(path.join(src, 'store', 'supabase.js'), 'utf8');
-  const sub = sb.slice(sb.indexOf('subscribe(onChange)'), sb.indexOf('subscribe(onChange)') + 400);
-  assert.ok(sub.includes('removeChannel(this.channel)'), 'subscribe() 重複呼叫前要 removeChannel');
-  const clr = sb.slice(sb.indexOf('_clearSession()'), sb.indexOf('_clearSession()') + 700);
-  assert.ok(clr.includes('removeChannel(this.channel)'), '_clearSession() 要移除頻道');
+  let current,removed=0;
+  const client={channel(){return current ||= {joined:false,on(){assert.equal(this.joined,false,'不可再次綁定已訂閱頻道');return this;},subscribe(){this.joined=true;return this;}};},removeChannel(ch){assert.equal(ch,current);removed++;current=null;}};
+  const store=new SupabaseStore(client);
+  store.subscribe(()=>{});const first=store.channel;
+  store.subscribe(()=>{});assert.notEqual(store.channel,first);assert.equal(removed,1);
+  store._clearSession();assert.equal(store.channel,null);assert.equal(removed,2);
 });
 
 test('加一列：pageShell 不重複加號（i18n addrow 已含＋）', () => {

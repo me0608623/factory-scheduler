@@ -18,6 +18,8 @@ import { schedZoomState, loadSchedZoom, setZoom, setWheelZoom, SZOOM_STEP, captu
 import { executionOf, canReport, assertExecutionProtected } from './execution.js';
 import { workCatalog,assignments,occupiedWork,assignmentIssues,validateGeneralWork } from './general-work.js';
 import { newNav, navPush, navBack, opKey, suggestList, impactList, dueList, opDetail, dueDetail, boardTarget } from './preview-nav.js';
+import { capturePreviewContext, restorePreviewContext } from './preview-context.js';
+import { syncStatusView } from './cloud-status.js';
 import { RUNTIME, TEST_AVAILABLE, modeUrl, authReturnUrl } from './runtime-config.js';
 import { legacyFieldMap } from './legacy-field-map.js';
 import {transferOrders,materialWarning,transferPlanWarnings,batchOf,validateTransfers,transferSummary} from './transfers.js';
@@ -788,7 +790,6 @@ function appNavHTML(){
   const item=(page,label)=>'<button class="app-nav-item nav-'+page+'" data-act="drawer" data-v="'+page+'" aria-pressed="'+(UI.drawer===page)+'" title="'+esc(label)+'"><b>'+NAV_IC[page]+'</b><span>'+label+'</span></button>';
   const account=STORE&&STORE.kind==='supabase'?(STORE.userName||STORE.session?.user?.email||tx('帳號')):tx('本機模式');
   const role=roleName(STORE?.role);
-  const sync=SYNC.state==='busy'?tx('同步中'):SYNC.state==='error'?tx('同步失敗'):STORE?.kind==='supabase'?tx('雲端已同步'):tx('存在這台電腦');
   return '<nav class="app-nav" aria-label="'+tx('主要功能')+'">'+
     
     '<div class="side-brand"><span class="brand-mark"><span></span></span><span><b>產線排程</b><small>'+tx('工廠工作台')+'</small></span><button class="nav-collapse" data-act="nav-toggle" aria-label="'+(UI.navCollapsed?tx('展開導覽'):tx('收合導覽'))+'" title="'+(UI.navCollapsed?tx('展開導覽'):tx('收合導覽'))+'">'+(UI.navCollapsed?'›':'‹')+'</button></div>'+
@@ -798,7 +799,7 @@ function appNavHTML(){
     '<span class="side-section">'+tx('現場回報')+'</span>'+item('people',tx('people'))+item('output',tx('output'))+item('worklog',tx('worklog'))+item('notes',tx('notes'))+
     '<span class="side-section">'+tx('設定')+'</span>'+item('more',tx('more'))+
     '<button class="app-nav-item nav-feature-tour" data-act="feature-tour" title="'+tx('功能解說')+'" aria-label="'+tx('功能解說')+'"><b>'+NAV_IC.help+'</b><span>'+tx('功能解說')+'</span></button>'+
-    '<div class="side-footer"><button class="side-health '+SYNC.state+'" data-act="sync"><i></i><span><b>'+tx('系統連線')+'</b><small>'+esc(sync)+'</small></span></button></div></nav>';
+    '<div class="side-footer">'+sideHealthHTML()+'</div></nav>';
 }
 function isoWeek(ds){const d=parseD(ds);d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));const y=new Date(Date.UTC(d.getUTCFullYear(),0,1));return Math.ceil(((d-y)/864e5+1)/7);}
 function bannerHTML(){
@@ -1604,7 +1605,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "feedback-send":{const h=async a=>{if(STORE.kind==="local"){toast("本機示範模式無法送出反饋；請改用下面的 Email 連結");return;}const msg=$("#fb-msg")?.value.trim()||"",cat=$("#fb-cat")?.value||"other";if(!msg){toast("請寫一些內容");return;}a.disabled=true;try{const {error}=await STORE.sb.from("feedback").insert({author_name:STORE.userName||"未命名",category:cat,message:msg,page_url:location.href,user_id:STORE.session?.user?.id});if(error)throw error;closeModal();toast("感謝！意見已送出，我們會盡快處理。"+(STORE.role==="boss"?" 到「更多功能→查看反饋」看全部。":""));}catch(e){a.disabled=false;toast(e.message);}};h(a);break;};
     case "feedback-list":{if(STORE.role!=="boss"){toast("只有老闆可以查看全部反饋");break;}if(STORE.kind==="local"){toast("查看反饋需要雲端模式；本機示範資料沒有反饋紀錄");break;}openModal({t:"feedback-list",loading:true,items:[]});(async()=>{try{const {data}=await STORE.sb.rpc("list_feedback",{p_limit:50});if(UI.modal?.t==="feedback-list"){UI.modal.loading=false;UI.modal.items=data||[];renderModal();}}catch(e){toast(e.message);closeModal();}})();break;}
     case "undo":undo();break;
-    case "sync":if(SYNC.state==="error")queueSync(null);else toast(STORE.kind==="local"?tx('資料存在這台電腦的瀏覽器'):tx('已和雲端資料庫同步'));break;
+    case "sync":if(SYNC.state==="error")queueSync(null);else toast(STORE.kind==="local"?tx('資料存在這台電腦的瀏覽器'):SYNC.state==="busy"?tx('同步中'):SYNC.realtime==='SUBSCRIBED'?tx('資料已儲存；即時通道已連線，不代表另一裝置已完成更新。'):tx('即時更新未連線，請完成目前操作後重新整理。'));break;
     case "account":openModal({t:"account"});break;
     case "export":openModal({t:"export"});break;
     case "erp-export":{
@@ -2246,6 +2247,7 @@ async function pvApplyManual(){
   });
 }
 function enterManualPreview(P){
+  const returnContext=capturePreviewContext(UI);
   closeModal();
   UI.modal=null;UI.drawer=null;UI.focus=null;UI.editCell=null;UI.confirmRow=null;
   const B=P.B||JSON.parse(P.base);
@@ -2255,7 +2257,7 @@ function enterManualPreview(P){
   catch(e){o.applicable=false;o.diagnostics.push(e.message);}
   PV={title:P.problems.length?"手動排班預覽 · 需要處理":"手動排班預覽",kind:"manual",P,B,opts:[o],cur:"manual",
     mode:"cmp",tab:"gantt",note:"",ai:null,ev:{},faultsNew:[],savedScenario:false,sheetCollapsed:false,
-    nav:newNav(),hist:0,applying:false};
+    nav:newNav(),hist:0,applying:false,returnContext};
   if(P.move)UI.date=P.move.date;
   UI.view="day";
   try{history.pushState({pv:1},"",location.href);PV.hist=1;}catch{}
@@ -2267,7 +2269,10 @@ function enterManualPreview(P){
 function exitManualPreview(notify=true,byPop=false){
   if(!PV||PV.kind!=="manual")return;
   const h=(!byPop&&PV.hist>0)?PV.hist:0;
-  PV=null;UI.focus=null;render();
+  const returnContext=PV.returnContext;
+  PV=null;UI.focus=null;
+  if(notify||byPop)restorePreviewContext(UI,returnContext,setFactory);
+  render();
   if(h){try{history.go(-h);}catch{}}
   if(notify){toast("已取消，排程沒有改變");maybeReload();}
 }
@@ -2349,8 +2354,8 @@ function manualStripHTML(o){
   return '<section class="pv pv-manual" aria-label="'+tx('手動排班預覽')+'">'+
    '<div class="pv-h"><span class="pv-badge">'+(bad?'需要處理':'預覽中')+'</span>'+
    '<div class="pv-t"><b>'+esc(P.movedLabel)+'</b><small>'+esc(P.source)+' → '+esc(P.target)+(P.newQty!==undefined?tx('；預計 {n} 件',{n:P.newQty}):'')+(P.remaining?tx('；此站還有 {n} 件未排',{n:P.remaining}):'')+tx('。還沒套用，正式排程不會變。')+'</small></div><div class="spacer"></div>'+
-   (PV.applying?'<button class="btn primary" disabled>'+tx('正在儲存，請稍候…')+'</button>':
-   '<button class="btn" data-act="pv-cancel">'+tx('取消')+'</button><button class="btn primary" data-act="pv-apply"'+(bad?' disabled':'')+'>'+tx('確認套用')+'</button>')+'</div>'+
+   '<div class="pv-strip-actions">'+(PV.applying?'<button class="btn primary" disabled>'+tx('正在儲存，請稍候…')+'</button>':
+   '<button class="btn" data-act="pv-cancel">'+tx('取消')+'</button><button class="btn primary" data-act="pv-apply"'+(bad?' disabled':'')+'>'+tx('確認套用')+'</button>')+'</div></div>'+
    '<div class="pv-row"><div class="seg" role="group" aria-label="'+tx('預覽圖與下方排程表顯示')+'"><button data-act="pv-mode" data-v="cmp" aria-pressed="'+(PV.mode==="cmp")+'">'+tx('對照')+'</button><button data-act="pv-mode" data-v="new" aria-pressed="'+(PV.mode==="new")+'">'+tx('調整後')+'</button><button data-act="pv-mode" data-v="orig" aria-pressed="'+(PV.mode==="orig")+'">'+tx('原本')+'</button></div>'+
    '<span class="hint">'+(PV.mode==="cmp"?"灰虛線＝原本位置，亮框＝調整後；點方塊或右側列表可看單項變化":PV.mode==="new"?"只看調整後的位置":"只看原本；紅框＝會被移走的工作")+'</span><div class="spacer"></div>'+
    '<div class="pv-dates"><span class="hint">'+tx('影響的日期')+'</span>'+(dates.map(ds=>'<button class="pv-date" data-act="pv-date" data-v="'+ds+'" aria-pressed="'+(ds===UI.date)+'"><b class="num">'+md(ds)+'</b><small>'+WD[parseD(ds).getUTCDay()]+' · '+d.dates[ds]+' 處</small></button>').join("")||'<span class="hint">'+tx('無')+'</span>')+'</div></div>'+
@@ -2453,12 +2458,21 @@ function dpBodyHTML(){
   const pins=!P.problems.length&&P.unpinned.length?'<div class="issues">'+P.unpinned.map(x=>'<div class="issue">'+esc(x.label)+' 已固定（釘）。確認後會解除固定並移動它；取消則保持原樣。</div>').join("")+'</div>':'';
   return sugSec+impSec+dueSec+pins;
 }
+// Keep mobile actions outside the scrolling sheet body, even when collapsed.
+// The existing guarded handlers remain the only way to apply or cancel.
+function pvDrawerActionsHTML(o){
+  const manual=PV.kind==="manual",bad=manual?!o.applicable:o.applicable===false;
+  return '<div class="pv-drawer-actions">'+(PV.applying?
+    '<button class="btn primary" disabled>'+tx('正在儲存，請稍候…')+'</button>':
+    '<button class="btn" data-act="pv-cancel">'+tx('取消')+'</button>'+
+    (PV.savedScenario?'':'<button class="btn primary" data-act="pv-apply"'+(bad?' disabled':'')+'>'+tx(manual?'確認套用':'用這套')+'</button>'))+'</div>';
+}
 function manualDrawerHTML(o){
   const P=PV.P,nav=PV.nav;
   return '<aside class="pv-drawer pv-manual-drawer'+(PV.sheetCollapsed?' collapsed':'')+'" aria-label="'+tx('手動排班預覽')+'">'+
    '<div class="pv-drawer-h">'+(nav.stack.length?'<button class="btn dp-back" data-act="dp-back">← '+tx('返回上一步')+'</button>':'')+
    '<h3>'+esc(dpTitle(nav,P))+'</h3><button class="iconbtn" data-act="pv-sheet" aria-label="'+(PV.sheetCollapsed?tx('展開'):tx('收合'))+'">'+(PV.sheetCollapsed?'▴':'▾')+'</button></div>'+
-   '<div class="pv-drawer-b"><div class="dp-mobile-summary">'+esc(P.movedLabel)+'：'+esc(P.source)+' → '+esc(P.target)+'</div>'+dpBodyHTML()+'</div></aside>';
+   '<div class="pv-drawer-b"><div class="dp-mobile-summary">'+esc(P.movedLabel)+'：'+esc(P.source)+' → '+esc(P.target)+'</div>'+dpBodyHTML()+'</div>'+pvDrawerActionsHTML(o)+'</aside>';
 }
 function diffOf(o){
   if(o.diff)return o.diff;
@@ -2601,7 +2615,7 @@ function pvPanelHTML(o){
   const strip='<section class="pv" aria-label="'+tx('預覽')+'">'+
    '<div class="pv-h"><span class="pv-badge">'+(PV.savedScenario?'保存情境':'預覽中')+'</span><div class="pv-t"><b>'+esc(PV.title)+'</b><small>'+(PV.savedScenario?'只讀比較；正式班表與現場進度不會變更。':'還沒套用，排程不會變。左邊甘特表＝選中的那套；差異色塊＝綠新增／黃搬動／虛線會移走。　計算：'+planEngineLabel(o.solverMethod,PV.engine))+'</small></div><div class="spacer"></div>'+
    (canPermissionRaw('scenarios.manage')&&!PV.savedScenario?'<button class="btn" data-act="scenario-save">'+tx('保存試排情境')+'</button>':'')+
-   '<button class="btn" data-act="pv-cancel">'+(PV.savedScenario?'結束查看':'取消')+'</button><button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+tx('用這套')+'</button></div>'+
+   '<div class="pv-strip-actions"><button class="btn" data-act="pv-cancel">'+(PV.savedScenario?'結束查看':'取消')+'</button><button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+tx('用這套')+'</button></div></div>'+
    '<div class="pv-row"><div class="seg" role="group" aria-label="'+tx('預覽圖與下方排程表顯示')+'"><button data-act="pv-mode" data-v="cmp" aria-pressed="'+(PV.mode==="cmp")+'">'+tx('對照')+'</button><button data-act="pv-mode" data-v="new" aria-pressed="'+(PV.mode==="new")+'">'+tx('調整後')+'</button><button data-act="pv-mode" data-v="orig" aria-pressed="'+(PV.mode==="orig")+'">'+tx('原本')+'</button></div>'+
    '<span class="hint">'+(PV.mode==="cmp"?"灰虛線＝原本位置，彩色＝調整後（綠新增、黃搬動）":PV.mode==="new"?"只看調整後：綠框＝新增的工作，黃框＝搬動的工作":"只看原本；紅虛線＝會被移走的工作")+'</span><div class="spacer"></div>'+
    '<div class="pv-dates"><span class="hint">'+tx('影響的日期')+'</span>'+(dates.map(ds=>'<button class="pv-date" data-act="pv-date" data-v="'+ds+'" aria-pressed="'+(ds===UI.date)+'"><b class="num">'+md(ds)+'</b><small>'+WD[parseD(ds).getUTCDay()]+' · '+d.dates[ds]+' 處</small></button>').join("")||'<span class="hint">'+tx('無')+'</span>')+'</div></div>'+
@@ -2615,7 +2629,7 @@ function pvPanelHTML(o){
    '<div class="pv-tabs">'+sub.map(([k,t])=>'<button class="tg" data-act="pv-tab" data-v="'+k+'" aria-pressed="'+(PV.tab===k)+'">'+t+'</button>').join("")+'</div>'+body+
    (PV.savedScenario?'<div class="hint">保存時的說明：'+esc(o.desc||'—')+'</div>':ai+'<div class="field"><label for="pv-note">'+tx('備註（會寫進紀錄）')+'</label><input class="inp" id="pv-note" value="'+esc(PV.note)+'" placeholder="'+tx('例：馬達燒掉，廠商下午來修')+'" autocomplete="off"></div>')+
    (PV.savedScenario?'':rerunHTML())+
-   '</div></aside>';
+   '</div>'+pvDrawerActionsHTML(o)+'</aside>';
   return strip+drawer;
 }
 function openPlans(title,logTitle,kind,applyEvent,strategies,extra={}){
@@ -2658,12 +2672,13 @@ function openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra={}){
   },30);
 }
 function enterPreview({title,logTitle,kind,base,B,opts,ev,extra}){
+  const returnContext=PV?.returnContext||capturePreviewContext(UI);
   for(const o of opts){try{assertExecutionProtected(B,o.A);validateGeneralWork(o.A,{today:todayStr(),baseAssignments:assignments(B)});}catch(e){o.applicable=false;o.diagnostics=[...(o.diagnostics||[]),e.message];}}
   {
     const best=opts.find(o=>o.best)||opts[0];
     const fk=f=>[f.date,f.s,f.e].join("|"),faultsNew=[];
     for(const M of best.A.machines){const bm=B.machines.find(x=>x.id===M.id);const have=new Set((bm?bm.faults:[]).map(fk));for(const f of M.faults)if(!have.has(fk(f)))faultsNew.push({m:M.id,...f});}
-    PV={title,logTitle,kind,base,B,opts,cur:best.id,mode:"cmp",tab:"gantt",ai:null,note:"",ev,faultsNew,sheetCollapsed:false,rerun:{noLate:false,keepPeople:false,ot:false,pinMach:false,order:"",machine:"",text:"",busy:false},...extra};
+    PV={title,logTitle,kind,base,B,opts,cur:best.id,mode:"cmp",tab:"gantt",ai:null,note:"",ev,faultsNew,sheetCollapsed:false,rerun:{noLate:false,keepPeople:false,ot:false,pinMach:false,order:"",machine:"",text:"",busy:false},...extra,returnContext};
     closeModal();
     const dates=Object.keys(diffOf(best).dates).sort();
     UI.date=dates.find(x=>x>=todayStr())||dates[0]||ev.date||UI.date;UI.view="day";
@@ -2728,7 +2743,7 @@ Object.assign(MODAL_ACT,{
   "pv-date":a=>{UI.date=a.dataset.v;UI.view="day";render();},
   "pv-ai":()=>askAI(),
   "pv-apply":()=>{if(PV&&PV.kind==="manual")return pvApplyManual();pvApply();},
-  "pv-cancel":()=>{if(PV&&PV.kind==="manual")return exitManualPreview(true);PV=null;render();toast("已取消，排程沒有改變");maybeReload();},
+  "pv-cancel":()=>{if(PV&&PV.kind==="manual")return exitManualPreview(true);restorePreviewContext(UI,PV?.returnContext,setFactory);PV=null;render();toast("已取消，排程沒有改變");maybeReload();},
   // ----- 手動預覽互動導航（只動 PV.nav／UI，不碰正式排程） -----
   "dp-nav":a=>{
     if(!PV||PV.kind!=="manual")return;
@@ -3261,8 +3276,8 @@ async function downloadCSV(){
 let SAMPLE=null,toastT=null;          // AI 助理下一階段改由伺服器提供
 let STORE=null;                        // LocalStore 或 SupabaseStore（main.js 決定）
 let scheduleChat=null;
-const SYNC={state:"ok",msg:""};
-let lastLocalWrite=0,pendingReload=false,reloadTimer=null;
+const SYNC={state:"ok",msg:"",realtime:null};
+let lastLocalWrite=0,pendingReload=false,reloadTimer=null,remoteLoading=false;
 // 職位只提供預設值；正式可寫範圍由老闆逐項授權，畫面與資料庫使用同一組權限鍵。
 function canPermissionRaw(key){return !STORE||STORE.kind==='local'||(STORE.can?STORE.can(key):effectivePermission(STORE.role,STORE.permissions,key));}
 function canPermission(key){return !PV&&canPermissionRaw(key);}
@@ -3296,10 +3311,14 @@ function saveFile(name,blob){
 // ---------- 同步狀態 ----------
 function syncChipHTML(){
   if(!STORE)return "";
-  const txt=SYNC.state==="busy"?tx('同步中')+"…":SYNC.state==="error"?tx('同步失敗，按這裡重試'):STORE.kind==="local"?tx('已存在這台電腦'):tx('已同步');
-  return '<button class="btn sync-chip '+SYNC.state+'" id="syncchip" data-act="sync" title="'+esc(SYNC.msg||"")+'">'+IC.save+'<span class="lbl">'+txt+'</span></button>';
+  const v=syncStatusView(STORE.kind,SYNC.state,SYNC.realtime);
+  return '<button class="btn sync-chip '+v.tone+'" id="syncchip" data-act="sync" title="'+esc(SYNC.msg||"")+'">'+IC.save+'<span class="lbl">'+tx(v.text)+(SYNC.state==='busy'?'…':'')+(v.detail?'<small>'+tx(v.detail)+'</small>':'')+'</span></button>';
 }
-function updateSyncChip(){const el=$("#syncchip");if(el)el.outerHTML=syncChipHTML();}
+function sideHealthHTML(){
+  const v=syncStatusView(STORE?.kind||'local',SYNC.state,SYNC.realtime);
+  return '<button class="side-health '+v.tone+'" data-act="sync"><i></i><span><b>'+tx('系統連線')+'</b><small>'+esc(tx(v.detail||v.text))+'</small></span></button>';
+}
+function updateSyncChip(){const el=$("#syncchip");if(el)el.outerHTML=syncChipHTML();const side=$(".side-health");if(side)side.outerHTML=sideHealthHTML();}
 let syncChain=Promise.resolve(),syncPending=0;
 // 同步進行中關閉分頁＝靜默丟失變更：離開前提示（僅在真的有寫入在途時）
 addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state==="busy"){e.preventDefault();e.returnValue="";}});
@@ -3315,7 +3334,7 @@ function queueSync(entry){
       else toast("沒存到："+e.message,"重試",()=>queueSync(null));
       return false;
     }
-    finally{syncPending--;if(syncPending>0)SYNC.state="busy";updateSyncChip();}
+    finally{syncPending--;if(syncPending>0)SYNC.state="busy";updateSyncChip();if(syncPending===0&&SYNC.state==='ok')maybeReload();}
   });
   syncChain=task.then(()=>undefined);
   return task;
@@ -3339,29 +3358,42 @@ function normalizeState(){
   for(const p of S.products)for(const st of p.steps)st.factory=factoryOf(st);
   if(S.holidays)Object.assign(HOLI,S.holidays);
 }
-async function reloadFromStore(){
-  try{const s=await STORE.load();if(s){S=s;normalizeState();}render();}
-  catch(e){toast(e.message);}
+async function reloadFromStore({background=false}={}){
+  const activeStore=STORE,before=S,beforeJSON=background?JSON.stringify(S):null;
+  const version=STORE.version,savedAt=lastLocalWrite,user=STORE.session?.user?.id;
+  const accept=()=>!background||(!remoteReloadBlocked()&&STORE===activeStore&&S===before&&JSON.stringify(S)===beforeJSON&&STORE.version===version&&lastLocalWrite===savedAt&&STORE.session?.user?.id===user);
+  if(!accept()){pendingReload=true;return 'deferred';}
+  try{
+    const s=await activeStore.load({remember:!background});
+    if(background&&(!s||!accept())){pendingReload=true;return 'deferred';}
+    if(s){if(background)activeStore.acceptLoaded?.(s);S=s;normalizeState();}render();return 'applied';
+  }catch(e){if(background)pendingReload=true;toast(e.message);return 'failed';}
 }
+function remoteReloadBlocked(){return !!(PV||drag||generalDrag||UI.modal||syncPending>0||SYNC.state!=='ok');}
 function onRemoteChange(source){
   if(source==="account_permissions"){
     readOnly=STORE.kind==="supabase"&&!STORE.can("schedule.manage");
     closeModal();render();toast("老闆已更新你的功能權限");return;
   }
-  if(PV||drag||generalDrag||UI.modal||SYNC.state==="busy"){pendingReload=true;return;}
+  if(remoteReloadBlocked()||remoteLoading){pendingReload=true;return;}
   clearTimeout(reloadTimer);
   reloadTimer=setTimeout(async()=>{
+    if(remoteReloadBlocked()||remoteLoading){pendingReload=true;return;}
+    remoteLoading=true;let result='failed';
+    try{
     const mine=Date.now()-lastLocalWrite<4000;
-    await reloadFromStore();
+    result=await reloadFromStore({background:true});
+    if(result!=='applied')return;
     const l=S.log[0];
     if(!mine&&notificationEnabled(UI.prefs,source)){
       const recent=l&&Date.now()-l.t<120000,title=recent?'有新的變更：'+l.title:source==='leave_requests'||source==='leaves'?'請假資料有更新':source==='schedule_memos'?'現場備忘有更新':'排程資料有更新';
       if(recent)toast(title,"看細節",()=>openModal({t:"logone",id:l.id}));else toast(title);
       showDeviceNotification(title);
     }
+    }finally{remoteLoading=false;if(result!=='failed')maybeReload();}
   },600);
 }
-function maybeReload(){if(pendingReload&&!PV&&!UI.modal&&!drag&&!generalDrag){pendingReload=false;onRemoteChange();}}
+function maybeReload(){if(pendingReload&&!remoteReloadBlocked()&&!remoteLoading){pendingReload=false;onRemoteChange();}}
 
 // ---------- 帳號與連線 ----------
 MODALS.account=()=>({title:tx('帳號與連線'),
@@ -4473,7 +4505,7 @@ async function start(){
   render();
   if(UI.page)flashReturnRow();
   if(!tourDone()&&!UI.tv&&!UI.page)setTimeout(()=>startTour(TOUR_STEPS,{tx}),600);
-  STORE.subscribe(onRemoteChange);
+  STORE.subscribe(onRemoteChange,status=>{SYNC.realtime=status;updateSyncChip();});
   scheduleChat?.destroy();scheduleChat=installScheduleChat({snapshot:()=>({...toSnapshot(S,HOLI),work_execution:structuredClone(S.execution||[])}),view:()=>({date:UI.date,factory:UI.factory}),store:()=>STORE,enabled:()=>!UI.tv&&canPermission('schedule.manage'),stamp:()=>scenarioKey(S)+'|'+UI.date+'|'+UI.factory});
   SOLVER.check().then(up=>{updateSyncChip();scheduleChat?.refresh();if(up)toast("已連上 OR-Tools 排程服務");});
   setInterval(()=>{if(!drag&&!generalDrag&&!UI.modal&&!PV&&UI.view==="day"&&UI.date===todayStr())render();},60000);

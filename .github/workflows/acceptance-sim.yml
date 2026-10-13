@@ -25,6 +25,13 @@ jobs:
       - name: 取得程式碼
         uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 驗證備份搜尋與下載防護
+        run: node --test tools/backup-artifact.test.mjs
+
       - name: 驗證基準日是週一
         run: |
           M="${{ inputs.monday }}"
@@ -34,20 +41,28 @@ jobs:
           echo "T=$M（週一）✓"
 
       - name: 下載備份（記錄檔名供版本比對）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BACKUP_ARTIFACT_ID: ${{ inputs.artifact_id }}
         run: |
-          if [ -n "${{ inputs.artifact_id }}" ]; then
-            ID="${{ inputs.artifact_id }}"
-          else
-            ID=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-              "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?per_page=20" | \
-              jq -r '.artifacts[] | select(.name | startswith("db-backup-")) | .id' | head -1)
-          fi
-          [ -n "$ID" ] || { echo "找不到備份 artifact"; exit 1; }
-          echo "ARTIFACT_ID=$ID" >> "$GITHUB_ENV"
-          curl -s -L -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ID/zip" -o backup.zip
+          node tools/backup-artifact.mjs
           unzip -o backup.zip -d restored/
-          echo "使用備份：$(ls restored/*.dump)"
+          echo "備份 artifact $ARTIFACT_ID 已下載；密文在下一步解密"
+
+      - name: 解密新格式並只取模擬所需 public 副本
+        env:
+          BACKUP_AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
+          BACKUP_ENCRYPTED_FILE: restored/database.tar.age
+          BACKUP_IDENTITY_FILE: ${{ runner.temp }}/backup-identity
+          BACKUP_RESTORE_DIR: ${{ runner.temp }}/db-sim-decrypted
+        run: |
+          if [ -f "$BACKUP_ENCRYPTED_FILE" ]; then
+            umask 077
+            sudo apt-get update -qq && sudo apt-get install -y age
+            printf '%s\n' "$BACKUP_AGE_IDENTITY" > "$BACKUP_IDENTITY_FILE"
+            node tools/encrypted-backup.mjs unpack
+            cp "$BACKUP_RESTORE_DIR/public.dump" restored/public.dump
+          fi
 
       - name: 還原到拋棄式 PostgreSQL 17（兩階段 + Supabase stub + 授權模型）
         run: |
@@ -74,7 +89,7 @@ jobs:
           docker run --rm --network sim-net -v "$PWD/restored:/backup" -e PGPASSWORD=sim postgres:17 \
             sh -c "pg_restore --no-owner --no-privileges --exit-on-error --disable-triggers --section=pre-data --section=data -h sim-pg -U postgres -d postgres /backup/$DUMP_BASE" \
             > /tmp/p1.out 2> /tmp/p1.err || P1=$?
-          [ "$P1" = "0" ] || { echo "Phase1 failed"; tail -30 /tmp/p1.err; exit 1; }
+          [ "$P1" = "0" ] || { echo "Phase1 failed; private restore diagnostics withheld"; exit 1; }
           docker run --rm -v "$PWD/restored:/backup" postgres:17 \
             sh -c "pg_restore -f /dev/stdout --section=post-data /backup/$DUMP_BASE" > /tmp/post-data.sql 2>/dev/null || true
           FK_PAIRS=$(awk '
@@ -92,7 +107,7 @@ jobs:
           docker run --rm --network sim-net -v "$PWD/restored:/backup" -e PGPASSWORD=sim postgres:17 \
             sh -c "pg_restore --no-owner --no-privileges --exit-on-error --section=post-data -h sim-pg -U postgres -d postgres /backup/$DUMP_BASE" \
             > /tmp/p3.out 2> /tmp/p3.err || P3=$?
-          [ "$P3" = "0" ] || { echo "Phase3 failed"; tail -30 /tmp/p3.err; exit 1; }
+          [ "$P3" = "0" ] || { echo "Phase3 failed; private restore diagnostics withheld"; exit 1; }
           # 複製 Supabase 授權模型（廣泛 GRANT＋RLS；內部函式收回）
           docker exec sim-pg psql -U postgres -d postgres -q -c \
             "GRANT USAGE ON SCHEMA public, auth TO PUBLIC; \
@@ -123,6 +138,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: acceptance-report-${{ inputs.monday }}
+          # Requests restored from production backups must never be public artifacts.
           path: /tmp/acceptance-report.md
           retention-days: 30
 
@@ -131,3 +147,6 @@ jobs:
         run: |
           docker rm -f sim-pg >/dev/null 2>&1 || true
           docker network rm sim-net >/dev/null 2>&1 || true
+          rm -rf -- "$RUNNER_TEMP/db-sim-decrypted" "$GITHUB_WORKSPACE/restored"
+          rm -f -- "$RUNNER_TEMP/backup-identity"
+          rm -f -- /tmp/p1.out /tmp/p1.err /tmp/p3.out /tmp/p3.err /tmp/post-data.sql

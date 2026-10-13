@@ -449,6 +449,8 @@ body.pvmode .top,body.pvmode .wrap{margin-left:0}
 .pv-drawer-h{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:2px solid var(--line)}
 .pv-drawer-h h3{font-size:16px;font-weight:900;margin:0;flex:1}
 .pv-drawer-b{overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+.pv-strip-actions{display:flex;flex-wrap:wrap;gap:10px}
+.pv-drawer-actions{display:none}
 body.pvmode .wrap{padding-right:min(420px,30vw)}
 .pv-drawer{position:fixed;top:78px;right:10px;width:min(400px,calc(30vw + 180px));z-index:56;box-shadow:0 10px 30px rgba(0,0,0,.18)}
 .pv-rerun-btn{width:100%;height:52px;font-size:17px;justify-content:center}
@@ -462,9 +464,14 @@ body.pvmode .wrap{padding-right:min(420px,30vw)}
 .blk.willchg{border-color:var(--bad)}
 @media (max-width:980px){
   body.pvmode .wrap{padding-right:0;padding-bottom:74dvh}
-  body.pvmode.pv-sheet-collapsed .wrap{padding-bottom:70px}
+  body.pvmode.pv-sheet-collapsed .wrap{padding-bottom:calc(134px + env(safe-area-inset-bottom))}
   .pv-drawer{top:auto;left:0;right:0;bottom:0;width:auto;max-height:72dvh;border-radius:18px 18px 0 0;border-bottom:0;z-index:66}
-  .pv-drawer.collapsed{max-height:52px}
+  .pv-drawer-h{flex-shrink:0}
+  .pv-drawer-b{min-height:0;flex:1}
+  .pv-strip-actions{display:none}
+  .pv-drawer-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;flex-shrink:0;padding:10px 12px max(10px,env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--surface)}
+  .pv-drawer-actions .btn{min-height:48px;min-width:0;justify-content:center;white-space:normal}
+  .pv-drawer.collapsed{max-height:none}
   .pv-drawer.collapsed .pv-drawer-b{display:none}
 }
 /* 跨廠通知總表 / 特別趕貨表 */
@@ -635,6 +642,10 @@ body.tv .blk .d{font-size:16px}
 
 /* ---------- 正式版：同步狀態、登入 ---------- */
 .sync-chip.ok{color:var(--ok)}
+.sync-chip.stale{color:var(--warn)}
+.side-health.stale>i{background:var(--warn);box-shadow:none}
+.side-health.stale small{color:var(--warn)}
+.sync-chip .lbl small{display:block;font-size:13px;line-height:1.3;white-space:normal}
 .sync-chip.busy{color:var(--muted)}
 .sync-chip.error{color:#fff;background:var(--bad);border-color:var(--bad)}
 .login{min-height:100vh;display:grid;place-items:center;padding-inline:16px;padding-block:24px}

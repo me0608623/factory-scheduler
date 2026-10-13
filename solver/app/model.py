@@ -468,13 +468,29 @@ def solve(
         for index, (start, end) in enumerate(merged_faults):
             mach_iv[mc.id].append(fixed_iv(start, end, f"fault_{mc.id}_{index}"))
     for em in snap.employees:                                # 請假、不能加班
+        # Calendar restrictions represent the same unavailable capacity. A leave
+        # on an open holiday (or during overtime) must not consume it twice,
+        # even for an employee who is unused by all candidate operations.
+        # Real manual assignments stay separate above: overlapping work still
+        # violates capacity and must not be hidden by this union.
+        calendar_spans = []
         for d in em.leaves:
             span = tl.day_span(d)
             if span:
-                emp_unavailable[em.id].append(fixed_iv(*span, f"leave_{em.id}_{d}"))
-        for i, w in enumerate(tl.wins):
+                calendar_spans.append(span)
+        for w in tl.wins:
             if (w.overtime or w.special) and not em.allows_overtime(w.date):
-                emp_unavailable[em.id].append(fixed_iv(w.t0, w.t1, f"noot_{em.id}_{i}"))
+                calendar_spans.append((w.t0, w.t1))
+        merged_calendar = []
+        for start, end in sorted(calendar_spans):
+            if end <= start:
+                continue
+            if merged_calendar and start <= merged_calendar[-1][1]:
+                merged_calendar[-1][1] = max(merged_calendar[-1][1], end)
+            else:
+                merged_calendar.append([start, end])
+        for i, (start, end) in enumerate(merged_calendar):
+            emp_unavailable[em.id].append(fixed_iv(start, end, f"calendar_{em.id}_{i}"))
     for ivs in mach_iv.values():
         ivs = [iv for iv in ivs if iv is not None]
         if len(ivs) > 1:

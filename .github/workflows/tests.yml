@@ -7,12 +7,22 @@ on:
       - "web/**"
       - "solver/**"
       - ".github/workflows/tests.yml"
+      - ".github/workflows/acceptance-sim.yml"
+      - ".github/workflows/nightly-backup.yml"
+      - ".github/workflows/apply-migration.yml"
+      - ".github/workflows/backup-drill.yml"
+      - "tools/**"
   pull_request:
     paths:
       - "db/**"
       - "web/**"
       - "solver/**"
       - ".github/workflows/tests.yml"
+      - ".github/workflows/acceptance-sim.yml"
+      - ".github/workflows/nightly-backup.yml"
+      - ".github/workflows/apply-migration.yml"
+      - ".github/workflows/backup-drill.yml"
+      - "tools/**"
 
 jobs:
   database:
@@ -49,6 +59,8 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
         working-directory: web
+      - run: sudo apt-get update -qq && sudo apt-get install -y age
+      - run: node --test tools/*.test.mjs
       - run: npm test
         working-directory: web
       - run: npm run build

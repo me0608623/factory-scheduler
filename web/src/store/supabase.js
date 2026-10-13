@@ -53,6 +53,7 @@ export class SupabaseStore {
     this.permissions = {};
     this.userName = "";
     this.session = null;
+    this.realtimeStatus = null;
   }
 
   // ---------- 帳號 ----------
@@ -101,7 +102,8 @@ export class SupabaseStore {
     // 登出要一併移除即時頻道：sb.channel(同名) 會回傳同一實例，
     // 下一個工作階段若對「已訂閱」的頻道再 .on() 會拋
     // 「cannot add postgres_changes callbacks after subscribe()」並中斷登入後的啟動。
-    if(this.channel){try{this.sb.removeChannel(this.channel);}catch(e){}this.channel=null;}
+    const old=this.channel;this.channel=null;this.realtimeStatus=null;
+    if(old){try{this.sb.removeChannel(old);}catch(e){}}
   }
 
   _watchAuthSession() {
@@ -217,16 +219,19 @@ export class SupabaseStore {
   }
 
   // ---------- 讀 ----------
-  async load() {
+  async load({remember=true}={}) {
     const { data, error } = await this.sb.rpc("schedule_snapshot");
     if (error) throw new Error("讀取排程失敗：" + error.message);
     const S = fromSnapshot(data);
     const { data: logs } = await this.sb.from("change_sets").select("*").order("created_at", { ascending: false }).limit(200);
     S.log = (logs || []).map(logFromDb);
-    this.version = S.version;
-    this._remember(S);
+    // Background reads are speculative. The UI accepts the state and baseline
+    // together, synchronously, only after checking that no edit/save intervened.
+    if(remember)this.acceptLoaded(S);
     return S;
   }
+
+  acceptLoaded(S){this._remember(S);this.version=S.version;}
 
   _remember(S) {
     this.protectedBase=structuredClone({blocks:S.blocks,execution:S.execution||[],employees:S.employees.map(e=>({id:e.id})),machines:S.machines.map(m=>({id:m.id})),orders:S.orders.map(o=>({id:o.id}))});
@@ -344,18 +349,28 @@ export class SupabaseStore {
   }
 
   // ---------- 即時推送 ----------
-  subscribe(onChange) {
+  subscribe(onChange, onStatus = () => {}) {
     // 冪等：重複呼叫（如 re-login 後 start() 再跑）先移除舊頻道，
     // 否則對已訂閱頻道再 .on() 會拋錯（見 _clearSession 註解）。
-    if(this.channel){try{this.sb.removeChannel(this.channel);}catch(e){}this.channel=null;}
+    const old=this.channel;this.channel=null;
+    if(old){try{this.sb.removeChannel(old);}catch(e){}}
     const ch = this.sb.channel("schedule-changes");
+    this.channel=ch;
+    let streamFailed=false,joinStatus='CONNECTING';
+    const report=status=>{if(this.channel!==ch)return;this.realtimeStatus=status;onStatus(status);};
+    report('CONNECTING');
     for (const t of ["schedule_state", "change_sets", "machine_faults", "leaves", "employee_overtime_days", "orders", "calendar_days", "work_execution","work_contents","work_assignments","transfer_orders","rush_orders","work_log","staff_rosters","leave_requests","schedule_memos","machine_layout","employees","machines","products","calendar_weekly"]) {
-      ch.on("postgres_changes", { event: "*", schema: "public", table: t }, () => onChange(t));
+      ch.on("postgres_changes", { event: "*", schema: "public", table: t }, () => {if(this.channel===ch)onChange(t);});
     }
     if(this.session?.user?.id)ch.on("postgres_changes",{event:"*",schema:"public",table:"account_permissions",filter:"user_id=eq."+this.session.user.id},
-      async()=>{try{await this._profile();onChange("account_permissions");}catch{onChange("account_permissions");}});
-    ch.subscribe();
-    this.channel = ch;
+      async()=>{if(this.channel!==ch)return;try{await this._profile();}catch{}if(this.channel===ch)onChange("account_permissions");});
+    ch.on('system',{},payload=>{
+      if(payload.extension!=='postgres_changes')return;
+      if(['error','timeout'].includes(payload.status)){streamFailed=true;report('CHANNEL_ERROR');}
+      else if(payload.status==='ok'){streamFailed=false;if(joinStatus==='SUBSCRIBED')report('SUBSCRIBED');}
+    });
+    // Raw errors can contain connection details: expose only the status.
+    try{ch.subscribe(status=>{joinStatus=status;report(status==='SUBSCRIBED'&&streamFailed?'CHANNEL_ERROR':status);});}catch{report('CHANNEL_ERROR');}
   }
 }
 
