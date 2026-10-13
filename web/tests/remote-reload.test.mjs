@@ -23,6 +23,12 @@ test('attendance request/brush in flight defers background reads until its write
   h.ctx.UI.leaveBrushSaving=null;h.ctx.maybeReload();assert.equal(h.timers.length,1);
   await h.timers.shift()();assert.equal(h.writes.filter(x=>x==='load').length,1);
 });
+test('closed memo dialog with its write still pending defers remote reads until memo write guard is released',async()=>{
+  const h=harness();h.ctx.UI.memoSaving={};h.ctx.onRemoteChange('schedule_memos');
+  if(h.timers.length)await h.timers.shift()();assert.equal(h.writes.filter(x=>x==='load').length,0);
+  h.ctx.UI.memoSaving=null;h.ctx.maybeReload();assert.equal(h.timers.length,1);
+  await h.timers.shift()();assert.equal(h.writes.filter(x=>x==='load').length,1);
+});
 
 test('actual Store rejects an incomplete background RPC without replacing the visible board or baseline',async()=>{
   const h=harness();let data={version:1,employees:[{id:'TEST-E',name:'測試',skills:[]}],machines:[],products:[],orders:[],blocks:[],calendar:{}},history=0;

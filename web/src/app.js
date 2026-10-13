@@ -1864,7 +1864,7 @@ function renderModal(){
   const keep=root.querySelector(".overlay"),focusToken=keep&&root.contains(document.activeElement)?modalFocusToken(document.activeElement):null;
   const st=keep?keep.scrollTop:0;
   const importBusy=m.t==='import-preview'&&m.saving;
-  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!(m.planBusy||importBusy||m.t==='legacy-preview'&&m.saving||m.t==='legacy-history'&&m.loading)+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close"'+(importBusy?' disabled':'')+' aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
+  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!(m.planBusy||importBusy||m.t==='legacy-preview'&&m.saving||m.t==='memo-edit'&&m.saving||m.t==='legacy-history'&&m.loading)+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close"'+(importBusy?' disabled':'')+' aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
   if(importBusy)root.querySelectorAll('input,select,textarea,button').forEach(el=>el.disabled=true);
   if(m.planBusy)root.querySelectorAll('input,select,textarea,button:not([data-act="close"])').forEach(el=>el.disabled=true);
   const ov=$("#ov");ov.scrollTop=st;
@@ -3477,7 +3477,7 @@ function sideHealthHTML(){
 function updateSyncChip(){const el=$("#syncchip");if(el)el.outerHTML=syncChipHTML();const side=$(".side-health");if(side)side.outerHTML=sideHealthHTML();}
 let syncChain=Promise.resolve(),syncPending=0,syncEpoch=0,lastSyncState='ok';
 // 同步進行中關閉分頁＝靜默丟失變更：離開前提示（僅在真的有寫入在途時）
-addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state==="busy"||UI.leaveBrushSaving){e.preventDefault();e.returnValue="";}});
+addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state==="busy"||UI.leaveBrushSaving||UI.memoSaving){e.preventDefault();e.returnValue="";}});
 function queueSync(entry){
   if(STORE.kind==='supabase'&&!STORE.session?.user?.id){changedWriteSession();return Promise.resolve(false);}
   const snapshot=structuredClone(S),epoch=syncEpoch,activeStore=STORE,writer=STORE.session?.user?.id,authEpoch=STORE.authEpoch||0;
@@ -3570,7 +3570,7 @@ async function refreshCloudSnapshot(){
     else if(result==='deferred')toast(tx('已保留目前操作；完成或取消後再更新班表。'));
   }finally{remoteLoading=false;if(result!=='failed')maybeReload();}
 }
-function remoteReloadBlocked(){return !!(PV||drag||generalDrag||UI.modal||UI.editCell||UI.confirmRow||UI.leaveBrushSaving||UI.drawer==='settings'||syncPending>0||SYNC.state!=='ok');}
+function remoteReloadBlocked(){return !!(PV||drag||generalDrag||UI.modal||UI.editCell||UI.confirmRow||UI.leaveBrushSaving||UI.memoSaving||UI.drawer==='settings'||syncPending>0||SYNC.state!=='ok');}
 function onRealtimeStatus(status){
   const previous=SYNC.realtime;SYNC.realtime=status;updateSyncChip();
   // The stream cannot replay every missed database event. Also reconcile the
@@ -4324,13 +4324,15 @@ function workLogPageHTML(){
   return pageShell("工作紀錄","",filterBar+table,ro,"wl-addrow");
 }
 
-MODALS['memo-edit']=m=>({title:tx('新增備忘'),body:
+MODALS['memo-edit']=m=>{const d=m.memoDraft||{text:m.text||''};return {title:tx('新增備忘'),body:
   '<div class="hint">'+tx('備忘只提醒現場，不會直接修改排程。')+'</div>'+
-  '<div class="row2"><div class="field"><label for="memo-machine">'+tx('機台（可不選）')+'</label><select class="inp" id="memo-machine"><option value="">'+tx('不指定')+'</option>'+shownMachines().map(x=>'<option value="'+x.id+'">'+esc(x.id+' '+x.label)+'</option>').join('')+'</select></div>'+
-  '<div class="field"><label for="memo-employee">'+tx('人員（可不選）')+'</label><select class="inp" id="memo-employee"><option value="">'+tx('不指定')+'</option>'+shownEmployees().map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('')+'</select></div></div>'+
-  '<div class="field"><label for="memo-text">'+tx('一句話')+'</label><input class="inp" id="memo-text" maxlength="140" value="'+esc(m.text||'')+'"></div>'+
-  '<label class="permission-row"><input id="memo-pinned" type="checkbox"><span><b>'+tx('釘選')+'</b><small>'+tx('固定顯示在其他備忘前面')+'</small></span></label>',
-  foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="memo-save">'+tx('儲存備忘')+'</button>'});
+  (m.saving?'<div class="hint" role="status">'+tx('備忘儲存中；關閉視窗不會取消已送出的儲存。')+'</div>':'')+
+  (m.error?'<div class="hint error" role="alert">'+esc(m.error)+'</div>':'')+
+  '<div class="row2"><div class="field"><label for="memo-machine">'+tx('機台（可不選）')+'</label><select class="inp" id="memo-machine"><option value="">'+tx('不指定')+'</option>'+shownMachines().map(x=>'<option value="'+x.id+'"'+(d.machineId===x.id?' selected':'')+'>'+esc(x.id+' '+x.label)+'</option>').join('')+'</select></div>'+
+  '<div class="field"><label for="memo-employee">'+tx('人員（可不選）')+'</label><select class="inp" id="memo-employee"><option value="">'+tx('不指定')+'</option>'+shownEmployees().map(x=>'<option value="'+x.id+'"'+(d.employeeId===x.id?' selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select></div></div>'+
+  '<div class="field"><label for="memo-text">'+tx('一句話')+'</label><input class="inp" id="memo-text" maxlength="140" value="'+esc(d.text||'')+'"></div>'+
+  '<label class="permission-row"><input id="memo-pinned" type="checkbox"'+(d.pinned?' checked':'')+'><span><b>'+tx('釘選')+'</b><small>'+tx('固定顯示在其他備忘前面')+'</small></span></label>',
+  foot:'<button class="btn" data-act="close">'+tx(m.saving?'關閉':'取消')+'</button><button class="btn primary" data-act="memo-save"'+(m.saving?' disabled':'')+'>'+tx(m.saving?'儲存中…':'儲存備忘')+'</button>'};};
 
 async function resolveLeaveRequest(button){
   if(!canIncidents())return;button.disabled=true;
@@ -4346,7 +4348,25 @@ Object.assign(MODAL_ACT,{
   'leave-request-save':async button=>{if(!canIncidents())return;const employeeId=$('#leave-request-employee')?.value,date=$('#leave-request-date')?.value,note=$('#leave-request-note')?.value.trim();if(!employeeId||!date){toast('請選擇人員與日期');return;}button.disabled=true;try{await STORE.createLeaveRequest({id:uid(),employeeId,date,note,status:'pending'});
   if(STORE.kind==='supabase'&&SOLVER?.url){const en=emp(employeeId);sendLineNotify(SOLVER.url,STORE.jwt(),'leave_request','請假待批：'+(en?en.name:'有人')+' '+md(date)).catch(()=>{});}
   closeModal();await reloadFromStore();UI.drawer='people';render();toast('已送出請假詢問，尚未成為正式請假');}catch(e){button.disabled=false;toast(e.message);}},
-  'memo-save':async button=>{if(!canPermission('notes.manage'))return;const text=$('#memo-text')?.value.trim(),machineId=$('#memo-machine')?.value||null,employeeId=$('#memo-employee')?.value||null;if(!text){toast('請填寫一句備忘');return;}if(!machineId&&!employeeId){toast('請至少指定一台機台或一位人員');return;}button.disabled=true;try{await STORE.saveMemo({id:uid(),text,machineId,employeeId,pinned:!!$('#memo-pinned')?.checked,author:STORE.userName||'本機',createdAt:new Date().toISOString()});closeModal();await reloadFromStore();UI.drawer='notes';render();toast('備忘已保存');}catch(e){button.disabled=false;toast(e.message);}}
+  'memo-save':async button=>{
+    const m=UI.modal;if(m?.t!=='memo-edit'||m.saving||UI.memoSaving||!canPermission('notes.manage'))return;
+    const text=$('#memo-text')?.value.trim(),machineId=$('#memo-machine')?.value||null,employeeId=$('#memo-employee')?.value||null;
+    if(!text){toast('請填寫一句備忘');return;}if(!machineId&&!employeeId){toast('請至少指定一台機台或一位人員');return;}
+    const activeStore=STORE,user=STORE.session?.user?.id,epoch=STORE.authEpoch||0,before=S,beforeJSON=JSON.stringify(S),date=UI.date,factory=UI.factory;
+    const sameContext=()=>STORE===activeStore&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===epoch&&!PV&&UI.date===date&&UI.factory===factory&&canPermission('notes.manage');
+    const owns=()=>UI.modal===m&&sameContext()&&S===before&&JSON.stringify(S)===beforeJSON;
+    m.memoId??=uid();m.memoCreatedAt??=new Date().toISOString();m.memoDraft={text,machineId,employeeId,pinned:!!$('#memo-pinned')?.checked};
+    m.error=null;m.saving=true;UI.memoSaving=m;button.disabled=true;renderModal();
+    try{
+      await activeStore.saveMemo({id:m.memoId,...m.memoDraft,author:activeStore.userName||'本機',createdAt:m.memoCreatedAt});
+      if(!owns())return;
+      m.saving=false;if(UI.memoSaving===m)UI.memoSaving=null;closeModal();
+      const result=await reloadFromStore({background:true});
+      if(!sameContext()||UI.modal)return;
+      UI.drawer='notes';render();toast(result==='applied'?'備忘已保存':tx('備忘已保存；尚未讀到最新資料，請更新核對。'));
+    }catch(e){if(owns()){m.error=e.message;m.saving=false;renderModal();}}
+    finally{m.saving=false;if(UI.memoSaving===m)UI.memoSaving=null;maybeReload();}
+  }
 });
 
 // ---------- 分組：一人可多組，部門與廠別不是技能限制 ----------

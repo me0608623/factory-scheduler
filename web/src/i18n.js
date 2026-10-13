@@ -11,6 +11,8 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "備忘儲存中；關閉視窗不會取消已送出的儲存。": {en:"Saving memo. Closing this dialog does not cancel the submitted save.",vi:"Đang lưu ghi chú. Đóng cửa sổ không hủy yêu cầu lưu đã gửi.",th:"กำลังบันทึกโน้ต การปิดหน้าต่างไม่ยกเลิกคำขอบันทึกที่ส่งแล้ว"},
+  "備忘已保存；尚未讀到最新資料，請更新核對。": {en:"Memo saved, but the latest data has not been read. Refresh to check.",vi:"Đã lưu ghi chú nhưng chưa đọc được dữ liệu mới nhất. Cập nhật để kiểm tra.",th:"บันทึกโน้ตแล้ว แต่ยังอ่านข้อมูลล่าสุดไม่ได้ กรุณาอัปเดตเพื่อตรวจสอบ"},
   "歷史資料儲存中；關閉視窗不會取消已送出的儲存。": {en:"Saving the archive. Closing this dialog does not cancel the submitted save.",vi:"Đang lưu dữ liệu lịch sử. Đóng hộp thoại không hủy yêu cầu lưu đã gửi.",th:"กำลังบันทึกข้อมูลย้อนหลัง การปิดหน้าต่างไม่ยกเลิกคำขอบันทึกที่ส่งแล้ว"},
   "歷史排程儲存結果待確認，請重新開啟歷史排程核對。": {en:"Archive save is unconfirmed. Reopen schedule history to check.",vi:"Chưa xác nhận lưu lịch sử. Mở lại lịch sử để kiểm tra.",th:"ยังยืนยันการบันทึกตารางย้อนหลังไม่ได้ เปิดประวัติตารางใหม่เพื่อตรวจสอบ"},
   "找不到歷史排程內容，請重新讀取。": {en:"Schedule history content is unavailable. Read it again.",vi:"Không tìm thấy nội dung lịch sử. Hãy đọc lại.",th:"ไม่พบเนื้อหาตารางย้อนหลัง กรุณาอ่านใหม่"},
