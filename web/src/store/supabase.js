@@ -251,6 +251,15 @@ export class SupabaseStore {
         date_from: legacy.dates[0], date_to: legacy.dates.at(-1), payload: legacy })
       .select("id,source_name,source_sha256,date_from,date_to,imported_at").single();
     assertOwner();
+    // Another tab may have inserted the same SHA after our empty lookup.
+    // Recover by reading, never upsert/overwrite its immutable source payload.
+    if (error?.code === '23505') {
+      const {data: existing, error: readError} = await client.from("legacy_schedule_archives")
+        .select("id,source_name,source_sha256,date_from,date_to,imported_at")
+        .eq("source_sha256", sourceSha256).maybeSingle();
+      assertOwner();
+      if (!readError && existing?.id && existing.source_sha256 === sourceSha256) return existing;
+    }
     if (error) throw new Error("儲存歷史排程失敗：" + error.message);
     return data;
   }
