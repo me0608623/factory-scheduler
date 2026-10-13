@@ -32,3 +32,12 @@ test('new status labels are translated in all supported languages',()=>{
   for(const k of ['雲端已儲存','即時已連線','即時連線中','即時更新中斷'])
     for(const lang of ['en','vi','th'])assert.ok(UI_TEXT[k][lang]);
 });
+test('real sidebar and top badge share channel failure state',()=>{
+  const src=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+  const start=src.indexOf('function syncChipHTML('),end=src.indexOf('function updateSyncChip(',start);
+  const ctx={STORE:{kind:'supabase'},SYNC:{state:'ok',realtime:'CHANNEL_ERROR',msg:''},IC:{save:''},tx:x=>x,esc:x=>x,syncStatusView};
+  vm.createContext(ctx);vm.runInContext(src.slice(start,end),ctx);
+  assert.match(ctx.sideHealthHTML(),/side-health stale/);assert.match(ctx.sideHealthHTML(),/即時更新中斷/);
+  ctx.SYNC.realtime='SUBSCRIBED';
+  assert.match(ctx.sideHealthHTML(),/即時已連線/);assert.match(ctx.syncChipHTML(),/即時已連線/);
+});

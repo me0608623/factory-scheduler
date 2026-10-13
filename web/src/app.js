@@ -790,7 +790,6 @@ function appNavHTML(){
   const item=(page,label)=>'<button class="app-nav-item nav-'+page+'" data-act="drawer" data-v="'+page+'" aria-pressed="'+(UI.drawer===page)+'" title="'+esc(label)+'"><b>'+NAV_IC[page]+'</b><span>'+label+'</span></button>';
   const account=STORE&&STORE.kind==='supabase'?(STORE.userName||STORE.session?.user?.email||tx('帳號')):tx('本機模式');
   const role=roleName(STORE?.role);
-  const sync=SYNC.state==='busy'?tx('同步中'):SYNC.state==='error'?tx('同步失敗'):STORE?.kind==='supabase'?tx('雲端已同步'):tx('存在這台電腦');
   return '<nav class="app-nav" aria-label="'+tx('主要功能')+'">'+
     
     '<div class="side-brand"><span class="brand-mark"><span></span></span><span><b>產線排程</b><small>'+tx('工廠工作台')+'</small></span><button class="nav-collapse" data-act="nav-toggle" aria-label="'+(UI.navCollapsed?tx('展開導覽'):tx('收合導覽'))+'" title="'+(UI.navCollapsed?tx('展開導覽'):tx('收合導覽'))+'">'+(UI.navCollapsed?'›':'‹')+'</button></div>'+
@@ -800,7 +799,7 @@ function appNavHTML(){
     '<span class="side-section">'+tx('現場回報')+'</span>'+item('people',tx('people'))+item('output',tx('output'))+item('worklog',tx('worklog'))+item('notes',tx('notes'))+
     '<span class="side-section">'+tx('設定')+'</span>'+item('more',tx('more'))+
     '<button class="app-nav-item nav-feature-tour" data-act="feature-tour" title="'+tx('功能解說')+'" aria-label="'+tx('功能解說')+'"><b>'+NAV_IC.help+'</b><span>'+tx('功能解說')+'</span></button>'+
-    '<div class="side-footer"><button class="side-health '+SYNC.state+'" data-act="sync"><i></i><span><b>'+tx('系統連線')+'</b><small>'+esc(sync)+'</small></span></button></div></nav>';
+    '<div class="side-footer">'+sideHealthHTML()+'</div></nav>';
 }
 function isoWeek(ds){const d=parseD(ds);d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));const y=new Date(Date.UTC(d.getUTCFullYear(),0,1));return Math.ceil(((d-y)/864e5+1)/7);}
 function bannerHTML(){
@@ -3315,7 +3314,11 @@ function syncChipHTML(){
   const v=syncStatusView(STORE.kind,SYNC.state,SYNC.realtime);
   return '<button class="btn sync-chip '+v.tone+'" id="syncchip" data-act="sync" title="'+esc(SYNC.msg||"")+'">'+IC.save+'<span class="lbl">'+tx(v.text)+(SYNC.state==='busy'?'…':'')+(v.detail?'<small>'+tx(v.detail)+'</small>':'')+'</span></button>';
 }
-function updateSyncChip(){const el=$("#syncchip");if(el)el.outerHTML=syncChipHTML();}
+function sideHealthHTML(){
+  const v=syncStatusView(STORE?.kind||'local',SYNC.state,SYNC.realtime);
+  return '<button class="side-health '+v.tone+'" data-act="sync"><i></i><span><b>'+tx('系統連線')+'</b><small>'+esc(tx(v.detail||v.text))+'</small></span></button>';
+}
+function updateSyncChip(){const el=$("#syncchip");if(el)el.outerHTML=syncChipHTML();const side=$(".side-health");if(side)side.outerHTML=sideHealthHTML();}
 let syncChain=Promise.resolve(),syncPending=0;
 // 同步進行中關閉分頁＝靜默丟失變更：離開前提示（僅在真的有寫入在途時）
 addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state==="busy"){e.preventDefault();e.returnValue="";}});
