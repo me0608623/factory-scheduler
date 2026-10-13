@@ -30,6 +30,28 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 23:19 heartbeat／23:38：雲端方案套用的連點、舊回應與回條缺陷
+
+- 起點 **1a1ee4d** 乾淨、fetch後main仍498d5ec，無其他modifier／部署。必讀交接已核對；PR16 **9047987** Tests **38420624877／38420617060**及smoke **38420625094／38420617046**實查completed/success；ada整合CI亦已全綠。PR16/18仍draft/CLEAN，不等於發布門檻通過。未重做0037、備份或種子匯入。
+- 原本要驗真OR-Tools維持現狀套用，先查RPC/handler發現風險，改做有界最小重現，**本輪未按雲端用這套／未送apply_plan/save_blocks**。修前新增7項實際函式測試 **5失敗／2通過**：快速雙確認送出2次RPC；late reply清掉另一個預覽；快照補讀失敗仍showResult；apply_plan成功HTTP但null回條未拒；帳號/client/authEpoch變更後仍接受舊回條。資料庫本來已有preview FOR UPDATE／applied_option及版本鎖，**沒有聲稱重現兩次DB提交／資料損壞**，問題是前端重送與誤導成功／狀態競爭。
+- runtime **b188b33d208dbb37627a894371593968285d8538**：同步設PV.applying、重複確認／取消／換方案handler不執行；桌面頂列與手機既有底列均以同一儲存中文字停用。捕捉原store/user/authEpoch/PV/S物件、內容及version，RPC回來再核對；reload只有真applied且同登入／未進新預覽才showResult。store要求apply_plan契約的UUID change-set回條，空／ malformed不算確認；讀回真快照之前不前移baseline/version。未確認結果離開預覽先補讀，提示「排程套用結果待確認，請更新班表核對；不要重複套用。」四語，不盲重送，也不讓取消誤稱排程未變。
+- 新增 **12項實際app/Store函式回歸**（連點、替換preview/store/user/epoch/S、原物件內容修改、version、補讀失敗／補讀時換帳號、取消／換方案、回條空值、無登入、保存情境唯讀）；手機HTML真函式＋解析測試延伸auto儲存中。另新增 **真PGlite＋完整migration apply_plan回條遺失**：DB確實提交、版本1／一段／一筆稽核／applied_option=A，原baseline仍0且未提前接受；一次補讀恢復真值，RPC只送1次。這是本機隔離SQL，不是staging真ORTools E2E。
+- 最終全套web **551/551**（`node --test --test-reporter=dot tests/*.test.mjs` exit0；前一輪TAP亦551/551）、最終聚焦28/28與cloud12/12、build成功 **index-C9j4oXHx.js**；既有大chunk警告保留。Impeccable全文/context一次/harden/craft-floor完整、detector app一次 **[]**，技能只影響儲存／失敗回饋，不重設計Gantt或CSS。
+- **尚未部署b188b33**，修復及文件已推；推送head **0f64da76563d3e43137194d5b45290c3c27e2290**（包含runtime b188b33）Tests **38423856402／38423852793**及smoke **38423856357／38423852342**在23:39仍in_progress。因一次推兩commit，請查推送head的CI，不用未單獨推送的runtime SHA查不到run就冒稱失敗。後續僅文件提交仍需讀最新head再核其CI。staging仍已驗58b73ba/index-BnYNQgRr.js，不拿此舊E2E冒稱新修復通過。沒有新Render資源／費用、沒有正式部署／正式DB/Auth/角色／1023/setup_pending寫入。IAB20/24/25/21/23已markHandoff，沒有開新設定信、猜密碼或改憑證；20/24仍同qa-lead，不是跨帳號。
+- 下一輪優先核最新分支head（包含b188b33修復）的同SHA CI，綠後安全FF既有staging前端並核版本／bundle；用真雲端測试「維持現狀」套用一次，觀察一筆apply_plan、回條後班表及手動补讀一致，保留正常版本／稽核，不reset。補桌面／手機儲存中按鈕可見、不可取消／連點的真操作證據，測試失敗不盲重送。之後安全同步PR16，真正不同帳號／角色、Realtime、offline409、原生Safari與正式VITE_TEST_*門檻未全過仍不得合併／正式部署；nightly仍不能啟用。10分鐘追蹤保持ACTIVE，修完此項繼續下一缺陷。
+
+#### 2026-10-13 23:01 heartbeat／23:16：安全重連新版部署及真網路失敗／取消驗收
+
+- 起點798aaa0乾淨、無其他modifier／deploy，指定交接已讀。58b Tests **38417929344／38417923759**及smoke **38417929361／38417923758**、PR16 f11 Tests **38417980873／38417972686**及smoke **38417980692／38417972734**實查全completed/success。Render-deploy全文、deployment-details/post-deploy-checks已讀；只有staging前端FF **dfc2486→58b73baa78ce3281e38ae0d58027582dda5c41c3**，沒有manual trigger/toggle/cache或新增費用，未改solver／正式服務／1023/setup_pending/角色授權。
+- 真 **new_commit / dep-db74g6eq1p3s73f0gieg** 於 **15:03:16Z live58b73ba**；普通root reload實讀 **index-BnYNQgRr.js**。推staging同SHA Tests **38418652268**及smoke **38418652331**success。PR16 f11本機獨立 **536/536**＋build成功 **index-B7ngRbvj.js**（不是staging bundle），保留多出的seed preflight測試，不用本分支535冒稱該分支已驗。
+- 真桌面1440×900重連正向：**只在tab20暫時阻斷staging /health**並reload，Network見GET＋loadingFailed blockedReason=inspector；不改S/Auth/DB、其他裝置或server設定。Boot完成後仍真qa-lead/F1，導航10/15；清除阻斷後加**2秒診斷延遲**，正常更多→自動排班→計算，明確busy/disabled及「正在重新連線排程服務，最多等待45秒；可取消」可见。只見 **單次GET /health200→單次POST /plans/db200**（另OPTIONS是CORS），实际顯示OR-Tools **3套方案**（維持現狀為推薦，O17/O18會晚），沒有先去帳號手動重連，也不把health200單獨當功能成功。取消這個預覽後原20段id/label/text/style全相同。
+- 一次locator.waitFor傳25000ms卻工具只等3000ms，當時尚無PV而報element detached／no-match；沒有重點／state注入，後續讀DOM及Network明確已生成ORM三方案，屬工具等待期限差異，不當產品崩潰或把逾時當成功。首次失敗為本輪人工阻斷，不冒稱此輪重現真正Free冷啟動。
+- 真手機尺寸390×844（Chromium，不是原生iPhone）：正常帳號連線UI在健康阻斷下檢查一次，確顯示服務未連線；清阻斷，回普通auto入口，增加**10秒診斷延遲**让健康等待可重現。按計算後新45秒提示、aria-busy=true、只有計算disabled，X/取消均enabled／**44px中心命中**，overflow=false。對取消按 **Enter**，GET /health立即 **net::ERR_ABORTED/canceled=true**，整段觀測 **plans請求0**，0 modal/PV、10/15/F1、原20段完全一致。不是只檢源碼或HTTP碼。
+- 截圖 **outputs/staging-recovery-desktop-58b73ba-20261013.png、outputs/staging-recovery-mobile-58b73ba-20261013.png** 1440×900及390×844已目視，提示換行／按鈕可讀；僅本機保留，不公開artifact。收尾關閉More並明確還原 blockedURLs=[]、offline=false/latency=0/throughput=-1、Network.disable、Emulation.clear；runtime warn/error工具查詢0，但不宣稱所有後端／平台無錯。保留IAB20/24/25/23/21；失效Chrome設定信tab不重開／重寄／猜密碼。本輪只計算預覽可能新增測試DB preview/options，**沒有apply_plan/save_blocks或正式資料寫入**。
+- 最新main有他人 **498d5ec**（Excel範本四表範例一致／4按鈕i18n及3可執行測試），先讀stat/diff後普通merge保留為 **ada1608e86e2efd6d0442e5dcce134d61efa8b51**推送，不切共享checkout。整合本機 **538/538**（51.09秒）＋build **index-DJVpiX69.js**；log outputs/main-template-integration-web-tests-20261013.txt。其 Tests **38420270670／38420262180**在23:15仍in_progress，smoke **38420270641／38420261944**success；尚未部署含Excel範本的整合版，不拿58b真E2E冒稱新整合版E2E。
+- PR16 f11本地/remote再次核對一致／乾淨，modifier僅原Vite；fetch后普通merge整合版為 **904798701e9a1bb0ebb93ef315b035574b80f7d0**推送，原seed/CSS/docs差異保留。新PR16同SHA CI／539全套待核，PR16/18仍draft，不合main／正式部署。不同帳號/角色、Realtime自動同步、真ORM套用、offline/409與原生Safari及正式VITE_TEST_*仍未全過；持續追蹤ACTIVE。下一轮先核ada/904 CI与安全整合，不重复本輪已過的重連；可優先在隔離fixture驗真ORM「維持現狀」正常套用（一筆版本／稽核、原班表一致，不reset）及後續補讀，缺不同登入仍不能冒稱跨帳號或全部發布門檻通過。
+- 收尾實查更新：ada1608兩Tests **38420270670／38420262180**及兩smoke均已success；PR16 904 Tests **38420624877／38420617060**仍in_progress、smoke **38420625094／38420617046**success。此狀態優先於23:15的in_progress記錄，未為等待CI重複部署。
+
 #### 2026-10-13 22:51 heartbeat／22:58：按計算安全重連及健康檢查競爭修復
 
 - 起點378c4a2乾淨、無其他modifier／deploy；指定交接全文/選定最新段已讀，舊寄信／0037／artifact消費者待辦不重做。正式1023/setup_pending/角色及正式服務零改動；本輪沒有雲端資料或Auth寫入，測試seed不重匯。Impeccable全文、context一次、harden/craft-floor完整及detector app/i18n一次[]，保留既有UI世界，不新增CSS/Gantt/抽屜設計。

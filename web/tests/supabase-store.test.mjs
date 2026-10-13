@@ -270,6 +270,20 @@ test("套用排程服務的方案（apply_plan）", async () => {
   await assert.rejects(lead.applyPlan(pv, "A"), /已經套用過/);
 });
 
+test('apply_plan committed with lost UUID receipt is unconfirmed until a real read, without resubmit',async()=>{
+  const {db,store,count}=await setup(),lead=await store('lead@x');
+  await lead.load();const baseline=lead.base;
+  const opt={id:'A',name:'少動',lines:[],blocks:[{order_id:A01,step_seq:0,machine_id:'a',employee_id:E1,date:'2026-10-05',start_min:480,end_min:540,qty:120}],effects:{}};
+  const pv=(await db.query("insert into plan_previews (kind,title,event,base_version,options) values ('auto','回條測試','{}',0,$1) returning id",[JSON.stringify([opt])])).rows[0].id;
+  const rpc=lead.sb.rpc.bind(lead.sb);let applyCalls=0;
+  lead.sb.rpc=async(fn,args)=>{const r=await rpc(fn,args);if(fn==='apply_plan'){applyCalls++;assert.equal(r.error,null);return {...r,data:null};}return r;};
+  await assert.rejects(lead.applyPlan(pv,'A'),e=>e.unconfirmed===true);
+  assert.equal(lead.version,0);assert.equal(lead.base,baseline);
+  const loaded=await lead.load();assert.equal(loaded.version,1);assert.equal(loaded.blocks.length,1);
+  assert.equal(applyCalls,1);assert.equal(await count('select count(*)::int n from change_sets'),1);
+  assert.equal((await db.query('select applied_option from plan_previews where id=$1',[pv])).rows[0].applied_option,'A');
+});
+
 test("套用方案時排程已被別人更新 → 整份拒絕（版本衝突不留半套）", async () => {
   const { db, store, count } = await setup();
   const lead = await store("lead@x"), boss = await store("boss@x");

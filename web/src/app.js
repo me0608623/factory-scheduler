@@ -2103,10 +2103,10 @@ export(){
    '<button class="btn" data-act="x-print-day" style="height:60px;justify-content:flex-start">'+tx('列印 {date} 現場班表',{date:mdw(UI.date)})+'</button>'+
    '<button class="btn" data-act="x-template" style="height:60px;justify-content:flex-start">'+IC.down+tx('下載批次匯入範本（.xlsx）')+'</button>'+
    (canArchive()?'<button class="btn" data-act="x-import" style="height:60px;justify-content:flex-start">'+tx('選擇 Excel 檔案，檢查並預覽')+'</button><input id="xlsx-import" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>':'')+
-   '<div class="hint">舊版排程可獨立存為歷史資料，按日期查看 1 廠、2 廠，不改目前排程。批次匯入範本會取代基本資料，只有老闆能確認。</div>'+
+   '<div class="hint">'+tx('舊版排程可獨立存為歷史資料，按日期查看 1 廠、2 廠，不改目前排程。批次匯入範本會取代基本資料，只有老闆能確認。')+'</div>'+
    '<button class="btn" data-act="x-copy-day" style="height:60px;justify-content:flex-start">'+tx('複製 {date} 排程表（和原本 Excel 一樣的格式）',{date:mdw(UI.date)})+'</button>'+
    '<button class="btn" data-act="x-copy-all" style="height:60px;justify-content:flex-start">'+tx('複製全部明細（每段一列）')+'</button>'+
-   ('<button class="btn primary" data-act="x-dl" style="height:60px;justify-content:flex-start">'+IC.down+'下載全部明細 CSV 檔</button>')+
+   ('<button class="btn primary" data-act="x-dl" style="height:60px;justify-content:flex-start">'+IC.down+tx('下載全部明細 CSV 檔')+'</button>')+
    '<div class="hint">'+tx('複製後，直接貼到 Google 試算表或 Excel 的 A1 格。')+'</div>'};
 },
 "import-preview"(m){
@@ -2114,12 +2114,12 @@ export(){
   const hasGroups=(S.groups||[]).length>0;
   const hasGeneral=workCatalog(S).length>0||assignments(S).length>0||transferOrders(S).length>0;
   const counts=m.data&&[m.data.employees.length,m.data.machines.length,m.data.products.length,m.data.orders.length];
-  const summary=counts?'<div class="pv-sum">員工 '+counts[0]+' 人、機台 '+counts[1]+' 台、產品 '+counts[2]+' 種、工單 '+counts[3]+' 張</div>':'';
+  const summary=counts?'<div class="pv-sum">'+tx('員工 {e} 人、機台 {m} 台、產品 {p} 種、工單 {o} 張',{e:counts[0],m:counts[1],p:counts[2],o:counts[3]})+'</div>':'';
   const problems=m.errors.length?'<div class="issues">'+m.errors.map(t=>'<div class="issue">'+esc(t)+'</div>').join('')+'</div>':'';
-  const warning=hasGeneral?'<div class="issues"><div class="issue">匯入範本尚未包含獨立工作內容與一般工作排班，不能覆蓋已建立的資料。歷史排程仍可獨立匯入。</div></div>':hasGroups?'<div class="issues"><div class="issue">目前匯入範本未包含分組與組員對照，不能覆蓋已建立分組的正式名冊。歷史排程仍可獨立匯入。</div></div>':hasSecondFactory?'<div class="issues"><div class="issue">'+tx('目前匯入範本沒有廠別欄，系統已有 2 廠資料。為避免整批覆蓋，這次不能確認匯入。')+'</div></div>':
-    !m.errors.length?'<div class="issues"><div class="issue">確認後將以 Excel 內容取代現有員工、機台、產品工序與工單，並清空現有 '+S.blocks.length+' 段排程；上班日設定保留。匯入後再按「自動排程」建立新班表。</div></div>':'';
+  const warning=hasGeneral?'<div class="issues"><div class="issue">'+tx('匯入範本尚未包含獨立工作內容與一般工作排班，不能覆蓋已建立的資料。歷史排程仍可獨立匯入。')+'</div></div>':hasGroups?'<div class="issues"><div class="issue">'+tx('目前匯入範本未包含分組與組員對照，不能覆蓋已建立分組的正式名冊。歷史排程仍可獨立匯入。')+'</div></div>':hasSecondFactory?'<div class="issues"><div class="issue">'+tx('目前匯入範本沒有廠別欄，系統已有 2 廠資料。為避免整批覆蓋，這次不能確認匯入。')+'</div></div>':
+    !m.errors.length?'<div class="issues"><div class="issue">'+tx('確認後將以 Excel 內容取代現有員工、機台、產品工序與工單，並清空現有 {n} 段排程；上班日設定保留。匯入後再按「自動排程」建立新班表。',{n:S.blocks.length})+'</div></div>':'';
   return {title:tx(m.errors.length?'Excel 匯入 · 請修正檔案':'Excel 匯入 · 確認取代資料'),
-    body:'<div class="hint">檔案：'+esc(m.filename)+'</div>'+summary+problems+warning,
+    body:'<div class="hint">'+tx('檔案：')+esc(m.filename)+'</div>'+summary+problems+warning,
     foot:'<button class="btn" data-act="close">'+tx('取消')+'</button>'+(m.errors.length||hasSecondFactory||hasGroups||hasGeneral?'':'<button class="btn primary" data-act="x-import-confirm">'+tx('確認匯入並清空舊排程')+'</button>')};
 },
 "legacy-preview"(m){
@@ -2620,7 +2620,7 @@ function pvPanelHTML(o){
   const strip='<section class="pv" aria-label="'+tx('預覽')+'">'+
    '<div class="pv-h"><span class="pv-badge">'+(PV.savedScenario?'保存情境':'預覽中')+'</span><div class="pv-t"><b>'+esc(PV.title)+'</b><small>'+(PV.savedScenario?'只讀比較；正式班表與現場進度不會變更。':'還沒套用，排程不會變。左邊甘特表＝選中的那套；差異色塊＝綠新增／黃搬動／虛線會移走。　計算：'+planEngineLabel(o.solverMethod,PV.engine))+'</small></div><div class="spacer"></div>'+
    (canPermissionRaw('scenarios.manage')&&!PV.savedScenario?'<button class="btn" data-act="scenario-save">'+tx('保存試排情境')+'</button>':'')+
-   '<div class="pv-strip-actions"><button class="btn" data-act="pv-cancel">'+(PV.savedScenario?'結束查看':'取消')+'</button><button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+tx('用這套')+'</button></div></div>'+
+   '<div class="pv-strip-actions">'+(PV.applying?'<button class="btn primary" disabled>'+tx('正在儲存，請稍候…')+'</button>':'<button class="btn" data-act="pv-cancel">'+(PV.savedScenario?'結束查看':'取消')+'</button>'+(PV.savedScenario?'':'<button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+tx('用這套')+'</button>'))+'</div></div>'+
    '<div class="pv-row"><div class="seg" role="group" aria-label="'+tx('預覽圖與下方排程表顯示')+'"><button data-act="pv-mode" data-v="cmp" aria-pressed="'+(PV.mode==="cmp")+'">'+tx('對照')+'</button><button data-act="pv-mode" data-v="new" aria-pressed="'+(PV.mode==="new")+'">'+tx('調整後')+'</button><button data-act="pv-mode" data-v="orig" aria-pressed="'+(PV.mode==="orig")+'">'+tx('原本')+'</button></div>'+
    '<span class="hint">'+(PV.mode==="cmp"?"灰虛線＝原本位置，彩色＝調整後（綠新增、黃搬動）":PV.mode==="new"?"只看調整後：綠框＝新增的工作，黃框＝搬動的工作":"只看原本；紅虛線＝會被移走的工作")+'</span><div class="spacer"></div>'+
    '<div class="pv-dates"><span class="hint">'+tx('影響的日期')+'</span>'+(dates.map(ds=>'<button class="pv-date" data-act="pv-date" data-v="'+ds+'" aria-pressed="'+(ds===UI.date)+'"><b class="num">'+md(ds)+'</b><small>'+WD[parseD(ds).getUTCDay()]+' · '+d.dates[ds]+' 處</small></button>').join("")||'<span class="hint">'+tx('無')+'</span>')+'</div></div>'+
@@ -2754,15 +2754,31 @@ async function askAI(){
   if(PV===P)render();
 }
 async function pvApply(){
+  if(!PV||PV.applying||PV.savedScenario)return;
   const o=pvOpt();if(!o)return;
   if(o.applicable===false){toast('這個方案尚無法套用，請查看原因與建議');return;}
   try{assertExecutionProtected(S,o.A);}catch(e){toast(e.message);return;}
   const P=PV,noteEl=$("#pv-note");if(noteEl)P.note=noteEl.value.trim();
   if(P.previewId&&STORE.applyPlan){
-    toast("套用中…");
-    try{await STORE.applyPlan(o.previewId||P.previewId,o.id,P.note,P.ai&&P.ai.pick?{pick:P.ai.pick,reason:P.ai.reason}:null);}
-    catch(e){toast(e.message);if(e.conflict){PV=null;await reloadFromStore();}return;}
-    pushUndo();PV=null;lastLocalWrite=Date.now();await reloadFromStore();showResult();return;
+    const store=STORE,user=store.session?.user?.id,epoch=store.authEpoch,state=S,version=store.version,base=JSON.stringify(S);
+    const sameSession=()=>STORE===store&&store.session?.user?.id===user&&store.authEpoch===epoch;
+    const current=()=>sameSession()&&PV===P&&S===state&&JSON.stringify(S)===base&&store.version===version;
+    P.applying=true;render();toast("套用中…");
+    try{
+      await store.applyPlan(o.previewId||P.previewId,o.id,P.note,P.ai&&P.ai.pick?{pick:P.ai.pick,reason:P.ai.reason}:null);
+      if(!current())return;
+      pushUndo();PV=null;lastLocalWrite=Date.now();
+      const result=await reloadFromStore();
+      if(result==='applied'&&sameSession()&&!PV)showResult();
+      else pendingReload=true;
+    }catch(e){
+      if(!current())return;
+      // Missing receipt may mean committed: reconcile instead of allowing a
+      // blind resubmit or a Cancel that falsely claims nothing changed.
+      if(e.conflict||e.unconfirmed){PV=null;pendingReload=true;await reloadFromStore();}
+      if(sameSession())toast(tx(e.message));
+    }finally{P.applying=false;if(PV===P)render();}
+    return;
   }
   const sumTxt=withState(o.A,()=>pvSummary(o));
   const people=withState(o.A,()=>peopleOf(o).map(p=>({name:p.name,items:p.items.map(x=>(x.t==="in"?"新增 ":"拿掉 ")+itemTxt(x.b))})));
@@ -2781,13 +2797,13 @@ async function pvApply(){
   showResult();
 }
 Object.assign(MODAL_ACT,{
-  "pv-pick":a=>{PV.cur=a.dataset.v;const d=diffOf(pvOpt());if(!d.dates[UI.date]){const ds=Object.keys(d.dates).sort();if(ds.length)UI.date=ds.find(x=>x>=todayStr())||ds[0];}render();},
+  "pv-pick":a=>{if(!PV||PV.applying)return;PV.cur=a.dataset.v;const d=diffOf(pvOpt());if(!d.dates[UI.date]){const ds=Object.keys(d.dates).sort();if(ds.length)UI.date=ds.find(x=>x>=todayStr())||ds[0];}render();},
   "pv-mode":a=>{PV.mode=a.dataset.v;render();document.querySelector('[data-act="pv-mode"][data-v="'+CSS.escape(PV.mode)+'"]')?.focus({preventScroll:true});},
   "pv-tab":a=>{PV.tab=a.dataset.v;render();},
   "pv-date":a=>{UI.date=a.dataset.v;UI.view="day";render();},
   "pv-ai":()=>askAI(),
   "pv-apply":()=>{if(PV&&PV.kind==="manual")return pvApplyManual();pvApply();},
-  "pv-cancel":()=>{if(PV&&PV.kind==="manual")return exitManualPreview(true);restorePreviewContext(UI,PV?.returnContext,setFactory);PV=null;render();toast("已取消，排程沒有改變");maybeReload();},
+  "pv-cancel":()=>{if(PV?.applying)return;if(PV&&PV.kind==="manual")return exitManualPreview(true);restorePreviewContext(UI,PV?.returnContext,setFactory);PV=null;render();toast("已取消，排程沒有改變");maybeReload();},
   // ----- 手動預覽互動導航（只動 PV.nav／UI，不碰正式排程） -----
   "dp-nav":a=>{
     if(!PV||PV.kind!=="manual")return;
@@ -3229,22 +3245,22 @@ Object.assign(MODAL_ACT,{
   "x-import":()=>$("#xlsx-import")?.click(),
   "x-import-confirm":()=>{
     const m=UI.modal;if(!m||m.t!=="import-preview"||m.errors.length||!canMaster())return;
-    if(workCatalog(S).length||assignments(S).length||transferOrders(S).length){toast('匯入範本不含一般工作／跨廠加工資料，不能覆蓋目前名冊');return;}
-    if((S.groups||[]).length){toast('目前匯入範本不含分組，不能覆蓋已有分組的正式名冊');return;}
+    if(workCatalog(S).length||assignments(S).length||transferOrders(S).length){toast(tx('匯入範本不含一般工作／跨廠加工資料，不能覆蓋目前名冊'));return;}
+    if((S.groups||[]).length){toast(tx('目前匯入範本不含分組，不能覆蓋已有分組的正式名冊'));return;}
     if(S.employees.some(e=>factoryOf(e)===2)||S.machines.some(x=>factoryOf(x)===2)||S.products.some(p=>p.steps.some(s=>factoryOf(s)===2))){
-      toast("目前範本沒有廠別欄，不能覆蓋已設定的 2 廠資料");return;}
-    if(JSON.stringify(S)!==m.base){closeModal();toast("排程已更新，請重新選擇 Excel 檔案預覽");return;}
-    if(readOnly&&S.blocks.length){toast("匯入會清空既有排程；還需要「調整與自動排程」權限");return;}
+      toast(tx('目前範本沒有廠別欄，不能覆蓋已設定的 2 廠資料'));return;}
+    if(JSON.stringify(S)!==m.base){closeModal();toast(tx('排程已更新，請重新選擇 Excel 檔案預覽'));return;}
+    if(readOnly&&S.blocks.length){toast(tx('匯入會清空既有排程；還需要「調整與自動排程」權限'));return;}
     pushUndo();S={...S,...m.data,blocks:[],demo:false};
     commit({kind:"edit",title:tx('Excel 匯出／匯入')+"："+S.employees.length+" 位員工、"+S.machines.length+" 台機台、"+S.products.length+" 種產品、"+S.orders.length+" 張工單",lines:[{k:"info",t:"已清空原排程，請重新執行自動排程"}]},"master.manage");
-    closeModal();toast("Excel 匯入完成。請建立新排程","自動排程",runAuto);
+    closeModal();toast(tx('Excel 匯入完成。請建立新排程'),tx('自動排程'),runAuto);
   },
   "legacy-save":async()=>{
     const m=UI.modal;if(m?.t!=="legacy-preview"||m.saving||!canArchive())return;
     m.saving=true;m.error="";renderModal();
     try{
       const saved=await STORE.saveLegacyArchive({sourceName:m.filename,sourceSha256:m.sourceSha256,legacy:m.legacy});
-      toast("歷史排程已存入；目前排程沒有變動");
+      toast(tx('歷史排程已存入；目前排程沒有變動'));
       await openLegacyHistory(saved.id);
     }catch(e){if(UI.modal===m){m.saving=false;m.error=e.message;renderModal();}}
   },

@@ -29,9 +29,11 @@ test('invalid automatic/manual options cannot be applied from the new footer',()
   assert.equal(controls({kind:'manual'},{} )[1].disabled,'disabled');
 });
 test('saving state has no actionable cancel or apply, blocking double submit',()=>{
-  const buttons=controls({kind:'manual',applying:true},{applicable:true});
-  assert.equal(buttons.length,1);assert.equal(buttons[0].disabled,'disabled');
-  assert.equal(buttons[0]['data-act'],undefined);
+  for(const kind of ['manual','auto']){
+    const buttons=controls({kind,applying:true},{applicable:true});
+    assert.equal(buttons.length,1);assert.equal(buttons[0].disabled,'disabled');
+    assert.equal(buttons[0]['data-act'],undefined);
+  }
 });
 test('saved read-only scenarios offer cancel only, never a mobile apply action',()=>{
   assert.deepEqual(controls({kind:'auto',savedScenario:true},{applicable:true}).map(b=>b['data-act']),['pv-cancel']);
