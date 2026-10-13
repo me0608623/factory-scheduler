@@ -40,6 +40,10 @@
 - 備份05:40早於正式0037的06:11，因此只在拋棄式容器套repo0037以測目前15鍵／組長12預設，正式不重套。保留原A-I權限、覆寫、RLS、版本409、報工開始/件數/完工/確認及撤回檢查；補notes/rush/worklog鍵。取消確認RPC單獨驗成功，空plan_previews會建立僅副本的synthetic preview來驗viewer被拒，不再靜默SKIP；不把此preview當ORTools真方案套用。
 - 重要隱私補強：Actions會自動列GITHUB_ENV，不能只刪echo UUID；BOSS/LEAD/VIEWER改存受限accounts.sh，BASH_ENV只載入shell-local並export -n，沒有UUID進GITHUB_ENV/log。其值先驗UUID格式；所有報工fixture mutation都只在拋棄式容器，不更改測試cloud或正式名冊。原第三方／Actions worker metadata不是備份身份資料，不偽稱全log零UUID。
 - 工具 **46/46**（含8新真執行期／SQL測試）通過；18個實際workflow Bash區塊語法也通過。這輪沒有web/solver程式修改，前輪已驗449與build不重做，將以同SHA CI回歸後才dispatch密文11791661615的真PG17演練。CI／實際副本A-I結果待追加，未驗證前不宣稱全過；PR16/18仍draft、nightly仍停用，持續追蹤ACTIVE。
+- 修正提交 **e708d207b292f0de402b38a43363b5066a38fa51** 已推；Tests **38382027868／38382032425**（frontend/database/solver三job）與smoke **38382032403**全部success。同SHA後dispatch的真PG17 **38382362453** 使用密文11791661615，真正解密、完整public副本約束還原、隔離授權模型、A-I與always清理全部success：A45+B6+C3+D7+E6+F2+G7+H5+I17 = **98 PASS／0 FAIL**。D覆寫前後實際UPDATE及G synthetic preview拒絕都執行，沒有把顯示在runner腳本中的SKIP/FAIL分支文案誤當執行結果。
+- 這98項含真副本RPC commit與version持久化、stale-version拒絕、員工自己的開工/累計件數/完工及主管確認與撤回；只是本地PG17角色/GUC與auth stub，不是Supabase Auth登入、HTTP409 UI或手機/桌面跨帳號雲端同步，不解除正式發布門檻。workflow **artifacts=0**；log人工來源覆核只有Actions worker/checkout暫存UUID及第三方npm警告email，角色BOSS/LEAD/VIEWER未被列到env，無age私鑰或JWT模式。全原始query及恢復錯誤留在runner私密暫存並清理，不新增明文artifact。
+- 讀最新main **1e01947205fc0d07769a3a460c469e0705a87384**，相較先前0e60483僅docs/agent/OVERNIGHT_PROGRESS.md變動，正常merge保留另一agent紀錄，不重做或部署相同程式。後續文件/merge SHA不取代e708的功能驗收證據。
+- 持續探索新Major已用真SupabaseStore函式＋明確mock RPC重現：data={} 或 {error:'SYNTHETIC_INVALID_PAYLOAD'} 仍被接受為0員工/空班表，store.version由12變0、寫入baseline變空。首次探針把base誤當array而自身拋錯，已修探針後才確認accepted=true／baselineChanged=true；不是猜測。沒有任何雲端寫入或生產請求。**尚未修**；下一輪先補畸形object／缺欄／非安全version完整快照契約回歸，不因這輪全部測試綠而停下。修前需讀Impeccable harden指示，維持真正零列快照及本機首次使用相容，不能放寬cloud失敗防護。之後再驗environment-preserving重試介面及安全輪詢／登入門檻。
 
 #### 2026-10-13 17:50 heartbeat：加密資料盤點與公開輸出安全
 
