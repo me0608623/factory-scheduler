@@ -1,6 +1,19 @@
 # 持續缺陷探索與發布驗收
 
-## 2026-10-14 手機空表回報：已重現顯示問題，尚未修復
+## 2026-10-14 00:40 checkpoint：手機空欄定位已修復並部署測試站
+
+- 起點e2aa492乾淨，只有既有Vite/esbuild，無其他modifier／部署；fetch後最新main為b45c22e（新增Excel解析loading），其變更已讀但本輪未整合，不覆蓋另一agent。舊自動化prompt中的「寄信未同意」不採用：使用者已授權且先前已提交設定信，不重寄／猜密碼；仍沒有第二個可用不同帳號。正式0037不重套、1023與setup_pending不改。
+- 新真dayHTML執行測試先失敗：有工作但前5個示範欄空白時沒有定位入口；另preview fixture初版PV=null導致測試自身TypeError，已改有效preview，不當產品缺陷。runtime **017876c6e65552129fe0a49d2463aae70ab7b403**：只在日班表有方塊且所有方塊水平不在可視機台範圍時顯示「{n}段排班在其他機台／查看排班」，點擊定位並將鍵盤焦點移到工作方塊，提示隨之收回；有可見工作時不增加操作列。保留空機台、日期／廠別／資料／日週手動切換，preview與真正空日不顯示假資料提示。只操作DOM視圖，沒有儲存呼叫。scroll listener／ResizeObserver於重繪時清理，避免重複監聽。
+- 新增 **6項執行期／邏輯回歸**：真renderer、空日及preview不誤報、左右離屏與sticky時間欄遮擋、定位＋焦點、重繪/resize監聽釋放、真delegated click不改UI日期廠別或S；不是只掃源碼字串。本機全套dot reporter exit0＋build **index-DuZY9C7z.js**成功。CI Tests **38431450434／38431442408**、smoke **38431450260／38431442341**全部success；CI實際frontend **571/571**（含CI產生的合成seed驗收），不要把dot輸出推算成精確本機計數。b2f39d3前一輪兩套CI亦核對全成功。
+- CI綠後non-force FF既有staging分支6dc3c6d→017876c，autoDeploy=new_commit確實觸發 **dep-db75rvvavr4c73c5ngvg**，**16:36:33Z live**，一般root真瀏覽器讀到 **index-CWkGt6jo.js**，不用cache-bust才通過。只更新staging web；solver程式未變不重部署。Render app error logs 16:36:15Z–16:38:03Z查詢0，本輪browser觀測的16:36:33Z之後error0；不是長期零錯誤保證。
+- 真qa-lead測試庫 session **390×844、1廠、10/15、20段**：初始提示可見，定位鈕48px、中心hit正確、無水平溢出；普通點擊後tst01的M20兩段可見，焦點在第一段，提示隱藏，modal0，日期及1廠保持。20段ID/aria-label/text/inline-style逐欄相同。一次JSON物件整串對照因工具重排傳入鍵序得false，改用按ID逐欄對照差異=[]、unchanged=true；不是資料被改。沒有送儲存／套用／刪除／報工／角色變更，沒有重匯103段；Realtime仍中斷，不冒稱自動同步恢復。
+- 本機390×844 Enter同樣定位／焦點不消失；desktop1440×900正常有可見工作時提示隱藏、無水平溢出；320px提示本身48px且不越界，但既有頂部「廠區平面圖」right378px造成整頁溢出，初次中心hit受頁面縮放/位置影響false，實際locator click成功；此為下一輪獨立Minor候選，不能稱320整页全過。真機iPhone Safari未測。手機修前／修後證據 **outputs/staging-locate-hint-20261014.png**、**outputs/staging-locate-work-20261014.png**均已目視覆核；local/desktop另有截圖，桌面clip留當時捲動位置，不當初始頁面證據。
+- Impeccable adapt與craft-floor全文已讀，沿用本session context不重跑；app detector無輸出／exit0，CSS detector7項皆既有厚邊與width transition，無新增，沒有擴成版型重設計。技能影響是大48px定位與精簡可視區提示，不用卡片／modal掩蓋班表。
+- PR16 worktree aa920f6／remote一致、乾淨且只有既有Vite，安全普通merge017876c為 **a88987e0d0c448fed62a9b115430b9b6093c5b1d**；全本機回歸與build exit0（index-B-g6tcSs.js），保留seed preflight／CSS等5檔差異；已推。00:40最新CI Tests **38431876429／38431871007**仍in_progress，smoke **38431876229／38431870575**success，需下一輪核結果；不要拿017876c CI冒稱PR16 head全綠。
+- PR16/18仍draft，正式VITE_TEST_*、不同帳號/角色、Realtime自動更新及offline409門檻未全過，不合main／正式部署。nightly仍待加密版本安全進main才啟用。臨時local/staging手機viewport均已clear，保留20/24/25/21/23 browser handoff及持久worktree。10分鐘Codex追蹤維持ACTIVE。
+- 下一輪：先核a88987e CI並讀最新main；安全整合b45c22e（保留Excel loading改善，另以延遲兩次匯入／關窗後錯誤回應等實際handler測試查同類loading型別守門競爭，不以字串斷言當驗收）。續修320px工具列溢出；補staging備援失敗回饋／草稿保護及角色同步門檻。手機人類網址仍未回覆，不能把本次已修水平空欄當成其個人手機的唯一原因；正式測試入口發布仍尚未完成。
+
+## 2026-10-14 手機空表回報（修前歷史）：已重現顯示問題，當時尚未修復
 
 - 使用者回報手機看不到測試排班；已詢問手機完整網址／日期截圖，尚未收到，不能斷言其個人手機根因。
 - 真實 staging qa-lead session、2026-10-15／1廠，在 Chromium 390×844 有20段測試方塊。初始水平位置0先顯示5個空示範設備，第一個測試設備tst01方塊位於右側約1339px，初始手機可視欄沒有任何工作方塊。資料不是被刪除；正式網站尚未完成PR16測試模式發布，不能混稱正式已有可用測試入口。
