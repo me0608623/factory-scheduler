@@ -468,13 +468,27 @@ def solve(
         for index, (start, end) in enumerate(merged_faults):
             mach_iv[mc.id].append(fixed_iv(start, end, f"fault_{mc.id}_{index}"))
     for em in snap.employees:                                # 請假、不能加班
+        # 請假整天時段與「不能加班者的假日／加班時段」會重疊（請假 span 覆蓋全天，
+        # 假日 windows 是其中一段）。兩者各以 max_concurrent_machines 為需求量進
+        # add_cumulative，重疊即 2×容量 → 整個模型對無關工單也 INFEASIBLE（機台
+        # 故障同類問題已用合併處理，此處比照）。
+        leave_days = set(em.leaves)
+        raw_spans: list[tuple[int, int]] = []
         for d in em.leaves:
             span = tl.day_span(d)
             if span:
-                emp_unavailable[em.id].append(fixed_iv(*span, f"leave_{em.id}_{d}"))
-        for i, w in enumerate(tl.wins):
-            if (w.overtime or w.special) and not em.allows_overtime(w.date):
-                emp_unavailable[em.id].append(fixed_iv(w.t0, w.t1, f"noot_{em.id}_{i}"))
+                raw_spans.append(span)
+        for w in tl.wins:
+            if (w.overtime or w.special) and w.date not in leave_days and not em.allows_overtime(w.date):
+                raw_spans.append((w.t0, w.t1))
+        merged: list[list[int]] = []
+        for start, end in sorted(raw_spans):
+            if merged and start <= merged[-1][1]:
+                merged[-1][1] = max(merged[-1][1], end)
+            else:
+                merged.append([start, end])
+        for index, (start, end) in enumerate(merged):
+            emp_unavailable[em.id].append(fixed_iv(start, end, f"unavail_{em.id}_{index}"))
     for ivs in mach_iv.values():
         ivs = [iv for iv in ivs if iv is not None]
         if len(ivs) > 1:
