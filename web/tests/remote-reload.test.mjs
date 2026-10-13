@@ -12,7 +12,7 @@ function harness(){
     STORE:{kind:'supabase',version:1,load:async()=>{writes.push('load');return {version:2,blocks:[{id:'remote'}],log:[]};},can:()=>true},
     lastLocalWrite:0,pendingReload:false,reloadTimer:null,remoteLoading:false,
     setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout:()=>{},normalizeState:()=>{},render:()=>writes.push('render'),toast:()=>{},
-    notificationEnabled:()=>false,showDeviceNotification:()=>{},closeModal:()=>{ctx.UI.modal=null;}};
+    tx:x=>x,notificationEnabled:()=>false,showDeviceNotification:()=>{},closeModal:()=>{ctx.UI.modal=null;}};
   vm.createContext(ctx);vm.runInContext(implementation,ctx);
   return {ctx,timers,writes};
 }
@@ -117,6 +117,34 @@ test('a switched account or replaced store invalidates an in-flight remote respo
     finish({version:2,blocks:[{id:'first-account-data'}],log:[]});await task;
     assert.equal(h.ctx.S.blocks[0].id,'local',mode);assert.deepEqual(h.writes,[],mode);
   }
+});
+
+test('foreground recovery also rejects old account, store and login-lifetime responses',async()=>{
+  for(const mode of ['account','store','login']){
+    const h=harness();let finish,accepted=0,options;
+    h.ctx.STORE.session={user:{id:'TEST-A'}};h.ctx.STORE.authEpoch=0;
+    h.ctx.STORE.acceptLoaded=()=>accepted++;
+    h.ctx.STORE.load=async o=>{options=o;return new Promise(resolve=>finish=resolve);};
+    const task=h.ctx.reloadFromStore();
+    if(mode==='account')h.ctx.STORE.session={user:{id:'TEST-B'}};
+    if(mode==='store')h.ctx.STORE={...h.ctx.STORE};
+    if(mode==='login')h.ctx.STORE.authEpoch=2;
+    h.ctx.S={version:100,blocks:[{id:'FRESH-BOARD'}],log:[]};
+    finish({version:2,blocks:[{id:'OLD-BOARD'}],log:[]});
+    assert.equal(await task,'deferred',mode);assert.equal(options.remember,false);
+    assert.equal(h.ctx.S.blocks[0].id,'FRESH-BOARD');assert.equal(accepted,0);assert.deepEqual(h.writes,[]);
+  }
+});
+
+test('foreground recovery accepts a same-account token refresh and remembers the accepted state once',async()=>{
+  const h=harness();let finish,accepted=0;
+  h.ctx.STORE.session={user:{id:'TEST-A'},access_token:'synthetic-old'};
+  h.ctx.STORE.load=async()=>new Promise(resolve=>finish=resolve);
+  h.ctx.STORE.acceptLoaded=s=>{accepted++;h.ctx.STORE.version=s.version;};
+  const task=h.ctx.reloadFromStore();h.ctx.STORE.session={user:{id:'TEST-A'},access_token:'synthetic-new'};
+  finish({version:2,blocks:[{id:'CURRENT-BOARD'}],log:[]});
+  assert.equal(await task,'applied');assert.equal(accepted,1);assert.equal(h.ctx.STORE.version,2);
+  assert.equal(h.ctx.S.blocks[0].id,'CURRENT-BOARD');assert.deepEqual(h.writes,['render']);
 });
 
 test('queued updates stay deferred while a write is pending or has failed',()=>{

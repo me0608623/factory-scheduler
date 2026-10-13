@@ -45,15 +45,23 @@ export class ConflictError extends Error {
 export class UnconfirmedWriteError extends Error {
   constructor(){super('雲端儲存結果待確認，請按重試核對；目前修改仍保留。');this.unconfirmed=true;}
 }
-function confirmedVersion(value,previous){
+function confirmedVersion(value,previous,verifyWriter){
+  verifyWriter();
   // These seven RPCs return the incremented bigint, not a nullable/void result.
   // An HTTP success alone must not reset the version or accept a new baseline.
   if(!Number.isSafeInteger(value)||value!==previous+1)throw new UnconfirmedWriteError();
   return value;
 }
+function confirmedReceipt(value,verifyWriter){
+  verifyWriter();
+  // save_blocks returns the change-set UUID. Unlike void RPCs, a missing body
+  // cannot confirm persistence; leave the optimistic state/baseline untouched.
+  if(typeof value!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value))throw new UnconfirmedWriteError();
+}
 
 export class SupabaseStore {
   kind = "supabase";
+  authEpoch = 0;
 
   constructor(client) {
     this.sb = client;
@@ -109,6 +117,7 @@ export class SupabaseStore {
   }
 
   _clearSession() {
+    this.authEpoch++;
     this.session=null;this.role=null;this.permissions={};this.userName='';this.employeeId=null;
     // 登出要一併移除即時頻道：sb.channel(同名) 會回傳同一實例，
     // 下一個工作階段若對「已訂閱」的頻道再 .on() 會拋
@@ -122,6 +131,10 @@ export class SupabaseStore {
     // Keep the callback synchronous: do not make auth/DB calls under the SDK lock.
     const {data}=this.sb.auth.onAuthStateChange((event,session)=>{
       if(event==='SIGNED_OUT'){this._clearSession();return;}
+      if(event==='SIGNED_IN'){
+        if(this.session&&session?.user?.id!==this.session.user.id)this._clearSession();
+        return;
+      }
       if(event!=='TOKEN_REFRESHED'||!this.session)return;
       if(session?.user?.id!==this.session.user.id){this._clearSession();return;}
       this.session=session;
@@ -231,11 +244,15 @@ export class SupabaseStore {
 
   // ---------- 讀 ----------
   async load({remember=true}={}) {
-    const { data, error } = await this.sb.rpc("schedule_snapshot");
+    const client=this.sb,user=this.session?.user?.id,epoch=this.authEpoch;
+    const assertReader=()=>{if(this.sb!==client||this.session?.user?.id!==user||this.authEpoch!==epoch)throw new Error('登入狀態已變更，請重新整理後確認帳號。');};
+    const { data, error } = await client.rpc("schedule_snapshot");
+    assertReader();
     if (error) throw new Error("讀取排程失敗：" + error.message);
     assertCloudSnapshot(data);
     const S = fromSnapshot(data);
-    const { data: logs } = await this.sb.from("change_sets").select("*").order("created_at", { ascending: false }).limit(200);
+    const { data: logs } = await client.from("change_sets").select("*").order("created_at", { ascending: false }).limit(200);
+    assertReader();
     S.log = (logs || []).map(logFromDb);
     // Background reads are speculative. The UI accepts the state and baseline
     // together, synchronously, only after checking that no edit/save intervened.
@@ -259,6 +276,8 @@ export class SupabaseStore {
 
   // ---------- 寫：只寫有變的列；排程方塊整批用 save_blocks（有版本號檢查） ----------
   async sync(S, entry) {
+    const writer=this.session?.user?.id,epoch=this.authEpoch,client=this.sb;
+    const assertWriter=()=>{if(this.session?.user?.id!==writer||this.authEpoch!==epoch||this.sb!==client)throw new UnconfirmedWriteError();};
     try{validateRosters(S);}catch(e){e.permission=true;throw e;}
     try{validateTransfers(S,{before:this.transferBase});}catch(e){e.permission=true;throw e;}
     try{validateGeneralWork(S,{today:new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Taipei'}).format(new Date()),baseAssignments:JSON.parse(this.baseGeneral||'{}').assignments||[]});if(this.protectedBase){assertExecutionProtected(this.protectedBase,S);
@@ -270,14 +289,14 @@ export class SupabaseStore {
         throw Object.assign(new Error('請將輪班草稿與產線排程／基本資料分開儲存'),{permission:true});
       const {data,error}=await this.sb.rpc('save_staff_rosters',{p_version:this.version,p_rosters:S.staffRosters||[]});
       if(error){if(error.code==='40001')throw new ConflictError();throw Object.assign(new Error(error.message),{permission:true});}
-      S.version=this.version=confirmedVersion(data,this.version);this._remember(S);return;
+      S.version=this.version=confirmedVersion(data,this.version,assertWriter);this._remember(S);return;
     }
     if(transferKey(S)!==this.baseTransfers){
       if(Object.values(d).some(c=>c.upsert.length||c.del.length)||blocksKey(S)!==this.baseBlocks||generalKey(S)!==this.baseGeneral||JSON.stringify(groupCatalog(S))!==this.baseGroups)
         throw Object.assign(new Error('請將跨廠加工紀錄與排程／基本資料分開儲存'),{permission:true});
       const {data,error}=await this.sb.rpc('save_transfer_orders',{p_version:this.version,p_orders:S.transferOrders||[]});
       if(error){if(error.code==='40001')throw new ConflictError();throw Object.assign(new Error(error.message),{permission:true});}
-      S.version=this.version=confirmedVersion(data,this.version);this._remember(S);return;
+      S.version=this.version=confirmedVersion(data,this.version,assertWriter);this._remember(S);return;
     }
     if(rushKey(S)!==this.baseRush){
       if(Object.values(d).some(c=>c.upsert.length||c.del.length)||blocksKey(S)!==this.baseBlocks||generalKey(S)!==this.baseGeneral||transferKey(S)!==this.baseTransfers||JSON.stringify(groupCatalog(S))!==this.baseGroups)
@@ -285,7 +304,7 @@ export class SupabaseStore {
       try{validateRush(S.rushOrders||[]);}catch(e){throw Object.assign(e,{permission:true});}
       const {data,error}=await this.sb.rpc('save_rush_orders',{p_version:this.version,p_orders:S.rushOrders||[]});
       if(error){if(error.code==='40001')throw new ConflictError();throw Object.assign(new Error(error.message),{permission:true});}
-      S.version=this.version=confirmedVersion(data,this.version);this._remember(S);return;
+      S.version=this.version=confirmedVersion(data,this.version,assertWriter);this._remember(S);return;
     }
     if(workLogKey(S)!==this.baseWorkLog){
       if(Object.values(d).some(c=>c.upsert.length||c.del.length)||blocksKey(S)!==this.baseBlocks||generalKey(S)!==this.baseGeneral||transferKey(S)!==this.baseTransfers||rushKey(S)!==this.baseRush||JSON.stringify(groupCatalog(S))!==this.baseGroups)
@@ -293,7 +312,7 @@ export class SupabaseStore {
       try{validateWorkLog(S.workLog||[]);}catch(e){throw Object.assign(e,{permission:true});}
       const {data,error}=await this.sb.rpc('save_work_log',{p_version:this.version,p_rows:S.workLog||[]});
       if(error){if(error.code==='40001')throw new ConflictError();throw Object.assign(new Error(error.message),{permission:true});}
-      S.version=this.version=confirmedVersion(data,this.version);this._remember(S);return;
+      S.version=this.version=confirmedVersion(data,this.version,assertWriter);this._remember(S);return;
     }
     if(generalKey(S)!==this.baseGeneral){
       if(Object.values(d).some(c=>c.upsert.length||c.del.length)||blocksKey(S)!==this.baseBlocks||JSON.stringify(groupCatalog(S))!==this.baseGroups)
@@ -303,7 +322,7 @@ export class SupabaseStore {
       const args=contentsChanged?{p_version:this.version,p_contents:S.workContents||[]}:{p_version:this.version,p_assignments:(S.workAssignments||[]).map(assignmentToDb)};
       const {data,error}=await this.sb.rpc(contentsChanged?'save_work_contents':'save_work_assignments',args);
       if(error){if(error.code==='40001')throw new ConflictError();throw Object.assign(new Error(error.message),{permission:true});}
-      S.version=this.version=confirmedVersion(data,this.version);this._remember(S);return;
+      S.version=this.version=confirmedVersion(data,this.version,assertWriter);this._remember(S);return;
     }
     const catalog=groupCatalog(S),groupsChanged=JSON.stringify(catalog)!==this.baseGroups;
     if(groupsChanged){
@@ -311,22 +330,24 @@ export class SupabaseStore {
         throw new Error('請將員工分組與排班／基本資料分開儲存');
       const {data,error}=await this.sb.rpc('save_staff_groups',{p_base_version:this.version,p_groups:catalog.groups,p_members:catalog.members,p_title:entry?.title||'更新員工分組'});
       if(error){if(error.code==='40001')throw new ConflictError();throw writeError('員工分組',error,'修改');}
-      S.version=this.version=confirmedVersion(data,this.version);this._remember(S);return;
+      S.version=this.version=confirmedVersion(data,this.version,assertWriter);this._remember(S);return;
     }
     // 基本資料逐表寫入，若排程版本已過期，應在第一筆寫入前先拒絕；
     // 否則後續 save_blocks 才報衝突時，工單等列可能已部分留下。
     if (Object.values(d).some(change => change.upsert.length || change.del.length)) {
       const { data, error } = await this.sb.from("schedule_state").select("version").single();
+      assertWriter();
       if (error) throw new Error("檢查排程版本失敗：" + error.message);
       if (Number(data.version) !== this.version) throw new ConflictError();
     }
     for (const t of UPSERT_ORDER) {
       if (!d[t]?.upsert.length) continue;
       const { error } = await this.sb.from(t).upsert(d[t].upsert, { onConflict: TABLE_KEYS[t].join(",") });
+      assertWriter();
       if (error) throw writeError(t, error, "修改");
     }
     if (blocksKey(S) !== this.baseBlocks) {
-      const { error } = await this.sb.rpc("save_blocks", {
+      const { data, error } = await this.sb.rpc("save_blocks", {
         p_base_version: this.version, p_blocks: S.blocks.map(blockToDb),
         p_title: entry?.title || "調整排程", p_detail: detailOf(entry), p_kind: KIND_TO_DB[entry?.kind] || "edit",
       });
@@ -334,10 +355,12 @@ export class SupabaseStore {
         if (error.code === "40001") throw new ConflictError();
         throw new Error("儲存排程失敗：" + error.message);
       }
+      confirmedReceipt(data,assertWriter);
       this.version += 1;
       S.version = this.version;
     } else if (entry) {
       const { error } = await this.sb.rpc("log_change", { p_kind: KIND_TO_DB[entry.kind] || "edit", p_title: entry.title, p_detail: detailOf(entry) });
+      assertWriter();
       if (error) throw new Error("寫入紀錄失敗：" + error.message);
     }
     for (const t of DELETE_ORDER) {
@@ -345,6 +368,7 @@ export class SupabaseStore {
         let q = this.sb.from(t).delete();
         for (const k of TABLE_KEYS[t]) q = q.eq(k, row[k]);
         const { error } = await q;
+        assertWriter();
         if (error) throw writeError(t, error, "刪除");
       }
     }
