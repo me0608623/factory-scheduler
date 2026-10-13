@@ -29,7 +29,7 @@ test('real badge renderer shows separate write/connection states without mutatin
   assert.equal(JSON.stringify(ctx.SYNC),before);assert.doesNotMatch(html,/>已同步</);
 });
 test('new status labels are translated in all supported languages',()=>{
-  for(const k of ['雲端已儲存','即時已連線','即時連線中','即時更新中斷'])
+  for(const k of ['雲端已儲存','即時已連線','即時連線中','即時更新中斷','按此更新班表','請先完成或取消目前操作，再更新班表。','正在讀取最新班表…','已讀取最新班表；即時連線狀態請看上方提示。','已保留目前操作；完成或取消後再更新班表。','無法讀取最新班表，請稍後再試。'])
     for(const lang of ['en','vi','th'])assert.ok(UI_TEXT[k][lang]);
 });
 test('real sidebar and top badge share channel failure state',()=>{
@@ -38,6 +38,10 @@ test('real sidebar and top badge share channel failure state',()=>{
   const ctx={STORE:{kind:'supabase'},SYNC:{state:'ok',realtime:'CHANNEL_ERROR',msg:''},IC:{save:''},tx:x=>x,esc:x=>x,syncStatusView};
   vm.createContext(ctx);vm.runInContext(src.slice(start,end),ctx);
   assert.match(ctx.sideHealthHTML(),/side-health stale/);assert.match(ctx.sideHealthHTML(),/即時更新中斷/);
+  assert.match(ctx.sideHealthHTML(),/按此更新班表/);assert.match(ctx.syncChipHTML(),/按此更新班表/);
   ctx.SYNC.realtime='SUBSCRIBED';
   assert.match(ctx.sideHealthHTML(),/即時已連線/);assert.match(ctx.syncChipHTML(),/即時已連線/);
+  assert.doesNotMatch(ctx.sideHealthHTML()+ctx.syncChipHTML(),/按此更新班表/);
+  ctx.SYNC.realtime='CHANNEL_ERROR';ctx.SYNC.state='error';
+  assert.doesNotMatch(ctx.sideHealthHTML()+ctx.syncChipHTML(),/按此更新班表/,'unsaved changes keep the write-retry action');
 });

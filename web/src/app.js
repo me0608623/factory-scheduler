@@ -178,9 +178,11 @@ function commit(entry,permission="schedule.manage"){
   }
   return canPermission(permission)?queueSync(entry):Promise.resolve(false);
 }
-function undo(){
+async function undo(){
   if(!undoStack.length){toast("沒有可以復原的動作");return;}
-  S=JSON.parse(undoStack.pop());commit({kind:"edit",title:tx('復原上一步'),lines:[]});toast("已復原上一步");
+  S=JSON.parse(undoStack.pop());
+  const saved=await commit({kind:"edit",title:tx('復原上一步'),lines:[]});
+  if(saved)toast("已復原上一步");
 }
 /* ===== 5. 排程引擎 ===== */
 // 某人達到同時顧機台上限的時段；每段工作對應一台機台。
@@ -1605,7 +1607,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "feedback-send":{const h=async a=>{if(STORE.kind==="local"){toast("本機示範模式無法送出反饋；請改用下面的 Email 連結");return;}const msg=$("#fb-msg")?.value.trim()||"",cat=$("#fb-cat")?.value||"other";if(!msg){toast("請寫一些內容");return;}a.disabled=true;try{const {error}=await STORE.sb.from("feedback").insert({author_name:STORE.userName||"未命名",category:cat,message:msg,page_url:location.href,user_id:STORE.session?.user?.id});if(error)throw error;closeModal();toast("感謝！意見已送出，我們會盡快處理。"+(STORE.role==="boss"?" 到「更多功能→查看反饋」看全部。":""));}catch(e){a.disabled=false;toast(e.message);}};h(a);break;};
     case "feedback-list":{if(STORE.role!=="boss"){toast("只有老闆可以查看全部反饋");break;}if(STORE.kind==="local"){toast("查看反饋需要雲端模式；本機示範資料沒有反饋紀錄");break;}openModal({t:"feedback-list",loading:true,items:[]});(async()=>{try{const {data}=await STORE.sb.rpc("list_feedback",{p_limit:50});if(UI.modal?.t==="feedback-list"){UI.modal.loading=false;UI.modal.items=data||[];renderModal();}}catch(e){toast(e.message);closeModal();}})();break;}
     case "undo":undo();break;
-    case "sync":if(SYNC.state==="error")queueSync(null);else toast(STORE.kind==="local"?tx('資料存在這台電腦的瀏覽器'):SYNC.state==="busy"?tx('同步中'):SYNC.realtime==='SUBSCRIBED'?tx('資料已儲存；即時通道已連線，不代表另一裝置已完成更新。'):tx('即時更新未連線，請完成目前操作後重新整理。'));break;
+    case "sync":return refreshCloudSnapshot();
     case "account":openModal({t:"account"});break;
     case "export":openModal({t:"export"});break;
     case "erp-export":{
@@ -3312,11 +3314,13 @@ function saveFile(name,blob){
 function syncChipHTML(){
   if(!STORE)return "";
   const v=syncStatusView(STORE.kind,SYNC.state,SYNC.realtime);
-  return '<button class="btn sync-chip '+v.tone+'" id="syncchip" data-act="sync" title="'+esc(SYNC.msg||"")+'">'+IC.save+'<span class="lbl">'+tx(v.text)+(SYNC.state==='busy'?'…':'')+(v.detail?'<small>'+tx(v.detail)+'</small>':'')+'</span></button>';
+  const hint=STORE.kind==='supabase'&&SYNC.state==='ok'&&SYNC.realtime!=='SUBSCRIBED'?'<small>'+tx('按此更新班表')+'</small>':'';
+  return '<button class="btn sync-chip '+v.tone+'" id="syncchip" data-act="sync" title="'+esc(SYNC.msg||"")+'">'+IC.save+'<span class="lbl">'+tx(v.text)+(SYNC.state==='busy'?'…':'')+(v.detail?'<small>'+tx(v.detail)+'</small>':'')+hint+'</span></button>';
 }
 function sideHealthHTML(){
   const v=syncStatusView(STORE?.kind||'local',SYNC.state,SYNC.realtime);
-  return '<button class="side-health '+v.tone+'" data-act="sync"><i></i><span><b>'+tx('系統連線')+'</b><small>'+esc(tx(v.detail||v.text))+'</small></span></button>';
+  const hint=STORE?.kind==='supabase'&&SYNC.state==='ok'&&SYNC.realtime!=='SUBSCRIBED'?'<small>'+tx('按此更新班表')+'</small>':'';
+  return '<button class="side-health '+v.tone+'" data-act="sync"><i></i><span><b>'+tx('系統連線')+'</b><small>'+esc(tx(v.detail||v.text))+'</small>'+hint+'</span></button>';
 }
 function updateSyncChip(){const el=$("#syncchip");if(el)el.outerHTML=syncChipHTML();const side=$(".side-health");if(side)side.outerHTML=sideHealthHTML();}
 let syncChain=Promise.resolve(),syncPending=0;
@@ -3367,9 +3371,26 @@ async function reloadFromStore({background=false}={}){
     const s=await activeStore.load({remember:!background});
     if(background&&(!s||!accept())){pendingReload=true;return 'deferred';}
     if(s){if(background)activeStore.acceptLoaded?.(s);S=s;normalizeState();}render();return 'applied';
-  }catch(e){if(background)pendingReload=true;toast(e.message);return 'failed';}
+  }catch(e){if(background)pendingReload=true;toast(typeof e?.message==='string'&&e.message?e.message:tx('無法讀取最新班表，請稍後再試。'));return 'failed';}
 }
-function remoteReloadBlocked(){return !!(PV||drag||generalDrag||UI.modal||syncPending>0||SYNC.state!=='ok');}
+async function refreshCloudSnapshot(){
+  if(SYNC.state==='error')return queueSync(null);
+  if(STORE.kind==='local'){toast(tx('資料存在這台電腦的瀏覽器'));return;}
+  if(SYNC.state==='busy'){toast(tx('同步中'));return;}
+  if(SYNC.realtime==='SUBSCRIBED'){toast(tx('資料已儲存；即時通道已連線，不代表另一裝置已完成更新。'));return;}
+  if(remoteReloadBlocked()){toast(tx('請先完成或取消目前操作，再更新班表。'));return;}
+  if(remoteLoading){toast(tx('正在讀取最新班表…'));return;}
+  // A manual read uses the same speculative load and before/after guards as
+  // stream reconciliation. It must never advance the write baseline early.
+  clearTimeout(reloadTimer);pendingReload=false;remoteLoading=true;
+  let result='failed';toast(tx('正在讀取最新班表…'));
+  try{
+    result=await reloadFromStore({background:true});
+    if(result==='applied')toast(tx('已讀取最新班表；即時連線狀態請看上方提示。'));
+    else if(result==='deferred')toast(tx('已保留目前操作；完成或取消後再更新班表。'));
+  }finally{remoteLoading=false;if(result!=='failed')maybeReload();}
+}
+function remoteReloadBlocked(){return !!(PV||drag||generalDrag||UI.modal||UI.editCell||UI.confirmRow||UI.drawer==='settings'||syncPending>0||SYNC.state!=='ok');}
 function onRealtimeStatus(status){
   const previous=SYNC.realtime;SYNC.realtime=status;updateSyncChip();
   // The stream cannot replay every missed database event. Also reconcile the

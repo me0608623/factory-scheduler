@@ -11,6 +11,12 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "無法讀取最新班表，請稍後再試。": {en:"Could not read the latest schedule. Please try again later.",vi:"Không thể đọc lịch mới nhất. Vui lòng thử lại sau.",th:"ไม่สามารถอ่านตารางล่าสุดได้ กรุณาลองใหม่ภายหลัง"},
+  "按此更新班表": {en:"Tap to refresh schedule",vi:"Nhấn để cập nhật lịch",th:"แตะเพื่ออัปเดตตาราง"},
+  "請先完成或取消目前操作，再更新班表。": {en:"Finish or cancel your current task before refreshing the schedule.",vi:"Hoàn tất hoặc hủy thao tác hiện tại trước khi cập nhật lịch.",th:"ทำงานปัจจุบันให้เสร็จหรือยกเลิกก่อนอัปเดตตาราง"},
+  "正在讀取最新班表…": {en:"Reading the latest schedule…",vi:"Đang đọc lịch mới nhất…",th:"กำลังอ่านตารางล่าสุด…"},
+  "已讀取最新班表；即時連線狀態請看上方提示。": {en:"Latest schedule loaded. Check the live connection status above.",vi:"Đã đọc lịch mới nhất. Xem trạng thái kết nối trực tiếp phía trên.",th:"อ่านตารางล่าสุดแล้ว ตรวจสอบสถานะการเชื่อมต่อด้านบน"},
+  "已保留目前操作；完成或取消後再更新班表。": {en:"Your current task is preserved. Finish or cancel it before refreshing.",vi:"Đã giữ thao tác hiện tại. Hoàn tất hoặc hủy trước khi cập nhật.",th:"เก็บงานปัจจุบันไว้แล้ว ทำให้เสร็จหรือยกเลิกก่อนอัปเดต"},
   "雲端已儲存": {en:"Saved to cloud",vi:"Đã lưu lên đám mây",th:"บันทึกบนคลาวด์แล้ว"},
   "即時已連線": {en:"Live channel connected",vi:"Đã kết nối thời gian thực",th:"เชื่อมต่อเรียลไทม์แล้ว"},
   "即時連線中": {en:"Connecting live updates",vi:"Đang kết nối cập nhật",th:"กำลังเชื่อมต่อเรียลไทม์"},
@@ -328,6 +334,10 @@ export const UI_TEXT = {
   "要通知的事件": { en: "Events to notify", vi: "Sự kiện cần báo", th: "เหตุการณ์ที่แจ้ง" },
   "啟動失敗": { en: "Failed to start", vi: "Khởi động thất bại", th: "เริ่มไม่สำเร็จ" },
   "重新整理後再試": { en: "Reload and retry", vi: "Tải lại và thử lại", th: "โหลดใหม่แล้วลองอีกครั้ง" },
+  "測試環境尚未設定完成，已停止連線；不會使用正式資料。": { en: "Test settings are incomplete. Connection stopped; production data will not be used.", vi: "Cấu hình thử chưa hoàn tất. Đã dừng kết nối; không dùng dữ liệu chính thức.", th: "การตั้งค่าทดสอบยังไม่ครบ หยุดเชื่อมต่อแล้วและจะไม่ใช้ข้อมูลจริง" },
+  "測試資料庫不可與正式資料庫相同，已停止連線。": { en: "Test and production databases must be separate. Connection stopped.", vi: "Cơ sở dữ liệu thử và chính thức phải tách biệt. Đã dừng kết nối.", th: "ฐานข้อมูลทดสอบต้องแยกจากข้อมูลจริง หยุดเชื่อมต่อแล้ว" },
+  "前端不可使用資料庫私密金鑰，已停止連線。": { en: "The frontend cannot use a private database key. Connection stopped.", vi: "Giao diện không được dùng khóa cơ sở dữ liệu bí mật. Đã dừng kết nối.", th: "หน้าเว็บไม่สามารถใช้คีย์ฐานข้อมูลลับได้ หยุดเชื่อมต่อแล้ว" },
+  "讀取排程失敗：伺服器沒有回傳有效排程，請重新整理後再試": { en: "Could not load the schedule: the server returned invalid data. Reload and retry.", vi: "Không tải được lịch: máy chủ trả về dữ liệu không hợp lệ. Hãy tải lại và thử lại.", th: "โหลดตารางไม่ได้: เซิร์ฟเวอร์ส่งข้อมูลไม่ถูกต้อง กรุณาโหลดใหม่แล้วลองอีกครั้ง" },
   "員工／可用班別": { en: "Employee / shifts", vi: "Nhân viên / ca", th: "พนักงาน / กะ" },
   "已排時數": { en: "Scheduled hours", vi: "Giờ đã xếp", th: "ชั่วโมงที่จัดแล้ว" },
   "未排班": { en: "Unscheduled", vi: "Chưa xếp ca", th: "ยังไม่ได้จัดกะ" },

@@ -30,6 +30,42 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 19:52 heartbeat／20:08：斷線單次補讀與非彈窗草稿保護
+
+- 起點7751ce8乾淨，無其他modifier／deploy，僅專屬Vite/esbuild。最新main仍11c7d9c，新增提交僅兩份agent文件；不重做正式0037、備份還原、C1–C7或測試資料匯入。7751ce8同SHA Tests **38392987907／38392982273**、smoke **38392987997／38392982212**全部success，實查frontend log **474 tests／474 pass／0 fail**，補足上一輪追加測試後完整回歸的證據。
+- 上一輪同帳號tab20確實在Realtime中斷時維持舊M20時段，只有reload才見雲端寫入。本輪以真正sync switch case＋真正reloadFromStore/remote guards的VM執行重現：舊按鈕完全不讀取，9項中的初始6項 **5 fail／1 pass**。新增單次手動補讀，沿用remember=false speculative snapshot及接受前後state/store/user/version/write/draft檢核；不新增定時輪詢、不寫資料、不變日期／廠別、不整頁reload、不宣稱Realtime恢复。連點在途只提示，無額外排隊；讀取失敗不立即重試。原本機說明、寫入error重試、寫入busy提示、已連線說明均保留。
+- 頂部及sidebar於未連線且寫入ok時加「按此更新班表」，真實寫入／連線狀態仍分開顯示；6個新增提示en/vi/th齊全。Impeccable main/context及harden/craft-floor全文已讀，維持既有Gantt與抽屜，沒有CSS重設。detector app/i18n一次為[]；此為機械輔證，不是手機新文字版型或真雲端新按鈕E2E。
+- 第二個真錯誤：傳輸reject null時原catch再讀e.message，造成未處理TypeError。新增真函式測試修前 **8 pass／1 fail**，修後null/undefined/string/object都回固定可讀錯誤並保留原班表，沒有假成功。正常Error保留原訊息。
+- 第三個保護缺口：inline表格UI.editCell、二次刪除UI.confirmRow及設定抽屜的profile-display-name都不在原remoteReloadBlocked內，儲存格及姓名草稿只在DOM而非S。擴充真timer／manual測試修前 **18 pass／2 fail**；修後三種狀態都不讀取。守住settings整個抽屜是保守選擇，請完成／取消並關閉後再按補讀；本輪未新增全頁定時刷新，也沒有把來源讀碼當「實際雲端姓名遺失」的瀏覽器證據。
+- 新增manual-refresh **9項**：執行真正case、補讀函式；另用真正SupabaseStore加明確mock RPC驗完整snapshot可接受、畸形{}不清空可見班表或寫入baseline。覆蓋連點、離線、讀取中開草稿、版本／帳號／store切換、正常／畸形RPC、非Error失敗及舊路徑；相關測試加翻譯棘輪 **38/38**。中途480、482、483通過不取代最後結果；三項草稿guard增加後重新完整跑 **483/483／0 fail**（89秒）及最終build成功（index-BWR-IV48.js）。舊大chunk警告保留。推送後同SHA CI仍待核對，不把本機回歸當staging E2E。
+- Render tab17仍是Sign In，未重複詢問／猜密碼／改配置／手動trigger；新版尚未stage live，不能把5476的真雲端手動套用／復原當此新補讀或7751提示修復的E2E。沒有第二帳號或寄設定信同意，PR16/18維持draft、未合main或正式部署。nightly **367614493仍disabled_manually**（用api實查；workflow view不支援--json的首次工具查詢已改正）。Codex10分鐘追蹤ACTIVE，保留5個QA/login handoff。
+- 本輪正式1023、setup_pending、角色／個人授權與測試Supabase均未寫入；上一輪測試M20正常apply＋undo的兩個版本／稽核仍保留，沒有倒轉或重置。下一步核對最新CI、安全同步PR16與main文件、取得Render登入後核對真正部署SHA，再驗新補讀兩端與離線／409；不同帳號、OR-Tools真正套用與原生Safari門檻仍未過，不能提前發布。
+
+#### 2026-10-13 19:31 heartbeat／19:49：真雲端手動套用、復原與成功提示時序
+
+- 起點763795b乾淨、無其他modifier／部署，全部指定交接已讀。e0c0e4a的Tests **38390490847／38390484974**及smoke **38390490985／38390485079**成功；docs-only763795b的Tests **38390675837**及smoke **38390676007**成功。最新main仍11c7d9c，沒有新增runtime。PR16仍1451cff、staging來源8ffa、live5476，不把舊heartbeat的f6部署當新版。
+- 真IAB qa-lead（組長）登入仍有效，tab15基準10/12／1廠19段保存。原班表有3個刻意保留警示；未整份auto重排，以免復原受舊異常資料驗證影響。首次S16 10/12過去時段微調被正確擋下「不能把新工作排在已經過去的時間」，確認套用disabled；取消後原19段aria-label/text/style一致，沒有寫入。
+- 再選未來10/15的M20裁切160件（tst01），13:00–14:50→13:10–15:00，110分鐘／件數不變、0連帶工序、沒有衝突、交期仍10/19準時。選擇此段是首站且後站在10/17以後，原狀可依一般復原流程還原，不解除核定或改請假。tab20先read-only重新讀取；只檢查Network URL/方法/狀態，實查 **fkefarcwadvyqqjcjxvp.supabase.co/rest/v1/rpc/schedule_snapshot**，不讀或輸出headers/JWT/body私密資料。未確認隔離目的地前不按確認。
+- **第一次真測試雲端班表寫入已完成**：tab15按確認套用，RPC save_blocks一個POST成功（另一200是OPTIONS CORS預檢，已以request.method辨明，非重複提交）。tab20未reload仍原時段，reload＋切10/15後確實看到13:10–15:00及固定標記，原時段不存在；不是只靠200或成功toast。再用tab15「更多→復原上一步」，等雲端已儲存，tab20獨立reload後 **10/15原20段DOM label/text/style逐項一致**，M20回13:00–14:50且未固定；tab15回10/12後原19段一致。這是正常apply＋undo的兩次版本／稽核寫入，沒有倒轉版本、刪歷史、重匯或reset；未做全DB所有欄位的指紋比較，不能冒稱完全沒有資料庫副作用。
+- 測試只在指定隔離庫，用同一qa-lead的兩分頁；單段手動預覽是瀏覽器邏輯，不是OR-Tools方案或apply_plan RPC。**可放行的僅真組長手動套用／雲端持久化／復原**；OR-Tools真正套用、不同帳號/角色、Realtime自動更新、原生Safari及全PR新SHA仍未過。tab20未reload前舊資料與兩端「即時更新中斷」一致，不宣稱同步修好。
+- 期間僅tab15暫時阻擋 */notify/line，避免測試訊息外發（不改LINE設定/權限）；完畢已Network.setBlockedURLs urls=[]及Network.disable，tab20觀察器也disable，沒有留下攔截／離線模擬。390×844的tab20真手機尺寸重讀原工作、160件與未固定正確，Escape取消查看、20段仍一致，viewport已reset。只驗手機讀取／開窗／取消，不當手機實際寫入。手機截圖 `outputs/cloud-apply-undo-mobile-20261013.png` 本機保存且目視；QA分頁及原Render/local session已handoff。模糊qa-lead名稱定位器匹配兩個button曾逾時，改確切top帳號名稱後通過，這是測試定位器問題。
+- 真undo操作另重現「同步中已說已復原」的回饋時序問題；使用Impeccable harden（main、context一次、harden/craft-floor全文）最小改undo為async，保留原樂觀S/undoStack/commit/queueSync資料與衝突策略，只等commit回true才成功toast，false保留原「沒存到／已載入最新」錯誤，不再提前誤報。沒有新CSS／文案或資料庫變動，detector app一次為[]。
+- 新4項實際undo函式測試修前 **3失敗／1通過**：pending、false寫入、版本衝突仍提前成功；修後4/4。再加1項真undo＋真commit＋真queueSync連動，只有STORE transport明確mock：pending busy且無success，一次寫入；offline error保留沒存到，成功才顯示已復原，kind=edit不發LINE。聚焦 **5/5**；全套 **473/473**＋build成功是在最後這1項追加前已啟動的run，不能稱最新474全套已跑；下一輪同SHA CI須覆核全部474。本輪沒有部署新版undo，stage的保存／復原證據是5476，並非此新提示修復的線上E2E；offline／409瀏覽器實測仍待補。
+- 正式1023、0037、setup_pending、角色／帳號完全未動，測試雲端只上述一段套用後正常復原，保留原fixture與稽核。Render登入及第二帳號設定信同意都未答覆，未重複問／猜密碼／寄信；autoDeploy來源不明仍不盲目手動trigger。nightly停用、Codex追蹤ACTIVE，不因本輪成功停止。下一輪查最新CI後安全同步PR16，再做新版undo的離線回饋／HTTP409真驗收與有界安全補讀探索，不強行正式發布。
+
+#### 2026-10-13 19:13 heartbeat／19:28：失敗畫面保留裝置偏好與部署診斷
+
+- 起點920fc9a工作樹乾淨、沒有其他modifier／deploy，只見專屬Vite的esbuild；所有指定交接與最新checkpoint已讀，不重做密文還原、C1–C7或正式0037。前輪test-only920fc9a的Tests **38388544855／38388540284**及smoke **38388544964／38388540111**全部success。
+- 實際缺陷重現（僅本機5202）：新開local QA介面自動建立本機示範資料，沒有任何Supabase連線／匯入；從真正設定頁選Light、Large115%、高辨識、English，DOM明確lang=en/theme=light/font=clear/--z=1.15。另一同origin的mode=test失敗頁reload卻回zh-Hant/theme=null/font=null/--z空及中文retry。首次用AX的checkbox角色找選项失敗；DOM snapshot證明其實為button[aria-pressed]，改用真button後完成實測，這是測試角色映射問題，不是產品按鈕壞掉。
+- 使用Impeccable harden，main/context一次及harden/craft-floor全文已讀；不重設版面，只在失敗catch以現有loadPreferences/applyPreferences讀取裝置偏好並套用I18N，正常boot不提前接管偏好。getter被拒、storage不可讀／JSON損毀仍有安全重試；不寫偏好、不更改雲端／帳號。錯誤textContent經tx，4個已知測試設定／私密金鑰／無效快照提示補en/vi/th；未知SDK／動態錯誤仍原文textContent，不插入HTML。
+- 新3項真main＋真settings＋真i18n回歸，修前總10項 **2失敗／8通過**（偏好未套及未進讀取保護路徑）；修後10/10，聚焦 **37/37**、全web **469/469**、build成功。測試以mock DOM/storage/client邊界但執行真偏好讀取、正規化、套用及翻譯，明確不是雲端登入或跨端同步。成功boot不讀錯誤頁偏好回歸及blocked getter、storage、JSON案例都執行。detector一次main/i18n為[]，原chunk警告保留。
+- 真桌面及 **390×844 Chromium** 失敗頁均保留lang=en、light、clear、1.15，英文錯誤與retry可讀；手機Enter真的reload，URL仍?mode=test&view=catalog，兩鈕 **50.59px**且中心命中，pageOverflow=false。第一次viewport設定作用於另一現用tab而讀到1280×720，已明確排除、未當手機通過；重新在當前新QA tab核實390×844後才截圖與量測。不是原生Safari／故障雲端成功復原／畸形HTTP200 RPC負向E2E。
+- before/after截圖 `outputs/startup-preferences-before-20261013.png`、`outputs/startup-preferences-after-desktop-20261013.png`、`outputs/startup-preferences-after-mobile-20261013.png` 保存在本機並目視覆核。viewport已reset，重複手機tab19已關閉；原staging qa-lead、local錯誤與設定QA保留handoff。5202本機偏好保留供後續，不影響staging/正式host。
+- Render-debug診斷：staging web API仍autoDeploy=yes／commit，來源8ffa已推，latest只有 **5476 live／dep-db70mojrjlhs739hte6g**，沒有新queued/failed部署，不當作build失敗。GitHub /user/installations因現有CLI token不是App授權而403，**不能據此判定Render App未安裝**。Render Dashboard已登出，第一次登入redirect沿用歷史正式env next，未登入或讀env；已安全改next到staging service登入頁並handoff，請使用者登入Render（不索取密碼）。未建立GitHub App授權、未改服務配置、未清cache或再手動trigger autoDeploy服務。
+- 官方[Render部署文件](https://render.com/docs/deploys)明確說自動部署需要connected Git provider、public Git URL來源須人工部署；這只是可檢查假設，**尚未證明本服務屬此來源或具體根因**。Repo hooks=0不足以排除GitHub App。缺後台登入不擅自擴權／切autoDeploy來繞過工具限制。CI綠／source已推不能冒稱新版live。
+- 本輪修正與同SHA CI尚待推送／核對；PR16/18不合main、不正式部署，正式1023/setup_pending/帳號權限及測試雲端資料均未寫入。nightly維持disabled、10分鐘Codex追蹤ACTIVE。下一輪先查本輪CI、自動部署／登入，再在唯一有效qa-lead的隔離staging做真正套用及安全復原驗收（不重匯或reset資料）；同帳號两tab只能作單帳號兩端驗收，不能冒稱不同角色／跨帳號門檻通過。第二帳號設定信授權仍未答，不寄信、不猜密碼。
+- 補核對（優先於上行待推送初始狀態）：runtime **e0c0e4a1328365749fe720185d59065aecef7dc7** 已推；Tests **38390490847／38390484974**目前in_progress，smoke **38390490985／38390485079**success，不宣稱全CI綠。工作樹乾淨、nightly367614493實查disabled_manually。PR16仍1451cff，staging來源仍8ffa而live仍5476，這幾個SHA不得混用；下一輪等e0c同SHA全綠再安全同步，不盲目部署。
+
 #### 2026-10-13 18:58 heartbeat／19:06：啟動失敗的同環境重試與初始化保護
 
 - 起點dde5a6c乾淨、無其他modifier／部署（只找到本輪自己的pwsh）；指定交接全部讀取。最新main11c7d9c相較已整合1e019僅另一agent進度文件，0037/C1–C7/密文消費者已過不重做；歷史NEXT_TASKS仍列待辦不當新授權。正式1023、setup_pending、帳號角色、測試資料完全不寫入。
@@ -37,8 +73,12 @@
 - main將constructor及boot納入async start的同一錯誤界線；錯誤頁有「重新整理後再試」按鈕，保留同網址／模式，連點只觸發一次reload並disabled。僅test模式顯示測試標示與明確「回正式資料」次入口，使用modeUrl去mode與auth hash，保留path/view；production/local錯誤不再用誤導的「回正式資料」代替retry。錯誤用textContent且null-safe、role=alert，初始焦點在retry；長字串overflow-wrap:anywhere。新增文案en/vi/th完整，不改班表、抽屜或日週切換。
 - 新7項全通過，聚焦 **28/28**，全web **466/466**、build通過（原chunk警告保留）。Impeccable detector一次發現7個styles.css既有其他介面border/transition警告，與本輪單行overflow-wrap無關，不越域重新設計它們；main/i18n無新警告。
 - 本機真正瀏覽器 http://127.0.0.1:5202/?mode=test&view=catalog 以未設定測試連線的fail-closed路徑呈現錯誤：桌面Enter及手機390×844實際click retry均重新載入並保持mode=test/view=catalog，沒有建立雲端client或改任何資料。手機兩入口44px／中心命中，無頁面水平溢出；桌面48px／命中，Tab到退出link、Shift+Tab回retry，初始焦點正確。此案例缺設定故重試後仍報相同錯誤，**不是**成功復原雲端連線、HTTP200畸形RPC負向E2E或真機Safari。
-- 桌面computed樣式對比：error約7.24、retry約7.36、exit約6.64（精確數值以本轮工具計算為準），大於4.5；截圖 `outputs/startup-recovery-mobile-20261013.png`、`outputs/startup-recovery-desktop-20261013.png` 保存在本機，不新增公開身份資料artifact。viewport已reset，local QA與原staging session均markHandoff；5202專屬dev server保留。
+- 桌面computed樣式對比（工具依實際RGB計算）：error **5.87**、retry **7.38**、exit **6.34**，大於4.5；截圖 `outputs/startup-recovery-mobile-20261013.png`、`outputs/startup-recovery-desktop-20261013.png` 保存在本機，不新增公開身份資料artifact。viewport已reset，local QA與原staging session均markHandoff；5202專屬dev server保留。
 - 同SHA CI／staging部署尚待核對，PR16/18不合入正式，nightly仍維持停用至加密main發布；Codex10分鐘追蹤持續ACTIVE。下一步同SHA CI綠後僅更新既有staging web，驗普通root既有qa-lead班表、test模式retry，再安全同步PR16。第二帳號密碼設定信仍未有同意，不寄信／猜密碼。
+- runtime修正 **8ffa475d59b6e05e10f89b374c115ace16bdc2ca** 已推；Tests **38387910616／38387905785** frontend/database/solver三job全success，smoke **38387910610／38387905770**success。PR16工作樹乾淨、remote568ce40一致，僅既有vite/esbuild dev server而無modifier後普通merge **1451cff7b9fe22dd759cf4d5b599630e1c44e9c5** 已推，原3項實作/測試差異保留；Tests **38388107392／38388102276**及smoke **38388107553／38388103010**全success。未合main／正式部署。
+- 補強同一constructor測試：使用真正@supabase/supabase-js的createClient('invalid-url','PUBLIC') URL驗證同步拋錯，實際main仍呈現error與retry、boot未呼叫；没有建立合法client或發網路請求。此test-only補強本機7/7通過，未改已驗runtime；其後文件/測試提交仍須自身CI核對，不能用8ffa的綠燈冒稱最新SHA全部綠。
+- CI全過後既有staging來源分支已安全fast-forward **5476→8ffa475**；Render實查 **autoDeploy=yes／autoDeployTrigger=commit**。最新部署仍 **dep-db70mojrjlhs739hte6g／5476 live**，尚未看到新部署。依目前Render工具規則，autoDeploy服務push後不得再觸發重複手動deploy，因此這輪未手動觸發、未清cache／改自動部署設定；source branch新版本不等於已live。後續核對自動部署或其未觸發的具體原因，本輪只能交付本機功能驗收＋CI，不能宣稱staging已含retry。solver不重複部署，沒有環境變數／付費資源變動。
+- 最新main **11c7d9c** 相較已整合1e019只改另一agent的DEFECT_HUNT_REPORT／OVERNIGHT_PROGRESS，無新runtime；只讀核對，不為文件變化重部署服務。下輪先核對8ffa自動部署狀態與最新test-only CI，再查故障頁是否沿用語言/字體/主題偏好（目前僅來源顯示preferences在cloud讀取後載入，**未實測，不當已確認缺陷**），以及真正排程套用／兩端驗收缺口。持續追蹤不因本輪修完停止。
 
 #### 2026-10-13 18:22 heartbeat／18:58覆核：雲端快照契約與基準防護
 
