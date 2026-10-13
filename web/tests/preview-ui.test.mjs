@@ -146,3 +146,19 @@ test('缺陷#15 回歸：保存試排情境按鈕不得用被 !PV 閘門的 canS
   assert.match(app, /function canPermission\(key\)\{return !PV&&canPermissionRaw\(key\);\}/, 'canPermission 需委派 raw 檢查');
   assert.match(app, /canPermissionRaw\('scenarios\.manage'\)&&!PV\.savedScenario\?'<button[^>]+scenario-save/, '保存情境鈕需用 raw 權限（不受 !PV 影響）');
 });
+
+test('缺陷#16 回歸：switch case 內的箭頭函式主體必須被呼叫（ln-save/feedback-send 曾是「建立即丟」＝按鈕完全無聲無效，雲端本機皆然）', () => {
+  // 掃描所有 case "X":…=>{ … };break; 模式：break 前必須有對箭頭的呼叫 }…(a)
+  const re = /case "([a-z0-9-]+)":(\{const h=)?(async )?([a-zA-Z]+)=>\{/g;
+  let m; const dead = [];
+  while ((m = re.exec(app))) {
+    const bIdx = app.indexOf('break;', m.index);
+    if (bIdx < 0 || bIdx - m.index > 4000) continue;
+    const tail = app.slice(bIdx - 40, bIdx);
+    if (!/\}\s*\(\s*a\s*\)|h\(a\)/.test(tail)) dead.push(m[1] + ' tail=' + JSON.stringify(tail.slice(-24)));
+  }
+  assert.deepEqual(dead, [], '不得存在未被呼叫的 case 箭頭主體：' + JSON.stringify(dead));
+  // 這兩個案例已改為 h(a) 呼叫形式
+  assert.match(app, /case "feedback-send":\{const h=async a=>\{/, 'feedback-send 需為宣告＋呼叫形式');
+  assert.match(app, /case "ln-save":\{const h=async a=>\{/, 'ln-save 需為宣告＋呼叫形式');
+});
