@@ -82,7 +82,7 @@ test('actual SDK keeps 40001 with noncanonical gateway statuses uncertain, but p
     await assert.rejects(store.reportExecution(request),e=>status>=502?e.unconfirmed===true&&!e.conflict:e.conflict===true&&!e.unconfirmed,'HTTP '+status);
   }
 });
-for(const gatewayCode of ['SYNTHETIC_GATEWAY_UNKNOWN','40001'])test('real committed report hidden by gateway '+gatewayCode+' keeps its UI request ID, and an explicit retry creates only one event',async()=>{
+for(const gatewayCode of ['SYNTHETIC_GATEWAY_UNKNOWN','40001','PT409'])test('real committed report hidden by gateway '+gatewayCode+' keeps its UI request ID, and an explicit retry creates only one event',async()=>{
   const db=await makeDb();try{
     const actor='44444444-4444-4444-8444-444444444444';await db.query("insert into auth.users(id,email) values($1,'synthetic-retry@invalid')",[actor]);await db.query("update profiles set role='boss' where user_id=$1",[actor]);
     const e=(await db.query("select id from employees where name='張三'")).rows[0].id,order=(await db.query("select id from orders where code='A01'")).rows[0].id;
@@ -120,5 +120,49 @@ for(const gatewayCode of ['SYNTHETIC_GATEWAY_UNKNOWN','40001'])test('real commit
     await db.query("update profiles set role='viewer' where user_id=$1",[actor]);
     await assert.rejects(reader.reportExecution({...request,id:crypto.randomUUID(),action:'quantity',qtyDone:10,expectedRevision:1}),e=>e.rejected===true&&!e.unconfirmed);
     assert.equal((await db.query('select count(*)::int n from work_execution_events')).rows[0].n,1);
+  }finally{await db.close();}
+});
+
+test('actual SDK recognizes only canonical PT409 HTTP409 as a report rollback conflict',async()=>{
+  for(const [code,status,conflict] of [['PT409',409,true],['PT409',400,false],['PT409',500,false],['PT409',502,false],['PT409',503,false],['PT409',504,false],['PT409_extra',409,false],['pt409',409,false],['UNKNOWN',409,false]]){
+    let calls=0;const sdk=createClient('https://synthetic.invalid','sb_publishable_synthetic_test_key',{accessToken:async()=> 'synthetic',global:{fetch:async()=>{
+      calls++;return new Response(JSON.stringify({code,message:'synthetic response'}),{status,headers:{'Content-Type':'application/json'}});
+    }}});
+    const store=new SupabaseStore(sdk);store.session={user:{id:'A'},access_token:'synthetic'};store.version=77;
+    await assert.rejects(store.reportExecution(request),e=>conflict?e.conflict===true&&!e.unconfirmed:e.unconfirmed===true&&!e.conflict,code+' / '+status);
+    assert.equal(calls,1);assert.equal(store.version,77);assert.equal(store.base,null);
+  }
+});
+
+test('real synthetic PT409 revision rollback reaches actual SDK and UI conflict reconciliation without a retry ledger or new event',async()=>{
+  const db=await makeDb();try{
+    // Modify only this disposable in-memory fixture, never the migration or cloud RPC.
+    const definition=(await db.query("select pg_get_functiondef('report_work_execution(uuid,uuid,text,integer,integer)'::regprocedure) as body")).rows[0].body;
+    await db.exec(definition.replace("errcode='40001'","errcode='PT409'"));
+    const actor='44444444-4444-4444-8444-444444444444';await db.query("insert into auth.users(id,email) values($1,'synthetic-pt409@invalid')",[actor]);await db.query("update profiles set role='boss' where user_id=$1",[actor]);
+    const e=(await db.query("select id from employees where name='張三'")).rows[0].id,order=(await db.query("select id from orders where code='A01'")).rows[0].id;
+    await db.query("insert into schedule_blocks(id,order_id,step_seq,machine_id,employee_id,date,start_min,end_min,qty) values($1,$2,0,'a',$3,'2000-01-01',480,540,60)",[block,order,e]);
+    const fake=new FakeSupabase(db,{});fake.uid=actor;const reader=new SupabaseStore(fake);await reader.init();const stale=await reader.load();
+    await reader.reportExecution(request); // Actual SQL commits revision 1; the other view remains at 0.
+    const codes=[],toasts=[];let writes=0,reloads=0;
+    const sdk=createClient('https://synthetic.invalid','sb_publishable_synthetic_test_key',{accessToken:async()=> 'synthetic',global:{fetch:async(url,options)=>{
+      assert.equal(new URL(url).pathname,'/rest/v1/rpc/report_work_execution');writes++;
+      const result=await fake.rpc('report_work_execution',JSON.parse(options.body));assert.equal(result.error?.code,'PT409');codes.push(result.error.code);
+      return new Response(JSON.stringify(result.error),{status:409,headers:{'Content-Type':'application/json'}});
+    }}});
+    const store=new SupabaseStore(sdk);store.session={user:{id:actor},access_token:'synthetic'};store.role='boss';
+    const ctx={S:stale,UI:{date:'2000-01-01',factory:1,page:'schedule',drawer:null,modal:{t:'execution-report',id:block}},PV:null,STORE:store,SYNC:{state:'ok'},syncChain:Promise.resolve(),undoStack:['keep'],
+      canReport:()=>true,reportingRole:()=> 'boss',executionRetries:new ExecutionRetries(),executionOf,uid:()=>crypto.randomUUID(),$:()=>({value:'10'}),tx:x=>x,renderModal:()=>{},maybeReload:()=>{},toast:x=>toasts.push(x),
+      closeModal:()=>{ctx.UI.modal=null;},reloadFromStore:async()=>{reloads++;ctx.S=await reader.load();return 'applied';}};
+    const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');vm.createContext(ctx);
+    let at=source.indexOf('function directWriteOwner(');vm.runInContext(source.slice(at,source.indexOf('async function runDrawerWrite(',at)),ctx);
+    at=source.indexOf('async function reportWork(');vm.runInContext(source.slice(at,source.indexOf('// ---------- 工作內容',at)),ctx);
+    const modal=ctx.UI.modal;await ctx.reportWork({disabled:false,dataset:{v:'quantity'}});
+    assert.deepEqual(codes,['PT409']);assert.equal(writes,1);assert.equal(reloads,1);
+    assert.equal(modal.pendingRequest,null);assert.equal(modal.reportOwner,null);assert.equal(modal.qtyDraft,undefined);
+    assert.equal(ctx.executionRetries.has(store),false);assert.match(modal.error,/進度已被更新/);assert.ok(toasts.some(x=>/重新載入/.test(x)));
+    assert.equal(ctx.S.execution[0].revision,1);assert.equal(ctx.S.execution[0].qtyDone,0);assert.equal(ctx.undoStack[0],'keep');
+    assert.equal((await db.query('select count(*)::int n from work_execution_events')).rows[0].n,1);assert.equal((await db.query('select version from schedule_state')).rows[0].version,1);
+    const planned=(await db.query('select start_min,end_min,qty from schedule_blocks where id=$1',[block])).rows[0];assert.deepEqual(planned,{start_min:480,end_min:540,qty:60});
   }finally{await db.close();}
 });
