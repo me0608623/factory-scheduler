@@ -1334,3 +1334,24 @@
 - **live 驗證（③）**：5180 中文頁 DataTransfer 注入範本檔——派發後 **80ms** 即見「Excel 匯出／匯入×正在解析 Excel…」、**388ms** 轉為最終預覽（摘要插值與錯誤正確）。關窗守門未做 live 載入競態（388ms 太快無法穩定插入取消），以棘輪鎖程式結構。
 - **提交**：`fix(ux): 匯入解析立即顯示 loading 回饋＋完成後 loading 態守門`；走 main 部署。
 - **下輪**：維持模式＋事件驅動；候選＝解析器錯誤訊息 i18n（excel.js 錯誤改代碼＋顯示層映射，較大工程）。
+
+### 缺陷探索輪 117（2026-10-14 07:00–09:00）——解析器錯誤 i18n 全譯＋缺陷 #20：時間炸彈測試
+
+- **成果④＋①（解析器錯誤 i18n，輪 115 候選大工程）**：新增 `web/src/import-errors.js` 顯示層翻譯模組——23 種錯誤樣式（列位 13＋工作表 3＋跨表引用 4＋最少件數等 3）正則比對→tx() 鍵；excel.js 本體不動（Node 測試全保）。表名/欄位名等短標籤走模組內建字典（不進 UI_TEXT，避免覆蓋既有同名鍵——實測曾撞「優先級」鍵）。i18n.js +30 訊息模板鍵（en/vi/th）。app.js：import-preview 錯誤列表包 translateImportError、3 條 app 側文案（5MB 限制/老闆限制/讀取失敗前綴）tx() 化。新增 tests/import-errors.test.mjs 3 測試（zh 恆等 28 式精確 en／未辨識安全 fallback／**kitchen-sink 壞檔完整性**——18+ 條錯誤在三語皆有譯文且無未預期中文）。
+- **live 實證（③）**：5180 英文介面注入廚房水槽壞檔——12 條錯誤全英文（`Employees row 2: color number must be 1–8`、`Orders row 2 due date: date must be YYYY-MM-DD`、`Employee "E01": operable machine "zz" does not exist` 等）；工序枚曝（裁切/沖壓…）與是/否依設計保留模板中文字面。
+- **缺陷 #20（②，時間炸彈測試）**：全套測試發現 supabase-store 兩紅——git stash 對照證實非本輪改動所致；根因＝測試硬編碼 2026-10-05~08 日期，而 schedule_snapshot 視窗＝current_date-7～+90，**今天（10-14）起 10-06 資料掉出窗**（CI 最後跑 10-13 剛好壓線綠，下次 CI 必紅——及時攔截）。寫入側無恙（探針直查 DB 列存在），純讀取視窗語意。修復＝測試日期全改 dayISO(n) 相對日（apply_plan/請假/加班/故障/區塊），純函式往返測試保留固定日期。16/16 復綠。
+- **終極棘輪再立功**：i18n-coverage 抓到複合鍵 `tx("…請填"+kind)` 逃過編譯期檢查→重構為四條全字面鍵。
+- **npm test 418/418 全綠**（415→418）、build 成功。教訓：日期敏感測試必用相對日期；「CI 綠」只在 CI 當天有效。
+- **提交**：`feat(i18n): 匯入錯誤全譯（顯示層映射）＋修時間炸彈測試（缺陷#20）`；走 main 部署。
+- **下輪**：維持模式＋事件驅動；NEXT_TASKS 兩項候選已完成可打勾。
+
+### 缺陷探索輪 118（2026-10-14 09:10–10:30）——請假審核流 E2E 首測＋缺陷 #21：筆刷套用 commit/reload 競態
+
+- **背景**：維持模式無新事件；深入候選清單「請假申請→主管審核流（pending/approve/reject UI 全流程）」。
+- **缺陷 #21（②）**：月曆「未確定」筆刷範圍套用後，toast 稱成功但 UI 看不到詢問、日曆仍 working。重現：選未確定筆刷→同日點兩下→toast「已套用未確定…（1 天）」但等待決定 0 筆。實證分流：**localStorage 確實有該 pending**（寫入成功）→ 記憶體 S 被 reloadFromStore 用同步完成前的舊狀態覆蓋（race）。風險＝後續任何操作把「無該請求的 S」寫回＝資料遺失。根因＝app.js 筆刷分支 `commit(...)` 未 await（queueSync 排隊寫入）就 `await reloadFromStore()`；對照 4315 行有正確 `await syncChain` 模式，此為全檔唯一漏網點（其餘 reloadFromStore 呼叫點逐一盤點皆安全）。
+- **修復**：改為 `await commit(...)` 完成後才 reload。棘輪測試（preview-ui.test.mjs +1）鎖「commit 必須被 await 且在 reload 之前」。
+- **live 複證**：修後同操作——10/21 詢問**立即**出現在 UI、日曆變 asking、UI 筆數＝localStorage 筆數（2=2）；修前對照組為 UI 0 筆/儲存 1 筆。
+- **完整請假審核流 E2E（③，本機模式全走通）**：①未確定筆刷→pending（等待決定＋黃色 asking 態）②准假→正式 leaves＋紅色 leave 態＋列表移除（toast 已准假並寫入正式請假）③＋新增詢問 modal（人員/日期/一句說明）→pending 帶說明④駁回→班表不變⑤再點同日＝取消回 working；全程 storage 三筆狀態（pending/approved/rejected）與 UI 一致。附帶發現：筆刷按鈕 toggle 語意（再按一次取消選取）讓自動化易誤操作——行為正確非缺陷。
+- **npm test 419/419 綠**（418→419）、build 成功。
+- **提交**：`fix: 缺陷#21 筆刷套用 commit 同步完成前不得 reload（UI/儲存分歧與資料遺失風險）`；走 main 部署。
+- **下輪**：維持模式＋事件驅動。
