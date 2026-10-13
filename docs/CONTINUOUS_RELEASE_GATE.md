@@ -30,13 +30,18 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+- **正式0037已套用**：runtime2cde149，Tests38354810746／完整還原＋guarded0037演練38354811296／純關卡38355195539全成功後，正式apply=true run38355345279於06:11:59Z提交。交易內所有public資料、Auth users/identities、角色／RLS／序列指紋不變；沒有改正式1023或解除setup_pending。詳見MIGRATION_0037_GATE_2026-10-13.md；不要重複套用。
+- 工具26/26及真SQL回滾測試通過，不靠源碼字串。演練receipt artifact11792422005不含資料；私密診斷／fingerprints不上傳。
+- staging solver分支non-force FF至2cde149，repo hooks=[]且staging不自動部署（觀測後仍cdfc40c），手動deploy dep-db6solij9qps73adm3a0已live於2cde149，health database=true／OR-Tools9.15.6755。06:15:26Z至06:19:59Z app error logs=0。
+- 真實qa-lead session已計算3套OR-Tools方案；選最佳化→影響日10/14等、原本22段／調整15段，DOM內容與位置確實不同；取消後未套用方案，但抓到**取消未恢復原日期**（10/12→看10/14→取消仍10/14）。正在用純UI context修復，4單元＋2真handler VM回歸；不改班表資料或CSS世界。首次web412/411失敗為VM fixture沒引入新真模組，已补該import，不能記成產品ReferenceError。
+- 新UI取消修復本機最新414項回歸與build通過（dot reporter exit0）；尚待此修復CI、staging web部署與桌面／手機確認。現有截圖outputs/staging-ortools-preview-20261013.png為修前真ORTools對照畫面。
 - 2026-10-13使用者已回覆：維持公開、改用加密備份。新追蹤prompt已更新，不再等待可見性選擇；加密完整備份與還原本身仍是0037門檻。
 - 使用者再明確要求「先保留舊檔，只改新備份」，不刪既有backup/debug artifacts或log。
 - 新正式唯讀完整DB加密run38352489633／artifact11791661615已成功；下載真正解密SHA256驗證通過。完整隔離Supabase PG17還原run38353201806成功（角色SQL、Auth真實資料、full.dump ACL、FK/RLS等，無stub）。Storage物件0。新backup/nightly尚未merge main，舊nightly暫停保留以防明文。
 - 最新修復head1986377：工具20/20＋實際PGlite recovery-proof SQL通過。03451e1兩套CI成功；1986377 Tests38353205423/38353200703也全成功。同新密文C1–C7 run38353425842 **PASS=7 FAIL=0 未成立=0**（已對到實際log，不只看job綠燈）。詳見ENCRYPTED_BACKUP_2026-10-13.md。
-- 下一項：補0037的migration新鮮還原證據＋data fingerprint＋single-transaction安全關卡；驗最新CI並推進staging solver與跨帳號同步。不是因備份可還原就直接合併PR16或解除正式setup_pending。
+- 下一項：完成取消導航修復CI與staging UI驗收、補跨帳號同步並整合PR16／最新main；安全发布加密備份，才重啟nightly。正式0037已完成，不解除setup_pending。
 - 舊nightly-backup ID367614493已disabled_manually，防止新明文備份；age私鑰已用本人+SYSTEM ACL保管，GitHub兩個BACKUP_AGE_*秘密已設定，不展示私鑰。
-- 本輪加密模組真實age測試6/6；新增完整DB與角色加密工作流。詳見docs/ENCRYPTED_BACKUP_2026-10-13.md。尚未將完整DB還原驗收當作通過。
+- 本輪加密模組真實age測試6/6；完整DB與角色加密＋真還原已通過，詳見docs/ENCRYPTED_BACKUP_2026-10-13.md。
 - 修復分支runtime a48d9f6；PR #18 draft。固定同備份11786241413、週一2026-10-12，run **38350613478 PASS=7 FAIL=0 未成立=0**，是實際PostgreSQL副本＋OR-Tools＋DB套用／拒絕的驗收，不是源碼斷言。
 - C5額外修正負面測試：在PL/pgSQL子交易中捕捉預期P0001拒絕，不讓外層交易abort導致Session SELECT哨兵等待180秒；仍驗證拒絕內容、資料與版本不變。
 - PR #16已同步main11285ea並推到b249160，維持draft；最新head CI要再核對。未合併任何PR、未套用正式0037、未設定正式VITE_TEST_*。
@@ -44,7 +49,7 @@
 - staging執行期先重現加班日date-nav會ReferenceError otEnd、畫面停在舊日期；更新web後同一session切到10/12成功、1廠19段渲染。新bundle index-C4NJipl1.js，部署完成05:19:20Z之後本輪console新增error=0。
 - screenshot `outputs/staging-calendar-render-20261013.png`。測試站畫面已有其他agent留下的休假等變更與3問題提示，不能把有畫面／已同步徽章當作無衝突或Realtime驗收；本輪未重置該資料，也未更動正式1023。
 - browser IAB tab15是已登入qa-lead的staging app，handoff；沒有取得任何密碼。Supabase admin tab9不要讀其密碼片段。
-- 首要待回覆：公開repo的備份保護方案（改私有或加密）。此項擋住新鮮完整備份與正式0037，不擋隔離測試／UI改善；automation仍ACTIVE每10分鐘，未達停止條件。
+- 備份保護選擇已明確：公開＋加密、舊檔保留。不再向使用者重問；automation仍ACTIVE每10分鐘，不自行停用。
 - 下一輪先核對最新CI；在獨立staging部署通過的calendar修復、驗排程與跨帳號／兩端同步。修復同步降級或缺憑證時不得假裝已即時同步；再處理備份與0037、PR16正式發布門檻。
 
 ### 本輪後續證據與安全阻礙

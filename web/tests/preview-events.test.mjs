@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {acceptManualPreview} from '../src/manual-apply.js';
 import * as nav from '../src/preview-nav.js';
+import * as previewContext from '../src/preview-context.js';
 
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8').replace(/\r\n/g,'\n');
 const manual=source.slice(source.indexOf('async function applyManualPreview('),source.indexOf('\nfunction diffOf('));
@@ -12,7 +13,7 @@ function harness(){
   const before={blocks:[{id:'b1',oid:'o1',step:0,date:'2026-10-12',m:'a',s:480,e:540}],log:[]};
   const after=structuredClone(before);after.blocks[0].s=540;after.blocks[0].e=600;
   const P={base:JSON.stringify(before),B:before,after,move:{...after.blocks[0]},oldId:'b1',ops:[],problems:[],unpinned:[],lines:[],movedLabel:'A01',source:'old',target:'new'};
-  const ctx={...nav,acceptManualPreview,S:before,UI:{date:'2026-10-12',view:'day',modal:null},PV:{kind:'manual',P,opts:[{id:'manual',applicable:true}],cur:'manual',nav:nav.newNav()},
+  const ctx={...nav,...previewContext,acceptManualPreview,S:before,UI:{date:'2026-10-12',view:'day',modal:null},PV:{kind:'manual',P,opts:[{id:'manual',applicable:true}],cur:'manual',nav:nav.newNav()},
     pvOpt:()=>ctx.PV?.opts[0],readOnly:false,undoStack:[],pushUndo:()=>ctx.undoStack.push(JSON.stringify(ctx.S)),
     assertExecutionProtected:()=>{},validateGeneralWork:()=>{},assignments:()=>[],todayStr:()=> '2026-10-11',
     commit:async()=>{log.push('commit');return true;},render:()=>log.push('render'),renderModal:()=>{},closeModal:()=>{},
@@ -120,4 +121,27 @@ test('Escape at root cancels without writes; modal Escape is not hijacked by nav
 test('missing finish dates are unknown, never displayed as unchanged',()=>{
   const h=harness();h.ctx.dpDueRow=()=>'';h.ctx.dueDetail=()=>({qty:10,code:'A01',due:'2026-10-12',finish:null,finishB:null,affectedOps:[],stepRows:[]});
   const html=h.ctx.dpDueDetailHTML(h.P,'o1');assert.match(html,/完成日期尚無法比較/);assert.doesNotMatch(html,/完成日期不變/);
+});
+test('real generic cancel handler restores day/factory/week after viewing another impact date',()=>{
+  const h=harness();h.ctx.UI.factory=2;h.ctx.UI.view='week';
+  h.ctx.PV.kind='auto';h.ctx.PV.returnContext=previewContext.capturePreviewContext(h.ctx.UI);
+  h.ctx.UI.date='2026-10-14';h.ctx.UI.factory=1;h.ctx.UI.view='day';
+  const start=source.indexOf('  "pv-cancel":'),end=source.indexOf('\n  // -----',start);
+  vm.runInContext('Object.assign(MODAL_ACT,{'+source.slice(start,end)+'});',h.ctx);
+  const before=JSON.stringify(h.ctx.S);
+  h.ctx.MODAL_ACT['pv-cancel']();
+  assert.equal(h.ctx.PV,null);assert.equal(h.ctx.UI.date,'2026-10-12');
+  assert.equal(h.ctx.UI.factory,2);assert.equal(h.ctx.UI.view,'week');
+  assert.equal(JSON.stringify(h.ctx.S),before);assert.ok(!h.log.includes('commit'));
+});
+test('real manual preview enter/exit restores context on cancel, not while accepting apply',()=>{
+  for(const cancel of [true,false]){
+    const h=harness();h.ctx.UI.factory=2;h.ctx.UI.view='week';h.P.move.date='2026-10-14';
+    const before=JSON.stringify(h.ctx.S);
+    h.ctx.enterManualPreview(h.P);h.ctx.UI.factory=1;
+    h.ctx.exitManualPreview(cancel);
+    assert.equal(h.ctx.UI.date,cancel?'2026-10-12':'2026-10-14');
+    assert.equal(h.ctx.UI.factory,cancel?2:1);assert.equal(h.ctx.UI.view,cancel?'week':'day');
+    assert.equal(JSON.stringify(h.ctx.S),before);assert.ok(!h.log.includes('commit'));
+  }
 });

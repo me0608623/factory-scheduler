@@ -18,6 +18,7 @@ import { schedZoomState, loadSchedZoom, setZoom, setWheelZoom, SZOOM_STEP, captu
 import { executionOf, canReport, assertExecutionProtected } from './execution.js';
 import { workCatalog,assignments,occupiedWork,assignmentIssues,validateGeneralWork } from './general-work.js';
 import { newNav, navPush, navBack, opKey, suggestList, impactList, dueList, opDetail, dueDetail, boardTarget } from './preview-nav.js';
+import { capturePreviewContext, restorePreviewContext } from './preview-context.js';
 import { RUNTIME, TEST_AVAILABLE, modeUrl, authReturnUrl } from './runtime-config.js';
 import { legacyFieldMap } from './legacy-field-map.js';
 import {transferOrders,materialWarning,transferPlanWarnings,batchOf,validateTransfers,transferSummary} from './transfers.js';
@@ -2246,6 +2247,7 @@ async function pvApplyManual(){
   });
 }
 function enterManualPreview(P){
+  const returnContext=capturePreviewContext(UI);
   closeModal();
   UI.modal=null;UI.drawer=null;UI.focus=null;UI.editCell=null;UI.confirmRow=null;
   const B=P.B||JSON.parse(P.base);
@@ -2255,7 +2257,7 @@ function enterManualPreview(P){
   catch(e){o.applicable=false;o.diagnostics.push(e.message);}
   PV={title:P.problems.length?"手動排班預覽 · 需要處理":"手動排班預覽",kind:"manual",P,B,opts:[o],cur:"manual",
     mode:"cmp",tab:"gantt",note:"",ai:null,ev:{},faultsNew:[],savedScenario:false,sheetCollapsed:false,
-    nav:newNav(),hist:0,applying:false};
+    nav:newNav(),hist:0,applying:false,returnContext};
   if(P.move)UI.date=P.move.date;
   UI.view="day";
   try{history.pushState({pv:1},"",location.href);PV.hist=1;}catch{}
@@ -2267,7 +2269,10 @@ function enterManualPreview(P){
 function exitManualPreview(notify=true,byPop=false){
   if(!PV||PV.kind!=="manual")return;
   const h=(!byPop&&PV.hist>0)?PV.hist:0;
-  PV=null;UI.focus=null;render();
+  const returnContext=PV.returnContext;
+  PV=null;UI.focus=null;
+  if(notify||byPop)restorePreviewContext(UI,returnContext);
+  render();
   if(h){try{history.go(-h);}catch{}}
   if(notify){toast("已取消，排程沒有改變");maybeReload();}
 }
@@ -2658,12 +2663,13 @@ function openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra={}){
   },30);
 }
 function enterPreview({title,logTitle,kind,base,B,opts,ev,extra}){
+  const returnContext=PV?.returnContext||capturePreviewContext(UI);
   for(const o of opts){try{assertExecutionProtected(B,o.A);validateGeneralWork(o.A,{today:todayStr(),baseAssignments:assignments(B)});}catch(e){o.applicable=false;o.diagnostics=[...(o.diagnostics||[]),e.message];}}
   {
     const best=opts.find(o=>o.best)||opts[0];
     const fk=f=>[f.date,f.s,f.e].join("|"),faultsNew=[];
     for(const M of best.A.machines){const bm=B.machines.find(x=>x.id===M.id);const have=new Set((bm?bm.faults:[]).map(fk));for(const f of M.faults)if(!have.has(fk(f)))faultsNew.push({m:M.id,...f});}
-    PV={title,logTitle,kind,base,B,opts,cur:best.id,mode:"cmp",tab:"gantt",ai:null,note:"",ev,faultsNew,sheetCollapsed:false,rerun:{noLate:false,keepPeople:false,ot:false,pinMach:false,order:"",machine:"",text:"",busy:false},...extra};
+    PV={title,logTitle,kind,base,B,opts,cur:best.id,mode:"cmp",tab:"gantt",ai:null,note:"",ev,faultsNew,sheetCollapsed:false,rerun:{noLate:false,keepPeople:false,ot:false,pinMach:false,order:"",machine:"",text:"",busy:false},...extra,returnContext};
     closeModal();
     const dates=Object.keys(diffOf(best).dates).sort();
     UI.date=dates.find(x=>x>=todayStr())||dates[0]||ev.date||UI.date;UI.view="day";
@@ -2728,7 +2734,7 @@ Object.assign(MODAL_ACT,{
   "pv-date":a=>{UI.date=a.dataset.v;UI.view="day";render();},
   "pv-ai":()=>askAI(),
   "pv-apply":()=>{if(PV&&PV.kind==="manual")return pvApplyManual();pvApply();},
-  "pv-cancel":()=>{if(PV&&PV.kind==="manual")return exitManualPreview(true);PV=null;render();toast("已取消，排程沒有改變");maybeReload();},
+  "pv-cancel":()=>{if(PV&&PV.kind==="manual")return exitManualPreview(true);restorePreviewContext(UI,PV?.returnContext);PV=null;render();toast("已取消，排程沒有改變");maybeReload();},
   // ----- 手動預覽互動導航（只動 PV.nav／UI，不碰正式排程） -----
   "dp-nav":a=>{
     if(!PV||PV.kind!=="manual")return;
