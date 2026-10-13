@@ -40,6 +40,8 @@
 - 新增manual-refresh **9項**：執行真正case、補讀函式；另用真正SupabaseStore加明確mock RPC驗完整snapshot可接受、畸形{}不清空可見班表或寫入baseline。覆蓋連點、離線、讀取中開草稿、版本／帳號／store切換、正常／畸形RPC、非Error失敗及舊路徑；相關測試加翻譯棘輪 **38/38**。中途480、482、483通過不取代最後結果；三項草稿guard增加後重新完整跑 **483/483／0 fail**（89秒）及最終build成功（index-BWR-IV48.js）。舊大chunk警告保留。推送後同SHA CI仍待核對，不把本機回歸當staging E2E。
 - Render tab17仍是Sign In，未重複詢問／猜密碼／改配置／手動trigger；新版尚未stage live，不能把5476的真雲端手動套用／復原當此新補讀或7751提示修復的E2E。沒有第二帳號或寄設定信同意，PR16/18維持draft、未合main或正式部署。nightly **367614493仍disabled_manually**（用api實查；workflow view不支援--json的首次工具查詢已改正）。Codex10分鐘追蹤ACTIVE，保留5個QA/login handoff。
 - 本輪正式1023、setup_pending、角色／個人授權與測試Supabase均未寫入；上一輪測試M20正常apply＋undo的兩個版本／稽核仍保留，沒有倒轉或重置。下一步核對最新CI、安全同步PR16與main文件、取得Render登入後核對真正部署SHA，再驗新補讀兩端與離線／409；不同帳號、OR-Tools真正套用與原生Safari門檻仍未過，不能提前發布。
+- 修正 **a68a0d6** 已提交；以普通merge納入main 11c7d9c的兩份docs更新後，持久分支 **2d040d094e846c4a73ec484a434d306418bcd3ae**已推送。main沒有被合入PR／改寫，沒有force。PR16事前核對1451cff本地／remote一致、worktree乾淨且只有原Vite/esbuild，普通merge到 **de0957bf4b6a5cdcd3d08d9577990770e203a3c4**已推；相對持久分支仍保留原3項runtime/test差異（seed preflight、banner對比、seed回歸）與其2份docs。
+- **20:11最新核對**：2d040d0 Tests **38395295245／38395289396**仍in_progress，smoke **38395295244／38395289506**success；PR16 de0957b Tests **38395359154／38395350915**仍in_progress，smoke **38395359346／38395350794**success。未以先前7751綠替代最新SHA CI。PR16/18仍draft、沒有部署新版，下一輪先查上述run與最新HEAD，不重跑已通過的本機483、正式0037或原M20apply／undo。
 
 #### 2026-10-13 19:31 heartbeat／19:49：真雲端手動套用、復原與成功提示時序
 
