@@ -169,3 +169,14 @@ test('缺陷#16 補強：ln-save 本機模式提前擋下（handler 已可被呼
   const seg = app.slice(i, i + 260);
   assert.match(seg, /STORE\.kind==="local"\)\{toast\("本機示範模式無法設定 LINE 通知/, 'ln-save 需在本機模式給友善提示');
 });
+
+test('缺陷#21 棘輪：筆刷範圍套用必須 await commit（同步佇列）完成後才 reloadFromStore', () => {
+  const i = app.indexOf('已套用');                       // 筆刷範圍套用分支的特徵字串所在語句
+  const brushBlock = app.indexOf('const applyBrush=');
+  assert.ok(brushBlock > 0, 'applyBrush 存在');
+  const seg = app.slice(brushBlock, brushBlock + 4000);
+  const commitIdx = seg.indexOf('await commit({kind:"leave"');
+  const reloadIdx = seg.indexOf('await reloadFromStore()');
+  assert.ok(commitIdx > 0, '筆刷套用的 commit 必須被 await');
+  assert.ok(reloadIdx > commitIdx, 'reloadFromStore 必須在 commit 同步完成之後');
+});

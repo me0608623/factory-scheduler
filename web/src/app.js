@@ -1390,7 +1390,7 @@ document.addEventListener("click",e=>{
               if(UI.leaveBrush==="leave"&&S.blocks.some(b=>b.emp===eid&&b.date===x&&futureOf(b)))continue;
               const r=await applyBrush(eid,x);if(r!==0)cnt++;
             }
-            commit({kind:"leave",title:E.name+" "+brushName+" "+md(lo)+"～"+md(hi)+"（"+cnt+" 天）",lines:[]},"incidents.manage");
+            await commit({kind:"leave",title:E.name+" "+brushName+" "+md(lo)+"～"+md(hi)+"（"+cnt+" 天）",lines:[]},"incidents.manage");   // 缺陷#21：同步寫入完成前 reload 會用舊資料蓋掉記憶體，之後任何操作再存就丟資料
             await reloadFromStore();
             UI.drawer="people";
             toast("已套用"+brushName+" "+md(lo)+"～"+md(hi)+"（"+cnt+" 天）");

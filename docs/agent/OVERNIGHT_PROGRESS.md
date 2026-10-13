@@ -1344,3 +1344,14 @@
 - **npm test 418/418 全綠**（415→418）、build 成功。教訓：日期敏感測試必用相對日期；「CI 綠」只在 CI 當天有效。
 - **提交**：`feat(i18n): 匯入錯誤全譯（顯示層映射）＋修時間炸彈測試（缺陷#20）`；走 main 部署。
 - **下輪**：維持模式＋事件驅動；NEXT_TASKS 兩項候選已完成可打勾。
+
+### 缺陷探索輪 118（2026-10-14 09:10–10:30）——請假審核流 E2E 首測＋缺陷 #21：筆刷套用 commit/reload 競態
+
+- **背景**：維持模式無新事件；深入候選清單「請假申請→主管審核流（pending/approve/reject UI 全流程）」。
+- **缺陷 #21（②）**：月曆「未確定」筆刷範圍套用後，toast 稱成功但 UI 看不到詢問、日曆仍 working。重現：選未確定筆刷→同日點兩下→toast「已套用未確定…（1 天）」但等待決定 0 筆。實證分流：**localStorage 確實有該 pending**（寫入成功）→ 記憶體 S 被 reloadFromStore 用同步完成前的舊狀態覆蓋（race）。風險＝後續任何操作把「無該請求的 S」寫回＝資料遺失。根因＝app.js 筆刷分支 `commit(...)` 未 await（queueSync 排隊寫入）就 `await reloadFromStore()`；對照 4315 行有正確 `await syncChain` 模式，此為全檔唯一漏網點（其餘 reloadFromStore 呼叫點逐一盤點皆安全）。
+- **修復**：改為 `await commit(...)` 完成後才 reload。棘輪測試（preview-ui.test.mjs +1）鎖「commit 必須被 await 且在 reload 之前」。
+- **live 複證**：修後同操作——10/21 詢問**立即**出現在 UI、日曆變 asking、UI 筆數＝localStorage 筆數（2=2）；修前對照組為 UI 0 筆/儲存 1 筆。
+- **完整請假審核流 E2E（③，本機模式全走通）**：①未確定筆刷→pending（等待決定＋黃色 asking 態）②准假→正式 leaves＋紅色 leave 態＋列表移除（toast 已准假並寫入正式請假）③＋新增詢問 modal（人員/日期/一句說明）→pending 帶說明④駁回→班表不變⑤再點同日＝取消回 working；全程 storage 三筆狀態（pending/approved/rejected）與 UI 一致。附帶發現：筆刷按鈕 toggle 語意（再按一次取消選取）讓自動化易誤操作——行為正確非缺陷。
+- **npm test 419/419 綠**（418→419）、build 成功。
+- **提交**：`fix: 缺陷#21 筆刷套用 commit 同步完成前不得 reload（UI/儲存分歧與資料遺失風險）`；走 main 部署。
+- **下輪**：維持模式＋事件驅動。
