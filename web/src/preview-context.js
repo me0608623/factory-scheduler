@@ -2,9 +2,10 @@
 export function capturePreviewContext(ui){
   return {date:ui.date,factory:ui.factory,view:ui.view,focus:ui.focus?{...ui.focus}:null};
 }
-export function restorePreviewContext(ui,context){
+export function restorePreviewContext(ui,context,persistFactory){
   if(!context)return false;
   ui.date=context.date;ui.factory=context.factory;ui.view=context.view;
   ui.focus=context.focus?{...context.focus}:null;
+  if(typeof persistFactory==='function'&&context.factory!==undefined)persistFactory(context.factory);
   return true;
 }

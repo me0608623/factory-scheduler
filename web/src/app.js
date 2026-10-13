@@ -2271,7 +2271,7 @@ function exitManualPreview(notify=true,byPop=false){
   const h=(!byPop&&PV.hist>0)?PV.hist:0;
   const returnContext=PV.returnContext;
   PV=null;UI.focus=null;
-  if(notify||byPop)restorePreviewContext(UI,returnContext);
+  if(notify||byPop)restorePreviewContext(UI,returnContext,setFactory);
   render();
   if(h){try{history.go(-h);}catch{}}
   if(notify){toast("已取消，排程沒有改變");maybeReload();}
@@ -2734,7 +2734,7 @@ Object.assign(MODAL_ACT,{
   "pv-date":a=>{UI.date=a.dataset.v;UI.view="day";render();},
   "pv-ai":()=>askAI(),
   "pv-apply":()=>{if(PV&&PV.kind==="manual")return pvApplyManual();pvApply();},
-  "pv-cancel":()=>{if(PV&&PV.kind==="manual")return exitManualPreview(true);restorePreviewContext(UI,PV?.returnContext);PV=null;render();toast("已取消，排程沒有改變");maybeReload();},
+  "pv-cancel":()=>{if(PV&&PV.kind==="manual")return exitManualPreview(true);restorePreviewContext(UI,PV?.returnContext,setFactory);PV=null;render();toast("已取消，排程沒有改變");maybeReload();},
   // ----- 手動預覽互動導航（只動 PV.nav／UI，不碰正式排程） -----
   "dp-nav":a=>{
     if(!PV||PV.kind!=="manual")return;

@@ -35,6 +35,8 @@
 - staging solver分支non-force FF至2cde149，repo hooks=[]且staging不自動部署（觀測後仍cdfc40c），手動deploy dep-db6solij9qps73adm3a0已live於2cde149，health database=true／OR-Tools9.15.6755。06:15:26Z至06:19:59Z app error logs=0。
 - 真實qa-lead session已計算3套OR-Tools方案；選最佳化→影響日10/14等、原本22段／調整15段，DOM內容與位置確實不同；取消後未套用方案，但抓到**取消未恢復原日期**（10/12→看10/14→取消仍10/14）。正在用純UI context修復，4單元＋2真handler VM回歸；不改班表資料或CSS世界。首次web412/411失敗為VM fixture沒引入新真模組，已补該import，不能記成產品ReferenceError。
 - 新UI取消修復本機最新414項回歸與build通過（dot reporter exit0）；尚待此修復CI、staging web部署與桌面／手機確認。現有截圖outputs/staging-ortools-preview-20261013.png為修前真ORTools對照畫面。
+- 5474f40 Tests38357296228全成功；staging web dep-db6t3qgn74is738umqtg已live5474f40，新bundle index-Bsy81hyT.js。桌面取消已回原10/12、factory1，當日19段data-bid／aria-label／text／style逐筆一致。此次重載後預覽明確是「瀏覽器備援」，不能冒稱此輪也走ORTools（前一輪真ORTools已驗3方案）。
+- 桌面加測廠別→取消→reload抓到UI恢復1廠但偏好fsched-factory留2廠，重載變2廠。已最小補用既有setFactory還原UI偏好，沒有寫排程store；新增偏好回歸及實际cancel handler VM斷言。最新415項本機＋build通過，仍需最新CI/staging確認與手機390尺寸。本轮全部未按「用這套」。
 - 2026-10-13使用者已回覆：維持公開、改用加密備份。新追蹤prompt已更新，不再等待可見性選擇；加密完整備份與還原本身仍是0037門檻。
 - 使用者再明確要求「先保留舊檔，只改新備份」，不刪既有backup/debug artifacts或log。
 - 新正式唯讀完整DB加密run38352489633／artifact11791661615已成功；下載真正解密SHA256驗證通過。完整隔離Supabase PG17還原run38353201806成功（角色SQL、Auth真實資料、full.dump ACL、FK/RLS等，無stub）。Storage物件0。新backup/nightly尚未merge main，舊nightly暫停保留以防明文。

@@ -26,3 +26,9 @@ test('legacy preview without captured context is left untouched rather than gues
   assert.equal(restorePreviewContext(ui,null),false);
   assert.deepEqual(ui,{date:'2026-10-14',factory:'F1',view:'day'});
 });
+test('factory preference is restored via the existing UI setter, not schedule storage',()=>{
+  const ui={date:'2026-10-14',factory:2,view:'day'},preferences=new Map([['factory','2']]);
+  restorePreviewContext(ui,{date:'2026-10-12',factory:1,view:'day',focus:null},f=>preferences.set('factory',String(f)));
+  assert.equal(ui.factory,1);assert.equal(preferences.get('factory'),'1');
+  assert.equal(restorePreviewContext(ui,null,()=>assert.fail('legacy preview must not persist guessed defaults')),false);
+});

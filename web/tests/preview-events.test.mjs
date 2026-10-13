@@ -9,7 +9,7 @@ import * as previewContext from '../src/preview-context.js';
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8').replace(/\r\n/g,'\n');
 const manual=source.slice(source.indexOf('async function applyManualPreview('),source.indexOf('\nfunction diffOf('));
 function harness(){
-  const events={},log=[],timers=[];
+  const events={},log=[],timers=[],preferences={factory:null};
   const before={blocks:[{id:'b1',oid:'o1',step:0,date:'2026-10-12',m:'a',s:480,e:540}],log:[]};
   const after=structuredClone(before);after.blocks[0].s=540;after.blocks[0].e=600;
   const P={base:JSON.stringify(before),B:before,after,move:{...after.blocks[0]},oldId:'b1',ops:[],problems:[],unpinned:[],lines:[],movedLabel:'A01',source:'old',target:'new'};
@@ -20,9 +20,9 @@ function harness(){
     toast:msg=>log.push(msg),maybeReload:()=>{},document:{addEventListener:(t,f)=>events[t]=f,querySelector:()=>null,activeElement:null},
     window:{scrollY:0,scrollTo:()=>{}},history:{go:()=>{}},addEventListener:()=>{},setTimeout:fn=>timers.push(fn),
     CSS:{escape:x=>x},mdw:x=>x,hm:x=>x,MODAL_ACT:{},PV_BLOCK:new Set(),$:()=>null,
-    tx:x=>x,esc:x=>x,fmtDelta:x=>x,recentManualMove:null};
+    tx:x=>x,esc:x=>x,fmtDelta:x=>x,recentManualMove:null,setFactory:f=>{ctx.UI.factory=f;preferences.factory=String(f);}};
   vm.createContext(ctx);vm.runInContext(manual,ctx);
-  return {ctx,P,log,timers,events};
+  return {ctx,P,log,timers,events,preferences};
 }
 test('selected new view has no original ghosts; cmp keeps them',()=>{
   const h=harness(),b=h.ctx.S.blocks[0],a=h.P.after.blocks[0];
@@ -126,22 +126,25 @@ test('real generic cancel handler restores day/factory/week after viewing anothe
   const h=harness();h.ctx.UI.factory=2;h.ctx.UI.view='week';
   h.ctx.PV.kind='auto';h.ctx.PV.returnContext=previewContext.capturePreviewContext(h.ctx.UI);
   h.ctx.UI.date='2026-10-14';h.ctx.UI.factory=1;h.ctx.UI.view='day';
+  h.ctx.setFactory(1);
   const start=source.indexOf('  "pv-cancel":'),end=source.indexOf('\n  // -----',start);
   vm.runInContext('Object.assign(MODAL_ACT,{'+source.slice(start,end)+'});',h.ctx);
   const before=JSON.stringify(h.ctx.S);
   h.ctx.MODAL_ACT['pv-cancel']();
   assert.equal(h.ctx.PV,null);assert.equal(h.ctx.UI.date,'2026-10-12');
   assert.equal(h.ctx.UI.factory,2);assert.equal(h.ctx.UI.view,'week');
+  assert.equal(h.preferences.factory,'2');
   assert.equal(JSON.stringify(h.ctx.S),before);assert.ok(!h.log.includes('commit'));
 });
 test('real manual preview enter/exit restores context on cancel, not while accepting apply',()=>{
   for(const cancel of [true,false]){
     const h=harness();h.ctx.UI.factory=2;h.ctx.UI.view='week';h.P.move.date='2026-10-14';
     const before=JSON.stringify(h.ctx.S);
-    h.ctx.enterManualPreview(h.P);h.ctx.UI.factory=1;
+    h.ctx.enterManualPreview(h.P);h.ctx.setFactory(1);
     h.ctx.exitManualPreview(cancel);
     assert.equal(h.ctx.UI.date,cancel?'2026-10-12':'2026-10-14');
     assert.equal(h.ctx.UI.factory,cancel?2:1);assert.equal(h.ctx.UI.view,cancel?'week':'day');
+    assert.equal(h.preferences.factory,cancel?'2':'1');
     assert.equal(JSON.stringify(h.ctx.S),before);assert.ok(!h.log.includes('commit'));
   }
 });
