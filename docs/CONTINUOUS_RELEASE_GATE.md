@@ -41,6 +41,7 @@
 - Render-debug診斷：staging web API仍autoDeploy=yes／commit，來源8ffa已推，latest只有 **5476 live／dep-db70mojrjlhs739hte6g**，沒有新queued/failed部署，不當作build失敗。GitHub /user/installations因現有CLI token不是App授權而403，**不能據此判定Render App未安裝**。Render Dashboard已登出，第一次登入redirect沿用歷史正式env next，未登入或讀env；已安全改next到staging service登入頁並handoff，請使用者登入Render（不索取密碼）。未建立GitHub App授權、未改服務配置、未清cache或再手動trigger autoDeploy服務。
 - 官方[Render部署文件](https://render.com/docs/deploys)明確說自動部署需要connected Git provider、public Git URL來源須人工部署；這只是可檢查假設，**尚未證明本服務屬此來源或具體根因**。Repo hooks=0不足以排除GitHub App。缺後台登入不擅自擴權／切autoDeploy來繞過工具限制。CI綠／source已推不能冒稱新版live。
 - 本輪修正與同SHA CI尚待推送／核對；PR16/18不合main、不正式部署，正式1023/setup_pending/帳號權限及測試雲端資料均未寫入。nightly維持disabled、10分鐘Codex追蹤ACTIVE。下一輪先查本輪CI、自動部署／登入，再在唯一有效qa-lead的隔離staging做真正套用及安全復原驗收（不重匯或reset資料）；同帳號两tab只能作單帳號兩端驗收，不能冒稱不同角色／跨帳號門檻通過。第二帳號設定信授權仍未答，不寄信、不猜密碼。
+- 補核對（優先於上行待推送初始狀態）：runtime **e0c0e4a1328365749fe720185d59065aecef7dc7** 已推；Tests **38390490847／38390484974**目前in_progress，smoke **38390490985／38390485079**success，不宣稱全CI綠。工作樹乾淨、nightly367614493實查disabled_manually。PR16仍1451cff，staging來源仍8ffa而live仍5476，這幾個SHA不得混用；下一輪等e0c同SHA全綠再安全同步，不盲目部署。
 
 #### 2026-10-13 18:58 heartbeat／19:06：啟動失敗的同環境重試與初始化保護
 
