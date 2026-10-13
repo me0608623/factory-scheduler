@@ -47,7 +47,7 @@ jobs:
         run: |
           node tools/backup-artifact.mjs
           unzip -o backup.zip -d restored/
-          echo "使用備份：$(ls restored/*.dump)"
+          echo "備份 artifact $ARTIFACT_ID 已下載；密文在下一步解密"
 
       - name: 解密新格式並只取模擬所需 public 副本
         env:
