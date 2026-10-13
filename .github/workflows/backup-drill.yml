@@ -57,7 +57,7 @@ jobs:
         run: |
           set -euo pipefail
           # Version pinned to the official self-hosted docker-compose image.
-          docker run -d --name full-recovery-pg -e POSTGRES_PASSWORD=recovery-local-only -v "$RUNNER_TEMP/full-recovery:/backup:ro" supabase/postgres:17.6.1.136 > /dev/null
+          docker run -d --name full-recovery-pg -e POSTGRES_PASSWORD=recovery-local-only -v "$RUNNER_TEMP/full-recovery:/backup:ro" -v "$PWD/tools:/tools:ro" supabase/postgres:17.6.1.136 > /dev/null
           READY=0
           for i in $(seq 1 60); do
             if docker exec full-recovery-pg pg_isready -U supabase_admin >/dev/null 2>&1; then READY=1; break; fi
@@ -66,7 +66,7 @@ jobs:
           test "$READY" = 1 || { echo 'Isolated PostgreSQL not ready'; exit 1; }
           docker exec full-recovery-pg psql -U supabase_admin -d postgres -X --single-transaction -v ON_ERROR_STOP=1 -f /backup/roles-restore.sql > "$RUNNER_TEMP/roles-recovery.log" 2>&1 || { echo 'Roles restore failed; sensitive diagnostics withheld'; exit 1; }
           docker exec full-recovery-pg pg_restore -U supabase_admin -d postgres --single-transaction --clean --if-exists --no-owner --exit-on-error /backup/full.dump > "$RUNNER_TEMP/full-recovery.log" 2>&1 || { echo 'Full database restore failed; sensitive diagnostics withheld'; exit 1; }
-          docker exec full-recovery-pg psql -U supabase_admin -d postgres -X -v ON_ERROR_STOP=1 -t -A -c "SELECT json_build_object('auth_users',(SELECT count(*) FROM auth.users),'employees',(SELECT count(*) FROM public.employees),'machines',(SELECT count(*) FROM public.machines),'profiles_without_auth',(SELECT count(*) FROM public.profiles p LEFT JOIN auth.users u ON u.id=p.id WHERE u.id IS NULL),'public_rls',(SELECT count(*) FROM pg_policies WHERE schemaname='public'))" > "$RUNNER_TEMP/full-recovery-proof.json"
+          docker exec full-recovery-pg psql -U supabase_admin -d postgres -X -v ON_ERROR_STOP=1 -t -A -f /tools/recovery-proof.sql > "$RUNNER_TEMP/full-recovery-proof.json"
           node -e 'const p=JSON.parse(require("fs").readFileSync(process.env.RUNNER_TEMP+"/full-recovery-proof.json"));if(p.auth_users<1||p.employees<10||p.machines<1||p.profiles_without_auth!==0||p.public_rls<1)process.exit(1);console.log("Full database restore checks passed (no personal data logged)")'
       - name: 清除解密及完整還原暫存（不發布明文）
         if: always()

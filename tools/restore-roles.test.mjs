@@ -11,5 +11,11 @@ test('only CREATE ROLE duplicate errors are caught; ALTER/GRANT stay fail-fast',
 test('quoted identifiers and apostrophes remain one quoted SQL statement',()=>{
   const changed=idempotentRoleCreation('CREATE ROLE "reader\'s ""quoted"" name";\r\n');
   assert.match(changed,/reader''s ""quoted"" name/);
-  assert.equal((changed.match(/DO \$recovery\$/g)||[]).length,1);
+  assert.equal((changed.match(/DO \$recovery_[a-f0-9]+\$/g)||[]).length,1);
+});
+test('role name containing a dollar delimiter cannot terminate the DO body',()=>{
+  const changed=idempotentRoleCreation('CREATE ROLE "$recovery$";');
+  const tag=changed.match(/^DO (\$[^$]+\$)/)[1];
+  assert.notEqual(tag,'$recovery$');
+  assert.equal(changed.split(tag).length,3);
 });
