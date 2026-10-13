@@ -38,6 +38,11 @@
 - 回歸：新3項實際driver執行期隱私＋2項artifact HTTP回歸通過；全部工具 **31/31**（真age加解密、未skip）、web **440/440**、build通過；solver新增測試與完整跨層等待同SHA CI，Windows OR-Tools仍不繞過防護。本機Python trampoline連YAML解析啟動都失敗，故不拿未執行的YAML解析當證據，交由GitHub workflow parser/CI核對。
 - catalog-inventory／permissions-drill的main改進保留，仍是舊public備份診斷流程，未 dispatch：目前不聲稱這兩套可用新密文或公開輸出已隱私合格，後續另需安全整合；不為QA上傳人員盤點或身份資料。C1–C7原已通過不無故重跑，只針對本輪實質整合變更補驗C5。備份與正式0037不重做，正式1023、帳號權限與setup_pending不動。
 - PR16/18仍不合併進main，真第二帳號／同步仍缺登入與同意；本輪沒有部署正式Render、寫正式DB或寄信。nightly367614493仍停用至安全加密版本進main，Codex10分鐘追蹤仍ACTIVE。下一步以本輪提交及CI／C5實證結果為準接續，不能拿單輪tests綠燈當全部發布門檻。
+- 實際提交：正常雙親merge **635f7de842d0047deaaf705e3157d91f43dd1d1a**（parents 6f4809d／0e60483）；再補模擬還原失敗不得tail私密SQL／資料診斷、清除固定runner暫存 **47c6fc2940bc5ec47bddf94de954bc8366536f94**。同SHA Tests **38373485005**（frontend/db跨層/solver三job均success）、smoke **38373484907**success；635f的Tests38373289612也已成功。非force更新PR18，GitHub實查MERGEABLE但仍draft。
+- 僅針對C5新增斷言，在同一未過期原密文 **11791661615** 補驗：run **38373479029** 完成success，artifact **11800057631**下載後只含151byte的acceptance-report.md，**PASS=1 FAIL=0 未成立=0**。没有请求JSON或新明文备份artifact；报告保存outputs/c5-merge-47c6fc2，不用workflow成功冒充案例通过。
+- PR16自己的worktree乾淨，只有原dev server／esbuild而沒有modifier；local/remote均b249160。普通merge上述47c6fc2至PR16並non-force推 **31024a7277d73b3a1ff879154d11a6d66582d6fc**，保留PR16原有測試模式44px／深色文字色及seed schema preflight。不切共享main，不改既有密碼或測試資料。Tests **38373560619**三job均success，smoke **38373560664／38373554874**成功；CI實際web **441/441**、工具31/31（不是沿用release-gate的440），GitHub實查MERGEABLE但仍draft。
+- 本輪release-gate對已部署508b794的web/src及solver/app檔案逐位元組沒有變化，故沒有無意義Render重部署；staging web仍508b794／index-BxxaTLZr.js，solver仍2cde149，不把47c／310的Git整合SHA當成Render live版本。PR16另有原有CSS及seed驗收差異尚未部署，先保留其完整發布門檻。
+- 下一輪：不要再解相同merge或重跑已過C5；先安全診斷斷線後補讀／有限輪詢的真資料新鮮度（保護草稿、預覽、在途／失敗寫入），並處理catalog／permissions舊備份消費者的密文相容與公開輸出隱私，未修好不dispatch它們。第二帳號寄信同意與本人登入仍未收到，不擅寄、讀SQL密碼或改角色。發布門檻仍缺真角色／套用／跨帳號兩端同步、正式VITE_TEST_*等，故不合併PR或部署正式；nightly實查367614493=disabled_manually，0037已完成不重套，正式1023全程不動。以本節接續，不依外部NEXT_TASKS「可直接丟棄」之未經人類授權建議重設他人工作。
 
 #### 2026-10-13 16:12 heartbeat：背景補讀競爭修復（發布狀態見後續追加）
 
