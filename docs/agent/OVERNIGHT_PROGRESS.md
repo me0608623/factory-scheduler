@@ -1027,3 +1027,11 @@
 - **環境還原**：張三測試休假已再次取消（saved）✓
 - **本輪零缺陷、零程式修改**——成果＝③apply-plan 並發安全屬性 DB 真值證據＋紀錄稽核鏈驗證
 - **下輪**：維持模式（早前修復抽測輪替或 NEXT_TASKS 監看；衝突 toast 不再重試——留真人）
+
+### 缺陷探索輪 68（2026-10-14 05:10–05:45）——★#16 補強修復：ln-save 本機閘門（TypeError 不再直出）＋dev server 環境診斷
+
+- **發現**：#16 抽測 ln-save——handler 已可被呼叫（輪 62 修復生效），但本機模式 STORE.sb 不存在＝把「Cannot read properties of undefined」**原始 TypeError 顯示給使用者**（與 #14 feedback-send 同型缺口）
+- **修復（main `090f3a6`）**：ln-save 補本機閘門（友善提示「請在雲端帳號使用」）；+1 測試（**408/408 綠**＋build 綠）；修復後實測 toast 正確
+- **環境診斷（重要）**：live 複查時發現 **5177 dev server 已改從主 repo 服務**（serve 內容與 worktree 脫鉤——輪 62 後某時點漂移；這解釋了本輪初測 toast 仍是 TypeError）——已在 worktree 起 5180 專屬 server 恢復「worktree 即改即測」路徑，後續輪次 live 驗證一律用 5180
+- **待辦監看（不變）**：正式庫 0037、staging deploy hook、Realtime ticket
+- **下輪**：維持模式（5180 上輪替抽測早前修復＋待辦監看）
