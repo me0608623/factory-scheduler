@@ -7,6 +7,7 @@ import {requestQuery} from './request-query.mjs';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {executionOf} from '../src/execution.js';
+import {ExecutionRetries} from '../src/execution-retries.js';
 const block='abcdefab-1111-4111-8111-111111111111',employee='22222222-2222-4222-8222-222222222222';
 const request={id:'33333333-3333-4333-8333-333333333333',blockId:block,action:'start',qtyDone:0,expectedRevision:0};
 const receipt={blockId:block,employeeId:employee,status:'running',qtyDone:0,revision:1,version:1,startedAt:'2026-10-13T08:00:00+00:00',finishedAt:null};
@@ -88,16 +89,20 @@ test('real committed report hidden by a gateway error keeps its UI request ID, a
     }}});
     const store=new SupabaseStore(sdk);store.session={user:{id:actor},access_token:'synthetic'};store.role='boss';
     const ctx={S:state,UI:{date:'2000-01-01',factory:1,page:'schedule',drawer:null,modal:{t:'execution-report',id:block}},PV:null,STORE:store,SYNC:{state:'ok'},syncChain:Promise.resolve(),undoStack:[],
-      canReport:()=>true,reportingRole:()=> 'boss',executionOf,uid:()=>crypto.randomUUID(),$:()=>({value:'0'}),tx:x=>x,renderModal:()=>{},maybeReload:()=>{},toast:()=>{},
-      closeModal:()=>{ctx.UI.modal=null;},reloadFromStore:async()=>{ctx.S=await reader.load();return 'applied';}};
+      canReport:()=>true,reportingRole:()=> 'boss',executionRetries:new ExecutionRetries(),executionOf,uid:()=>crypto.randomUUID(),$:()=>({value:'0'}),tx:x=>x,renderModal:()=>{},maybeReload:()=>{},toast:()=>{},
+      closeModal:()=>{ctx.UI.modal=null;},reloadFromStore:async()=>{ctx.S=await reader.load();return 'applied';},
+      cancelPlanCalculation:()=>{},document:{activeElement:null,body:{}},HTMLElement:class{},modalReturnFocus:null,requestAnimationFrame:cb=>cb()};
     const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');vm.createContext(ctx);
     let at=source.indexOf('function directWriteOwner(');vm.runInContext(source.slice(at,source.indexOf('async function runDrawerWrite(',at)),ctx);
     at=source.indexOf('async function reportWork(');vm.runInContext(source.slice(at,source.indexOf('// ---------- 工作內容',at)),ctx);
+    at=source.indexOf('function openModal(');vm.runInContext(source.slice(at,source.indexOf('function ownsLegacyRequest(',at)),ctx);ctx.$=selector=>selector==='#modal-root'?null:{value:'0'};
     const m=ctx.UI.modal,planned=JSON.stringify(state.blocks);await ctx.reportWork({disabled:false,dataset:{v:'start'}});
     assert.equal(m.pendingRequest?.id,writes[0]);assert.equal(m.qtyDraft,0);assert.match(m.error,/尚未確認/);
     assert.equal((await db.query('select count(*)::int n from work_execution_events')).rows[0].n,1);
+    const original=m.pendingRequest;ctx.closeModal();ctx.openModal({t:'execution-report',id:block});const reopened=ctx.UI.modal;
+    assert.equal(reopened.pendingRequest,original);assert.equal(reopened.qtyDraft,0);
     obscure=false;await ctx.reportWork({disabled:false,dataset:{v:'retry'}});
-    assert.equal(writes.length,2);assert.equal(writes[0],writes[1]);assert.equal(m.pendingRequest,null);assert.equal(ctx.S.execution[0].revision,1);
+    assert.equal(writes.length,2);assert.equal(writes[0],writes[1]);assert.equal(reopened.pendingRequest,null);assert.equal(ctx.S.execution[0].revision,1);assert.equal(ctx.executionRetries.has(store),false);
     assert.equal((await db.query('select count(*)::int n from work_execution_events')).rows[0].n,1);assert.equal((await db.query('select version from schedule_state')).rows[0].version,1);
     const before=JSON.parse(planned)[0],after=ctx.S.blocks[0];assert.deepEqual([after.s,after.e,after.qty],[before.s,before.e,before.qty]);
     await assert.rejects(reader.reportExecution({...request,id:crypto.randomUUID(),action:'quantity',qtyDone:61,expectedRevision:1}),e=>e.rejected===true&&!e.unconfirmed);

@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {LocalStore} from '../src/store/local.js';
 import {executionOf} from '../src/execution.js';
+import {ExecutionRetries} from '../src/execution-retries.js';
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 const tick=()=>new Promise(r=>setImmediate(r));
@@ -11,7 +12,7 @@ function fixture(){
   const queue=deferred(),write=deferred(),writes=[],events=[];
   const ctx={UI:{date:'2026-10-14',factory:1,page:'schedule',drawer:null,modal:{t:'execution-report',id:'B'}},PV:null,
     S:{blocks:[{id:'B',qty:100}]},STORE:{employeeId:'E',session:{user:{id:'A'}},sb:{},authEpoch:1,reportExecution:r=>{writes.push(r);return write.promise;}},
-    syncChain:queue.promise,SYNC:{state:'ok'},undoStack:['original'],canReport:()=>true,reportingRole:()=> 'lead',executionOf:()=>({qtyDone:10,revision:1}),
+    syncChain:queue.promise,SYNC:{state:'ok'},undoStack:['original'],executionRetries:new ExecutionRetries(),canReport:()=>true,reportingRole:()=> 'lead',executionOf:()=>({qtyDone:10,revision:1}),
     $:()=>({value:'25'}),uid:()=> 'synthetic-request',tx:x=>x,toast:text=>events.push({type:'toast',text}),renderModal:()=>events.push('render'),
     closeModal:()=>{events.push('close');ctx.UI.modal=null;},maybeReload:()=>{},reloadFromStore:async options=>{events.push({type:'reload',options});return 'applied';}};
   vm.createContext(ctx);const helper=source.indexOf('function directWriteOwner(');
@@ -31,6 +32,50 @@ const changes=['user','client','epoch','store','modal','preview','state','mutati
 test('queued report never dispatches after identity, view, state or permission changes',async()=>{
   for(const kind of changes){const f=fixture(),job=f.run();change(f,kind);f.queue.resolve();f.write.resolve();await job;
     assert.equal(f.writes.length,0,kind);assert.equal(f.events.filter(e=>e?.type==='reload').length,0,kind);assert.equal(f.events.filter(e=>e?.type==='toast').length,0,kind);}
+});
+
+function realDialogs(f){
+  Object.assign(f.ctx,{cancelPlanCalculation:()=>{},document:{activeElement:null,body:{},querySelector:()=>null},HTMLElement:class{},modalReturnFocus:null,requestAnimationFrame:cb=>cb()});
+  const at=source.indexOf('function openModal(');vm.runInContext(source.slice(at,source.indexOf('function ownsLegacyRequest(',at)),f.ctx);
+  f.ctx.$=selector=>selector==='#modal-root'?null:{value:'25'};
+}
+test('unconfirmed report survives actual close/reopen with its original ID and quantity, not a new draft ID',async()=>{
+  const f=fixture();realDialogs(f);const job=f.run();f.queue.resolve();await tick();f.write.reject(new Error('UNCONFIRMED'));await job;
+  const original=f.m.pendingRequest;f.ctx.closeModal();f.ctx.openModal({t:'execution-report',id:'B'});const reopened=f.ctx.UI.modal;
+  assert.notEqual(reopened,f.m);assert.equal(reopened.pendingRequest,original);assert.equal(reopened.qtyDraft,25);assert.match(reopened.error,/尚未確認/);
+  const sent=[];f.ctx.STORE.reportExecution=async request=>sent.push(request);await f.run();
+  assert.equal(sent.length,1);assert.equal(sent[0],original);assert.equal(f.ctx.executionRetries.has(f.ctx.STORE),false);
+});
+test('closing a dispatched report before an uncertain late reply retains reconciliation without touching a new draft',async()=>{
+  const f=fixture();realDialogs(f);const job=f.run();f.queue.resolve();await tick();const original=f.m.pendingRequest;
+  f.ctx.closeModal();const draft=f.ctx.UI.modal={t:'new-draft',value:'keep'};f.write.reject(new Error('UNCONFIRMED'));await job;
+  assert.equal(f.ctx.UI.modal,draft);assert.equal(draft.value,'keep');assert.equal(f.events.filter(e=>e?.type==='toast').length,0);
+  f.ctx.openModal({t:'execution-report',id:'B'});assert.equal(f.ctx.UI.modal.pendingRequest,original);assert.equal(f.ctx.UI.modal.qtyDraft,25);
+});
+test('actual close/reopen during dispatch cannot create a second report; a valid late ACK clears its ledger',async()=>{
+  const f=fixture();realDialogs(f);const job=f.run();f.queue.resolve();await tick();const original=f.m.pendingRequest;
+  f.ctx.closeModal();f.ctx.openModal({t:'execution-report',id:'B'});const reopened=f.ctx.UI.modal;assert.equal(reopened.pendingRequest,original);
+  await f.run();assert.equal(f.writes.length,1);f.write.resolve();await job;assert.equal(f.ctx.UI.modal,reopened);assert.equal(f.ctx.executionRetries.has(f.ctx.STORE),false);
+  f.ctx.closeModal();f.ctx.openModal({t:'execution-report',id:'B'});assert.equal(f.ctx.UI.modal.pendingRequest,undefined);
+});
+test('reopening another actor/client/epoch/store cannot inherit the previous session report',async()=>{
+  for(const kind of ['user','client','epoch','store']){const f=fixture();realDialogs(f);const job=f.run();f.queue.resolve();await tick();f.write.reject(new Error('UNCONFIRMED'));await job;
+    f.ctx.closeModal();change(f,kind);f.ctx.openModal({t:'execution-report',id:'B'});assert.equal(f.ctx.UI.modal.pendingRequest,undefined,kind);assert.equal(f.ctx.UI.modal.qtyDraft,undefined,kind);}
+});
+test('queued but never dispatched reports do not create a hidden retry; known rejection removes a dispatched record',async()=>{
+  const queued=fixture();realDialogs(queued);const qjob=queued.run();queued.ctx.closeModal();queued.queue.resolve();queued.write.resolve();await qjob;assert.equal(queued.ctx.executionRetries.has(queued.ctx.STORE),false);
+  for(const flag of ['rejected','conflict']){const f=fixture();realDialogs(f);const job=f.run();f.queue.resolve();await tick();f.ctx.closeModal();f.write.reject(Object.assign(new Error('KNOWN'),{[flag]:true}));await job;
+    assert.equal(f.ctx.executionRetries.has(f.ctx.STORE),false,flag);f.ctx.openModal({t:'execution-report',id:'B'});assert.equal(f.ctx.UI.modal.pendingRequest,undefined,flag);}
+});
+test('beforeunload warns about an unresolved report even after its dialog closes',async()=>{
+  const f=fixture();realDialogs(f);const job=f.run();f.queue.resolve();await tick();f.write.reject(new Error('UNCONFIRMED'));await job;f.ctx.closeModal();
+  Object.assign(f.ctx,{syncPending:0,addEventListener:(_,handler)=>f.ctx.unload=handler});const at=source.indexOf('addEventListener("beforeunload"');vm.runInContext(source.slice(at,source.indexOf('\n',at)),f.ctx);
+  let prevented=false;f.ctx.unload({preventDefault:()=>prevented=true});assert.equal(prevented,true);
+});
+test('actual completed-report rendering still offers original-ID reconciliation, never a new quantity or finish action',()=>{
+  const f=fixture();Object.assign(f.ctx,{MODALS:{},order:()=>({code:'O'}),stepName:()=> '裁切',mdw:x=>x,hm:x=>x,esc:x=>String(x??''),reportStatus:()=> '已回報完成',executionOf:()=>({status:'done',qtyDone:25})});
+  const at=source.indexOf("MODALS['execution-report']=");vm.runInContext(source.slice(at,source.indexOf('async function reportWork(',at)),f.ctx);
+  const html=f.ctx.MODALS['execution-report']({...f.m,pendingRequest:{id:'original'}});assert.match(html.foot,/重試上一筆回報/);assert.doesNotMatch(html.foot,/data-v="(?:start|quantity|finish)"/);
 });
 test('late report ACK cannot reload, close a new draft, clear new undo or announce success',async()=>{
   for(const kind of changes){const f=fixture(),job=f.run();f.queue.resolve();await tick();change(f,kind);const modal=f.ctx.UI.modal;f.ctx.undoStack=['new-draft'];f.write.resolve();await job;

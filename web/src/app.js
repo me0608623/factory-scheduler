@@ -17,6 +17,7 @@ import { applySort, sortTh, sortBar, TF_SORT, RUSH_SORT, WL_SORT } from './table
 import { markOf, setMark, markRowAttrs, markBtns, MARK_COLORS, changeMarkColor } from './table-marks.js';
 import { schedZoomState, loadSchedZoom, setZoom, setWheelZoom, SZOOM_STEP, captureZoomAnchor, anchorScroll, rafApply } from './szoom.js';
 import { executionOf, canReport, assertExecutionProtected } from './execution.js';
+import { ExecutionRetries } from './execution-retries.js';
 import { workCatalog,assignments,occupiedWork,assignmentIssues,validateGeneralWork } from './general-work.js';
 import { newNav, navPush, navBack, opKey, suggestList, impactList, dueList, opDetail, dueDetail, boardTarget } from './preview-nav.js';
 import { capturePreviewContext, restorePreviewContext } from './preview-context.js';
@@ -43,6 +44,7 @@ const COLORS=["#FFE14D","#4CDB6E","#F58CF0","#4FE3EE","#FFA64D","#AFC0FF","#FF9A
 const PROCS=["裁切","沖壓","焊接","組裝","包裝"];
 const processNames=()=>[...new Set([...S.machines.map(m=>m.proc),...S.products.flatMap(p=>p.steps.map(s=>s.proc)),...workCatalog(S).map(w=>w.name)])].filter(Boolean);
 const DAY0=480, LUNCH_S=720, LUNCH_E=780, REG_END=1020, DAY1=1200, HORIZON=60;
+const executionRetries=new ExecutionRetries();
 // 台灣國定假日（依行政院人事行政總處公告，請每年核對）
 const HOLI={"2026-01-01":"元旦","2026-02-16":"春節","2026-02-17":"春節","2026-02-18":"春節","2026-02-19":"春節","2026-02-20":"春節",
 "2026-02-27":"和平紀念日補假","2026-02-28":"和平紀念日","2026-04-03":"兒童節補假","2026-04-04":"兒童節","2026-04-05":"清明節","2026-04-06":"清明節補假",
@@ -1777,6 +1779,10 @@ function modalFocusFromToken(root,token){
 }
 function openModal(m){
   if(UI.modal!==m)cancelPlanCalculation();
+  if(m.t==='execution-report'){
+    const pending=executionRetries.get(STORE,m.id);
+    if(pending)m={...m,...pending,error:tx(UI.executionSaving?'回報處理中；關閉視窗不會取消已送出的回報。':'尚未確認儲存這筆回報；請按「重試上一筆回報」，不要另送新的一筆。')};
+  }
   if(!UI.modal){
     const active=document.activeElement;
     modalReturnFocus=active instanceof HTMLElement&&active!==document.body?active:null;
@@ -3455,7 +3461,7 @@ function sideHealthHTML(){
 function updateSyncChip(){const el=$("#syncchip");if(el)el.outerHTML=syncChipHTML();const side=$(".side-health");if(side)side.outerHTML=sideHealthHTML();}
 let syncChain=Promise.resolve(),syncPending=0,syncEpoch=0,lastSyncState='ok';
 // 同步進行中關閉分頁＝靜默丟失變更：離開前提示（僅在真的有寫入在途時）
-addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state==="busy"||UI.leaveBrushSaving||UI.memoSaving||UI.directSaving||UI.executionSaving||UI.scenarioSaving){e.preventDefault();e.returnValue="";}});
+addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state==="busy"||UI.leaveBrushSaving||UI.memoSaving||UI.directSaving||UI.executionSaving||UI.scenarioSaving||executionRetries.has(STORE)){e.preventDefault();e.returnValue="";}});
 function queueSync(entry){
   if(STORE.kind==='supabase'&&!STORE.session?.user?.id){changedWriteSession();return Promise.resolve(false);}
   const snapshot=structuredClone(S),epoch=syncEpoch,activeStore=STORE,writer=STORE.session?.user?.id,authEpoch=STORE.authEpoch||0;
@@ -4624,7 +4630,7 @@ MODALS['execution-report']=m=>{
     (m.error?'<div class="issue" role="alert">'+esc(m.error)+'</div>':'')+
     (r&&r.status!=='done'?'<div class="field"><label for="execution-qty">'+tx('累計已做件數')+'</label><input class="inp" id="execution-qty" type="number" min="'+r.qtyDone+'" max="'+b.qty+'" step="1" value="'+esc(m.qtyDraft??r.qtyDone)+'"></div>':'')+
     (r?.status==='done'?'<div class="hint">已完成 '+r.qtyDone+' 件；相對原定差異 '+(r.qtyDone-b.qty)+' 件。此版不提供修改已完成回報。</div>':''),
-    foot:'<div class="work-report-actions">'+(allowed&&r?.status!=='done'?
+    foot:'<div class="work-report-actions">'+(allowed&&(m.pendingRequest||r?.status!=='done')?
       (m.pendingRequest?'<button class="btn danger" data-act="report-work" data-v="retry">'+tx('重試上一筆回報')+'</button>':
         '<button class="btn primary" data-act="report-work" data-v="start" '+(r?'disabled':'')+'>'+tx('開工')+'</button>'+
         '<button class="btn" data-act="report-work" data-v="quantity" '+(!r?'disabled':'')+'>'+tx('做了幾件')+'</button>'+
@@ -4647,7 +4653,7 @@ async function reportWork(button){
   m.pendingRequest ||= {id:uid(),blockId:b.id,action,qtyDone:qty,expectedRevision:r?.revision||0};
   m.reportOwner ||= {store:owner.store,client:owner.store.sb,user:owner.store.session?.user?.id,epoch:owner.store.authEpoch||0};
   m.qtyDraft=m.pendingRequest.qtyDone;m.error=null;m.busy=true;button.disabled=true;
-  const operation={};UI.executionSaving=operation;let dispatched=false;renderModal();
+  const request=m.pendingRequest,operation={};UI.executionSaving=operation;let dispatched=false;renderModal();
   const release=()=>{if(UI.executionSaving===operation)UI.executionSaving=null;};
   const reconcile=async success=>{
     m.busy=false;closeModal();release();
@@ -4658,11 +4664,12 @@ async function reportWork(button){
   try{
     await syncChain;if(!owner.current())return;
     if(SYNC.state!=='ok'){m.error=tx('班表尚未確認儲存，請先核對班表儲存狀態，再回報進度。');return;}
-    dispatched=true;await owner.store.reportExecution(m.pendingRequest);if(!owner.current())return;
+    executionRetries.remember(owner.store,request);dispatched=true;await owner.store.reportExecution(request);executionRetries.clear(owner.store,request);if(!owner.current())return;
     m.pendingRequest=null;m.reportOwner=null;delete m.qtyDraft;undoStack=[];
     await reconcile(tx('進度已保存'));
   }
   catch(e){
+    if(e.rejected||e.conflict)executionRetries.clear(owner.store,request);
     if(!owner.current())return;
     m.error=e.rejected||e.conflict?e.message:tx('尚未確認儲存這筆回報；請按「重試上一筆回報」，不要另送新的一筆。');
     if(e.rejected||e.conflict){m.pendingRequest=null;m.reportOwner=null;}

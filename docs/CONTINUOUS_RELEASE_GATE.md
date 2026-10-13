@@ -1,5 +1,16 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-14 05:44 checkpoint：未知 RPC 錯誤不丟失報工重試 ID
+
+- **05:49收尾（取代以下建置/PR待確認）**：Render auto new_commit **dep-db7acqugekts73dm4m50**於 **21:45:48.708Z live 81a4d26**；一般root HTTP200/CF HIT為新 **index-DdDmZZxQ.js**，真qa-lead普通reload後亦載入此bundle，初始化後10/14/1廠22段。依實際選單「更多→現場回報」開測試R10表單，僅查看再關閉，22段DOM id/label/text/style全部不變、browser error0；**未按開工/做了幾件/完工/確認/套用**。本地截图 **outputs/staging-report-open-only-20261014.png**已目視（未開始表單），只證明讀取/開啟相容，並非雲端同ID重試寫入實證；没有新增viewport或network override，不稱真手機/Safari。Render app error短窗21:45:48–21:46:52Z為0，非長期保證/Realtime復原。6tabs再次handoff，環境保留。
+- PR16兩套Tests **38472728769/38472735416**與smoke **38472728705/38472735340**全success；stage第三套Tests **38472936213**與smoke **38472936185**亦全success。兩PR仍draft，正式跨actor角色/真排程套用/autosync/offline409/VITE_TEST_*未全過，不合main/正式、不重啟nightly；此輪doc-only只推own，不再部署無runtime改變的服務。下一輪接續待確認ID關窗/帳號切換的最小重現，保留真SQL＋SDK且不觸碰1023。
+- 起點280fedd，開始已核對worktree/process/最新交接，僅既有dev可見，沒有其他本目錄modifier/deploy；普通merge最新main **1ce27d7→a321df9**（只22行他agent紀錄，保留）。正式1023/setup_pending/Auth/授權未動，無雲端報工或排程写入、無新明文artifact/log、無付費資源、無額外正式migration。
+- **81a4d263a656e6a5d3a4f9663ac5e0ed775e6f8d**：根因為`reportExecution`以任意非空error.code判定rejected，真SQL已提交但合成gateway回覆HTTP503/未知code時，實際app reportWork清掉pendingRequest/reportOwner。新增actual Supabase SDK矩陣＋PGlite真migration/SQL橋接SDK及實際handler兩測，修前 **5 PASS/2 RED**，不是stub SQL；修後聚焦 **30/30**、完整web cwd dot exit0/build **index-BsgSZ1Gn.js**。未知code/空code以及HTTP503的P0001/42501維持UnconfirmedWriteError，只有本RPC已知42501/P0001且相容4xx（真SQLadapter無status）確定拒絕，既有40001衝突語義保留。只改資料層，沿用現有重試提示，不自動重送。
+- 真SQL證明：第一次確已commit而回覆被合成503遮蔽，modal保留同ID/qtyDraft/待確認提示；本人explicit retry仍同ID、兩RPC只有 **1 event、revision1/version1**，原480–540/60件不變。真SQL超量P0001與viewer42501仍確定拒絕，不增第二event。合成gateway不是平台曾出現此code的證據；測試Auth/角色只在記憶體DB，**不是改隔離或正式帳號**。本轮沒有雲端寫入或真正跨actor同步/Safari驗收。
+- PR16先確認clean/localremote96c一致，普通merge來源為 **9be2f2037f35a93a6d282aca3c8fba9dec348e97**，完整web cwd dot exit0/build **index-bQdvkx6a.js**後push，保留原5檔105insert/3delete。兩PR仍draft，正式門檻未全過，沒有main合併/正式deploy/nightly重新啟用。
+- 來源Tests **38472527597/38472534646**與smoke **38472527659/38472534859**全success，CI真實 **web761/761、工具46/46**。全過後才驗ancestor並non-force FF stage f00→81a4，Render auto new_commit **dep-db7acqugekts73dm4m50**已開始建置，尚須核對live/root/功能；用Render deploy skill核對既有服務，不新建資源或變更env。PR16新Tests **38472728769/38472735416**尚跑、smoke **38472728705/38472735340**success，不能冒稱PR全綠。
+- 候選續查：未知結果關窗後pendingRequest僅在modal的生命週期，以及意外5xx帶40001的衝突分類，**本輪尚未修/驗，不宣稱全部錯誤與重開視窗皆已安全**。目前真正qa-lead普通root10/14/1廠有22測試段；第二tab同actor，不當第二帳號。6tabs與dev環境保留，10分鐘追蹤持續。
+
 ## 2026-10-14 05:28 checkpoint：情境讀取 owner／工廠日期／手機長名稱
 
 - **05:32收尾（取代下面最終CI/PR/stage待確認狀態）**：f00兩套Tests **38470467785/38470464606**與smoke **38470467297/38470464300**全success，真CI **web759/759、工具46/46**；全過才non-force FF stage d864→f00。Render new_commit **dep-db7a55tbedkc738ca53g**於 **21:29:16.833Z live f00cc7a**；普通root HTTP200/CF MISS、新 **index-Bc1F7c7Y.js**，真qa-lead重載普通/初始化後10/14/1廠22段。stage第三套Tests38470925467/smoke38470925445亦success。沒有clear cache/重複部署/env改動/solver更新/正式部署。
