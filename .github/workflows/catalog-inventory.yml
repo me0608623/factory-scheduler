@@ -12,7 +12,7 @@ jobs:
       - name: 下載最新備份
         run: |
           ARTIFACTS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?per_page=20" | \
+            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?per_page=100" | \
             jq -r '.artifacts[] | select(.name | startswith("db-backup-")) | select(.name | startswith("db-backup-encrypted-") | not) | .id' | head -1)
           if [ -z "$ARTIFACTS" ]; then echo "No backup artifact found"; exit 1; fi
           curl -s -L -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
