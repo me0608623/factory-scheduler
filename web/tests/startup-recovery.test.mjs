@@ -2,17 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
+import {createClient as realCreateClient} from '@supabase/supabase-js';
 import {modeUrl} from '../src/runtime-config.js';
 
 // Execute the actual entry point with explicit DOM/client boundaries mocked.
 const entry=readFileSync(new URL('../src/main.js',import.meta.url),'utf8').replace(/^import .*;\r?\n/gm,'');
-async function startup({mode='test',configError,bootError=new Error('SYNTHETIC_READ_FAILURE'),constructorError,localError,href='https://factory.example/?mode=test&view=catalog#access_token=PRIVATE',success=false}={}){
+async function startup({mode='test',configError,bootError=new Error('SYNTHETIC_READ_FAILURE'),constructorError,clientFactory,localError,href='https://factory.example/?mode=test&view=catalog#access_token=PRIVATE',success=false}={}){
   let clients=0,boots=0,reloads=0,focused=null;
   const elements=new Map([['app',{_html:'',set innerHTML(value){this._html=value;for(const [,id] of value.matchAll(/id="([^"]+)"/g))elements.set(id,{id,textContent:'',disabled:false,focus(){focused=id;}});},get innerHTML(){return this._html;}}]]);
   const loc=new URL(href);loc.reload=()=>{reloads++;};
   const context={URLSearchParams,location:loc,document:{getElementById:id=>elements.get(id)},modeUrl,
     RUNTIME:{mode,error:configError,url:'https://test.example',anon:'PUBLIC',authOptions:{}},tx:key=>key,console:{error:()=>{}},
-    createClient:()=>{clients++;if(constructorError)throw constructorError;return {};},
+    createClient:()=>{clients++;if(constructorError)throw constructorError;return clientFactory?clientFactory():{};},
     SupabaseStore:class {constructor(){this.kind='supabase';}},LocalStore:class{constructor(){if(localError)throw localError;this.kind='local';}},
     boot:async()=>{boots++;if(!success)throw bootError;}};
   vm.createContext(context);vm.runInContext(entry,context);await new Promise(resolve=>setImmediate(resolve));
@@ -38,6 +39,9 @@ test('real asynchronous cloud startup rejection reaches recovery without a demo 
 test('synchronous client initialization errors also reach recovery',async()=>{
   const h=await startup({constructorError:new Error('SYNTHETIC_CLIENT_FAILURE')});
   assert.equal(h.boots(),0);assert.equal(h.elements.get('startup-error').textContent,'SYNTHETIC_CLIENT_FAILURE');
+  // Real SDK URL validation throws before making any network request.
+  const sdk=await startup({clientFactory:()=>realCreateClient('invalid-url','PUBLIC')});
+  assert.equal(sdk.boots(),0);assert.match(sdk.elements.get('startup-error').textContent,/Invalid supabaseUrl/);assert.ok(sdk.elements.get('startup-retry'));
 });
 
 test('local initialization errors have retry, not a misleading production exit',async()=>{

@@ -37,8 +37,12 @@
 - main將constructor及boot納入async start的同一錯誤界線；錯誤頁有「重新整理後再試」按鈕，保留同網址／模式，連點只觸發一次reload並disabled。僅test模式顯示測試標示與明確「回正式資料」次入口，使用modeUrl去mode與auth hash，保留path/view；production/local錯誤不再用誤導的「回正式資料」代替retry。錯誤用textContent且null-safe、role=alert，初始焦點在retry；長字串overflow-wrap:anywhere。新增文案en/vi/th完整，不改班表、抽屜或日週切換。
 - 新7項全通過，聚焦 **28/28**，全web **466/466**、build通過（原chunk警告保留）。Impeccable detector一次發現7個styles.css既有其他介面border/transition警告，與本輪單行overflow-wrap無關，不越域重新設計它們；main/i18n無新警告。
 - 本機真正瀏覽器 http://127.0.0.1:5202/?mode=test&view=catalog 以未設定測試連線的fail-closed路徑呈現錯誤：桌面Enter及手機390×844實際click retry均重新載入並保持mode=test/view=catalog，沒有建立雲端client或改任何資料。手機兩入口44px／中心命中，無頁面水平溢出；桌面48px／命中，Tab到退出link、Shift+Tab回retry，初始焦點正確。此案例缺設定故重試後仍報相同錯誤，**不是**成功復原雲端連線、HTTP200畸形RPC負向E2E或真機Safari。
-- 桌面computed樣式對比：error約7.24、retry約7.36、exit約6.64（精確數值以本轮工具計算為準），大於4.5；截圖 `outputs/startup-recovery-mobile-20261013.png`、`outputs/startup-recovery-desktop-20261013.png` 保存在本機，不新增公開身份資料artifact。viewport已reset，local QA與原staging session均markHandoff；5202專屬dev server保留。
+- 桌面computed樣式對比（工具依實際RGB計算）：error **5.87**、retry **7.38**、exit **6.34**，大於4.5；截圖 `outputs/startup-recovery-mobile-20261013.png`、`outputs/startup-recovery-desktop-20261013.png` 保存在本機，不新增公開身份資料artifact。viewport已reset，local QA與原staging session均markHandoff；5202專屬dev server保留。
 - 同SHA CI／staging部署尚待核對，PR16/18不合入正式，nightly仍維持停用至加密main發布；Codex10分鐘追蹤持續ACTIVE。下一步同SHA CI綠後僅更新既有staging web，驗普通root既有qa-lead班表、test模式retry，再安全同步PR16。第二帳號密碼設定信仍未有同意，不寄信／猜密碼。
+- runtime修正 **8ffa475d59b6e05e10f89b374c115ace16bdc2ca** 已推；Tests **38387910616／38387905785** frontend/database/solver三job全success，smoke **38387910610／38387905770**success。PR16工作樹乾淨、remote568ce40一致，僅既有vite/esbuild dev server而無modifier後普通merge **1451cff7b9fe22dd759cf4d5b599630e1c44e9c5** 已推，原3項實作/測試差異保留；Tests **38388107392／38388102276**及smoke **38388107553／38388103010**全success。未合main／正式部署。
+- 補強同一constructor測試：使用真正@supabase/supabase-js的createClient('invalid-url','PUBLIC') URL驗證同步拋錯，實際main仍呈現error與retry、boot未呼叫；没有建立合法client或發網路請求。此test-only補強本機7/7通過，未改已驗runtime；其後文件/測試提交仍須自身CI核對，不能用8ffa的綠燈冒稱最新SHA全部綠。
+- CI全過後既有staging來源分支已安全fast-forward **5476→8ffa475**；Render實查 **autoDeploy=yes／autoDeployTrigger=commit**。最新部署仍 **dep-db70mojrjlhs739hte6g／5476 live**，尚未看到新部署。依目前Render工具規則，autoDeploy服務push後不得再觸發重複手動deploy，因此這輪未手動觸發、未清cache／改自動部署設定；source branch新版本不等於已live。後續核對自動部署或其未觸發的具體原因，本輪只能交付本機功能驗收＋CI，不能宣稱staging已含retry。solver不重複部署，沒有環境變數／付費資源變動。
+- 最新main **11c7d9c** 相較已整合1e019只改另一agent的DEFECT_HUNT_REPORT／OVERNIGHT_PROGRESS，無新runtime；只讀核對，不為文件變化重部署服務。下輪先核對8ffa自動部署狀態與最新test-only CI，再查故障頁是否沿用語言/字體/主題偏好（目前僅來源顯示preferences在cloud讀取後載入，**未實測，不當已確認缺陷**），以及真正排程套用／兩端驗收缺口。持續追蹤不因本輪修完停止。
 
 #### 2026-10-13 18:22 heartbeat／18:58覆核：雲端快照契約與基準防護
 
