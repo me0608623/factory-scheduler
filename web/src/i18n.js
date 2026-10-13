@@ -11,6 +11,10 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "正在保存情境；關閉視窗不會取消已送出的保存。": {en:"Saving the scenario. Closing this dialog does not cancel a submitted save.",vi:"Đang lưu tình huống. Đóng cửa sổ không hủy yêu cầu đã gửi.",th:"กำลังบันทึกสถานการณ์ การปิดหน้าต่างไม่ยกเลิกคำขอที่ส่งแล้ว"},
+  "情境保存結果待核對；請查看保存的情境，或用相同名稱重試同一筆。": {en:"Scenario save is unconfirmed. Check saved scenarios, or retry the same entry with the same name.",vi:"Chưa xác nhận kết quả lưu. Kiểm tra tình huống đã lưu hoặc thử lại cùng mục với cùng tên.",th:"ยังไม่ยืนยันผลการบันทึก ตรวจสอบสถานการณ์ที่บันทึกหรือส่งรายการเดิมด้วยชื่อเดิมอีกครั้ง"},
+  "情境已保存在這台裝置，班表沒有改變": {en:"Scenario saved on this device; the schedule is unchanged",vi:"Đã lưu tình huống trên thiết bị này; lịch không thay đổi",th:"บันทึกสถานการณ์บนอุปกรณ์นี้แล้ว ตารางงานไม่เปลี่ยนแปลง"},
+  "情境已保存，正式班表沒有改變": {en:"Scenario saved; the live schedule is unchanged",vi:"Đã lưu tình huống; lịch chính thức không thay đổi",th:"บันทึกสถานการณ์แล้ว ตารางงานจริงไม่เปลี่ยนแปลง"},
   "已確認完工（已存在這台裝置）": {en:"Completion confirmed and saved on this device",vi:"Đã xác nhận hoàn thành và lưu trên thiết bị này",th:"ยืนยันงานเสร็จและบันทึกบนอุปกรณ์นี้แล้ว"},
   "正在更新完工確認；關閉視窗不會取消已送出的確認。": {en:"Updating completion confirmation. Closing this dialog does not cancel a submitted confirmation.",vi:"Đang cập nhật xác nhận hoàn thành. Đóng cửa sổ không hủy yêu cầu đã gửi.",th:"กำลังอัปเดตการยืนยันงานเสร็จ การปิดหน้าต่างไม่ยกเลิกคำขอที่ส่งแล้ว"},
   "已確認完工（已存到資料庫）": {en:"Completion confirmed and saved to the database",vi:"Đã xác nhận hoàn thành và lưu vào cơ sở dữ liệu",th:"ยืนยันงานเสร็จและบันทึกในฐานข้อมูลแล้ว"},

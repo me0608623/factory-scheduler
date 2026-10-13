@@ -219,8 +219,11 @@ export class SupabaseStore {
   }
   async saveScenario(item) {
     const client=this.sb,assertOwner=this.requestOwnerGuard();
-    const {data,error}=await assertOwner.authorize(client.rpc('save_planning_scenario',{p_id:item.id,p_name:item.name,p_payload:item.payload}));assertOwner();
-    if(error)throw new Error('保存情境失敗：'+error.message);return data;
+    const id=item.id;
+    const {data,error}=await assertOwner.authorize(client.rpc('save_planning_scenario',{p_id:id,p_name:item.name,p_payload:item.payload}));assertOwner();
+    if(error)throw new Error('保存情境失敗：'+error.message);
+    if(typeof data!=='string'||!receiptBlock(data,id))throw new UnconfirmedWriteError('情境保存結果待核對；請查看保存的情境，或用相同名稱重試同一筆。');
+    return data;
   }
   async reportExecution(request) {
     const client=this.sb,assertOwner=this.requestOwnerGuard();
