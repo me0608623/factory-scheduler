@@ -30,6 +30,20 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 16:00 台灣時間：即時通道狀態修復與登入阻礙
+
+- 本輪07:32 heartbeat執行中又收到07:52 heartbeat，仍在同一工作目錄接續，沒有並行第二份修改／部署。工作區開始乾淨，只有本輪PowerShell命令在此目錄。
+- Chrome既有分頁沒有staging帳號session；新開staging頁仍登入畫面。IAB tab15保留qa-lead session。沒有讀舊SQL密碼、猜密碼、改角色或密碼；已詢問是否同意寄設定信至既有me0608623+test-lead@gmail.com，**待人類回覆，尚未寄信**。Chrome tab1703573242留作登入handoff；不是第二帳號已驗收。
+- 真實缺陷最小重現：新SDK mock＋真SupabaseStore訂閱測試修前4/4失敗（狀態callback根本未註冊）。修復runtime **291233d77680aaaccd825afb61764a54be35b17c**：報CONNECTING／SUBSCRIBED／CHANNEL_ERROR／TIMED_OUT／CLOSED；Postgres system error即使channel join成功仍降級，直到stream ok；新訂閱／登出先失效舊回呼，不讓過期狀態或資料事件干擾新工作階段。原始連線錯誤不輸出，沒有改DB或授權。
+- UI分開「雲端已儲存」與「即時已連線／即時連線中／即時更新中斷」，寫入busy/error優先；本機沿用原提示。點中斷提示只說明完成目前操作後重新整理，**沒有新增自動reload／輪詢，也沒有覆蓋草稿、預覽或未儲存資料**。重連補漏讀取尚待後續安全實作與驗收，不冒稱已解決跨端資料新鮮度。
+- 291233d新增9回歸全通過；原layout-regression源碼簽章斷言因subscribe新增參數誤判（非產品問題），換成真Store重複訂閱／登出移除通道執行期測試。全web **428/428**、工具26/26、build與Tests **38364764879**／smoke **38364764715**成功。
+- 同SHA CI後non-force FF staging分支，只更新既有web。repo hooks仍0、舊deploy仍410d314才手動deploy **dep-db6u5iks728c73f0f3k0**，07:51:01Z live291233d。真IAB登入bundle **index-BHO4Rv3r.js**；沒有額外收費、沒有部署正式Render、solver仍2cde149。
+- 真實staging本次明確顯示 **雲端已儲存／即時更新中斷**；本輪沒有模擬斷網或讀JWT／私密key，這是SDK實際訂閱回報。callback狀態不足以斷言是哪個平台根因。点击提示說明正確，當日19段id/text/style保持一致。手機390×844可操作，按鈕44px，warn字色rgb(154,91,0)／底rgb(247,248,250)。不是iPhone Safari測試；另一端同步仍未通過。
+- 截圖工具在連續set/reset viewport同call時輸出過異常縮圖，不能拿它當手機證據；DOM已核實手機布局，桌面reset後分開call fullPage截圖可用：**outputs/staging-realtime-disconnected-desktop-verified-20261013.jpg**。mobile檔不作交付證據。
+- 桌面完整截圖抓到另一顯示不一致：sidebar仍「雲端已同步」。已修 **fcd9d2e5e3cfb666f8a9c7e832ebeb95267a4a8e**，sidebar和top共用syncStatusView，updateSyncChip兩處都更新，警告圓點不再綠；補1真renderer回歸。全web **429/429**、工具26/26、build、Tests **38366477082**／smoke **38366477247**均成功。CI後FF staging分支、hooks=0且無自動deploy才手動更新，**dep-db6ucejl550s73a5a7a0**於08:05:41Z live fcd9d2e。
+- 抓到部署快取差異：08:08Z canonical root仍CF-Cache-Status=HIT／Age112／舊asset index-BHO4Rv3r.js；同host單次cache-bust `?release=fcd9d2e`是MISS／新asset **index-6NbuiVNe.js**。正常部署不重複clear build cache，這不是程式沒編入。新URL真qa-lead登入已實測top與sidebar同時「即時更新中斷」，證據 **outputs/staging-realtime-status-final-20261013.jpg**。**canonical首頁快取刷新仍需下一輪核對**，不把API live冒稱所有一般網址已新版本。沒有改任何CDP網路設定，也沒有平台環境／資料寫入。
+- 下一步先核對canonical root新asset／sidebar一致；若使用者同意寄信，僅測試站寄信並由其本人設定、登入。未回覆不重問未知密碼；繼續安全探索remote reload timer競爭及丟失草稿／預覽的最小重現。PR16/18未合併；與最新main普通merge時阻擋新的真實request明文artifact；加密nightly尚未進main、舊367614493仍disabled_manually。0037已完成、正式1023不動、10分鐘追蹤ACTIVE。
+
 #### 2026-10-13 15:30 台灣時間：手機抽屜Major修復完成
 
 - runtime **410d314e642443a31c584a73ccf7e24b2b831494**：把手機取消／套用置於抽屜固定底列，抽屜內容獨立捲動；收合後仍保留底列。桌面只顯示原頂部入口。沿用既有pv-cancel／pv-apply完整驗證，不新增儲存路徑；不改主要機台×時間班表、日週切換或午休加班背景。
