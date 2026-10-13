@@ -49,6 +49,7 @@ const HOLI={"2026-01-01":"元旦","2026-02-16":"春節","2026-02-17":"春節","2
 "2026-05-01":"勞動節","2026-06-19":"端午節","2026-09-25":"中秋節","2026-09-28":"教師節","2026-10-09":"國慶日補假","2026-10-10":"國慶日",
 "2026-10-25":"光復節","2026-10-26":"光復節補假","2026-12-25":"行憲紀念日","2027-01-01":"元旦"};
 const WD="日一二三四五六";
+const WEEK_LABELS=["週日","週一","週二","週三","週四","週五","週六"];   // 查表給 tx() 用（避免複合鍵）
 const $=(s,r=document)=>r.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const pad=n=>String(n).padStart(2,"0");
@@ -1580,33 +1581,8 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case 'execution':openModal({t:'execution'});break;
     case 'report-open':openModal({t:'execution-report',id});break;
     case 'report-work':reportWork(a);break;
-    case 'exec-confirm':{
-      if(!canPermission('execution.manage')){toast('只有老闆或組長可以確認完工');break;}
-      const r=(S.execution||[]).find(x=>x.blockId===a.dataset.id);
-      if(!r||r.status!=='done'){toast(tx('這項工作還未報完工'));break;}
-      a.disabled=true;
-      // 只有伺服器確認成功才改畫面；失敗一律保持待確認，避免 ERP 匯出讀到沒存住的狀態
-      STORE.confirmExecution(a.dataset.id,true).then(async()=>{
-        await reloadFromStore();toast('已確認完工（已存到資料庫）');
-      }).catch(e=>{
-        a.disabled=false;
-        const pendingDb=DB_MIGRATION_PENDING.test(e.message||'');
-        toast(e.unconfirmed?tx(e.message):pendingDb?'沒存到：資料庫尚未更新（缺 0035），確認狀態保持待確認':'沒存到：'+e.message);
-      });
-      break;}
-    case 'exec-unconfirm':{
-      if(!canPermission('execution.manage'))break;
-      const r=(S.execution||[]).find(x=>x.blockId===a.dataset.id);
-      if(!r)break;
-      a.disabled=true;
-      STORE.confirmExecution(a.dataset.id,false).then(async()=>{
-        await reloadFromStore();toast('已取消確認，回報仍保留');
-      }).catch(e=>{
-        a.disabled=false;
-        const pendingDb=DB_MIGRATION_PENDING.test(e.message||'');
-        toast(e.unconfirmed?tx(e.message):pendingDb?'沒存到：資料庫尚未更新（缺 0035），維持原確認狀態':'沒存到：'+e.message);
-      });
-      break;}
+    case 'exec-confirm':changeExecutionConfirmation(a,true);break;
+    case 'exec-unconfirm':changeExecutionConfirmation(a,false);break;
     case "group-edit":openModal({t:'staff-group',id});break;
     case "group-new":if(canGroups())openModal({t:'staff-group'});break;
     case "goto":zoomWheel.cancel();applyPinch.cancel();pinch0=null;pinchActive=false;UI.wkFit=false;UI.date=a.dataset.d;UI.view="day";render();window.scrollTo(0,0);break;
@@ -1864,11 +1840,11 @@ function renderModal(){
   const keep=root.querySelector(".overlay"),focusToken=keep&&root.contains(document.activeElement)?modalFocusToken(document.activeElement):null;
   const st=keep?keep.scrollTop:0;
   const importBusy=m.t==='import-preview'&&m.saving;
-  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!(m.planBusy||importBusy||m.t==='legacy-preview'&&m.saving||['memo-edit','leave-request'].includes(m.t)&&m.saving||m.t==='execution-report'&&m.busy||m.t==='legacy-history'&&m.loading)+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close"'+(importBusy?' disabled':'')+' aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
+  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!(m.confirmBusy||m.planBusy||importBusy||m.t==='legacy-preview'&&m.saving||['memo-edit','leave-request'].includes(m.t)&&m.saving||m.t==='execution-report'&&m.busy||m.t==='legacy-history'&&m.loading)+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close"'+(importBusy?' disabled':'')+' aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
   if(importBusy)root.querySelectorAll('input,select,textarea,button').forEach(el=>el.disabled=true);
   if(['memo-edit','leave-request'].includes(m.t)&&m.saving)root.querySelectorAll('input,select,textarea').forEach(el=>el.disabled=true);
   if(m.t==='execution-report'&&m.busy)root.querySelectorAll('input,select,textarea,button:not([data-act="close"])').forEach(el=>el.disabled=true);
-  if(m.planBusy)root.querySelectorAll('input,select,textarea,button:not([data-act="close"])').forEach(el=>el.disabled=true);
+  if(m.confirmBusy||m.planBusy)root.querySelectorAll('input,select,textarea,button:not([data-act="close"])').forEach(el=>el.disabled=true);
   const ov=$("#ov");ov.scrollTop=st;
   const cb=$("#cbx"),modal=ov.querySelector(".modal");
   const restore=modalFocusFromToken(modal,focusToken);
@@ -2005,7 +1981,7 @@ emp(m){
    '<div class="field"><span class="lab">'+tx('代表顏色')+'</span><div class="swatches">'+COLORS.map((c,i)=>'<button class="swatch" style="background:'+c+'" data-act="m-color" data-v="'+i+'" aria-pressed="'+(D.color===i)+'" aria-label="'+tx('顏色 {n}',{n:i+1})+'"'+(ro?' disabled':'')+'></button>').join("")+'</div></div>'+
    '<div class="field"><span class="lab">'+tx('會操作的機台')+'</span><div class="toggles">'+S.machines.filter(M=>factoryOf(M)===factoryOf(D)).map(M=>tg("m-skill",M.id,D.skills.includes(M.id),'<span class="num">'+esc(M.id)+'</span><small>'+esc(M.label)+'</small>',"",ro)).join("")+'</div></div>'+
    '<div class="field"><label for="f-max-machines">'+tx('同時最多顧幾台機台')+'</label><input class="inp num" type="number" min="1" max="100" step="1" id="f-max-machines" data-bind="maxMachines" value="'+(D.maxMachines||1)+'" '+(ro?"disabled":"")+'><div class="hint">'+tx('預設 1 台；只計算同時運轉的不同機台，不影響會操作的機台清單。')+'</div></div>'+
-   '<div class="field"><span class="lab">'+tx('固定每週可加班日')+'</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("m-ot-week",w,D.otWeekdays.includes(w),"週"+WD[w],"",ro)).join("")+'</div><div class="hint">'+tx('當天是否加班另由排程表開放；臨時意願可在當天的「加班設定」調整。')+'</div></div>'+
+   '<div class="field"><span class="lab">'+tx('固定每週可加班日')+'</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("m-ot-week",w,D.otWeekdays.includes(w),tx(WEEK_LABELS[w]),"",ro)).join("")+'</div><div class="hint">'+tx('當天是否加班另由排程表開放；臨時意願可在當天的「加班設定」調整。')+'</div></div>'+
    '<div class="field"><span class="lab">'+tx('請假（點日期切換，紅色 = 請假）')+'</span><div class="toggles">'+days+'</div></div>';
   const foot=ro?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':
    (m.id?'<button class="btn danger" data-act="m-emp-del">'+tx('刪除員工')+'</button>':'')+'<div class="spacer"></div><button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="m-emp-save">'+tx('儲存並自動調整')+'</button>';
@@ -2203,7 +2179,6 @@ MODALS.cal=m=>{
   const D=m.draft,ro=!canCalendar(),T=todayStr();
   const openD=d=>{const o=D.over[d];return o?o==="work":!!D.week[parseD(d).getUTCDay()];};
   const hol=Object.keys(HOLI).filter(d=>d>=T&&d<=addDays(T,120)).sort();
-  const WEEK_LABELS=["週日","週一","週二","週三","週四","週五","週六"];   // 查表避免 tx 複合鍵（終極棘輪）
   const body='<div class="field"><span class="lab">'+tx('每週固定上班的日子')+'</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("c-week",w,D.week[w],tx(WEEK_LABELS[w]),"",ro)).join("")+'</div></div>'+
    '<div class="field"><span class="lab">'+tx('接下來的國定假日（預設照常上班，只標示工資加倍）')+'</span><div class="result">'+
    (hol.map(d=>'<div class="rline" style="align-items:center"><span style="flex:1">'+mdw(d)+"　"+esc(HOLI[d])+'</span>'+tg("c-day",d,openD(d),openD(d)?tx('上班'):tx('停工'),"",ro)+'</div>').join("")||'<div class="empty">'+tx('近期沒有國定假日')+'</div>')+'</div></div>'+
@@ -3732,9 +3707,9 @@ MODALS['person-month']=m=>{
   }
   const days=monthDates(UI.date).filter(Boolean).filter(d=>d>=todayStr());
   return {title:tx("{name} 整月班表設定",{name:esc(E.name)}),body:
-    '<div class="hint">對象月份：'+UI.date.slice(0,7).replace('-',' 年 ')+' 月。勾「休假」的星期，整月都會設為休假；沒勾的代表上班（會取消那幾天已有的休假）。</div>'+
-    '<div class="field"><span class="lab">'+tx('這個月哪些星期休假')+'</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("pm-week",w,m.off.has(w),"週"+WD[w])).join("")+'</div></div>'+
-    (days.length?'<div class="hint">只會改 '+(days.length?md(days[0])+' ～ '+md(days[days.length-1]):'')+'（今天起，過去的紀錄不動）。當天已排工作的日期會先跳過，請到月曆點該日期逐一處理。</div>':'<div class="issue">'+tx('這個月今天之後沒有日期可設定。')+'</div>'),
+    '<div class="hint">'+tx('對象月份：{y} 年 {m} 月。勾「休假」的星期，整月都會設為休假；沒勾的代表上班（會取消那幾天已有的休假）。',{y:UI.date.slice(0,4),m:UI.date.slice(5,7)})+'</div>'+
+    '<div class="field"><span class="lab">'+tx('這個月哪些星期休假')+'</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("pm-week",w,m.off.has(w),tx(WEEK_LABELS[w]))).join("")+'</div></div>'+
+    (days.length?'<div class="hint">'+tx('只會改 {a} ～ {b}（今天起，過去的紀錄不動）。當天已排工作的日期會先跳過，請到月曆點該日期逐一處理。',{a:md(days[0]),b:md(days[days.length-1])})+'</div>':'<div class="issue">'+tx('這個月今天之後沒有日期可設定。')+'</div>'),
     foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="pm-save">'+tx('套用到這個月')+'</button>'};
 };
 Object.assign(MODAL_ACT,{
@@ -4539,6 +4514,29 @@ async function openScenarioList(){
   if(!canPermissionRaw('scenarios.manage'))return;openModal({t:'scenario-list',loading:true});const m=UI.modal;
   try{m.items=await STORE.listScenarios();}catch(e){m.error=e.message;}m.loading=false;if(UI.modal===m)renderModal();
 }
+async function changeExecutionConfirmation(button,confirmed){
+  if(!canPermission('execution.manage')||S.setupPending||PV||UI.executionSaving||UI.directSaving||UI.memoSaving||UI.leaveBrushSaving)return;
+  const r=(S.execution||[]).find(x=>x.blockId===button.dataset.id);if(!r||r.status!=='done')return;
+  if(SYNC.state==='error'){toast(tx('班表尚未確認儲存，請先核對班表儲存狀態，再回報進度。'));return;}
+  const owner=directWriteOwner(()=>!S.setupPending&&canPermission('execution.manage')),m=UI.modal,id=button.dataset.id,operation={};
+  UI.executionSaving=operation;button.disabled=true;if(m){m.confirmBusy=true;m.confirmError=null;renderModal();}
+  const release=()=>{if(UI.executionSaving===operation)UI.executionSaving=null;if(m)m.confirmBusy=false;};
+  try{
+    await syncChain;if(!owner.current())return;
+    if(SYNC.state!=='ok'){if(m)m.confirmError=tx('班表尚未確認儲存，請先核對班表儲存狀態，再回報進度。');return;}
+    await owner.store.confirmExecution(id,confirmed);if(!owner.current())return;
+    if(m)closeModal();release();
+    const result=await reloadFromStore({background:true});if(!owner.sameView()||UI.modal)return;
+    if(result==='applied'&&m?.t==='execution'){UI.modal=m;renderModal();}
+    toast(result==='applied'?tx(confirmed?(owner.store.kind==='local'?'已確認完工（已存在這台裝置）':'已確認完工（已存到資料庫）'):'已取消確認，回報仍保留'):tx('操作已保存；尚未讀到最新資料，請更新核對。'));
+  }catch(e){
+    if(!owner.current())return;
+    const pendingDb=DB_MIGRATION_PENDING.test(e.message||'');
+    const message=e.unconfirmed?tx(e.message):pendingDb?
+      (confirmed?'沒存到：資料庫尚未更新（缺 0035），確認狀態保持待確認':'沒存到：資料庫尚未更新（缺 0035），維持原確認狀態'):'沒存到：'+e.message;
+    if(m)m.confirmError=message;toast(message);
+  }finally{release();button.disabled=false;if(owner.sameView()&&UI.modal===m&&m)renderModal();maybeReload();}
+}
 MODALS['scenario-list']=m=>({title:tx('保存的試排情境'),body:
   '<div class="hint">'+tx('情境與正式班表分開保存，只供原本／調整後對照，不提供直接套用。雲端只列出此帳號保存的情境，最多 20 份。')+'</div>'+
   (m.loading?'<div class="hint">'+tx('讀取中…')+'</div>':m.error?'<div class="issue">'+esc(m.error)+'</div>':
@@ -4566,7 +4564,7 @@ async function viewScenario(id){
 }
 const reportingRole=()=>STORE.kind==='local'||canPermission('execution.manage')?'boss':STORE.role;
 const reportStatus=r=>!r?tx('尚未開始'):r.status==='done'?tx('已回報完成'):tx('進行中');
-MODALS.execution=()=>{
+MODALS.execution=m=>{
   const worker=reportingRole()==='worker';
   const blocks=S.blocks.filter(b=>b.date===UI.date&&inFactory(mach(b.m),UI.factory)&&(!worker||b.emp===STORE.employeeId)).sort((a,b)=>a.s-b.s);
   const ticket=(b,caption)=>{if(!b)return '<article class="worker-ticket empty"><span>'+caption+'</span><b>'+tx('沒有排定工作')+'</b></article>';
@@ -4577,11 +4575,15 @@ MODALS.execution=()=>{
   const managerBody=!worker?blocks.map(b=>{const r=executionOf(S,b.id);return '<article class="load-row"><b>'+esc((order(b.oid)?.code||'?')+' · '+stepName(b))+'</b>'+
       '<div class="hint">'+tx('{who} · {what} · 原定 {s}–{e} · {q} 件',{who:emp(b.emp)?.name||tx('未指定'),what:mach(b.m)?.label||b.m,s:hm(b.s),e:hm(b.e),q:b.qty})+'</div>'+
       '<div class="hint">'+reportStatus(r)+(r?' · 累計 '+r.qtyDone+' 件 · 差異 '+(r.qtyDone-b.qty)+' 件':'')+'</div>'+
-      (canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending?'<button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">'+tx('查看／回報進度')+'</button>':'')+'</article>';}).join(''):'';
+      (canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending?'<button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">'+tx('查看／回報進度')+'</button>':'')+
+      (r?.status==='done'?'<div class="hint">'+tx(r.confirmed?'已確認完工':'完工待確認')+'</div>'+(!S.setupPending&&canPermission('execution.manage')?
+        '<button class="btn" data-act="'+(r.confirmed?'exec-unconfirm':'exec-confirm')+'" data-id="'+esc(b.id)+'">'+tx(r.confirmed?'取消確認':'確認完工')+'</button>':''):'')+'</article>';}).join(''):'';
   return {title:tx('現場回報')+' · '+mdw(UI.date),body:
     '<div class="hint">'+tx('開始、做了幾件、完工都另外保存實際事實。完工少做的件數會回到未排工作，下一次重排會補足；不會悄悄改掉原定產能。')+'</div>'+
     (worker&&!STORE.employeeId?'<div class="issue">'+tx('帳號尚未綁定員工，請由管理員綁定後使用。')+'</div>':'')+
     (S.setupPending?'<div class="issue">'+tx('來源名冊與工時待確認，不能回報。')+'</div>':'')+
+    (m?.confirmBusy?'<div class="hint" role="status">'+tx('正在更新完工確認；關閉視窗不會取消已送出的確認。')+'</div>':'')+
+    (m?.confirmError?'<div class="issue" role="alert">'+esc(m.confirmError)+'</div>':'')+
     workerBody+managerBody+
     (!blocks.length?'<div class="hint">'+tx('這個日期與範圍沒有可回報的排班；待確認的原表文字不是正式工作方塊。')+'</div>':''),
     foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button>'};

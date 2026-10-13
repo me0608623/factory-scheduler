@@ -11,6 +11,14 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "已確認完工（已存在這台裝置）": {en:"Completion confirmed and saved on this device",vi:"Đã xác nhận hoàn thành và lưu trên thiết bị này",th:"ยืนยันงานเสร็จและบันทึกบนอุปกรณ์นี้แล้ว"},
+  "正在更新完工確認；關閉視窗不會取消已送出的確認。": {en:"Updating completion confirmation. Closing this dialog does not cancel a submitted confirmation.",vi:"Đang cập nhật xác nhận hoàn thành. Đóng cửa sổ không hủy yêu cầu đã gửi.",th:"กำลังอัปเดตการยืนยันงานเสร็จ การปิดหน้าต่างไม่ยกเลิกคำขอที่ส่งแล้ว"},
+  "已確認完工（已存到資料庫）": {en:"Completion confirmed and saved to the database",vi:"Đã xác nhận hoàn thành và lưu vào cơ sở dữ liệu",th:"ยืนยันงานเสร็จและบันทึกในฐานข้อมูลแล้ว"},
+  "已取消確認，回報仍保留": {en:"Confirmation removed; the report is retained",vi:"Đã hủy xác nhận; báo cáo vẫn được giữ",th:"ยกเลิกการยืนยันแล้ว รายงานยังคงอยู่"},
+  "已確認完工": {en:"Completion confirmed",vi:"Đã xác nhận hoàn thành",th:"ยืนยันงานเสร็จแล้ว"},
+  "完工待確認": {en:"Completion awaiting confirmation",vi:"Hoàn thành, chờ xác nhận",th:"งานเสร็จ รอการยืนยัน"},
+  "確認完工": {en:"Confirm completion",vi:"Xác nhận hoàn thành",th:"ยืนยันงานเสร็จ"},
+  "取消確認": {en:"Remove confirmation",vi:"Hủy xác nhận",th:"ยกเลิกการยืนยัน"},
   "班表尚未確認儲存，請先核對班表儲存狀態，再回報進度。": {en:"Schedule saving is unconfirmed. Check the schedule save status before reporting progress.",vi:"Chưa xác nhận lưu lịch. Kiểm tra trạng thái lưu lịch trước khi báo cáo tiến độ.",th:"ยังยืนยันการบันทึกตารางไม่ได้ ตรวจสอบสถานะการบันทึกตารางก่อนรายงานความคืบหน้า"},
   "完工確認結果待核對，請更新班表查看；不要重複送出。": {en:"Completion confirmation is unverified. Refresh the schedule to check; do not submit again.",vi:"Chưa xác minh kết quả xác nhận hoàn thành. Cập nhật lịch để kiểm tra; không gửi lại.",th:"ยังตรวจสอบผลการยืนยันงานเสร็จไม่ได้ อัปเดตตารางเพื่อตรวจสอบ อย่าส่งซ้ำ"},
   "回報處理中；關閉視窗不會取消已送出的回報。": {en:"Processing the report. Closing this dialog does not cancel a submitted report.",vi:"Đang xử lý báo cáo. Đóng cửa sổ không hủy báo cáo đã gửi.",th:"กำลังประมวลผลรายงาน การปิดหน้าต่างไม่ยกเลิกรายงานที่ส่งแล้ว"},
@@ -313,6 +321,8 @@ export const UI_TEXT = {
   "改": { en: "E", vi: "E", th: "E" },
   "存": { en: "S", vi: "S", th: "S" },
   "{n} 項調整": { en: "{n} changes", vi: "{n} thay đổi", th: "{n} การปรับ" },
+  "對象月份：{y} 年 {m} 月。勾「休假」的星期，整月都會設為休假；沒勾的代表上班（會取消那幾天已有的休假）。": { en: "Target month: {y}-{m}. Checked weekdays become leave for the whole month; unchecked means working (existing leave on those days is cancelled).", vi: "Tháng áp dụng: {y}-{m}. Thứ được tick sẽ nghỉ cả tháng; không tick là làm việc (hủy nghỉ những ngày đó).", th: "เดือนเป้าหมาย: {y}-{m} วันธรรมดาที่ติ๊กจะเป็นวันลาทั้งเดือน ที่ไม่ติ๊กคือทำงาน (ยกเลิกวันลาเดิมของวันเหล่านั้น)" },
+  "只會改 {a} ～ {b}（今天起，過去的紀錄不動）。當天已排工作的日期會先跳過，請到月曆點該日期逐一處理。": { en: "Only {a} – {b} changes (from today; past records stay). Days already scheduled are skipped — handle those one by one on the calendar.", vi: "Chỉ đổi {a} – {b} (từ hôm nay; dữ liệu quá khứ giữ nguyên). Ngày đã xếp việc sẽ bỏ qua — xử lý từng ngày trên lịch.", th: "เปลี่ยนเฉพาะ {a} – {b} (นับจากวันนี้ ข้อมูลเดิมไม่แตะ) วันที่จัดงานแล้วจะข้าม ให้ไปจัดทีละวันบนปฏิทิน" },
   "依工單工序列出尚未排入的件數及已回報短少；不是求解器不可行性證明。交接、空檔及物料仍須在安排預覽中檢查。": { en: "Lists unscheduled quantities and reported shortages by order step; not a solver infeasibility proof. Handoffs, gaps and materials still need checking in the placement preview.", vi: "Liệt kê số chưa xếp và thiếu theo công đoạn đơn hàng; không phải chứng minh bất khả thi của solver. Bàn giao, khoảng trống và vật liệu vẫn phải kiểm tra trong bản xem trước.", th: "แสดงจำนวนที่ยังไม่จัดและที่รายงานขาดตามขั้นตอนใบสั่ง ไม่ใช่บทพิสูจน์ว่าแก้ไม่ได้ การส่งต่อ ช่วงว่าง และวัสดุยังต้องตรวจในพรีวิวจัดงาน" },
   "情境與正式班表分開保存，只供原本／調整後對照，不提供直接套用。雲端只列出此帳號保存的情境，最多 20 份。": { en: "Scenarios are saved separately from the live schedule — for before/after comparison only, never applied directly. Cloud lists only this account's scenarios, up to 20.", vi: "Tình huống lưu riêng với lịch chính, chỉ để đối chiếu trước/sau, không áp dụng trực tiếp. Trên cloud chỉ liệt kê tình huống của tài khoản này, tối đa 20.", th: "แผนสำรองบันทึกแยกจากตารางจริง ใช้เทียบก่อน/หลังเท่านั้น ไม่นำไปใช้ตรง ๆ บนคลาวด์แสดงเฉพาะแผนของบัญชีนี้ ไม่เกิน 20" },
   "尚未開始": { en: "Not started", vi: "Chưa bắt đầu", th: "ยังไม่เริ่ม" },
@@ -527,8 +537,6 @@ export const UI_TEXT = {
   "開加班": { en: "Open OT", vi: "Mở tăng ca", th: "เปิดล่วงเวลา" },
   "調整加班": { en: "Adjust OT", vi: "Chỉnh tăng ca", th: "ปรับล่วงเวลา" },
   "排程": { en: "Schedule", vi: "Lịch", th: "ตาราง" },
-  "週六": { en: "Saturday", vi: "Thứ Bảy", th: "วันเสาร์" },
-  "週日": { en: "Sunday", vi: "Chủ Nhật", th: "วันอาทิตย์" },
   "平日": { en: "Weekday", vi: "Ngày thường", th: "วันธรรมดา" },
   " · 上班": { en: " · work day", vi: " · ngày làm", th: " · วันทำงาน" },
   " · 停工": { en: " · closed", vi: " · nghỉ", th: " · หยุดงาน" },
