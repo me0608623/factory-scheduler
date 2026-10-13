@@ -1591,7 +1591,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
       }).catch(e=>{
         a.disabled=false;
         const pendingDb=DB_MIGRATION_PENDING.test(e.message||'');
-        toast(pendingDb?'沒存到：資料庫尚未更新（缺 0035），確認狀態保持待確認':'沒存到：'+e.message);
+        toast(e.unconfirmed?tx(e.message):pendingDb?'沒存到：資料庫尚未更新（缺 0035），確認狀態保持待確認':'沒存到：'+e.message);
       });
       break;}
     case 'exec-unconfirm':{
@@ -1604,7 +1604,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
       }).catch(e=>{
         a.disabled=false;
         const pendingDb=DB_MIGRATION_PENDING.test(e.message||'');
-        toast(pendingDb?'沒存到：資料庫尚未更新（缺 0035），維持原確認狀態':'沒存到：'+e.message);
+        toast(e.unconfirmed?tx(e.message):pendingDb?'沒存到：資料庫尚未更新（缺 0035），維持原確認狀態':'沒存到：'+e.message);
       });
       break;}
     case "group-edit":openModal({t:'staff-group',id});break;
