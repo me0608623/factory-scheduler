@@ -258,3 +258,21 @@ test('輪127 查證：modal 掃描批次⑤新鍵三語有譯文（紀錄徽章/
   }
   I18N.lang = 'zh-TW';
 });
+
+test('輪129 查證：整月設定視窗鍵三語有譯文＋星期查表共用', async () => {
+  const fs = await import('node:fs');
+  const app = fs.readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
+  const cjk = /[\u4e00-\u9fff]/;
+  const keys = ['對象月份：{y} 年 {m} 月。勾「休假」的星期，整月都會設為休假；沒勾的代表上班（會取消那幾天已有的休假）。', '只會改 {a} ～ {b}（今天起，過去的紀錄不動）。當天已排工作的日期會先跳過，請到月曆點該日期逐一處理。'];
+  for (const lang of ['en', 'vi', 'th']) {
+    I18N.lang = lang;
+    for (const k of keys) {
+      const out = tx(k, { y: 2026, m: 11, a: '11/1', b: '11/30' });
+      assert.notEqual(out, k, `${lang} 缺譯`);
+      assert.ok(!cjk.test(out), `${lang} 譯文含中文：${out.slice(0, 30)}`);
+    }
+  }
+  I18N.lang = 'zh-TW';
+  assert.ok(app.includes('const WEEK_LABELS=['), 'WEEK_LABELS 須為模組層共用常數');
+  assert.ok(!app.includes('"週"+WD[w]'), '不得再有週+WD 複合字串');
+});
