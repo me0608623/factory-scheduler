@@ -27,7 +27,9 @@ async function setup() {
   const count = async (sql, p = []) => (await db.query(sql, p)).rows[0].n;
   return { db, store, count };
 }
-const blk = (o) => ({ id: crypto.randomUUID(), oid: A01, step: 0, m: "a", emp: E1, date: "2026-10-05", s: 480, e: 540, qty: 120, pin: false, ...o });
+// 日期一律相對今天（schedule_snapshot 視窗＝current_date-7～+90，寫死日期會讓測試在日期滾過後爆紅）
+const dayISO = n => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+const blk = (o) => ({ id: crypto.randomUUID(), oid: A01, step: 0, m: "a", emp: E1, date: dayISO(1), s: 480, e: 540, qty: 120, pin: false, ...o });
 
 test("登入：密碼錯誤、角色", async () => {
   const { store, db } = await setup();
@@ -72,7 +74,7 @@ test("老闆可把既有唯讀帳號逐項授權，不需更改職位", async ()
 
 test("請假詢問核准前不影響排程；備忘依權限寫入並出現在快照", async()=>{
   const {store}=await setup();const lead=await store('lead@x'),viewer=await store('tv@x');
-  const requestId=crypto.randomUUID(),date='2026-10-08';
+  const requestId=crypto.randomUUID(),date=dayISO(2);
   await lead.createLeaveRequest({id:requestId,employeeId:E1,date,note:'家中有事'});
   let snap=await lead.load();
   assert.equal(snap.leaveRequests.find(x=>x.id===requestId).status,'pending');
@@ -248,7 +250,7 @@ test("每週加班設定僅老闆可改，單日臨時意願組長可改", async
 
   const Tv = await store("tv@x");
   const T = await Tv.load();
-  T.employees.find(e => e.id === E1).otOverrides["2026-10-07"] = true;
+  T.employees.find(e => e.id === E1).otOverrides[dayISO(2)] = true;
   await assert.rejects(Tv.sync(T, null), /沒有權限修改「單日加班意願」/);
 });
 
@@ -257,12 +259,12 @@ test("套用排程服務的方案（apply_plan）", async () => {
   const lead = await store("lead@x");
   const S = await lead.load();
   const opt = { id: "A", name: "少動為主", summary: "測試方案", lines: [], blocks: [
-    { order_id: A01, step_seq: 0, machine_id: "a", employee_id: E1, date: "2026-10-05", start_min: 480, end_min: 540, qty: 120 }],
-    effects: { overtime_on: ["2026-10-05"] } };
+    { order_id: A01, step_seq: 0, machine_id: "a", employee_id: E1, date: dayISO(1), start_min: 480, end_min: 540, qty: 120 }],
+    effects: { overtime_on: [dayISO(1)] } };
   // 預覽就是方案套用後的畫面資料
   const A = applyOption(S, opt);
   assert.equal(A.blocks.length, 1);
-  assert.equal(A.dayOT["2026-10-05"], true);
+  assert.equal(A.dayOT[dayISO(1)], true);
   const pv = (await db.query("insert into plan_previews (kind,title,event,base_version,options) values ('auto','重新排程','{}',0,$1) returning id",
     [JSON.stringify([opt])])).rows[0].id;
   await lead.applyPlan(pv, "A", "備註", { pick: "A", reason: "少動" });
@@ -293,8 +295,8 @@ test("套用方案時排程已被別人更新 → 整份拒絕（版本衝突不
   const lead = await store("lead@x"), boss = await store("boss@x");
   const S = await lead.load();
   const opt = { id: "A", name: "少動為主", summary: "測試方案", lines: [], blocks: [
-    { order_id: A01, step_seq: 0, machine_id: "a", employee_id: E1, date: "2026-10-05", start_min: 480, end_min: 540, qty: 120 }],
-    effects: { overtime_on: ["2026-10-05"] } };
+    { order_id: A01, step_seq: 0, machine_id: "a", employee_id: E1, date: dayISO(1), start_min: 480, end_min: 540, qty: 120 }],
+    effects: { overtime_on: [dayISO(1)] } };
   const pv = (await db.query("insert into plan_previews (kind,title,event,base_version,options) values ('auto','重新排程','{}',0,$1) returning id",
     [JSON.stringify([opt])])).rows[0].id;
   // 預覽建立後、套用前，老闆先存了一版 → base_version 過期
