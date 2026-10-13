@@ -73,7 +73,7 @@
 - [ ] **0037 權限白名單補齊（main `16a6d86`）**：正式庫套用前「更多→權限管理→儲存權限」必失敗（前端 15 鍵 vs DB 13 鍵，四層不一致詳見輪 36）。套用＝GitHub Actions「套用資料庫 migration」workflow 選 `0037_permission_whitelist_complete.sql`（會先檢查最新備份）。staging 已套用並驗證
 - 附註：staging 測試帳號 test-lead 密碼已於輪 36 重設（與 test-viewer 同值，值見 staging SQL editor 片段歷史）；三測試帳號僅供測試
 
-- [ ] **備份 artifact 品質（輪 79）**：05:40 產出的 db-backup pg_restore 失敗（目錄非有效封存）——偶發或備份工作流回歸，下輪查 nightly-backup 日誌
+- [x] **備份 artifact 品質（輪 79 發現→輪 80 結案＝缺陷#18）**：兩層根因（演練加密檔撞名 db-backup- 前綴＋拾取分頁 20 被除錯 artifact 擠爆）皆修（aca4401）；不指定 artifact 的模擬驗收恢復 7/7 全綠
 
 ## 環境問題（需使用者留意的 Supabase staging Realtime 故障）
 

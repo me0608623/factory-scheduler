@@ -1119,3 +1119,14 @@
 - **驗證**：模擬驗收（還原真實備份＋migrations）**C1-C7 全過 PASS=7 FAIL=0**（修復前 1/7）；過程記事：最新備份 artifact（05:40 那份）pg_restore 失敗（目錄非有效封存）＝備份品質偶發問題，改用已知良好 artifact 驗證——已記待辦
 - **系列累計：17 個缺陷修復**；模擬驗收自 10-02 後首次回到全綠
 - **下輪**：CI on main 查證（6bdead5/5417808）＋備份 artifact 品質待辦＋維持模式
+
+### 缺陷探索輪 80（2026-10-14 14:30–15:40）——★修復第 18 缺陷：備份 artifact 拾取兩層根因（命名空間相撞＋分頁耗盡）；模擬驗收「不指定 artifact」路徑恢復全綠
+
+- **查證鏈**：壞 artifact（11791661615）＝`db-backup-encrypted-38352489633`——**備份還原演練（功能分支 codex/continuous-release-gate 的 encrypted-backup job）產出**，與 nightly 純文字備份同 `db-backup-` 前綴；加密檔 pg_restore 直接「not a valid archive」
+- **修復兩層（main `57a29f9`→`9127caf`→`aca4401`）**：
+  1. 四個拾取 workflow（模擬驗收/盤點/演練/權限演練）排除 `db-backup-encrypted-*`——第一版用 jq test() 負向前瞻，**實測 runner jq 不匹配**（找不到備份）＝自己的修復引入新問題，隨即改雙 select 便攜寫法
+  2. **分頁耗盡（第二層根因）**：本日十餘次模擬驗收每次上傳 2 個 artifact，把純文字備份擠出 `per_page=20` 第一頁＝仍找不到；拾取分頁 20→100（含 apply-migration 顯示），per_page=100 下兩份純文字備份可見
+- **最終驗證**：不指定 artifact_id 的模擬驗收（真實「最新備份」路徑）＝**PASS=7 FAIL=0 全綠**（此前該路徑必失敗）；CI on aca4401 success
+- **教訓記錄**：① jq 可移植性——runner 的 test() 前瞻不可靠，用顯式雙 select ② 修復後必須走「真實路徑」驗證（第一版修復只改了條件沒驗證拾取結果）③ 高頻除錯執行的 artifact 上傳會擠掉備份分頁——拾取類 workflow 分頁要留餘裕
+- **系列累計：18 個缺陷修復**
+- **下輪**：維持模式（待辦監看：正式 0037、staging hook、Realtime ticket、PR #16）
