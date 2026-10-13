@@ -614,7 +614,7 @@ body.tv .blk .d{font-size:16px}
   .brand{font-size:17px;width:auto;margin-right:auto}
   .brand-mark{width:30px;height:30px}
   .top-main .factory-switch button{padding:0 11px;font-size:15px}
-  .top-status{width:auto;margin-left:auto}
+  .top-status{width:auto;max-width:100%;margin-left:auto;flex-wrap:wrap}
   .top-status .btn span.lbl{display:inline;max-width:150px;overflow:hidden;text-overflow:ellipsis}
   .datenav{width:100%}
   .iconbtn{width:44px;height:44px}
