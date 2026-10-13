@@ -30,6 +30,21 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 18:13 heartbeat：權限演練假綠與密文消費防護
+
+- 起點3c51519乾淨、無其他modifier／deploy；讀取所有指定交接，歷史fs-hunt尚稱0037未完成等內容不當成新授權。PR16的63d1609 Tests **38379664662／38379670951**三job全success，補核對完成結果；正式與staging資料／服務／環境变量不變，不重新套正式0037。
+- 真Bash回歸修前3失敗／1通過：SQL exit1被rows映射成成功0列；expect輸出私密actual；非預期錯誤直接印stderr。改共享permissions-drill.sh：psql強制ON_ERROR_STOP與-X，查詢失败QUERY_FAILED；真正成功0列與1列可區分；rejection分MATCHED／WRONG_ERROR／NO_ERROR／QUERY_FAILED，連線失敗不能冒充另一種SQL約束拒絕。expect只公開固定測試名稱，不印期待／原始回傳，必要setup與版本讀取失敗會中止，不吞錯後續跑。
+- 新增7項真Bash／workflow入口執行期回歸：正確0/1列、SQL/連線失敗、私密比較與stderr防洩、正確拒絕與無錯誤、setup/version失敗停止、帳號變數shell-local不外傳。Docker/SQL傳輸是明確mock，不冒稱已驗真Auth／跨端同步。
+- 沿途額外確認原演練廣泛revoke所有底線函式，會把唯讀snapshot invoker鏈一起鎖掉。新增PGlite跑全部真migrations並執行工作流實際grant/revoke SQL，修前**42501 permission denied for _snapshot_before_layout**；修後保留已由migrations明確授權的_snapshot_before_*，viewer能真正查schedule_snapshot，_guard_work_execution私有寫入guard仍無EXECUTE。這是副本授權模型修正，沒有變更正式ACL。初次SQL抽取與syntax block數量的測試程式有問題，已修正再取得上述功能實證；不把測試程式錯誤當產品bug。
+- permissions-drill改為指定同密文／encryptedOnly、不回退明文，沿用已驗catalog的ZIP白名單、真age解密／scope／24小時checksum／PG17 public還原；stdout/stderr/SQL全部在受限runner.temp、always清除本輪副本／身份檔，不上傳任何artifact。auth stub與人造grant模型僅作DB流程演練，**不是完整還原證明或真雲端角色验收**。
+- 備份05:40早於正式0037的06:11，因此只在拋棄式容器套repo0037以測目前15鍵／組長12預設，正式不重套。保留原A-I權限、覆寫、RLS、版本409、報工開始/件數/完工/確認及撤回檢查；補notes/rush/worklog鍵。取消確認RPC單獨驗成功，空plan_previews會建立僅副本的synthetic preview來驗viewer被拒，不再靜默SKIP；不把此preview當ORTools真方案套用。
+- 重要隱私補強：Actions會自動列GITHUB_ENV，不能只刪echo UUID；BOSS/LEAD/VIEWER改存受限accounts.sh，BASH_ENV只載入shell-local並export -n，沒有UUID進GITHUB_ENV/log。其值先驗UUID格式；所有報工fixture mutation都只在拋棄式容器，不更改測試cloud或正式名冊。原第三方／Actions worker metadata不是備份身份資料，不偽稱全log零UUID。
+- 工具 **46/46**（含8新真執行期／SQL測試）通過；18個實際workflow Bash區塊語法也通過。這輪沒有web/solver程式修改，前輪已驗449與build不重做，將以同SHA CI回歸後才dispatch密文11791661615的真PG17演練。CI／實際副本A-I結果待追加，未驗證前不宣稱全過；PR16/18仍draft、nightly仍停用，持續追蹤ACTIVE。
+- 修正提交 **e708d207b292f0de402b38a43363b5066a38fa51** 已推；Tests **38382027868／38382032425**（frontend/database/solver三job）與smoke **38382032403**全部success。同SHA後dispatch的真PG17 **38382362453** 使用密文11791661615，真正解密、完整public副本約束還原、隔離授權模型、A-I與always清理全部success：A45+B6+C3+D7+E6+F2+G7+H5+I17 = **98 PASS／0 FAIL**。D覆寫前後實際UPDATE及G synthetic preview拒絕都執行，沒有把顯示在runner腳本中的SKIP/FAIL分支文案誤當執行結果。
+- 這98項含真副本RPC commit與version持久化、stale-version拒絕、員工自己的開工/累計件數/完工及主管確認與撤回；只是本地PG17角色/GUC與auth stub，不是Supabase Auth登入、HTTP409 UI或手機/桌面跨帳號雲端同步，不解除正式發布門檻。workflow **artifacts=0**；log人工來源覆核只有Actions worker/checkout暫存UUID及第三方npm警告email，角色BOSS/LEAD/VIEWER未被列到env，無age私鑰或JWT模式。全原始query及恢復錯誤留在runner私密暫存並清理，不新增明文artifact。
+- 讀最新main **1e01947205fc0d07769a3a460c469e0705a87384**，相較先前0e60483僅docs/agent/OVERNIGHT_PROGRESS.md變動，正常merge保留另一agent紀錄，不重做或部署相同程式。後續文件/merge SHA不取代e708的功能驗收證據。
+- 持續探索新Major已用真SupabaseStore函式＋明確mock RPC重現：data={} 或 {error:'SYNTHETIC_INVALID_PAYLOAD'} 仍被接受為0員工/空班表，store.version由12變0、寫入baseline變空。首次探針把base誤當array而自身拋錯，已修探針後才確認accepted=true／baselineChanged=true；不是猜測。沒有任何雲端寫入或生產請求。**尚未修**；下一輪先補畸形object／缺欄／非安全version完整快照契約回歸，不因這輪全部測試綠而停下。修前需讀Impeccable harden指示，維持真正零列快照及本機首次使用相容，不能放寬cloud失敗防護。之後再驗environment-preserving重試介面及安全輪詢／登入門檻。
+
 #### 2026-10-13 17:50 heartbeat：加密資料盤點與公開輸出安全
 
 - 起點cb7edcb乾淨、沒有其他modifier／deploy程序；正式1023、0037、角色及測試資料皆不寫入。這輪沒有web/solver執行期修改，不重複部署Render，也不重做C1–C7或既有還原證明。
@@ -40,6 +55,11 @@
 - 沿途確認第三個私密輸出缺陷：age已正確解密但manifest JSON損壞時，原CLI會印出解密內容片段（真正age＋CLI測試修前失敗）。CLI改固定安全訊息，清除明文的既有防護仍驗證；export API保留私下caller錯誤。新增1項真正age回歸。工具**38/38**、web**449/449**與build全過；大chunk警告既有未改。
 - 密文artifact11791661615實查未過期（05:40:54Z建立），預定在同SHA CI綠後用它執行一次隔離catalog；不建立新明文備份、不讀正式DB。不把觸發workflow當還原成功，後續記錄run、各步與公開artifact內容。CI及實際PG17盤點結果待追加。
 - PR16/18仍draft，第二帳號與真正排程套用／跨端同步門檻仍缺，nightly仍disabled_manually，10分鐘Codex追蹤ACTIVE。下輪先核對本輪實證，再修permissions-drill密文相容與公開輸出，持續探索，不自行結案。
+- 修正提交 **7912a3d569d1ef2e59821012df0f650322fd0345** 已推；Tests **38379110463／38379115855**三job全success，smoke **38379115741** success。6個catalog Bash run區塊另以實際bundled Git Bash `bash -n`通過；這只作語法輔證，真SQL／CLI與以下真PG17才是功能證據。
+- 真隔離盤點 **38379527666** 使用同密文11791661615，下載、age解密與scope/checksum、新鮮度驗證、PG17 public還原、唯讀查詢、報告及always清理各step全部success。唯一公開artifact **11803036790**／catalog-inventory／942 ZIP bytes，下載實查只有inventory.md，29項統計且無原始代號、名稱、日期、排程／身份資料。副本顯示啟用產品0，缺漏站數0 **不能解讀成正式資料可排或OR-Tools通過**；這輪沒有核定資料／建立產品，也沒有碰正式1023。
+- 公開run log檢查：未出現age私鑰／JWT；模式掃描的3個UUID實查都是Actions worker或checkout暫存目錄，1個email為npm第三方公開棄用警告，非備份身份資料。查證時只顯示已遮罩的上下文，沒有把原始query stderr或解密資料追加到log。這是本run人工來源核對，不是聲稱所有歷史log無敏感資料；既有舊artifact/log保留。
+- 發現下輪必修的驗收假綠：permissions-drill D的原有rows()把docker/psql exit=1經grep -c及`|| true`轉成成功0列，預期RLS拒絕的0列斷言可能誤過。讀取原函式並在實際bundled Git Bash執行，僅mock docker回傳SYNTHETIC_SQL_FAILURE＋exit1，確實得到exit0／stdout0；沒有聯絡Docker或資料庫。首次嘗試一般Program Files Git Bash路徑不存在，改用現有hermes/git/bin/bash.exe才完成實證。**尚未修此函式，不dispatch permissions-drill**；下一輪須補QUERY_FAILED與真正0列的分辨回歸，連同密文及輸出隱私修復，不只刪除log文案。
+- PR16工作樹及remote均乾淨一致、無modifier，普通merge同步到 **63d1609232af222a00a19fbb93033a70d323cbb9** 已推，保留原banner對比與cloud-seed preflight；未force push、未合入main。Tests **38379664662／38379670951**目前in_progress，smoke **38379670925**success，下輪先核對完成結果，不冒稱最新PR16已全綠。舊nightly367614493本輪再次核對disabled_manually；不改正式/staging Render服務或環境变量。
 
 #### 2026-10-13 17:12 heartbeat：訂閱成功補漏讀取與雲端啟動失敗防護
 
