@@ -638,6 +638,10 @@ body.tv .blk .d{font-size:16px}
   .catalog-review{width:100%;max-width:none;min-height:calc(100dvh - 32px);margin:0}.catalog-review .cards{grid-template-columns:1fr}
   body.has-app-nav .toast{bottom:92px}
   body.has-app-nav #schedule-chat{bottom:92px}
+  /* A closed assistant must not intercept the sheet's calendar/report controls.
+     Keep an already-open conversation visible; the launcher returns on close. */
+  body:has(.ops-drawer) #schedule-chat:has(.chat-launch[aria-expanded="false"]){display:none}
+  .ops-drawer-h [data-act="drawer-zoom"],.ops-drawer [data-act="person-month"],.ops-drawer .people-pills button{min-width:44px;min-height:44px}
 }
 @media (max-width:360px){.datebox b{font-size:18px;white-space:nowrap}.datenav .btn{padding:0 9px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
