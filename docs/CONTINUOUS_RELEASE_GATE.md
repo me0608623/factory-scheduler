@@ -30,6 +30,16 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 15:30 台灣時間：手機抽屜Major修復完成
+
+- runtime **410d314e642443a31c584a73ccf7e24b2b831494**：把手機取消／套用置於抽屜固定底列，抽屜內容獨立捲動；收合後仍保留底列。桌面只顯示原頂部入口。沿用既有pv-cancel／pv-apply完整驗證，不新增儲存路徑；不改主要機台×時間班表、日週切換或午休加班背景。
+- 新增4項真函式執行＋HTML解析回歸（自動合法方案、手動／自動無效方案disabled、儲存中無可點動作、只讀情境不得套用）；原16項真handler測試含取消不寫入與連點只存一次仍通過。全web **419/419**、工具26/26、build成功；同SHA Tests **38362247865**（frontend/database跨層/solver）及smoke **38362244978**均成功。既有chunk及依賴警告未聲稱修復。
+- CI綠後non-force FF既有staging分支至410d314；repo hooks仍0且未出現自動deploy，才觸發既有staging web **dep-db6tq0rl550s73a3bj8g**。07:26:20Z live410d314，瀏覽器實際bundle **index-DAmlZZVm.js**。staging solver仍2cde149；沒有新增服務／費用、沒有部署正式Render。
+- 真qa-lead session／真OR-Tools三方案：**390×844**展開與收合底列兩鈕均48px高，中心elementFromPoint命中本按鈕，沒有被抽屜覆蓋；選最佳化→切2廠10/14→直接按新底列取消→回1廠10/12，19段id/label/text/style逐筆一致，preview消失，沒有按用這套。**844×390**橫向底列兩鈕48px／中心命中，Enter取消成功。桌面預覽底列display:none、原入口48px，取消成功。證據outputs/staging-mobile-preview-actions-20261013.png與staging-desktop-preview-actions-20261013.png。
+- Impeccable adapt限制本輪只修此觸達缺陷；一次detector報7個既有CSS警告，沒有新增同類規則，未擴成重設計。未做真機Safari、尚未端到端按新套用入口寫入或跨帳號同步；這些不能用enabled／已同步徽章冒充。
+- 接續優先：取得既有另一個已登入測試session（不讀／猜密碼），驗角色／真正套用／兩端同步與Realtime失效回饋；`store/supabase.js` subscribe未處理訂閱狀態，平台故障時無資料新鮮度降級，先重現再最小修正。再普通merge最新main／PR16整合，**移除新真實request公開artifact**但不刪使用者指定保留的舊artifact。加密nightly安全進main後才啟用367614493，目前實查仍disabled_manually。
+- 正式0037已完成，不再套用；1023與個人角色授權／setup_pending不動。PR16與PR18仍draft，發布門檻未全過。10分鐘追蹤ACTIVE，下一輪继续，不因本項驗收成功停止。
+
 #### 2026-10-13 約15:15 台灣時間更新（以下本段優先於舊輪次敘述）
 
 - 正式0037已由run38355345279安全提交；不重跑。新密文備份及真正完整還原、同SHA CI、交易內資料保護均通過。正式1023／Auth／個人權限／setup_pending未改。
