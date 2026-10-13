@@ -107,21 +107,18 @@ process.on("uncaughtException", (e) => {
 
 // ---------- solver（runner 上執行；失敗即整案失敗） ----------
 function solve(request) {
+  const safeRequest=anonymizeSolverRequest(request);
   if (process.env.SIM_DEBUG) {
-    const snap = request.snapshot || {};
-    console.error('[req] keys=' + Object.keys(request).join(',') + ' event=' + JSON.stringify(request.event).slice(0, 200));
-    console.error('[req] snapKeys=' + Object.keys(snap).join(','));
-    console.error('[req] now=' + JSON.stringify(request.now) + ' limit=' + request.time_limit);
-    for (const k of Object.keys(snap)) { const v = snap[k]; console.error('[req] ' + k + '=' + (Array.isArray(v) ? v.length : JSON.stringify(v).slice(0, 120))); }
-    console.error('[req] machines4=' + JSON.stringify((snap.machines || []).filter(m => ['f1e','f1b'].includes(m.id))));
-    console.error('[req] picked=' + JSON.stringify((snap.employees || []).filter(e => [E01,E02,E03].includes(e.id))).slice(0, 700));
+    console.error('[req] '+JSON.stringify({mode:safeRequest.mode||'plans',event:safeRequest.event?.type,
+      now:safeRequest.now,limit:safeRequest.time_limit,snapshot:safeSnapshotDebug(safeRequest.snapshot||{})}));
   }
   const child = spawnSync("uv", ["run", "--frozen", "python", "-m", "scripts.plan_stdio"], {
-    cwd: solverDir, input: JSON.stringify(anonymizeSolverRequest(request)), encoding: "utf8", timeout: 120000, maxBuffer: 32 * 1024 * 1024,
+    cwd: solverDir, input: JSON.stringify(safeRequest), encoding: "utf8", timeout: 120000, maxBuffer: 32 * 1024 * 1024,
   });
   if (child.error || child.status !== 0) throw new Error(`solver 失敗：${clean(child.error?.message || child.stderr?.slice(-400) || "exit " + child.status)}`);
   const out = JSON.parse(child.stdout);
-  if (process.env.SIM_DEBUG) console.error('[res] ' + JSON.stringify(out).slice(0, 800));
+  if (process.env.SIM_DEBUG) console.error('[res] '+JSON.stringify({issues:out.issues?.length,
+    options:out.options?.map(o=>({id:o.id,status:o.status,applicable:o.applicable,blocks:o.blocks?.length}))}));
   return out;
 }
 
