@@ -49,6 +49,7 @@ const HOLI={"2026-01-01":"元旦","2026-02-16":"春節","2026-02-17":"春節","2
 "2026-05-01":"勞動節","2026-06-19":"端午節","2026-09-25":"中秋節","2026-09-28":"教師節","2026-10-09":"國慶日補假","2026-10-10":"國慶日",
 "2026-10-25":"光復節","2026-10-26":"光復節補假","2026-12-25":"行憲紀念日","2027-01-01":"元旦"};
 const WD="日一二三四五六";
+const WEEK_LABELS=["週日","週一","週二","週三","週四","週五","週六"];   // 查表給 tx() 用（避免複合鍵）
 const $=(s,r=document)=>r.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const pad=n=>String(n).padStart(2,"0");
@@ -1980,7 +1981,7 @@ emp(m){
    '<div class="field"><span class="lab">'+tx('代表顏色')+'</span><div class="swatches">'+COLORS.map((c,i)=>'<button class="swatch" style="background:'+c+'" data-act="m-color" data-v="'+i+'" aria-pressed="'+(D.color===i)+'" aria-label="'+tx('顏色 {n}',{n:i+1})+'"'+(ro?' disabled':'')+'></button>').join("")+'</div></div>'+
    '<div class="field"><span class="lab">'+tx('會操作的機台')+'</span><div class="toggles">'+S.machines.filter(M=>factoryOf(M)===factoryOf(D)).map(M=>tg("m-skill",M.id,D.skills.includes(M.id),'<span class="num">'+esc(M.id)+'</span><small>'+esc(M.label)+'</small>',"",ro)).join("")+'</div></div>'+
    '<div class="field"><label for="f-max-machines">'+tx('同時最多顧幾台機台')+'</label><input class="inp num" type="number" min="1" max="100" step="1" id="f-max-machines" data-bind="maxMachines" value="'+(D.maxMachines||1)+'" '+(ro?"disabled":"")+'><div class="hint">'+tx('預設 1 台；只計算同時運轉的不同機台，不影響會操作的機台清單。')+'</div></div>'+
-   '<div class="field"><span class="lab">'+tx('固定每週可加班日')+'</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("m-ot-week",w,D.otWeekdays.includes(w),"週"+WD[w],"",ro)).join("")+'</div><div class="hint">'+tx('當天是否加班另由排程表開放；臨時意願可在當天的「加班設定」調整。')+'</div></div>'+
+   '<div class="field"><span class="lab">'+tx('固定每週可加班日')+'</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("m-ot-week",w,D.otWeekdays.includes(w),tx(WEEK_LABELS[w]),"",ro)).join("")+'</div><div class="hint">'+tx('當天是否加班另由排程表開放；臨時意願可在當天的「加班設定」調整。')+'</div></div>'+
    '<div class="field"><span class="lab">'+tx('請假（點日期切換，紅色 = 請假）')+'</span><div class="toggles">'+days+'</div></div>';
   const foot=ro?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':
    (m.id?'<button class="btn danger" data-act="m-emp-del">'+tx('刪除員工')+'</button>':'')+'<div class="spacer"></div><button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="m-emp-save">'+tx('儲存並自動調整')+'</button>';
@@ -2178,7 +2179,6 @@ MODALS.cal=m=>{
   const D=m.draft,ro=!canCalendar(),T=todayStr();
   const openD=d=>{const o=D.over[d];return o?o==="work":!!D.week[parseD(d).getUTCDay()];};
   const hol=Object.keys(HOLI).filter(d=>d>=T&&d<=addDays(T,120)).sort();
-  const WEEK_LABELS=["週日","週一","週二","週三","週四","週五","週六"];   // 查表避免 tx 複合鍵（終極棘輪）
   const body='<div class="field"><span class="lab">'+tx('每週固定上班的日子')+'</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("c-week",w,D.week[w],tx(WEEK_LABELS[w]),"",ro)).join("")+'</div></div>'+
    '<div class="field"><span class="lab">'+tx('接下來的國定假日（預設照常上班，只標示工資加倍）')+'</span><div class="result">'+
    (hol.map(d=>'<div class="rline" style="align-items:center"><span style="flex:1">'+mdw(d)+"　"+esc(HOLI[d])+'</span>'+tg("c-day",d,openD(d),openD(d)?tx('上班'):tx('停工'),"",ro)+'</div>').join("")||'<div class="empty">'+tx('近期沒有國定假日')+'</div>')+'</div></div>'+
@@ -3707,9 +3707,9 @@ MODALS['person-month']=m=>{
   }
   const days=monthDates(UI.date).filter(Boolean).filter(d=>d>=todayStr());
   return {title:tx("{name} 整月班表設定",{name:esc(E.name)}),body:
-    '<div class="hint">對象月份：'+UI.date.slice(0,7).replace('-',' 年 ')+' 月。勾「休假」的星期，整月都會設為休假；沒勾的代表上班（會取消那幾天已有的休假）。</div>'+
-    '<div class="field"><span class="lab">'+tx('這個月哪些星期休假')+'</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("pm-week",w,m.off.has(w),"週"+WD[w])).join("")+'</div></div>'+
-    (days.length?'<div class="hint">只會改 '+(days.length?md(days[0])+' ～ '+md(days[days.length-1]):'')+'（今天起，過去的紀錄不動）。當天已排工作的日期會先跳過，請到月曆點該日期逐一處理。</div>':'<div class="issue">'+tx('這個月今天之後沒有日期可設定。')+'</div>'),
+    '<div class="hint">'+tx('對象月份：{y} 年 {m} 月。勾「休假」的星期，整月都會設為休假；沒勾的代表上班（會取消那幾天已有的休假）。',{y:UI.date.slice(0,4),m:UI.date.slice(5,7)})+'</div>'+
+    '<div class="field"><span class="lab">'+tx('這個月哪些星期休假')+'</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("pm-week",w,m.off.has(w),tx(WEEK_LABELS[w]))).join("")+'</div></div>'+
+    (days.length?'<div class="hint">'+tx('只會改 {a} ～ {b}（今天起，過去的紀錄不動）。當天已排工作的日期會先跳過，請到月曆點該日期逐一處理。',{a:md(days[0]),b:md(days[days.length-1])})+'</div>':'<div class="issue">'+tx('這個月今天之後沒有日期可設定。')+'</div>'),
     foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="pm-save">'+tx('套用到這個月')+'</button>'};
 };
 Object.assign(MODAL_ACT,{
