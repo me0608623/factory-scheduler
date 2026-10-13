@@ -193,7 +193,7 @@ await must("工序", `INSERT INTO product_steps (product_id,seq,process,rate,tra
   ('11111111-aaaa-4aaa-8aaa-111111111101',1,'沖壓',1,60,2),
   ('11111111-aaaa-4aaa-8aaa-111111111101',2,'包裝',4,60,2),
   ('11111111-aaaa-4aaa-8aaa-111111111102',0,'裁切',2,60,1),
-  ('11111111-aaaa-4aaa-8aaa-111111111102',1,'焊接',1,0,1) ON CONFLICT (product_id,seq) DO NOTHING`);
+  ('11111111-aaaa-4aaa-8aaa-111111111102',1,'焊接',1,60,1) ON CONFLICT (product_id,seq) DO NOTHING`);
 await must("模具", `INSERT INTO machine_products (machine_id,product_id) VALUES
   ('f1e','11111111-aaaa-4aaa-8aaa-111111111101'),('f1e','11111111-aaaa-4aaa-8aaa-111111111102'),
   ('f1b','11111111-aaaa-4aaa-8aaa-111111111102'),
