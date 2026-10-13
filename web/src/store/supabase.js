@@ -11,6 +11,7 @@ import { validateWorkLog } from '../worklog.js';
 import { rosterKey,validateRosters } from '../roster.js';
 import { effectivePermission } from '../permissions.js';
 import { authReturnUrl } from '../runtime-config.js';
+import { assertCloudSnapshot } from './snapshot-contract.js';
 
 // 畫面的紀錄種類 ↔ 資料庫 change_sets.kind
 const KIND_TO_DB = { ot: "edit", save: "edit", move: "move", edit: "edit", auto: "auto", fault: "fault", leave: "leave", order: "order", recover: "recover" };
@@ -222,7 +223,7 @@ export class SupabaseStore {
   async load({remember=true}={}) {
     const { data, error } = await this.sb.rpc("schedule_snapshot");
     if (error) throw new Error("讀取排程失敗：" + error.message);
-    if(!data||typeof data!=='object'||Array.isArray(data))throw new Error('讀取排程失敗：伺服器沒有回傳有效排程，請重新整理後再試');
+    assertCloudSnapshot(data);
     const S = fromSnapshot(data);
     const { data: logs } = await this.sb.from("change_sets").select("*").order("created_at", { ascending: false }).limit(200);
     S.log = (logs || []).map(logFromDb);

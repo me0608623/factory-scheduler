@@ -30,6 +30,15 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 18:32 heartbeat：雲端快照契約與基準防護
+
+- 起點fd279a2乾淨、無其他modifier／deploy；全部指定交接已核對。PR16 2c105b3的Tests38382783155補查三job成功（另一38382788656需再核對），不把歷史docs的0037／模擬失敗當新工作。正式資料、帳號權限及schema皆不動。
+- 使用Impeccable harden：main全文、context一次、harden/craft-floor全文已讀，context允許窄域existing refinement、不建立PRODUCT/DESIGN新世界。沿用現有錯誤訊息與班表／抽屜／日週切換，不改CSS；機械detector兩個Store目標為[]。技能影響是拒絕錯誤資料、保留狀態與真空狀態相容，不是視覺重設。
+- 新5項真Store回歸修前全部失敗（舊2項通過）：畸形object/缺欄、版本缺失或coercible/負值/小數/非安全數、core與擴充集合型別、重複/缺失id及nested arrays、錯誤行事曆。修正assertCloudSnapshot先驗核心5集合、calendar及safe integer version；核心id唯一非空，必要nested arrays正確，已提供擴充集合不得null/錯型別。先擋再轉換／讀history，所有remember/protected/write bases保持原值。版本0、SQL空聚合week=null、真zero-row及未提供舊版extensions仍可讀，未知未來欄位不破相容。這是傳輸契約，不新增工作時數、產能、工序或排程可行性規則。
+- 新增10項測試：5類真Store拒絕、完整migrations真RPC與真正0列/SQL nullweek、舊版/未來欄位相容、無私密值的錯誤、10,000段有界純契約驗證、真Store+真app background函式交叉測試（錯回應不render空表、S/baseline/reference不變）。大型fixture明確只是shape，重疊不能當可行排程。初次zero fixture用了不存在closed狀態，依schema改done後才取得真SQL通過，不把fixture錯當產品bug。
+- 聚焦29/29、全web **459/459**與build通過；原大chunk警告保留。尚須同SHA CI、既有staging web部署與桌面/手機瀏覽器實證，未部署前不宣稱線上已修。Render-deploy main及post-deploy checks全文已讀；只使用既有測試web，不改環境变量、新增費用或重部署沒改的solver。
+- IAB tab15真qa-lead組長session仍有效，10/12／1廠、19段DOM基準保存（data-id/aria-label/text/style），目前f6舊版仍顯示即時更新中斷；沒有第二帳號，不宣稱Realtime或跨端已修。未按儲存/用這套，也未重匯測試資料。PR16/18仍draft、nightly仍停用，Codex10分鐘追蹤ACTIVE。
+
 #### 2026-10-13 18:13 heartbeat：權限演練假綠與密文消費防護
 
 - 起點3c51519乾淨、無其他modifier／deploy；讀取所有指定交接，歷史fs-hunt尚稱0037未完成等內容不當成新授權。PR16的63d1609 Tests **38379664662／38379670951**三job全success，補核對完成結果；正式與staging資料／服務／環境变量不變，不重新套正式0037。
@@ -44,6 +53,7 @@
 - 這98項含真副本RPC commit與version持久化、stale-version拒絕、員工自己的開工/累計件數/完工及主管確認與撤回；只是本地PG17角色/GUC與auth stub，不是Supabase Auth登入、HTTP409 UI或手機/桌面跨帳號雲端同步，不解除正式發布門檻。workflow **artifacts=0**；log人工來源覆核只有Actions worker/checkout暫存UUID及第三方npm警告email，角色BOSS/LEAD/VIEWER未被列到env，無age私鑰或JWT模式。全原始query及恢復錯誤留在runner私密暫存並清理，不新增明文artifact。
 - 讀最新main **1e01947205fc0d07769a3a460c469e0705a87384**，相較先前0e60483僅docs/agent/OVERNIGHT_PROGRESS.md變動，正常merge保留另一agent紀錄，不重做或部署相同程式。後續文件/merge SHA不取代e708的功能驗收證據。
 - 持續探索新Major已用真SupabaseStore函式＋明確mock RPC重現：data={} 或 {error:'SYNTHETIC_INVALID_PAYLOAD'} 仍被接受為0員工/空班表，store.version由12變0、寫入baseline變空。首次探針把base誤當array而自身拋錯，已修探針後才確認accepted=true／baselineChanged=true；不是猜測。沒有任何雲端寫入或生產請求。**尚未修**；下一輪先補畸形object／缺欄／非安全version完整快照契約回歸，不因這輪全部測試綠而停下。修前需讀Impeccable harden指示，維持真正零列快照及本機首次使用相容，不能放寬cloud失敗防護。之後再驗environment-preserving重試介面及安全輪詢／登入門檻。
+- main只讀整合 **9b9c64ae08211751593322b198f7c69eef621f8e**，證據文件 **dc0f588be90ddeb72f1ffeae039578b2ad43adba**已推，兩工作樹乾淨。PR16原remote/HEAD63d1609一致、無modifier後普通merge到 **2c105b37b66c6f615ca77f1be72df1730477a701**已推；原3項seed preflight/banner對比/seed回歸保留。最新Tests **38382783155／38382788656**目前in_progress，smoke **38382788636**success，下輪核對，不拿先前63d的CI冒稱新版本已全過。PR16/18均draft（18 MERGEABLE），正式仍未合併部署；nightly367614493仍disabled_manually，Codex追蹤不停止。只修工具/工作流故沒有重複部署任何Render服務。
 
 #### 2026-10-13 17:50 heartbeat：加密資料盤點與公開輸出安全
 
