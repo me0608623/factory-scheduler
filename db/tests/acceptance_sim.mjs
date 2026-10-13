@@ -232,6 +232,8 @@ if (process.env.SIM_DEBUG) {
   console.error('[snap] ot=' + JSON.stringify(snapDump.overtime || snapDump.dayOT || null).slice(0, 200));
   console.error('[snap] blocksOnTestMachines=' + (snapDump.blocks || []).filter(b => ['f1e','f1b','f2k','f2ac'].includes(b.m || b.machine)).length);
   console.error('[snap] firstEmp=' + JSON.stringify((snapDump.employees || [])[0]));
+  console.error('[snap] testMachFactories=' + JSON.stringify(mine.map(m => ({ id: m.id, factory: m.factory, products: cnt(m.products) }))));
+  console.error('[snap] testProducts=' + JSON.stringify((snapDump.products || []).filter(pr => String(pr.id).startsWith('11111111')).map(pr => ({ id: String(pr.id).slice(-4), steps: (pr.steps || []).map(st => ({ proc: st.proc, factory: st.factory, rate: st.rate, batch: st.batch })) }))));
 }
 
 // ---------- 案例執行 ----------
