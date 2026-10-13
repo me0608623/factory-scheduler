@@ -46,6 +46,47 @@ test('actual SDK complete confirmation receipt is required; opposite flag, block
   assert.deepEqual(await fixture(good).store.confirmExecution(block,true),good);
   const off={...good,confirmed:false};assert.deepEqual(await fixture(off).store.confirmExecution(block,false),off);
 });
+
+test('actual SDK confirmation distinguishes known SQL rejections from unknown gateway outcomes',async()=>{
+  for(const [code,status,known] of [['42501',403,true],['P0001',400,true],['P0002',400,true],['42501',503,false],['P0001',502,false],['P0002',504,false],['UNKNOWN',500,false],['',503,false],['PGRST202',404,true],['PGRST202',503,false]]){
+    let calls=0;const client=createClient('https://synthetic.invalid','sb_publishable_synthetic_test_key',{accessToken:async()=> 'synthetic',global:{fetch:async()=>{
+      calls++;return new Response(JSON.stringify({code,message:'Synthetic confirmation failure'}),{status,headers:{'Content-Type':'application/json'}});
+    }}});
+    const store=new SupabaseStore(client);store.session={user:{id:'A'},access_token:'synthetic'};store.version=77;
+    await assert.rejects(store.confirmExecution(block,true),e=>known?e.rejected===true&&!e.unconfirmed:e.unconfirmed===true&&!e.rejected,code+'/'+status);
+    assert.equal(calls,1);assert.equal(store.version,77);assert.equal(store.base,null);
+  }
+});
+
+test('real committed confirmation hidden by HTTP503 is not labelled unsaved by actual SDK and app handler',async()=>{
+  const db=await makeDb();try{
+    const actor='44444444-4444-4444-8444-444444444444';await db.query("insert into auth.users(id,email) values($1,'synthetic-confirm@invalid')",[actor]);await db.query("update profiles set role='boss' where user_id=$1",[actor]);
+    const e=(await db.query("select id from employees where name='張三'")).rows[0].id,order=(await db.query("select id from orders where code='A01'")).rows[0].id;
+    await db.query("insert into schedule_blocks(id,order_id,step_seq,machine_id,employee_id,date,start_min,end_min,qty) values($1,$2,0,'a',$3,'2000-01-01',480,540,60)",[block,order,e]);
+    const fake=new FakeSupabase(db,{});fake.uid=actor;const reader=new SupabaseStore(fake);await reader.init();await reader.reportExecution(request);
+    await reader.reportExecution({...request,id:crypto.randomUUID(),action:'finish',qtyDone:40,expectedRevision:1});const state=await reader.load();
+    let calls=0;const events=[];const sdk=createClient('https://synthetic.invalid','sb_publishable_synthetic_test_key',{accessToken:async()=> 'synthetic',global:{fetch:async(url,options)=>{
+      assert.equal(new URL(url).pathname,'/rest/v1/rpc/confirm_work_execution');calls++;
+      const result=await fake.rpc('confirm_work_execution',JSON.parse(options.body));assert.equal(result.error,null);assert.equal(result.data.confirmed,true);
+      return new Response(JSON.stringify({code:'SYNTHETIC_GATEWAY',message:'Synthetic unavailable'}),{status:503,headers:{'Content-Type':'application/json'}});
+    }}});
+    const store=new SupabaseStore(sdk);store.session={user:{id:actor},access_token:'synthetic'};
+    const ctx={S:state,UI:{date:'2000-01-01',factory:1,page:'schedule',drawer:null,modal:{t:'execution'}},PV:null,STORE:store,SYNC:{state:'ok'},syncChain:Promise.resolve(),canPermission:()=>true,
+      toast:x=>events.push(x),tx:x=>x,DB_MIGRATION_PENDING:/missing migration/,renderModal:()=>{},maybeReload:()=>{},reloadFromStore:()=>{throw new Error('No automatic reread or resend');}};
+    const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');vm.createContext(ctx);
+    let at=source.indexOf('function directWriteOwner(');vm.runInContext(source.slice(at,source.indexOf('async function runDrawerWrite(',at)),ctx);
+    at=source.indexOf('async function changeExecutionConfirmation(');vm.runInContext(source.slice(at,source.indexOf("MODALS['scenario-list']",at)),ctx);
+    await ctx.changeExecutionConfirmation({disabled:false,dataset:{id:block}},true);
+    assert.equal(calls,1);assert.match(ctx.UI.modal.confirmError,/待核對/);assert.doesNotMatch(ctx.UI.modal.confirmError,/沒存到/);assert.match(events[0],/不要重複送出/);
+    assert.equal(ctx.S.execution[0].confirmed,false);const persisted=await reader.load();assert.equal(persisted.execution[0].confirmed,true);assert.equal(persisted.version,3);
+    assert.equal((await db.query('select count(*)::int n from work_execution_events')).rows[0].n,2);
+    const planned=(await db.query('select start_min,end_min,qty from schedule_blocks where id=$1',[block])).rows[0];assert.deepEqual(planned,{start_min:480,end_min:540,qty:60});
+    // Characterize the unmodified SQL contract separately: explicit resend is
+    // NOT idempotent. The message fix must not claim this risk is resolved.
+    await reader.confirmExecution(block,true);assert.equal((await reader.load()).version,4);
+    assert.equal((await db.query("select count(*)::int n from change_sets where title='確認完工'")).rows[0].n,2);
+  }finally{await db.close();}
+});
 test('real migrated report lost ACK stays uncertain, then same-ID retry returns one event without a second version bump',async()=>{
   const db=await makeDb();try{
     const actor='44444444-4444-4444-8444-444444444444';await db.query("insert into auth.users(id,email) values($1,'synthetic@invalid')",[actor]);await db.query("update profiles set role='boss' where user_id=$1",[actor]);
