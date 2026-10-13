@@ -30,6 +30,17 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 22:40 heartbeat／22:50：新版自動部署及真計算在途取消通過
+
+- 起點c897b6a乾淨、無其他modifier／deploy，指定交接已讀。不重套0037、重匯測試seed、重寄已獲准設定信、改帳號角色或正式1023/setup_pending。Render-deploy全文及deployment-details/post-deploy-checks已讀，MCP先核既有staging web正確repo/root/branch/autoDeploy=yes；此前同SHA dfc2486 Tests/smoke均success，安全FF來源 **99d0760→dfc24865a413a11c7135b18054efbb5625a8fd8f**，沒有手動trigger/toggle/cache或新增服務費用。
+- 真 **new_commit／dep-db7460ojo6nc738ei4f0** 於 **14:41:30Z live dfc2486**；這次push在Render App縮小為factory-only之後，證明縮小後自動部署仍運作。普通root reload實際 **index-ZK94ERD9.js**，boot完成後真qa-lead組長session可讀。reload預設10/13顯示停工（不擅改行事曆）；只導航回10/15/F1，原20段id/label/text/style全部一致，沒有重匯或reset。不宣稱全庫其他資料未變／全角色驗收。
+- PR16事前f5a85db本地/remote一致且乾淨，modifier只有其既有Vite；fetch再次核對後普通merge本追蹤為 **a1cc476be18d3de4f139012df19d0a944bb31319**推送。原seed schema preflight、CSS banner contrast及docs差異保留，不force、不合main。PR16本機 **527/527**＋build成功 **index-CvTLu1kI.js**（此local bundle不是staging bundle）；Tests **38415541991／38415530930**、smoke **38415542250／38415530221**全部success，仍draft/MERGEABLE。staging push同SHA Tests **38415477950**（frontend/database/solver全success）及smoke **38415476759**success；不混用不同SHA CI。
+- 真desktop1440×900：更多→自動排班→計算，實際 **aria-busy=true、計算鈕disabled、X與取消enabled、status明確說班表未改**；點取消在POST尚在途時回10/15，0 modal/PV。Network確見單次POST /plans/db（另一OPTIONS是CORS）於 **6.66秒**收到200，**晚回應後仍沒有PV**且原20段逐項一致，沒有使用這套／save_blocks／apply_plan。服務端可能已寫preview/options，取消是前端不接結果，不能宣稱測試庫完全零寫入。
+- 真手機尺寸390×844（Chromium CDP，不是原生Safari）：aria-busy/status相同、pageOverflow=false、X/取消/計算鈕皆 **44px且中心命中**，只有計算disabled；對取消按 **Enter** 在途關閉，單次POST /plans/db於 **4.75秒**回200後0 PV/modal、10/15/F1及20段id/label/text/style全部不變，觀測沒有save_blocks/apply_plan。手機最初一次More操作因前一輪抽屜仍開而把它收回，auto locator no-match；重新讀DOM後正常展開，屬測試前置狀態錯誤，不当產品缺陷或跳過驗收。
+- 桌面／手機busy截圖 **outputs/staging-plan-busy-desktop-dfc2486-20261013.png、outputs/staging-plan-busy-mobile-dfc2486-20261013.png** 分別1440×900/390×844，已目視；新提示及disabled對比清楚，不新增CSS。只是本機保留、不公開artifact。最後關閉More，Network.disable及Emulation.clear皆完成；真runtime warn/error查詢0（工具記錄有限，不代表後端／平台全無錯），date10/15／0 modal/PV，保留test sessions及Chrome待設定帳號，不改密碼。
+- **新增精確重現：startup health 3秒timeout**。Network首次 /health request22056.1779被 **net::ERR_ABORTED/canceled，3013ms**中止，UI因此顯示瀏覽器算法；後來正常UI「重新連線排程服務」/health200耗 **454ms**、UI OR-Tools9.15.6755，才進行上述真POST。確證的是初次3秒中止及之後恢復，冷啟動是Free服務背景下的推論，不宣稱服務端cold原因已由log證明。下一輪安全改進可在使用者要求計算時做有界健康重試／等待，整合本輪job取消保護，不讓老人家自行找重連入口；先重現函式測試，別直接放寬正式timeout或誤把fallback標成ORTools。
+- 本輪只staging前端部署/計算預覽，沒有排程套用／改正式資料或服務。角色/不同帳號及自動同步、真ORTools套用、offline/409/原生Safari、正式VITE_TEST_*門檻仍未全過；PR16/18保持draft不合正式。nightly仍待加密main發布；Codex10分鐘追蹤ACTIVE，持久環境保留，下一項缺陷探索继续。
+
 #### 2026-10-13 22:23 heartbeat／22:32：計算在途連點、取消與過期結果修復
 
 - 起點8c0513d乾淨；確認無其他modifier/deploy，原5202 Vite仍在；本輪新啟的同port IPv6 Vite為session45566，收尾停止此新增副本，保留原5202。指定交接已讀；舊NEXT_TASKS的0037／staging deploy hook／寄信待同意歷史不重做。寄測試帳號設定信已獲准及送出，沒有新第二帳號登入證據，不重寄或改密碼。正式1023/0037/setup_pending/角色授權以及測試Supabase排程零寫入。
