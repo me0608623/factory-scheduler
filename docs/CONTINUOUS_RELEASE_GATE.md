@@ -40,6 +40,7 @@
 - 截圖 **outputs/staging-recovery-desktop-58b73ba-20261013.png、outputs/staging-recovery-mobile-58b73ba-20261013.png** 1440×900及390×844已目視，提示換行／按鈕可讀；僅本機保留，不公開artifact。收尾關閉More並明確還原 blockedURLs=[]、offline=false/latency=0/throughput=-1、Network.disable、Emulation.clear；runtime warn/error工具查詢0，但不宣稱所有後端／平台無錯。保留IAB20/24/25/23/21；失效Chrome設定信tab不重開／重寄／猜密碼。本輪只計算預覽可能新增測試DB preview/options，**沒有apply_plan/save_blocks或正式資料寫入**。
 - 最新main有他人 **498d5ec**（Excel範本四表範例一致／4按鈕i18n及3可執行測試），先讀stat/diff後普通merge保留為 **ada1608e86e2efd6d0442e5dcce134d61efa8b51**推送，不切共享checkout。整合本機 **538/538**（51.09秒）＋build **index-DJVpiX69.js**；log outputs/main-template-integration-web-tests-20261013.txt。其 Tests **38420270670／38420262180**在23:15仍in_progress，smoke **38420270641／38420261944**success；尚未部署含Excel範本的整合版，不拿58b真E2E冒稱新整合版E2E。
 - PR16 f11本地/remote再次核對一致／乾淨，modifier僅原Vite；fetch后普通merge整合版為 **904798701e9a1bb0ebb93ef315b035574b80f7d0**推送，原seed/CSS/docs差異保留。新PR16同SHA CI／539全套待核，PR16/18仍draft，不合main／正式部署。不同帳號/角色、Realtime自動同步、真ORM套用、offline/409與原生Safari及正式VITE_TEST_*仍未全過；持續追蹤ACTIVE。下一轮先核ada/904 CI与安全整合，不重复本輪已過的重連；可優先在隔離fixture驗真ORM「維持現狀」正常套用（一筆版本／稽核、原班表一致，不reset）及後續補讀，缺不同登入仍不能冒稱跨帳號或全部發布門檻通過。
+- 收尾實查更新：ada1608兩Tests **38420270670／38420262180**及兩smoke均已success；PR16 904 Tests **38420624877／38420617060**仍in_progress、smoke **38420625094／38420617046**success。此狀態優先於23:15的in_progress記錄，未為等待CI重複部署。
 
 #### 2026-10-13 22:51 heartbeat／22:58：按計算安全重連及健康檢查競爭修復
 
