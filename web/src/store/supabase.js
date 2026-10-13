@@ -213,32 +213,44 @@ export class SupabaseStore {
   }
 
   // 舊版 Excel 作為獨立歷史資料儲存，絕不更動目前排程快照。
+  legacyOwnerGuard() {
+    const client=this.sb,user=this.session?.user?.id,epoch=this.authEpoch;
+    return ()=>{if(this.sb!==client||this.session?.user?.id!==user||this.authEpoch!==epoch)throw new Error('登入狀態已變更，請重新整理後確認帳號。');};
+  }
+
   async listLegacyArchives() {
-    const { data, error } = await this.sb.from("legacy_schedule_archives")
+    const client=this.sb,assertOwner=this.legacyOwnerGuard();
+    const { data, error } = await client.from("legacy_schedule_archives")
       .select("id,source_name,source_sha256,date_from,date_to,imported_at")
       .order("imported_at", { ascending: false });
+    assertOwner();
     if (error) throw new Error("讀取歷史排程失敗：" + error.message);
     return data || [];
   }
 
   async getLegacyArchive(id) {
-    const { data, error } = await this.sb.from("legacy_schedule_archives")
+    const client=this.sb,assertOwner=this.legacyOwnerGuard();
+    const { data, error } = await client.from("legacy_schedule_archives")
       .select("payload").eq("id", id).single();
+    assertOwner();
     if (error) throw new Error("讀取歷史排程內容失敗：" + error.message);
-    return data.payload;
+    return data?.payload??null;
   }
 
   async saveLegacyArchive({ sourceName, sourceSha256, legacy }) {
-    const table = this.sb.from("legacy_schedule_archives");
+    const client=this.sb,assertOwner=this.legacyOwnerGuard();
+    const table = client.from("legacy_schedule_archives");
     const { data: found, error: lookupError } = await table
       .select("id,source_name,source_sha256,date_from,date_to,imported_at")
       .eq("source_sha256", sourceSha256).maybeSingle();
+    assertOwner();
     if (lookupError) throw new Error("檢查歷史排程失敗：" + lookupError.message);
     if (found) return found;
-    const { data, error } = await this.sb.from("legacy_schedule_archives")
+    const { data, error } = await client.from("legacy_schedule_archives")
       .insert({ source_name: sourceName, source_sha256: sourceSha256,
         date_from: legacy.dates[0], date_to: legacy.dates.at(-1), payload: legacy })
       .select("id,source_name,source_sha256,date_from,date_to,imported_at").single();
+    assertOwner();
     if (error) throw new Error("儲存歷史排程失敗：" + error.message);
     return data;
   }

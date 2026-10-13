@@ -11,6 +11,11 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "歷史資料儲存中；關閉視窗不會取消已送出的儲存。": {en:"Saving the archive. Closing this dialog does not cancel the submitted save.",vi:"Đang lưu dữ liệu lịch sử. Đóng hộp thoại không hủy yêu cầu lưu đã gửi.",th:"กำลังบันทึกข้อมูลย้อนหลัง การปิดหน้าต่างไม่ยกเลิกคำขอบันทึกที่ส่งแล้ว"},
+  "歷史排程儲存結果待確認，請重新開啟歷史排程核對。": {en:"Archive save is unconfirmed. Reopen schedule history to check.",vi:"Chưa xác nhận lưu lịch sử. Mở lại lịch sử để kiểm tra.",th:"ยังยืนยันการบันทึกตารางย้อนหลังไม่ได้ เปิดประวัติตารางใหม่เพื่อตรวจสอบ"},
+  "找不到歷史排程內容，請重新讀取。": {en:"Schedule history content is unavailable. Read it again.",vi:"Không tìm thấy nội dung lịch sử. Hãy đọc lại.",th:"ไม่พบเนื้อหาตารางย้อนหลัง กรุณาอ่านใหม่"},
+  "存為歷史排程": {en:"Save to schedule history",vi:"Lưu vào lịch sử",th:"บันทึกเป็นตารางย้อนหลัง"},
+  "重試讀取": {en:"Retry reading",vi:"Thử đọc lại",th:"ลองอ่านใหม่"},
   "已儲存": {en:"Saved",vi:"Đã lưu",th:"บันทึกแล้ว"},
   "排班狀態未全部完成；部分日期可能已儲存，請更新班表核對。": {en:"Attendance update is incomplete. Some dates may have been saved; refresh the schedule to check.",vi:"Chưa cập nhật xong trạng thái đi làm. Một số ngày có thể đã được lưu; cập nhật lịch để kiểm tra.",th:"อัปเดตสถานะยังไม่ครบ บางวันอาจบันทึกแล้ว กรุณาอัปเดตตารางเพื่อตรวจสอบ"},
   "正在儲存排班狀態，請稍候。": {en:"Saving attendance status. Please wait.",vi:"Đang lưu trạng thái đi làm. Vui lòng đợi.",th:"กำลังบันทึกสถานะการทำงาน กรุณารอ"},

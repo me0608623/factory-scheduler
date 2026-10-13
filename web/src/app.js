@@ -1815,27 +1815,39 @@ function closeModal(){
   const target=modalReturnFocus;modalReturnFocus=null;
   requestAnimationFrame(()=>{if(target?.isConnected&&!target.matches?.(":disabled"))target.focus();});
 }
+function ownsLegacyRequest(request,store,user,epoch){
+  return UI.modal===request&&STORE===store&&store?.session?.user?.id===user&&store?.authEpoch===epoch&&canArchive();
+}
 async function openLegacyHistory(preferredId){
-  openModal({t:"legacy-history",loading:true});
+  if(!canArchive())return;
+  const store=STORE,user=store?.session?.user?.id,epoch=store?.authEpoch;
+  const m={t:"legacy-history",loading:true,historyId:preferredId};openModal(m);
+  const current=()=>ownsLegacyRequest(m,store,user,epoch);
   try{
-    const archives=await STORE.listLegacyArchives();
+    const archives=await store.listLegacyArchives();
+    if(!current())return;
     const archive=archives.find(a=>a.id===preferredId)||archives[0]||null;
-    const legacy=archive?await STORE.getLegacyArchive(archive.id):null;
-    if(UI.modal?.t!=="legacy-history")return;
-    UI.modal={t:"legacy-history",archives,archive,legacy,date:legacy?.selectedDate||legacy?.dates.at(-1)||"",factory:"全部",section:"day"};
+    const legacy=archive?await store.getLegacyArchive(archive.id):null;
+    if(!current())return;
+    if(archive&&!Array.isArray(legacy?.dates))throw new Error(tx('找不到歷史排程內容，請重新讀取。'));
+    Object.assign(m,{loading:false,error:'',archives,archive,legacy,date:legacy?.selectedDate||legacy?.dates.at(-1)||"",factory:"全部",section:"day"});
     renderModal();
-  }catch(e){if(UI.modal?.t==="legacy-history"){UI.modal={t:"legacy-history",error:e.message};renderModal();}}
+  }catch(e){if(current()){m.loading=false;m.error=tx(e.message);renderModal();}}
 }
 async function changeLegacyHistorySource(id){
-  const m=UI.modal;if(m?.t!=="legacy-history")return;
-  m.loading=true;renderModal();
+  const m=UI.modal;if(m?.t!=="legacy-history"||!Array.isArray(m.archives)||!canArchive())return;
+  const store=STORE,user=store?.session?.user?.id,epoch=store?.authEpoch,request={};
+  m.historyRequest=request;m.historyId=id;m.loading=true;m.error='';renderModal();
+  const current=()=>ownsLegacyRequest(m,store,user,epoch)&&m.historyRequest===request;
   try{
     const archive=m.archives.find(a=>a.id===id);
-    const legacy=archive?await STORE.getLegacyArchive(archive.id):null;
-    if(UI.modal!==m)return;
+    if(!archive)throw new Error(tx('找不到歷史排程內容，請重新讀取。'));
+    const legacy=await store.getLegacyArchive(archive.id);
+    if(!current())return;
+    if(!Array.isArray(legacy?.dates))throw new Error(tx('找不到歷史排程內容，請重新讀取。'));
     Object.assign(m,{loading:false,archive,legacy,date:legacy?.selectedDate||legacy?.dates.at(-1)||"",factory:"全部",section:"day"});
-  }catch(e){m.loading=false;m.error=e.message;}
-  if(UI.modal===m)renderModal();
+  }catch(e){if(current()){m.loading=false;m.error=tx(e.message);}}
+  if(current())renderModal();
 }
 function setPath(o,path,v){const k=path.split(".");let t=o;for(let i=0;i<k.length-1;i++){const key=isNaN(k[i])?k[i]:+k[i];t[key] ||= isNaN(k[i+1])?{}:[];t=t[key];}t[k[k.length-1]]=v;}
 function syncInputs(){
@@ -1852,7 +1864,7 @@ function renderModal(){
   const keep=root.querySelector(".overlay"),focusToken=keep&&root.contains(document.activeElement)?modalFocusToken(document.activeElement):null;
   const st=keep?keep.scrollTop:0;
   const importBusy=m.t==='import-preview'&&m.saving;
-  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!(m.planBusy||importBusy)+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close"'+(importBusy?' disabled':'')+' aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
+  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!(m.planBusy||importBusy||m.t==='legacy-preview'&&m.saving||m.t==='legacy-history'&&m.loading)+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close"'+(importBusy?' disabled':'')+' aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
   if(importBusy)root.querySelectorAll('input,select,textarea,button').forEach(el=>el.disabled=true);
   if(m.planBusy)root.querySelectorAll('input,select,textarea,button:not([data-act="close"])').forEach(el=>el.disabled=true);
   const ov=$("#ov");ov.scrollTop=st;
@@ -2163,12 +2175,13 @@ export(){
     '<div class="hint">檔案：'+esc(m.filename)+'。這是舊表的原始格位與文字，不會變成目前的時間方塊。</div>'+datePicker+
     legacyFactoryHTML(day,'1廠')+legacyFactoryHTML(day,'2廠')+
     '<div class="hint">'+tx('存為歷史資料後，可從上方「歷史排程」按日期查看；現有示範排程不變。')+'</div>'+
+    (m.saving?'<div class="hint" role="status">'+tx('歷史資料儲存中；關閉視窗不會取消已送出的儲存。')+'</div>':'')+
     (m.error?'<div class="issues"><div class="issue">'+esc(m.error)+'</div></div>':''),
-    foot:'<button class="btn" data-act="close">'+tx('取消')+'</button>'+(canArchive()&&legacy.dates.length?'<button class="btn primary" data-act="legacy-save"'+(m.saving?' disabled':'')+'>'+(m.saving?'儲存中…':'存為歷史排程')+'</button>':'')};
+    foot:'<button class="btn" data-act="close">'+tx(m.saving?'關閉':'取消')+'</button>'+(canArchive()&&legacy.dates.length?'<button class="btn primary" data-act="legacy-save"'+(m.saving?' disabled':'')+'>'+(m.saving?tx('儲存中…'):tx('存為歷史排程'))+'</button>':'')};
 },
 "legacy-history"(m){
   if(m.loading)return {title:tx('歷史排程'),body:'<div class="hint">'+tx('正在讀取…')+'</div>'};
-  if(m.error)return {title:tx('歷史排程'),body:'<div class="issues"><div class="issue">'+esc(m.error)+'</div></div>'};
+  if(m.error)return {title:tx('歷史排程'),body:'<div class="issues" role="alert"><div class="issue">'+esc(m.error)+'</div></div>',foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button><button class="btn primary" data-act="history-retry">'+tx('重試讀取')+'</button>'};
   if(!m.archive)return {title:tx('歷史排程'),body:'<div class="hint">'+tx('尚未存入舊版排程。請到 Excel 選擇含「1廠」「2廠」的檔案。')+'</div>',foot:'<button class="btn" data-act="export">'+tx('選擇 Excel')+'</button>'};
   const legacy=m.legacy,day=legacy?.days[m.date],names=m.archives;
   const source=names.length>1?'<div class="field"><span class="lab">'+tx('來源檔案')+'</span><select id="history-source" aria-label="'+tx('來源檔案')+'">'+names.map(x=>'<option value="'+esc(x.id)+'"'+(x.id===m.archive.id?' selected':'')+'>'+esc(x.source_name)+'</option>').join('')+'</select></div>':'';
@@ -3320,13 +3333,20 @@ Object.assign(MODAL_ACT,{
   },
   "legacy-save":async()=>{
     const m=UI.modal;if(m?.t!=="legacy-preview"||m.saving||!canArchive())return;
+    const store=STORE,user=store?.session?.user?.id,epoch=store?.authEpoch;
+    const current=()=>ownsLegacyRequest(m,store,user,epoch);
     m.saving=true;m.error="";renderModal();
     try{
-      const saved=await STORE.saveLegacyArchive({sourceName:m.filename,sourceSha256:m.sourceSha256,legacy:m.legacy});
+      const saved=await store.saveLegacyArchive({sourceName:m.filename,sourceSha256:m.sourceSha256,legacy:m.legacy});
+      if(!current())return;
+      if(!saved?.id)throw new Error(tx('歷史排程儲存結果待確認，請重新開啟歷史排程核對。'));
+      m.saving=false;
       toast(tx('歷史排程已存入；目前排程沒有變動'));
       await openLegacyHistory(saved.id);
-    }catch(e){if(UI.modal===m){m.saving=false;m.error=e.message;renderModal();}}
+    }catch(e){if(current()){m.error=tx(e.message);m.saving=false;renderModal();}}
+    finally{m.saving=false;}
   },
+  "history-retry":()=>{if(UI.modal?.t==='legacy-history')return openLegacyHistory(UI.modal.historyId||UI.modal.archive?.id);},
   "history-factory":a=>{if(UI.modal?.t==="legacy-history"){UI.modal.factory=a.dataset.v;renderModal();}},
   "history-section":a=>{if(UI.modal?.t==="legacy-history"){UI.modal.section=a.dataset.v;renderModal();}}
 });
