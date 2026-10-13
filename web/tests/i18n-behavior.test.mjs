@@ -169,3 +169,36 @@ test('輪120 查證：排程比對結果鍵三語有譯文＋佔位符正確', (
   assert.equal(tx('{a} 段 vs {b} 段 · 共同 {c} 段 · {m1} 台 vs {m2} 台 · {e1} 人 vs {e2} 人', { a: 2, b: 2, c: 1, m1: 2, m2: 2, e1: 1, e2: 2 }), '2 blocks vs 2 blocks · 1 in common · 2 vs 2 machines · 1 vs 2 people');
   I18N.lang = 'zh-TW';
 });
+
+test('輪121 棘輪：產能分析工單狀態必須走 orderStatus（完成需回報，不得用計畫量充數）＋副標/小時已譯', async () => {
+  const fs = await import('node:fs');
+  const app = fs.readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
+  const i = app.indexOf('function analyticsPageHTML');
+  const seg = app.slice(i, i + 6000);
+  assert.ok(i > 0, 'analyticsPageHTML 存在');
+  assert.ok(seg.includes('const st=orderStatus(o);'), '工單狀態統計必須複用 orderStatus（與抽屜同口徑）');
+  assert.ok(!/effectiveBlockQty/.test(seg), '分析頁不得用 effectiveBlockQty 統計完成（無回報時回傳計畫量）');
+  assert.ok(seg.includes("tx('{y} 年 {m} 月（至 {d}）"), '頁首副標須走 tx');
+  assert.ok(seg.includes("tx('{h} 小時'"), '加班小時單位須走 tx');
+});
+
+test('輪121 查證：產能分析新鍵三語有譯文', () => {
+  const cjk = /[\u4e00-\u9fff]/;
+  for (const lang of ['en', 'vi', 'th']) {
+    I18N.lang = lang;
+    const a = tx('{y} 年 {m} 月（至 {d}） · {w} 個工作天 · {e} 位員工 · {n} 台設備', { y: 2026, m: 10, d: '10/14', w: 1, e: 5, n: 5 });
+    const b = tx('{h} 小時', { h: 2.5 });
+    assert.ok(!cjk.test(a), `${lang} 副標殘留中文：${a}`);
+    assert.ok(!cjk.test(b), `${lang} 小時殘留中文：${b}`);
+  }
+  I18N.lang = 'zh-TW';
+});
+
+test('輪121 棘輪：?view= 導航不得清掉其他 query 參數（缺陷#23 local=1/mode=test 重載落入登入牆）', async () => {
+  const fs = await import('node:fs');
+  const app = fs.readFileSync(new URL('../src/app.js', import.meta.url), 'utf8');
+  assert.ok(!app.includes('history.replaceState(null,"","?view='), '不得整條 query 換成 ?view=（會丟 local=1/mode=test）');
+  assert.ok(!app.includes('history.replaceState(null,"",location.pathname)'), '清 view 也不得丟其他參數（須走 setUrlView(null)）');
+  const callSites = (app.match(/setUrlView\(/g) || []).length;
+  assert.ok(callSites >= 10, `setUrlView 呼叫點應≥10（helper+9 站點），實得 ${callSites}`);
+});
