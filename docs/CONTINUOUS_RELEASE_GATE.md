@@ -1,5 +1,19 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-14 05:12 checkpoint：試排情境保存競爭與有效回條
+
+- **05:15部署覆核（取代下面尚未部署狀態）**：既有Render auto new_commit **dep-db79tt7avr4c73f1rca0**於 **21:13:46.144Z live d864885**；普通root HTTP200/CF MISS新 **index-CO1Rd82J.js**，真qa-lead普通/重載初始化後10/14／1廠22段。390×844：更多→情境清單原0份→保存表單，填「驗收草稿（不保存）」→直接取消→收drawer；22段ID/label/text/style逐項一致，name input19px、無水平溢出，X/取消/保存鈕44px且中心命中。**未按雲端確認保存/用這套/報工等**，不把唯讀取消當cloud save成功。browser error0；Render app error短窗21:13:46–21:15:08Z為0，非長期保證。Network未開、viewportclear、6tabs重新handoff，dev與local1份情境留存。stage第三套Tests38468943127仍in_progress、smoke38468942959success，下一輪僅核對第三套，不重做已過的前兩套/root/seed；正式發布門檻仍未全過。
+- **05:14追加（部署覆核仍待完成）**：d864兩套Tests38468340891/38468334294、smoke38468340841/38468334342全success，真CI web **750/750**、工具 **46/46**。PR16 e402兩套Tests38468571910/38468563225及smoke38468571858/38468563227亦全success。全過後non-force FF既有stage73108→d864，尚需核對Render live/root與cloud只讀取消。CLI真函式診斷（未寫入檔案/DB）另重現viewScenario：原請求pending→UI改new-draft→舊response完成，仍呼叫enterPreview「Synthetic late comparison」1次；**已確立下一缺陷，不是本輪保存修復涵蓋**。不強合main/正式、不停止探索。
+- 起點a43378f乾淨，核對modifier/dev與新提交，讀最新HANDOFF/缺陷總表/NEXT_TASKS/測試模式及本文件。正式1023/setup_pending/Auth角色/個人授權完全未動；0037、seed及備份不重做，無新明文公開artifact/log、付費服務、main合併或正式部署。10分鐘追蹤與持久環境保留。
+- **真正重現**：編譯實際saveScenarioFromModal＋實際makeScenario/LocalStore的6項測試 **5 RED/1 PASS**：晚到成功關掉新草稿/舊失敗跑到新畫面；新button連點送兩次；失敗後改名稱仍送舊name；沒有busy/inline error；本機成功未明示只存在裝置。穩定PV內保存比較的既有正向測試原本PASS，保留，不把它當缺陷。額外實際SDK HTTP200/null/wrong UUID回條 **1 RED→GREEN**，沒有用字串源碼斷言代替功能。
+- **d8648855ce7ab224819722775ed6582419b4b404**：保存捕捉Store/client/user/authEpoch/modal/state/view/PV，晚到結果只影響原owner，不關新草稿/顯示舊訊息。UI.scenarioSaving阻擋第二份保存，關窗後仍保護背景reload/beforeunload；同名稱重試沿用原item/ID/payload，**使用者明確改名則建立新comparison ID**，不再默默保存舊名稱。這不保證未知提交改名後沒有兩份情境，也沒有自動retry；關窗不是遠端取消。saving期間aria-busy/status與字段/保存鈕鎖定，Close仍可用，error escaped inline；本機成功文字明確裝置儲存，en/vi/th四鍵新增。Impeccable main/harden/craft-floor全文依既有Operate風格只改錯誤/非同步回饋，不改排程布局/日週/抽屜/午休灰底。
+- Supabase save_planning_scenario經0021確認**returns UUID**，現在要求回條匹配送出的captured ID，空/格式錯/其他ID走Unconfirmed，不當成功。新增真PGlite全migrations＋Store：已commit但ACK剝除→unconfirmed；list確有1份；同ID重試2次RPC總共仍1份、完整snapshot JSON及version不變。此是in-memory SQL，不是真隔離Supabase/Safari/跨端或完整備份還原。
+- 本輪新增9回歸（VM/Local6＋SDK1＋真SQL1＋renderModal1），聚焦20/20再補SQL15/15與render5/5全過。最初兩次全套从repo root執行，只有Excel範本相對路徑ENOENT失敗，是**測試命令cwd錯誤**非產品缺陷；改web cwd完整dot exit0。普通merge latest main **11ff07d**為 **e35c595**（保留模組coverage測試與其他agent docs；自有未提交修復原樣保留，無重置/force）；最終完整web cwd dot exit0/build **index-zdmavogY.js**，chunk warning保留。
+- PR16先clean/localremote cd25一致，普通merge至 **e40285662fe4b4479a627cc47eb9eef2a1ed53bf**，完整dot exit0/build **index-DANi0onB.js**後push；相對source既有5檔105insert/3delete保留。兩PR仍draft，PR18 MERGEABLE、PR16當時UNKNOWN。來源Tests **38468340891/38468334294**與smoke **38468340841/38468334342**需收尾核對；05:10僅第一smoke綠、database綠、frontend/solver進行中，**尚未推staging**，不能冒稱已部署。既有live仍73108/dep-db79lovavr4c73f1ejbg。
+- **獨立本機真UI**tab27/127.0.0.1:5203/?local=1：先本機/示範旗標，再更多→試排情境（原0份）→輸入「本機保存驗收 20261014-0512」→确认保存→裝置成功提示；reload→清單1份仍在，17段DOM id/label/text/style與before完全一致，前輪完成12未確認紀錄保留。新增僅一份local comparison，不改cloud test或localhost5202資料；outputs/local-scenario-saved-20261014.png已目視，**不是雲端scenario成功證據**。
+- 390×844手機尺寸：空name確認→就地alert「情境名稱須為1–80字」，不寫入；input19px、無水平溢出，X/取消/確認均44px且中心命中enabled。取消後清panel，browser error0，viewport清除，6tabs handoff；outputs/local-scenario-mobile-error-20261014.png已目視，非真機Safari，等待/晚ACK仍為VM/deferred覆核。既有本機5203及5202dev保留，不新建服務。
+- 未完成門檻仍是真第二帳號/角色雲端写入/真套用/跨端autosync/offline409/正式VITE_TEST_*，不強發，不启nightly。收尾要核對同SHA兩套CI、PR16 CI；全過才non-force更新既有staging並核對live/root/bundle/只讀取消與錯誤。下一輪續查**scenario-view/read晚到回覆**（本輪未改）、scenario建立日期用UTC slice在台灣跨午夜顯示前一天（本輪真本機畫面已觀察，未修）、unknown PostgREST error.code/uncertain request ID關窗生命週期；不重做seed/0037/已修保存，不停用追蹤。
+
 ## 2026-10-14 05:01 checkpoint：確認完工入口與非同步 owner 防護
 
 - 起點3b3f095乾淨，先核對modifier、既有dev server與最新交接；正式1023/setup_pending/Auth角色/權限完全未動，0037/seed/備份不重做。沒有新明文公開artifact、付費資源、main合併或正式部署，nightly仍停用，10分鐘追蹤持續。
