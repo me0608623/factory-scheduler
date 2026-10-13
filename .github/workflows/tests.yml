@@ -11,6 +11,8 @@ on:
       - ".github/workflows/nightly-backup.yml"
       - ".github/workflows/apply-migration.yml"
       - ".github/workflows/backup-drill.yml"
+      - ".github/workflows/catalog-inventory.yml"
+      - ".github/workflows/permissions-drill.yml"
       - "tools/**"
   pull_request:
     paths:
@@ -22,6 +24,8 @@ on:
       - ".github/workflows/nightly-backup.yml"
       - ".github/workflows/apply-migration.yml"
       - ".github/workflows/backup-drill.yml"
+      - ".github/workflows/catalog-inventory.yml"
+      - ".github/workflows/permissions-drill.yml"
       - "tools/**"
 
 jobs:

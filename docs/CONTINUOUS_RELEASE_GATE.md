@@ -30,6 +30,17 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 17:50 heartbeat：加密資料盤點與公開輸出安全
+
+- 起點cb7edcb乾淨、沒有其他modifier／deploy程序；正式1023、0037、角色及測試資料皆不寫入。這輪沒有web/solver執行期修改，不重複部署Render，也不重做C1–C7或既有還原證明。
+- 已讀catalog-inventory與permissions-drill全部流程。兩者都排除db-backup-encrypted，且舊盤點會把資源名稱／產品代號／日期寫入公開報告，權限演練仍會印帳號UUID、原始RPC與SQL錯誤。因此先修catalog；permissions-drill仍不安全，**不得dispatch**，後續另修，不能把本輪通過冒稱權限演練已通過。
+- 新backup-artifact encryptedOnly選項：只取未過期真正密文備份，保留其他舊消費者原有行為；指定明文ID也拒絕。兩項mock HTTP回歸修前確實失敗（誤選較新明文、明文ID未拒絕），修後通過。catalog新增artifact_id輸入可固定同一密文，ZIP只允許database.tar.age，age真正解密、scope／24小時新鮮度／checksum沿用原驗證，不回退舊明文。
+- catalog只在拋棄式PG17還原public，auth為stub，明確不是完整資料庫還原證明／solver可行性測試。查詢BEGIN READ ONLY；公開結果改固定29項數值白名單，沒有姓名、資源／產品代號、個人日期、工單／請假／報工明細。缺欄、額外欄、字串、負值、不安全整數與非法provenance拒絕，CLI不印JSON來源、檔案路徑或資料庫錯誤。所有restore stdout/stderr只在受限runner.temp，錯誤不忽略；always清理本輪副本、SQL、身份金鑰，不刪旧GitHub artifact/log。
+- PGlite合成fixture真正執行舊string_agg查询，確定會輸出PRIVATE-MACHINE；替換SQL實際執行得到員工／技能／機台／模具缺漏等正確數值、唯讀交易結束無資料變動。新增4項SQL／輸出／CLI回歸；不是源碼字串断言。
+- 沿途確認第三個私密輸出缺陷：age已正確解密但manifest JSON損壞時，原CLI會印出解密內容片段（真正age＋CLI測試修前失敗）。CLI改固定安全訊息，清除明文的既有防護仍驗證；export API保留私下caller錯誤。新增1項真正age回歸。工具**38/38**、web**449/449**與build全過；大chunk警告既有未改。
+- 密文artifact11791661615實查未過期（05:40:54Z建立），預定在同SHA CI綠後用它執行一次隔離catalog；不建立新明文備份、不讀正式DB。不把觸發workflow當還原成功，後續記錄run、各步與公開artifact內容。CI及實際PG17盤點結果待追加。
+- PR16/18仍draft，第二帳號與真正排程套用／跨端同步門檻仍缺，nightly仍disabled_manually，10分鐘Codex追蹤ACTIVE。下輪先核對本輪實證，再修permissions-drill密文相容與公開輸出，持續探索，不自行結案。
+
 #### 2026-10-13 17:12 heartbeat：訂閱成功補漏讀取與雲端啟動失敗防護
 
 - 本輪891b0cd起點乾淨、沒有其他modifier／deploy程序；不再整合相同main或重跑已過C5。依Impeccable harden只補資料更新／失敗路徑，保留班表、抽屜、日週切換及午休背景；context已執行一次，craft-floor全文已讀，最終detector app.js為空結果。
@@ -37,6 +48,11 @@
 - 沿途新Major/潛在資料安全缺陷實際重現：start()在STORE.load拋錯時吞錯後呼叫makeDemo，可能讓雲端session拿示範資料開始操作；另真SupabaseStore在RPC data=null時轉成空snapshot，且開始讀取log。新測試各修前失敗。現在雲端start讀取錯誤直接交由既有啟動失敗UI／登入handler顯示，不產生或儲存示範；Store拒絕null/undefined/array/string/number，version/base不變。真正零員工的有效雲端快照仍正常顯示空資料；本機首次使用仍產生並保存示範。
 - 新增7項真start／註冊callback執行期回歸＋2項真Store RPC資料邊界，聚焦23/23及全web **449/449**、工具 **31/31**、build成功。測試有明確mock API與timer，不是源碼字串斷言，也不冒稱真平台或跨帳號雲端已恢復。實际平台仍中斷，第二帳號登入／寄設定信同意仍缺；後續須以同SHA CI、staging與正式門檻分開記錄。
 - 目前只本機修正，CI／staging發布結果後續追加；正式0037不重套、正式1023與角色授權不改、不重匯測試資料。PR16/18維持draft，舊nightly仍停用，Codex10分鐘追蹤ACTIVE。catalog/permissions舊備份消費者待加密相容與公開輸出安全檢查，未dispatch。
+- 修正提交 **f6af130cf8158b8a2a3d6f1045207aa2488fe4c6** 已推；同SHA Tests **38376326952**（前端、資料庫/跨層、solver全成功）及smoke **38376326947／38376320956**成功。PR16普通merge為 **0eb0c2c77872abcc3d244a8bd44916b8143a00b5**，Tests **38376648747**三job全success、smoke **38376648700／38376644280**成功。兩PR均MERGEABLE且draft，不合併正式。後續文件SHA不代表新的應用發布。
+- CI後non-force FF staging分支到f6af130；repo hooks=0，實查無自動deploy後只手動部署既有web **dep-db6vkm3l550s73a9f25g**，09:31:37Z live f6af130。一般root MISS／**index-DSYR92oP.js**；IAB真qa-lead session確認此asset及組長身份。09:31:04–09:32:47Z部署error logs空；這不是瀏覽器或跨端全面零錯誤。solver仍2cde149，不改服務環境变量、不新增資源/費用。
+- 真瀏覽器故障E2E：在IAB test tab以CDP只阻擋隔離Supabase的schedule_snapshot RPC（未讀JWT／私密key／request headers），reload得到 **啟動失敗／讀取排程失敗：TypeError: Failed to fetch**，沒有示範看板。Screenshot **outputs/staging-cloud-read-failure-20261013.jpg**。在finally設blocked URLs=[]並Network.disable，再reload恢復一般root及原帳號；回10/12／1廠，19段label/text/style與故障前逐筆一致。測試網路設定已全解除，沒有留離線或URL阻擋。
+- 恢復後另開測試A01編輯，08:00改草稿08:10（DOM value490），Escape取消，19段仍逐筆一致，未按儲存/用這套。恢復畫面 **outputs/staging-reconnect-restored-20261013.jpg**，保留IAB登入handoff。真正平台仍報即時更新中斷，不能用這次RPC故障恢復冒稱Realtime重連補漏或真雙帳號同步已驗收。Chrome舊tab1703573242已消失；新列表有1703573245，但claim讀取逾時，已按troubleshooting處理、不重選瀏覽器/盲試，不知道其登入狀態。寄設定信同意仍未收到，不寄信/猜密碼/讀舊SQL。
+- OpenAI Docs核對後更新**既有**automation提示，移除obsolete衝突／已修事項，保留heartbeat/每10分鐘/同一thread/ACTIVE與全部保護限制；沒建新cron或改費用、沒停用追蹤。下一輪先讀本節：不重做已過f6測試/部署/RPC故障E2E；若尚無可用第二帳號，繼續catalog/permissions密文消費與診斷隱私，或安全有界輪詢/草稿保護的實際重現。新介面候選：啟動失敗頁目前只有「回正式資料」root連結，先驗mode=test/本機模式的重試與環境保留、手機觸達，再決定最小修正；不把源碼猜測當已確認回退缺陷。正式1023/0037/權限不動，PR16/18仍draft，nightly仍停用至安全加密main發布。
 
 #### 2026-10-13 16:50 heartbeat：安全整合最新main與模擬診斷隱私防護
 

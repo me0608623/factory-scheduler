@@ -6,6 +6,16 @@ const backup=(id,created='2026-10-12T00:00:00Z',extra={})=>({id,name:`db-backup-
   created_at:created,expires_at:'2026-10-20T00:00:00Z',...extra});
 const response=data=>({ok:true,json:async()=>data});
 
+test('encrypted-only consumer never selects a newer legacy plaintext backup',async()=>{
+  const result=await findBackup({repo,now,encryptedOnly:true,fetchImpl:async()=>response({total_count:2,artifacts:[
+    backup(60,'2026-10-12T23:50:00Z'),backup(59,'2026-10-12T23:00:00Z',{name:'db-backup-encrypted-59'})]})});
+  assert.equal(result.id,59);
+});
+test('encrypted-only consumer refuses an explicitly requested plaintext backup',async()=>{
+  await assert.rejects(findBackup({repo,now,encryptedOnly:true,artifactId:'60',
+    fetchImpl:async()=>response(backup(60))}),/not an unexpired/);
+});
+
 test('finds backups beyond the first page despite 100 newer test artifacts',async()=>{
   const calls=[];
   const result=await findBackup({repo,now,fetchImpl:async url=>{

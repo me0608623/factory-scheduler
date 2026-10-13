@@ -77,5 +77,9 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
     recipient:process.env.BACKUP_AGE_RECIPIENT,projectRef:process.env.BACKUP_PROJECT_REF}):
     cmd==='unpack'?unpackBackup({encrypted:process.env.BACKUP_ENCRYPTED_FILE,identity:process.env.BACKUP_IDENTITY_FILE,
       outDir:process.env.BACKUP_RESTORE_DIR}):Promise.reject(new Error('Unknown backup command'));
-  action.then(()=>console.log('Encrypted backup validation passed')).catch(e=>{console.error(e.message);process.exitCode=1;});
+  // JSON parser and filesystem errors can contain decrypted source excerpts.
+  // Exported APIs retain errors for private callers; public CLI logs never do.
+  action.then(()=>console.log('Encrypted backup validation passed')).catch(()=>{
+    console.error('Encrypted backup validation failed; private diagnostics withheld');process.exitCode=1;
+  });
 }
