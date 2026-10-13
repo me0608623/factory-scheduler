@@ -1771,6 +1771,7 @@ function modalFocusFromToken(root,token){
   return [...root.querySelectorAll("[data-"+token.kind+"]")].find(el=>el.dataset[token.kind]===token.value)||null;
 }
 function openModal(m){
+  if(UI.modal!==m)cancelPlanCalculation();
   if(!UI.modal){
     const active=document.activeElement;
     modalReturnFocus=active instanceof HTMLElement&&active!==document.body?active:null;
@@ -1778,6 +1779,7 @@ function openModal(m){
   UI.modal=m;renderModal();
 }
 function closeModal(){
+  cancelPlanCalculation();
   UI.modal=null;const r=$("#modal-root");if(r)r.innerHTML="";maybeReload();
   const target=modalReturnFocus;modalReturnFocus=null;
   requestAnimationFrame(()=>{if(target?.isConnected&&!target.matches?.(":disabled"))target.focus();});
@@ -1818,7 +1820,8 @@ function renderModal(){
   const c=f(m);if(!c){closeModal();return;}
   const keep=root.querySelector(".overlay"),focusToken=keep&&root.contains(document.activeElement)?modalFocusToken(document.activeElement):null;
   const st=keep?keep.scrollTop:0;
-  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close" aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
+  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!m.planBusy+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close" aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
+  if(m.planBusy)root.querySelectorAll('input,select,textarea,button:not([data-act="close"])').forEach(el=>el.disabled=true);
   const ov=$("#ov");ov.scrollTop=st;
   const cb=$("#cbx"),modal=ov.querySelector(".modal");
   const restore=modalFocusFromToken(modal,focusToken);
@@ -2634,16 +2637,41 @@ function pvPanelHTML(o){
    '</div>'+pvDrawerActionsHTML(o)+'</aside>';
   return strip+drawer;
 }
-function openPlans(title,logTitle,kind,applyEvent,strategies,extra={}){
+let planCalculationJob=null;
+function cancelPlanCalculation(){
+  if(planCalculationJob?.modal)planCalculationJob.modal.planBusy=false;
+  planCalculationJob=null;
+}
+function endPlanCalculation(job,renderCurrent=true){
+  if(planCalculationJob!==job)return;
+  cancelPlanCalculation();
+  if(renderCurrent&&job.modal&&UI.modal===job.modal)renderModal();
+}
+function planCalculationReady(job){
+  if(planCalculationJob!==job)return false;
+  const sameOwner=UI.modal===job.modal&&PV===job.preview&&STORE===job.store&&STORE.session?.user?.id===job.user&&STORE.authEpoch===job.epoch;
+  if(sameOwner&&S===job.state&&STORE.version===job.version&&JSON.stringify(S)===job.base)return true;
+  endPlanCalculation(job,sameOwner);
+  if(sameOwner)toast(tx('排程資料已改變，請重新計算。'));
+  return false;
+}
+async function openPlans(title,logTitle,kind,applyEvent,strategies,extra={}){
   if(S.setupPending){toast("原檔名冊與工作資料尚待確認，暫不開放排程");return;}
   if(extra.event&&STORE.kind==="supabase"&&!STORE.can("schedule.manage")&&SOLVER.up===false){toast("這項授權需要 OR-Tools 服務在線才能安全調整既有排程");return;}
-  if(extra.event&&SOLVER.up!==false)return openPlansSolver(title,logTitle,kind,applyEvent,strategies,extra);
-  return openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra);
+  if(planCalculationJob&&planCalculationReady(planCalculationJob))return;
+  const job={modal:UI.modal,preview:PV,store:STORE,user:STORE.session?.user?.id,epoch:STORE.authEpoch,version:STORE.version,state:S,base:JSON.stringify(S)};
+  planCalculationJob=job;
+  if(job.modal){job.modal.planBusy=true;renderModal();}
+  try{
+    if(extra.event&&SOLVER.up!==false)return await openPlansSolver(title,logTitle,kind,applyEvent,strategies,extra,job);
+    return await openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra,job);
+  }catch(e){if(planCalculationReady(job))toast(tx('排程計算失敗，請重試。'));}
+  finally{endPlanCalculation(job);}
 }
-async function openPlansSolver(title,logTitle,kind,applyEvent,strategies,extra){
+async function openPlansSolver(title,logTitle,kind,applyEvent,strategies,extra,job){
   if(assignments(S).length&&!SOLVER.capabilities.includes('work_assignments_v1')){
     toast('OR-Tools 服務尚未支援一般工作占用，改用瀏覽器備援');
-    return openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra);
+    return openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra,job);
   }
   const timeLimit=planTimeLimit(S);
   toast(timeLimit>3?"資料量較大，OR-Tools 計算可能需要數十秒…":"OR-Tools 計算中，請稍候…");
@@ -2652,26 +2680,29 @@ async function openPlansSolver(title,logTitle,kind,applyEvent,strategies,extra){
   try{
     plan=STORE.kind==="supabase"?await SOLVER.plansDb(extra.event,now,STORE.jwt(),timeLimit):await SOLVER.plans(toSnapshot(S,HOLI),extra.event,now,timeLimit);
   }catch(e){
+    if(!planCalculationReady(job))return;
     if(e.status&&e.status<500){toast(e.message);return;}
     if(STORE.kind==="supabase"&&!STORE.can("schedule.manage")){toast("OR-Tools 服務暫時無法使用；你的權限不包含瀏覽器內的完整重排");return;}
     toast("排程服務沒有回應，改用瀏覽器內的演算法");
-    return openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra);
+    return openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra,job);
   }
+  if(!planCalculationReady(job))return;
   if(!plan.options||!plan.options.length){toast("算不出可行的排法，請手動處理");return;}
-  const B=JSON.parse(JSON.stringify(S)),ev={date:plan.date,oid:extra.event.order?extra.event.order.id:undefined};
+  const B=JSON.parse(job.base),ev={date:plan.date,oid:extra.event.order?extra.event.order.id:undefined};
   const opts=plan.options.map(o=>{const A=applyOption(B,o);return {id:o.id,name:o.name,desc:o.desc,lines:o.lines||[],mt:measure(B,A,ev),score:o.score,best:!!o.recommended,applicable:o.applicable!==false,diagnostics:o.diagnostics||[],state:JSON.stringify(A),A,sec:o.solve_seconds,solverMethod:o.solver_method,previewId:plan.preview_id||null};});
   const fi=plan.options[0].effects&&plan.options[0].effects.faults_insert;
   enterPreview({title,logTitle,kind,base:JSON.stringify(B),B,opts,ev,extra:{...extra,fid:fi&&fi[0]?fi[0].id:extra.fid,previewId:plan.preview_id||null,engine:"OR-Tools"}});
 }
-function openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra={}){
+function openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra={},job){
   toast("正在計算幾種排法…");
-  setTimeout(()=>{
+  return new Promise((resolve,reject)=>setTimeout(()=>{try{
+    if(!planCalculationReady(job))return;
     const r=buildPlans(applyEvent,strategies,kind);
     if(!r.opts.length){toast("算不出可行的排法，請手動處理");return;}
     for(const o of r.opts)o.A=JSON.parse(o.state);
     const {aff,...ev}=r.ev;
     enterPreview({title,logTitle,kind,base:r.base,B:JSON.parse(r.base),opts:r.opts,ev,extra:{...extra,engine:"瀏覽器"}});
-  },30);
+  }catch(e){reject(e);}finally{resolve();}},30));
 }
 function enterPreview({title,logTitle,kind,base,B,opts,ev,extra}){
   const returnContext=PV?.returnContext||capturePreviewContext(UI);

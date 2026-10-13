@@ -30,6 +30,54 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 22:23 heartbeat／22:32：計算在途連點、取消與過期結果修復
+
+- 起點8c0513d乾淨；確認無其他modifier/deploy，原5202 Vite仍在；本輪新啟的同port IPv6 Vite為session45566，收尾停止此新增副本，保留原5202。指定交接已讀；舊NEXT_TASKS的0037／staging deploy hook／寄信待同意歷史不重做。寄測試帳號設定信已獲准及送出，沒有新第二帳號登入證據，不重寄或改密碼。正式1023/0037/setup_pending/角色授權以及測試Supabase排程零寫入。
+- 新測試執行 **真app openPlans/openPlansSolver/openPlansLocal/openModal/closeModal函式**（Node VM、明確合成transport，非source字串成功斷言），修前8項 **0 pass/8 fail**：同步三連點送3次、取消後成功仍進PV、取消後error仍排備援timer、換modal仍接舊結果、舊結果以新S重新包base、切user/store/epoch/version仍接受、local timer取消仍計算、沒有loading/retry狀態。沒有製造真雲端競爭或宣稱刪除服務端已計算的preview。
+- 最小修正固定每次計算的modal/PV、store/user/authEpoch、S身分/序列化base/version；同一在途工作不重送，關閉／換彈窗立即失效，await及local timer再驗，拒絕過期結果且不重啟備援。新工作不被舊finally清掉，正常error/空方案會解除busy可重試；本機timer例外也被捕捉。服務端已送出的計算未Abort，取消的是接受結果，不宣稱後端計算／preview記錄已撤回。
+- 原modal新增aria-busy、三語「計算中，可取消；班表尚未變更。」並停用非close操作，關閉X／取消及Escape沿用可操作路徑；無CSS/Gantt/抽屜/日週規則變更。Impeccable context及harden/craft-floor全文，detector一次[]；不是完整a11y/真機Safari驗收。操作及關閉生命週期涵蓋auto/fault/leave/order/recover共用入口，其他事件表單需真瀏覽器後續覆核。
+- 聚焦先49/49成功；擴充至11項時timeout備援測試因VM跨realm microtask未排完而fail，改setImmediate單次flush而未放寬斷言，**11/11成功**。初始完整 **525/526** 不當綠；修fixture後完整526/526，最後補跨身份不重畫舊modal保護，再重新全套 **526/526／0 fail**（51.15秒）＋build成功 **index-DhxFvM8v.js**，既有chunk警告保留。完整log僅本機outputs/plan-race-web-tests-final-20261013.txt。
+- 真本機 **http://localhost:5202/?local=1**（與正式無連線、0當日示範色塊）從更多→自動排班→計算，確實生成3套瀏覽器備援方案；直接取消回10/13/1廠、0 modal/PV/色塊，runtime warn/error查詢0。計算太快，未捕捉新busy可見／中心命中或在途Escape的真UI，不以VM測試冒稱手機/桌面busy全部通過；沒有套用或儲存。tab25保留續測。
+- runtime **01740ea** 已提交；最新main8ff680c/7101cc9/8c5e609僅另一agent文件15行，以普通merge保留為 **dfc24865a413a11c7135b18054efbb5625a8fd8f**已推。同SHA Tests **38414186563／38414175203**、smoke **38414186826／38414175427**均 completed/success。PR16尚未同步此版、兩PR仍draft，staging仍99d0760，不把本機新build當線上已更新。接續安全同步乾淨PR16、FF既有staging source並核真正auto-deploy/live SHA（App範圍已縮小factory-only）、busy/取消真桌面手機及錯誤記錄；門檻未全過不合正式。Codex10分鐘追蹤ACTIVE，不因526綠結案。本機取消後截圖outputs/local-plan-cancel-20261013.png不當雲端seed證據。
+
+#### 2026-10-13使用者要求線上測試資料／同意自行處理測試登入
+
+- 使用者要求實際部署網站可測拖曳，並回覆「你自行處理，沒有密碼就創新帳號，不要再詢問我而停止作業」。視為同意前一題具體的測試帳號設定信用途；既有帳號存在，不額外建立重複帳號，也不替本人輸入／修改新密碼。**先前寄信同意尚缺的阻礙已解除**，不要再沿用舊段落或重複詢問／重寄。
+- 真 staging tab20 普通網址 **https://factory-scheduler-web-staging.onrender.com/** 仍 qa-lead session；10/15／1廠確見原20個可操作色塊，包含 M20 的13:00–14:50及測試裁切／沖壓／焊接／組裝工序，沒有重匯／reset／改排程。既有12人8資源20單103段的匯入及先前單段move/undo實證不重做；本輪不是新部署，也不把正式網址 ?mode=test 尚未配置當已可用。
+- 另開 Chrome 獨立未登入頁，既有登入UI填 **me0608623+test-lead@gmail.com** 後單次按「忘記密碼／設定邀請帳號密碼」，先見disabled，再真正顯示「若此帳號存在，密碼設定信已寄出。請開啟信中的連結。」這是服務接受寄信請求，不是親自核對信箱送達或第二帳號登入成功；沒有讀或猜密碼／權杖、沒有新增帳號或改角色。新密碼須本人在手機收信後自行完成，不可由agent代填。Chrome tab1703573257保留handoff；本機證據outputs/staging-test-password-request-20261013.png，不公開artifact上傳。
+- 手機交付：使用上述獨立staging網址、該測試Email，選2026-10-15／1廠，先測 M20 下午段往後10分鐘→預覽取消，再確認套用／復原。資料不共用正式1023；目前Realtime仍中斷，另一裝置需按「更新班表」補讀。正式測試模式發布、不同帳號角色／自動同步／ORTools真套用等門檻仍未全過，不合PR16/18或正式部署。本輪只有獲准測試Auth寄信請求及UI導航，正式1023零寫入。持續追蹤未停止，接續安全競爭測試，不因等待本人設定密碼而停止其他工作。
+
+#### 2026-10-13 22:17：依本人回覆縮小 Render App 倉庫授權
+
+- 使用者明確選擇「只允許 factory-scheduler」。既有 installation **170996374** 從 All repositories 改為 Only select repositories，僅選 **me0608623/factory-scheduler** 後按 Save；GitHub 導回 Render，重新開原 Configure 讀取已保存狀態：Only select repositories checked、Selected 1 repository、只有 factory-scheduler、Save/Cancel disabled。沒有新增授權、改密碼或重裝 App；其他公開倉庫仍有 GitHub 頁面註明的 read-only 例外，不宣稱完全禁止讀所有公開程式碼。
+- 本機證據 **outputs/render-app-factory-only-20261013.png** 已保存並目視，沒有公開上傳；GitHub 設定與既有測試 session tabs 保留 handoff。Render MCP 再核 staging web repo/source/root/autoDeploy 仍正確，最新 live **99d0760 / dep-db73bb6q1p3s73euliag**（原 new_commit 事件），沒有為權限縮小製造空提交或重複部署。這不等同縮小後又發生新 push 的 webhook 驗證，下一筆安全 runtime 更新時再核對。
+- 起點 e3a8153 工作樹乾淨；其同 SHA Tests **38411091684** 及 Deployment smoke **38411091856** 均 completed/success。本次只收斂 GitHub 安裝範圍及補紀錄，沒有程式變更，沒有 Supabase/正式1023寫入，也沒有合 PR16/18 或正式部署。發布門檻與下一項 auto 計算在途連點／取消探索仍依下段記錄；未進行的競爭測試不當通過。Codex持續追蹤未停用。
+
+#### 2026-10-13使用者確認Render授權／22:08：自動部署恢復、新版真雲端套用復原及補讀
+
+- 起點1715e56乾淨、無其他modifier／deploy；只有專屬Vite/esbuild。PR16 f5a85db Tests **38406785146／38406776111**及smoke **38406784793／38406776055**實查全success。最新main後續3筆只新增另一agent文件15行，以普通merge保留为 **c4f8f3fcea887f712b669773d13c9038ba68708d**，不切共享checkout、不force、不合PR到main。以下是**staging**驗收，正式1023/0037/setup_pending/帳號個人權限及正式服務未操作。
+- 使用者明確回覆Render App授權已確認。tab23仍舊Install預览且只勾factory-scheduler；按此前已確認Install后GitHub回「GitHub App has already been installed」，沒有重複安裝；再讀Installed GitHub Apps確見新Render installation **170996374**。這證明本人已先完成，舊分頁是殘留表單，不再次點預設變回All的Install。實讀新Configure發現**All repositories已勾選**，不是先前本agent的Only selected預览；未擅自擴張或縮小現有授權，已詢問是否收斂factory-scheduler，仍待答覆，以免影響其他Render倉庫。所有本輪操作只在factory-scheduler及既有staging服務。
+- 用Render-deploy全文及deployment-details/post-deploy-checks，確認staging來源ae1為99d祖先後安全FF **ae1bbb4→99d0760f50dde192e9a7b508a77999e2a8b05011**（已有完整515回歸且7a同runtime CI綠），未手動trigger/toggle/cache或新增費用。立即出現 **trigger=new_commit／dep-db73bb6q1p3s73euliag**，13:44:37Z live99d0760；該push同SHA Tests **38407400017** frontend/database/solver全部success、smoke **38407400938**success。對照安裝前多次push無deploy、App安裝後首次真new_commit，auto部署恢復已實證。solver root沒有改動，不重複部署。
+- 真qa-lead@factory-scheduler.test（組長）舊tab20載入新版普通root，bundle **index-Cm7LbyXf.js**；起始blank快照只是boot未完成，後續正常雲端board，不能把它當啟動崩潰。reload預設回今天10/13，UI導航回10/15/F1後，原 **20段aria-label/text/inline style逐項一致**，沒有清空／重匯資料。新版profile契約在真Auth session可啟動，但尚無不同角色/不同帳號證據。
+- 真「按此更新班表」動作查證 **POST fkefarcwadvyqqjcjxvp.../rpc/schedule_snapshot＋GET change_sets**，回應200后画面原20段仍一致，日期廠別不變；未讀／列出JWT、headers或body。這是實際補讀＋渲染，不只HTTP200或source斷言。Settings姓名改成TEST-UNSAVED-PROFILE後Escape取消，無儲存，重新開仍原名，班表不變；沒有聲稱真背景事件在草稿中發生（Realtime中斷）。
+- 第一輪auto preview明確為 **瀏覽器備援**，Network沒有/plans請求，不當ORTools成功。帳號與連線→重新連線排程服務，實查staging /health200、UI變 **OR-Tools9.15.6755**；再算真正 **OPTIONS＋單次POST /plans/db200**，生成3套OR-Tools方案，選不同方案與跨日差異可見。最初健康檢查未抓Network，僅來源證明ordinary cloud health timeout3秒且solver Free，可疑冷啟動／一次up=false不再嘗試，但**具體初次失敗原因未實證**，留待後續重現。計算可能在測試DB建立preview/options，不宣稱測試庫零寫入；未按ORTools「用這套」或apply_plan。
+- 手機390×844：最初browser viewport作用user tab22而非agent tab20（讀得641×524），明確剔除。改用tab20 CDP Emulation，DOM確認390×844、pageOverflow=false，展開的取消/用這套 **48px且中心命中**；瀏覽器備援與真ORTools各直接取消一次，回10/15/F1且20段逐項一致，無schedule寫入。1440×900另確認桌面右面板、OR-Tools/三方案/日期差異。只Chromium尺寸，不是原生Safari。一般screenshot在emulation有工具截圖縮圖問題，不能当完整手機證據；改Page.captureScreenshot明確clip，PNG尺寸1440×900及390×844正确並目視：**outputs/staging-ortools-desktop-99d0760-20261013.png、outputs/staging-ortools-mobile-99d0760-20261013.png**。手機頂部較長且開抽屜時本次截圖未見甘特，收合/捲動實際觀看仍待探索，不宣稱全UI門檻通過。
+- 真新版手動套用／補讀測試（明確同一qa-lead的tab20/24，不是不同帳號）：未來10/15 M20裁切160件tst01 **13:00–14:50→13:10–15:00**，110分鐘/件數不變、0連帶工序、仍10/21期限前完成；只在已核對的隔離庫。暫以Network.setBlockedURLs阻擋staging /notify/line，防測試訊息外發，不改通知設定。確認後**save_blocks單次POST**（另一OPTIONS是CORS，不是連送），雲端已儲存；第二端仍原時段，按新版更新班表後真正看到13:10–15:00及固定標記。這放行UUID成功確認與單次補讀看到他端寫入，不是Realtime恢復。
+- 再按正常「復原上一步」，另一單次save_blocks POST200完成，第二端補讀後 **原20段label/text/style逐項一致**。原fixture資料正常還原，但保留兩次版本/稽核，沒有倒轉version、刪歷史或reset；沒有比較全DB指紋。這是新版手動move/undo，不是ORTools apply_plan。全部Network阻擋已清urls=[]並disable，Emulation已clear，browser viewport已reset。真tab20 runtime warning/error查詢0，工具記錄範圍有限，不當後端/platform無error；Realtime徽章仍中斷。
+- 發布仍未過：不同帳號登入/角色權限、Realtime自動同步（或明確接受降級）、真ORTools套用、offline/409瀏覽器及原生Safari/正式VITE_TEST_*未全驗。第二帳號設定信同意仍缺，不能寄信、猜密碼或改角色；PR16/18維持draft、未正式合併部署。nightly **367614493**實查disabled_manually至加密main安全發布，Codex10分鐘追蹤ACTIVE。下一轮先核對最新CI及App範圍答覆（无答不改），優先安全探索cold health false後的恢復／auto計算在途連點取消（目前僅DOM看到計算鈕仍enabled，未製造競爭，不當已確認bug），並保留單段不reset的驗收基準。tab20/24測試session、21Render、23安裝設定handoff。
+
+#### 2026-10-13 21:32 heartbeat／21:38：個人資料及權限晚回應污染修復（僅隔離本機）
+
+- 起點ddb35cf乾淨，無其他modifier／deploy，僅原Vite/esbuild；指定交接及最新checkpoint已讀。ddb35cf Tests **38405625230**與smoke **38405624810**成功。最新main72a0b48只新增5行另一agent文件，普通merge保留；正式1023／setup_pending／0037／帳號授權及測試Supabase均零寫入。
+- 沒有收到Render App安裝同意，**不按Install／新增Git存取**，也不重複詢問。tab23仍為僅factory-scheduler的安裝预览，兩份Git/Render證據以先前實測為準，不把帳號憑證存在当App已安裝。第二測試帳號設定信也無同意，不寄信／猜或改密碼；autoDeploy不toggle，不用人工deploy繞過工具限制。staging仍未驗新SHA，不合PR16/18／不正式部署；nightly仍待加密main發布。
+- 新真SupabaseStore函式測試先有測試fixture箭頭括號語法錯誤，修正後才作RED判定；4項實際測試 **4 fail／0 pass**：_profile的profile及permissions两段讀取可混入新帳號／client／同UID新登入生命週期，角色在grant完成前已先修改，updateProfile舊RPC會改新帳號name。不是雲端或瀏覽器實證，transport完全合成，不讀真帳號資料／秘密。
+- 最小改_profile：固定client/user/authEpoch，两次await後核對；兩份結果成功才同步接受role、employeeId、userName及grants。讀取錯誤且仍為原session時清role/permissions/employeeId，避免舊write cache；過期回應不清新帳號的權限。updateProfile只在同一身份/生命週期/client才接受姓名回應，相同UID正常token刷新仍可成功；已送出的RPC不能撤回，拒絕的是其本機晚回應，不宣稱雲端寫入已撤销。
+- 追加null／錯型權限回條驗證另有 **1 fail／1 pass**，修復後profile必須有合法角色，permissionRows必須為record array且allowed為boolean；缺profile或畸形權限不當空授權／默认可寫，error與transport reject都fail-closed。前端不修改任何資料庫role或個人授權；既有四角色enum與boolean schema只唯讀核對。原auth-session fixture補明確thenable空grant rows，沒有放寬斷言。
+- 新profile-session **6項**覆蓋两阶段×三种身份变更、寫姓名三負一正、正常token、半份授權不採用、失敗清舊cache、6種畸形grant及缺profile、profile失敗不查grants。前4項＋既有Auth/真PGlite Store回歸 **23/23**是在追加契約防護前；之後最終聚焦 **8/8**，最終完整web **515/515／0 fail**（54秒），build成功（index-D67ONLEY.js），原chunk警告保留。只store/backend邊界邏輯及測試，沒有UI/CSS重設，不宣稱瀏覽器真人Auth/手機版型／跨帳號同步完成。
+- runtime **99d0760**已提交，普通merge最新main為 **7a307b8813b5584a28cadd991e14a90a1d5d384d**已推。PR16事前e76796c本地/remote一致且乾淨，只既有Vite/esbuild，普通merge到 **f5a85db1269f1bad6002a09b808730082d08f705**已推；原3項runtime/test差異與2份docs保留。這兩個新SHA CI須後續核對，不能拿上一個e767/6f綠冒稱它們綠。
+- 下一項安全探索：同一session的多個_profile並行／授權變更讀取晚回應次序，以及init/login在途SDK結果是否可復活登出身份；尚未測，不當已確認缺陷。log_change無version的UUID遺失仍待設計安全核對，不能盲重試重複稽核；故障重排、OR-Tools真套用、跨帳號/角色/雙端/offline/409/原生Safari仍門檻未過。工作環境保留，Codex10分鐘追蹤ACTIVE，不因515綠結案。
+- 最後核對：7a307b8 Tests **38406469537／38406463149**及smoke **38406469485／38406463975**全success；PR16 f5a85db Tests **38406785146／38406776111**仍in_progress，smoke **38406784793／38406776055**success。新建置未部署，不用持久分支綠冒稱PR16全CI已完成。tab23/21/20 handoff重新保留，工作區乾淨。
+
 #### 2026-10-13使用者續作：最新CI全綠，GitHub Render App未安裝，停在新增授權前
 
 - 持久工作樹7309aaa乾淨，無其他modifier／deploy；僅專屬Vite/esbuild。main仍c58032b、staging source仍ae1bbb4，沒有改共享checkout或正式1023／setup_pending／帳號權限；沒有雲端資料寫入。
