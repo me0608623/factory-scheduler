@@ -143,13 +143,28 @@ export class SupabaseStore {
   }
 
   async _profile() {
-    const { data } = await this.sb.from("profiles").select("display_name,role,employee_id").eq("user_id", this.session.user.id).maybeSingle();
-    this.role = data?.role || null;
-    this.employeeId = data?.employee_id || null;
-    this.userName = data?.display_name || this.session.user.email || "";
-    const {data:permissionRows,error:permissionError}=await this.sb.from('account_permissions').select('permission,allowed').eq('user_id',this.session.user.id);
-    if(permissionError)throw new Error('讀取帳號權限失敗：'+permissionError.message);
-    this.permissions=Object.fromEntries((Array.isArray(permissionRows)?permissionRows:[]).map(x=>[x.permission,!!x.allowed]));
+    const client=this.sb,user=this.session?.user,epoch=this.authEpoch;
+    const current=()=>this.sb===client&&this.session?.user?.id===user?.id&&this.authEpoch===epoch;
+    const assertCurrent=()=>{if(!current())throw new Error('登入狀態已變更，請重新整理後確認帳號。');};
+    try{
+      const { data,error } = await client.from("profiles").select("display_name,role,employee_id").eq("user_id", user?.id).maybeSingle();
+      assertCurrent();
+      if(error)throw new Error('讀取帳號權限失敗：'+error.message);
+      if(!data||!['boss','lead','worker','viewer'].includes(data.role))throw new Error('讀取帳號權限失敗：帳號資料不完整');
+      const {data:permissionRows,error:permissionError}=await client.from('account_permissions').select('permission,allowed').eq('user_id',user?.id);
+      assertCurrent();
+      if(permissionError)throw new Error('讀取帳號權限失敗：'+permissionError.message);
+      if(!Array.isArray(permissionRows)||permissionRows.some(r=>!r||typeof r.permission!=='string'||typeof r.allowed!=='boolean'))throw new Error('讀取帳號權限失敗：權限回應不完整');
+      // A profile and its grants form one accepted authorization state. Do not
+      // expose a new role with old grants, or retain stale writes after failure.
+      this.role = data?.role || null;
+      this.employeeId = data?.employee_id || null;
+      this.userName = data?.display_name || user?.email || "";
+      this.permissions=Object.fromEntries(permissionRows.map(x=>[x.permission,x.allowed]));
+    }catch(error){
+      if(current()){this.role=null;this.permissions={};this.employeeId=null;}
+      throw error;
+    }
   }
 
   can(permission) { return effectivePermission(this.role,this.permissions,permission); }
@@ -167,7 +182,9 @@ export class SupabaseStore {
 
   async updateProfile({displayName}) {
     const name=String(displayName||'').trim();if(name.length<1||name.length>60)throw new Error('顯示名稱需要 1–60 個字');
-    const {data,error}=await this.sb.rpc('update_own_profile',{p_display_name:name});
+    const client=this.sb,user=this.session?.user?.id,epoch=this.authEpoch;
+    const {data,error}=await client.rpc('update_own_profile',{p_display_name:name});
+    if(this.sb!==client||this.session?.user?.id!==user||this.authEpoch!==epoch)throw new Error('登入狀態已變更，請重新整理後確認帳號。');
     if(error)throw new Error('儲存個人資料失敗：'+error.message);this.userName=data?.displayName||name;
   }
 

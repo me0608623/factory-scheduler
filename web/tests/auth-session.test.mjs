@@ -11,7 +11,7 @@ test('排程查詢使用自動更新後的登入憑證；登出後不再提供�
       getSession:async()=>({data:{session:initial}}),
       onAuthStateChange:callback=>{callbacks.push(callback);return {data:{subscription:{unsubscribe(){}}}};},
     },
-    from:()=>({select(){return this;},eq(){return this;},async maybeSingle(){return {data:{role:'lead',display_name:'合成測試'}};}}),
+    from:()=>({select(){return this;},eq(){return this;},async maybeSingle(){return {data:{role:'lead',display_name:'合成測試'}};},then(resolve,reject){return Promise.resolve({data:[],error:null}).then(resolve,reject);}}),
   };
   const store=new SupabaseStore(client);await store.init();await store.init();
   assert.equal(callbacks.length,1,'重複初始化不得重複監聽');
