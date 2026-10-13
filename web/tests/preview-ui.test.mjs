@@ -175,8 +175,8 @@ test('缺陷#21 棘輪：筆刷範圍套用必須 await commit（同步佇列）
   const brushBlock = app.indexOf('const applyBrush=');
   assert.ok(brushBlock > 0, 'applyBrush 存在');
   const seg = app.slice(brushBlock, brushBlock + 4000);
-  const commitIdx = seg.indexOf('await commit({kind:"leave"');
-  const reloadIdx = seg.indexOf('await reloadFromStore()');
-  assert.ok(commitIdx > 0, '筆刷套用的 commit 必須被 await');
+  const commitIdx = seg.indexOf('const saving=commit({kind:"leave"');
+  const reloadIdx = seg.indexOf('await reloadFromStore({background:true})');
+  assert.ok(commitIdx > 0 && seg.indexOf('saved=await saving') > commitIdx, '筆刷套用的 commit 必須被 await');
   assert.ok(reloadIdx > commitIdx, 'reloadFromStore 必須在 commit 同步完成之後');
 });

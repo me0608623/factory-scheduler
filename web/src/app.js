@@ -889,9 +889,9 @@ function peopleDrawerHTML(){
   let selected=emp(UI.focus?.type==='employee'?UI.focus.id:null);if(!selected||!people.some(e=>e.id===selected.id))selected=absent[0]||people[0]||null;
   const pending=(S.leaveRequests||[]).filter(x=>x.status==='pending'&&people.some(e=>e.id===x.employeeId)).sort((a,b)=>a.date.localeCompare(b.date));
   const weekdays='一二三四五六日'.split('').map(x=>'<span>'+x+'</span>').join('');
-  const days=selected?monthDates(UI.date).map(d=>d?'<button class="calendar-day '+leaveState(S,selected.id,d)+'" data-act="person-day" data-id="'+esc(selected.id)+'" data-d="'+d+'"><b>'+Number(d.slice(-2))+'</b><i></i></button>':'<span class="calendar-day blank"></span>').join(''):'';
+  const days=selected?monthDates(UI.date).map(d=>d?'<button class="calendar-day '+leaveState(S,selected.id,d)+'"'+(UI.leaveBrushSaving?' disabled':'')+' data-act="person-day" data-id="'+esc(selected.id)+'" data-d="'+d+'"><b>'+Number(d.slice(-2))+'</b><i></i></button>':'<span class="calendar-day blank"></span>').join(''):'';
   const requests=pending.map(r=>'<article class="leave-request"><b>'+esc(emp(r.employeeId)?.name||'未設定人員')+'詢問 '+mdw(r.date)+' 請假</b><p>'+esc(r.note||'未填說明')+'</p><small>'+tx('核准前不列入正式請假，也不會觸發重排。')+'</small>'+(canIncidents()?'<div><button class="approve" data-act="leave-resolve" data-id="'+r.id+'" data-v="approved">'+tx('准假')+'</button><button class="deny" data-act="leave-resolve" data-id="'+r.id+'" data-v="rejected">'+tx('駁回')+'</button></div>':'')+'</article>').join('');
-  return '<section class="absence-box"><b>今日缺席　'+absent.length+' 人</b><span>'+esc(absent.map(x=>x.name).join('、')||'無')+'</span></section>'+
+  return (UI.leaveBrushSaving?'<div class="drawer-hint" role="status">'+tx('正在儲存排班狀態，請稍候。')+'</div>':'')+(UI.leaveBrushError?'<div class="issues" role="alert"><div class="issue">'+esc(UI.leaveBrushError)+'</div></div>':'')+'<section class="absence-box"><b>今日缺席　'+absent.length+' 人</b><span>'+esc(absent.map(x=>x.name).join('、')||'無')+'</span></section>'+
     '<div class="people-pills">'+people.map(e=>'<button data-act="focus-person" data-id="'+e.id+'" aria-pressed="'+(selected?.id===e.id)+'">'+esc(e.name)+'</button>').join('')+'</div>'+
     '<div class="traffic-legend"><span><i class="green"></i>'+tx('在班')+'</span><span><i class="red"></i>'+tx('請假')+'</span><span><i class="yellow"></i>'+tx('uncertain')+'</span><span><i class="gray"></i>'+tx('待確認')+'</span></div>'+
     (selected?'<section class="people-calendar"><header><b>'+esc(selected.name)+'</b><span>'+UI.date.slice(0,7).replace('-',' 年 ')+' 月</span>'+(canIncidents()?'<button class="btn" data-act="person-month" data-id="'+esc(selected.id)+'">'+tx('整月設定')+'</button>':'')+'</header><div class="calendar-week">'+weekdays+'</div><div class="calendar-grid">'+days+'</div>'+(canIncidents()?'<div class="toggles cal-brush">'+'<button class="tg brush-leave'+(UI.leaveBrush==="leave"?" on":"")+'" data-act="cal-brush" data-v="leave" aria-pressed="'+(UI.leaveBrush==="leave")+'">'+tx('leave')+'</button><button class="tg brush-work'+(UI.leaveBrush==="work"?" on":"")+'" data-act="cal-brush" data-v="work" aria-pressed="'+(UI.leaveBrush==="work")+'">'+tx('work')+'</button><button class="tg brush-uncertain'+(UI.leaveBrush==="uncertain"?" on":"")+'" data-act="cal-brush" data-v="uncertain" aria-pressed="'+(UI.leaveBrush==="uncertain")+'">'+tx('uncertain')+'</button>'+'</div><div class="drawer-hint">'+(UI.leaveBrush?('已選「'+(UI.leaveBrush==="leave"?"休假":UI.leaveBrush==="uncertain"?"未確定":"上班")+'」：連點日期或框選範圍套用'):'先選「上班」「休假」「未確定」，再點日期套用')+'</div>':'')+'</section>':'<div class="drawer-empty">'+tx('此廠尚未設定人員')+'</div>')+
@@ -1350,12 +1350,21 @@ document.addEventListener("click",e=>{
     case "focus-person":UI.focus={type:'employee',id};render();break;
     case "person-day":{
       if(!canIncidents()){toast('設定需要「故障與請假」權限；員工可從下方「＋新增詢問」提出');break;}
+      if(UI.leaveBrushSaving){toast(tx('正在儲存排班狀態，請稍候。'));break;}
       if(UI.leaveBrush){
         const eid=a.dataset.id,dd=a.dataset.d;
+        const brush=UI.leaveBrush,activeStore=STORE,before=S,writer=STORE.session?.user?.id,epoch=STORE.authEpoch;
+        const drawer=UI.drawer,modal=UI.modal,date=UI.date,preview=PV;
+        const sameOwner=()=>STORE===activeStore&&activeStore.session?.user?.id===writer&&activeStore.authEpoch===epoch;
+        const sameView=()=>UI.drawer===drawer&&UI.modal===modal&&UI.date===date&&PV===preview;
+        const current=()=>sameOwner()&&S===before&&canIncidents();
+        const persistRequest=async action=>{
+          const expected=JSON.stringify(S);await action();
+          if(!current()||JSON.stringify(S)!==expected){const error=new Error('stale brush');error.staleBrush=true;throw error;}
+        };
         // 統一筆刷：work/leave/uncertain 互相覆蓋，同狀態再點=取消回上班
         const applyBrush=async(eid,d)=>{
           const E=emp(eid);if(!E)return 0;
-          const brush=UI.leaveBrush;
           const isInLeave=E.leaves.includes(d);
           const pend=(S.leaveRequests||[]).find(x=>x.employeeId===eid&&x.date===d&&x.status==="pending");
           const isUnc=!!pend;
@@ -1364,22 +1373,22 @@ document.addEventListener("click",e=>{
           const wantWork=brush==="work";
           // 已在目標狀態 → toggle off（回上班）
           if((wantLeave&&isInLeave&&!isUnc)||(wantUnc&&isUnc&&!isInLeave)||(wantWork&&!isInLeave&&!isUnc)){
+            if(pend&&activeStore.kind==="supabase")await persistRequest(()=>activeStore.resolveLeaveRequest(pend.id,"rejected"));
             if(isInLeave)E.leaves=E.leaves.filter(x=>x!==d);
             if(pend)pend.status="rejected";
-            if(pend&&STORE.kind==="supabase"){try{await STORE.resolveLeaveRequest(pend.id,"rejected");}catch(e){}}
             return -1;
           }
           let changed=false;
-          if(isInLeave&&!wantLeave){E.leaves=E.leaves.filter(x=>x!==d);changed=true;}
-          if(pend&&!wantUnc){pend.status="rejected";changed=true;
-            if(STORE.kind==="supabase"){try{await STORE.resolveLeaveRequest(pend.id,"rejected");}catch(e){}}
-          }
-          if(wantLeave&&!isInLeave){E.leaves.push(d);changed=true;}
+          if(pend&&!wantUnc&&activeStore.kind==="supabase")await persistRequest(()=>activeStore.resolveLeaveRequest(pend.id,"rejected"));
+          let req=null;
           if(wantUnc&&!pend){
-            const req={id:uid(),employeeId:eid,date:d,note:"未確定",status:"pending"};
-            (S.leaveRequests||=[]).push(req);changed=true;
-            if(STORE.kind==="supabase"){try{await STORE.createLeaveRequest(req);}catch(e){toast("沒存到："+e.message);return 0;}}
+            req={id:uid(),employeeId:eid,date:d,note:"未確定",status:"pending"};
+            if(activeStore.kind==="supabase")await persistRequest(()=>activeStore.createLeaveRequest(req));
           }
+          if(isInLeave&&!wantLeave){E.leaves=E.leaves.filter(x=>x!==d);changed=true;}
+          if(pend&&!wantUnc){pend.status="rejected";changed=true;}
+          if(wantLeave&&!isInLeave){E.leaves.push(d);changed=true;}
+          if(req){(S.leaveRequests||=[]).push(req);changed=true;}
           return changed?1:0;
         };
         // 範圍框選
@@ -1392,25 +1401,36 @@ document.addEventListener("click",e=>{
         const st=UI.brushStart.d;UI.brushStart=null;
         const [lo,hi]=st<=dd?[st,dd]:[dd,st];
         const E=emp(eid);
-        const brushName={leave:"休假",work:"上班",uncertain:"未確定"}[UI.leaveBrush]||UI.leaveBrush;
+        const brushName={leave:"休假",work:"上班",uncertain:"未確定"}[brush]||brush;
+        const operation={};UI.leaveBrushOperation=operation;UI.leaveBrushSaving=operation;UI.leaveBrushError='';render();
         (async()=>{
           try{
             let cnt=0;
             pushUndo();   // 快照必須在 applyBrush 變更 S 之前——否則「復原上一步」還原的已是套用後的狀態（無效復原）
             for(let x=lo;x<=hi&&cnt<62;x=addDays(x,1)){
-              if(UI.leaveBrush==="leave"&&S.blocks.some(b=>b.emp===eid&&b.date===x&&futureOf(b)))continue;
+              if(!current())return;
+              if(brush==="leave"&&S.blocks.some(b=>b.emp===eid&&b.date===x&&futureOf(b)))continue;
               const r=await applyBrush(eid,x);if(r!==0)cnt++;
             }
-            await commit({kind:"leave",title:E.name+" "+brushName+" "+md(lo)+"～"+md(hi)+"（"+cnt+" 天）",lines:[]},"incidents.manage");   // 缺陷#21：同步寫入完成前 reload 會用舊資料蓋掉記憶體，之後任何操作再存就丟資料
-            await reloadFromStore();
-            UI.drawer="people";
+            if(!current())return;
+            const saving=commit({kind:"leave",title:E.name+" "+brushName+" "+md(lo)+"～"+md(hi)+"（"+cnt+" 天）",lines:[]},"incidents.manage");
+            const expected=JSON.stringify(S),saved=await saving;
+            if(!current()||!sameView()||JSON.stringify(S)!==expected)return;
+            if(!saved){UI.leaveBrushError=tx('排班狀態尚未確認儲存；請按上方儲存狀態重試。');return;}
+            // Release our edit guard only after acknowledgment; the read itself
+            // must still refuse newer drafts, previews and in-flight writes.
+            if(UI.leaveBrushSaving===operation)UI.leaveBrushSaving=null;
+            const loaded=await reloadFromStore({background:true});
+            if(UI.leaveBrushOperation!==operation||!sameOwner()||!sameView()||!canIncidents())return;
+            if(loaded!=='applied'){UI.leaveBrushError=tx('已儲存')+'；'+tx('無法讀取最新班表，請稍後再試。');return;}
             toast("已套用"+brushName+" "+md(lo)+"～"+md(hi)+"（"+cnt+" 天）");
-          }catch(e){toast("沒存到："+e.message);}
+          }catch(e){if(!e.staleBrush&&sameOwner()&&sameView()){UI.leaveBrushError=tx('排班狀態未全部完成；部分日期可能已儲存，請更新班表核對。');toast("沒存到："+e.message);}}
+          finally{if(UI.leaveBrushSaving===operation)UI.leaveBrushSaving=null;if(UI.leaveBrushOperation===operation)UI.leaveBrushOperation=null;if(sameOwner()&&sameView())render();maybeReload();}
         })();
         break;
       }
       openModal({t:'person-day',id,d:a.dataset.d});break;}
-    case "cal-brush":{if(!canIncidents())break;const v=a.dataset.v;UI.leaveBrush=UI.leaveBrush===v?null:v;UI.brushStart=null;render();if(UI.leaveBrush){const nm={leave:"休假",work:"上班",uncertain:"未確定"};toast("已選「"+(nm[UI.leaveBrush]||UI.leaveBrush)+"」：連點日期套用，或點第一天再點最後一天框選範圍。再按一次結束。");}break;}
+    case "cal-brush":{if(!canIncidents())break;if(UI.leaveBrushSaving){toast(tx('正在儲存排班狀態，請稍候。'));break;}const v=a.dataset.v;UI.leaveBrush=UI.leaveBrush===v?null:v;UI.brushStart=null;UI.leaveBrushError='';render();if(UI.leaveBrush){const nm={leave:"休假",work:"上班",uncertain:"未確定"};toast("已選「"+(nm[UI.leaveBrush]||UI.leaveBrush)+"」：連點日期套用，或點第一天再點最後一天框選範圍。再按一次結束。");}break;}
 case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "focus-machine":UI.focus={type:'machine',id};render();break;
     case "focus-memo":{const memo=(S.memos||[]).find(x=>x.id===id);UI.focus=memo?.machineId?{type:'machine',id:memo.machineId}:memo?.employeeId?{type:'employee',id:memo.employeeId}:null;render();break;}
@@ -3435,7 +3455,7 @@ function sideHealthHTML(){
 function updateSyncChip(){const el=$("#syncchip");if(el)el.outerHTML=syncChipHTML();const side=$(".side-health");if(side)side.outerHTML=sideHealthHTML();}
 let syncChain=Promise.resolve(),syncPending=0,syncEpoch=0,lastSyncState='ok';
 // 同步進行中關閉分頁＝靜默丟失變更：離開前提示（僅在真的有寫入在途時）
-addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state==="busy"){e.preventDefault();e.returnValue="";}});
+addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state==="busy"||UI.leaveBrushSaving){e.preventDefault();e.returnValue="";}});
 function queueSync(entry){
   if(STORE.kind==='supabase'&&!STORE.session?.user?.id){changedWriteSession();return Promise.resolve(false);}
   const snapshot=structuredClone(S),epoch=syncEpoch,activeStore=STORE,writer=STORE.session?.user?.id,authEpoch=STORE.authEpoch||0;
@@ -3528,7 +3548,7 @@ async function refreshCloudSnapshot(){
     else if(result==='deferred')toast(tx('已保留目前操作；完成或取消後再更新班表。'));
   }finally{remoteLoading=false;if(result!=='failed')maybeReload();}
 }
-function remoteReloadBlocked(){return !!(PV||drag||generalDrag||UI.modal||UI.editCell||UI.confirmRow||UI.drawer==='settings'||syncPending>0||SYNC.state!=='ok');}
+function remoteReloadBlocked(){return !!(PV||drag||generalDrag||UI.modal||UI.editCell||UI.confirmRow||UI.leaveBrushSaving||UI.drawer==='settings'||syncPending>0||SYNC.state!=='ok');}
 function onRealtimeStatus(status){
   const previous=SYNC.realtime;SYNC.realtime=status;updateSyncChip();
   // The stream cannot replay every missed database event. Also reconcile the
