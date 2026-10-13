@@ -70,7 +70,7 @@
 
 ## 資料庫 migration 待套用（正式環境，需使用者執行）
 
-- [ ] **0037 權限白名單補齊（main `16a6d86`）**：正式庫套用前「更多→權限管理→儲存權限」必失敗（前端 15 鍵 vs DB 13 鍵，四層不一致詳見輪 36）。套用＝GitHub Actions「套用資料庫 migration」workflow 選 `0037_permission_whitelist_complete.sql`（會先檢查最新備份）。staging 已套用並驗證
+- [x] **0037 權限白名單補齊——已於 2026-10-13 06:11 正式套用（apply-migration run 38355345279，加密備份＋完整還原閘門通過、transaction guards 確認、SHA 2cde149；輪 81 查證）**：正式庫套用前「更多→權限管理→儲存權限」必失敗（前端 15 鍵 vs DB 13 鍵，四層不一致詳見輪 36）。套用＝GitHub Actions「套用資料庫 migration」workflow 選 `0037_permission_whitelist_complete.sql`（會先檢查最新備份）。staging 已套用並驗證
 - 附註：staging 測試帳號 test-lead 密碼已於輪 36 重設（與 test-viewer 同值，值見 staging SQL editor 片段歷史）；三測試帳號僅供測試
 
 - [x] **備份 artifact 品質（輪 79 發現→輪 80 結案＝缺陷#18）**：兩層根因（演練加密檔撞名 db-backup- 前綴＋拾取分頁 20 被除錯 artifact 擠爆）皆修（aca4401）；不指定 artifact 的模擬驗收恢復 7/7 全綠
@@ -86,6 +86,8 @@
 - [ ] **邊界觀察（輪 70，低優先）**：closeDaysPlanBad 遇 qty=0 的工序塊會 TypeError 靜默中止 c-save——真實排程引擎不產出此形資料，但若未來 Excel 匯入能產出 qty=0 塊需先補防護
 
 - [ ] **PR #16（測試模式發佈驗收）審查結論（輪 73）**：程式面通過（分支 384 綠＋build 綠、schema 閘門/深色對比修復無疑慮）；維持 draft——①使用者門檻：Supabase 登入匯入測試 project＋正式 Render VITE_TEST_*＋staging solver 更新 ②合併前需先同步 main（分支落後 24 提交，缺 #8-#16 修復與 24 個測試）
+
+- [ ] **PR #18（release-gate 分支）收斂決策（輪 81 審查）**：solver/#17/#18 修復與 main 等效（可直接丟棄）；**差異資產**＝加密備份端到端基建＋正式套用閘門＋PR16 整合（35 檔 +1288）——rebase 保留基建或拆分只取加密部分，由使用者決定
 
 ## 產品決策待辦（輪班表，使用者決定方向）
 

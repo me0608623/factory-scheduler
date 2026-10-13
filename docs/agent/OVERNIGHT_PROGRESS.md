@@ -1130,3 +1130,10 @@
 - **教訓記錄**：① jq 可移植性——runner 的 test() 前瞻不可靠，用顯式雙 select ② 修復後必須走「真實路徑」驗證（第一版修復只改了條件沒驗證拾取結果）③ 高頻除錯執行的 artifact 上傳會擠掉備份分頁——拾取類 workflow 分頁要留餘裕
 - **系列累計：18 個缺陷修復**
 - **下輪**：維持模式（待辦監看：正式 0037、staging hook、Realtime ticket、PR #16）
+
+### 缺陷探索輪 81（2026-10-14 15:50–16:20）——事件驅動：0037 正式套用查證（頭號待辦完成）＋PR #18 平行修復審查（同根因、main 已含等效修復）
+
+- **0037 正式套用查證（apply-migration run 38355345279，06:11）**：SHA 2cde149、新鮮加密備份＋完整還原證據閘門通過、「Reviewed 0037 committed; transaction guards confirmed existing rows/roles unchanged」＋同一交易套用成功——**正式庫權限管理儲存（缺陷#8）至此全鏈修復**（前端 0026/0027 時代即存在、輪 36 定位四層、0037 補齊、staging 驗證、正式套用）。使用者待辦①結案
+- **PR #18 審查（draft，codex/continuous-release-gate 分支）**：平行工作階段對**同兩缺陷**（#17 solver 日曆禁排重疊、#18 備份拾取）的獨立修復——solver 修法與 main 等效（同樣合併 calendar spans、保留真實工作重疊衝突）；備份改走加密備份＋unpack 工具路線（比 main 的「排除加密檔」更完整的端到端加密方案）；C5 同步 late-gate（與 main 同向）。**分歧點**：該分支還含加密備份基建＋正式 0037 閘門＋PR16 整合（35 檔 +1288）——合併需 rebase 到 main（main 已含 #17/#18 等效修復＋408 web/171 solver 測試），建議由使用者決定收斂方式（rebase 保基建／拆分只取加密部分）
+- **待辦狀態更新**：①正式 0037 ✓（本輪查證）②staging hook 未設 ③Realtime ticket 待回 ④PR #16/18 待使用者處理（#18 需收斂）
+- **下輪**：維持模式＋事件驅動
