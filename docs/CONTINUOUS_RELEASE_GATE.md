@@ -44,6 +44,7 @@
 - 這98項含真副本RPC commit與version持久化、stale-version拒絕、員工自己的開工/累計件數/完工及主管確認與撤回；只是本地PG17角色/GUC與auth stub，不是Supabase Auth登入、HTTP409 UI或手機/桌面跨帳號雲端同步，不解除正式發布門檻。workflow **artifacts=0**；log人工來源覆核只有Actions worker/checkout暫存UUID及第三方npm警告email，角色BOSS/LEAD/VIEWER未被列到env，無age私鑰或JWT模式。全原始query及恢復錯誤留在runner私密暫存並清理，不新增明文artifact。
 - 讀最新main **1e01947205fc0d07769a3a460c469e0705a87384**，相較先前0e60483僅docs/agent/OVERNIGHT_PROGRESS.md變動，正常merge保留另一agent紀錄，不重做或部署相同程式。後續文件/merge SHA不取代e708的功能驗收證據。
 - 持續探索新Major已用真SupabaseStore函式＋明確mock RPC重現：data={} 或 {error:'SYNTHETIC_INVALID_PAYLOAD'} 仍被接受為0員工/空班表，store.version由12變0、寫入baseline變空。首次探針把base誤當array而自身拋錯，已修探針後才確認accepted=true／baselineChanged=true；不是猜測。沒有任何雲端寫入或生產請求。**尚未修**；下一輪先補畸形object／缺欄／非安全version完整快照契約回歸，不因這輪全部測試綠而停下。修前需讀Impeccable harden指示，維持真正零列快照及本機首次使用相容，不能放寬cloud失敗防護。之後再驗environment-preserving重試介面及安全輪詢／登入門檻。
+- main只讀整合 **9b9c64ae08211751593322b198f7c69eef621f8e**，證據文件 **dc0f588be90ddeb72f1ffeae039578b2ad43adba**已推，兩工作樹乾淨。PR16原remote/HEAD63d1609一致、無modifier後普通merge到 **2c105b37b66c6f615ca77f1be72df1730477a701**已推；原3項seed preflight/banner對比/seed回歸保留。最新Tests **38382783155／38382788656**目前in_progress，smoke **38382788636**success，下輪核對，不拿先前63d的CI冒稱新版本已全過。PR16/18均draft（18 MERGEABLE），正式仍未合併部署；nightly367614493仍disabled_manually，Codex追蹤不停止。只修工具/工作流故沒有重複部署任何Render服務。
 
 #### 2026-10-13 17:50 heartbeat：加密資料盤點與公開輸出安全
 
