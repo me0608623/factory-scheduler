@@ -6,6 +6,7 @@ import { ALL_WEEKDAYS, overtimeAllowed, overtimeDefault, overtimeWeekdays } from
 import { capacityIntervals as occupiedCapacityIntervals } from "./capacity.js";
 import { FACTORIES, factoryOf, factoryPreference, factoryName, inFactory, orderRoute, orderInFactory, compatible } from "./factory.js";
 import { batchReadyMinute, effectiveBlockQty, materialFlowIssue, remainingQty, quantityForMinutes } from "./manual.js";
+import { translateImportError } from "./import-errors.js";
 import { acceptManualPreview, placementConflicts } from "./manual-apply.js";
 import { employeeGroups, groupedEmployees, memberStatus } from "./groups.js";
 import { resourceLoad } from "./resource-load.js";
@@ -2110,7 +2111,7 @@ export(){
   const hasGeneral=workCatalog(S).length>0||assignments(S).length>0||transferOrders(S).length>0;
   const counts=m.data&&[m.data.employees.length,m.data.machines.length,m.data.products.length,m.data.orders.length];
   const summary=counts?'<div class="pv-sum">'+tx('員工 {e} 人、機台 {m} 台、產品 {p} 種、工單 {o} 張',{e:counts[0],m:counts[1],p:counts[2],o:counts[3]})+'</div>':'';
-  const problems=m.errors.length?'<div class="issues">'+m.errors.map(t=>'<div class="issue">'+esc(t)+'</div>').join('')+'</div>':'';
+  const problems=m.errors.length?'<div class="issues">'+m.errors.map(t=>'<div class="issue">'+esc(translateImportError(t))+'</div>').join('')+'</div>':'';
   const warning=hasGeneral?'<div class="issues"><div class="issue">'+tx('匯入範本尚未包含獨立工作內容與一般工作排班，不能覆蓋已建立的資料。歷史排程仍可獨立匯入。')+'</div></div>':hasGroups?'<div class="issues"><div class="issue">'+tx('目前匯入範本未包含分組與組員對照，不能覆蓋已建立分組的正式名冊。歷史排程仍可獨立匯入。')+'</div></div>':hasSecondFactory?'<div class="issues"><div class="issue">'+tx('目前匯入範本沒有廠別欄，系統已有 2 廠資料。為避免整批覆蓋，這次不能確認匯入。')+'</div></div>':
     !m.errors.length?'<div class="issues"><div class="issue">'+tx('確認後將以 Excel 內容取代現有員工、機台、產品工序與工單，並清空現有 {n} 段排程；上班日設定保留。匯入後再按「自動排程」建立新班表。',{n:S.blocks.length})+'</div></div>':'';
   return {title:tx(m.errors.length?'Excel 匯入 · 請修正檔案':'Excel 匯入 · 確認取代資料'),
@@ -3206,7 +3207,7 @@ document.addEventListener("change",async e=>{
   if(e.target.id!=="xlsx-import"||!e.target.files?.[0]||!canArchive())return;
   const file=e.target.files[0],base=JSON.stringify(S);
   if(!/\.xlsx$/i.test(file.name)||file.size>5*1024*1024){
-    openModal({t:"import-preview",filename:file.name,base,errors:["請選擇小於 5 MB 的 .xlsx 檔案"],data:null});return;
+    openModal({t:"import-preview",filename:file.name,base,errors:[tx('請選擇小於 5 MB 的 .xlsx 檔案')],data:null});return;
   }
   openModal({t:"import-preview",filename:file.name,base,loading:true,errors:[],data:null});   // 首次載入 excel 模組可能數秒，先給回饋
   try{
@@ -3218,10 +3219,10 @@ document.addEventListener("change",async e=>{
       const sourceSha256=[...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,"0")).join("");
       openModal({t:"legacy-preview",filename:file.name,sourceSha256,legacy:result.legacy,date:result.legacy.selectedDate});
     }else if(canMaster())openModal({t:"import-preview",filename:file.name,base,...result});
-    else openModal({t:"import-preview",filename:file.name,base,errors:["只有老闆可以匯入員工、機台、產品工序和工單。舊版排程可由組長存成歷史資料。"],data:null});
+    else openModal({t:"import-preview",filename:file.name,base,errors:[tx('只有老闆可以匯入員工、機台、產品工序和工單。舊版排程可由組長存成歷史資料。')],data:null});
   }catch(err){
     if(UI.modal?.t!=="import-preview"||!UI.modal.loading)return;
-    openModal({t:"import-preview",filename:file.name,base,errors:["無法讀取 Excel："+err.message],data:null});
+    openModal({t:"import-preview",filename:file.name,base,errors:[tx('無法讀取 Excel：')+err.message],data:null});
   }
 });
 // 自動排程也先預覽：比較「最佳化」與「原本規則」，看清楚前後差異再套用
