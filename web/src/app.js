@@ -4350,9 +4350,9 @@ function releaseDirectWrite(operation){
   }
 }
 function directWriteOwner(permission){
-  const store=STORE,client=store.client,user=store.session?.user?.id,epoch=store.authEpoch||0,state=S,json=JSON.stringify(S),modal=UI.modal,
+  const store=STORE,client=store.sb,user=store.session?.user?.id,epoch=store.authEpoch||0,state=S,json=JSON.stringify(S),modal=UI.modal,
     date=UI.date,factory=UI.factory,page=UI.page,drawer=UI.drawer,focus=JSON.stringify(UI.focus);
-  const sameView=()=>STORE===store&&STORE.client===client&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===epoch&&permission()&&!PV&&
+  const sameView=()=>STORE===store&&STORE.sb===client&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===epoch&&permission()&&!PV&&
     UI.date===date&&UI.factory===factory&&UI.page===page&&UI.drawer===drawer&&JSON.stringify(UI.focus)===focus;
   return {store,sameView,current:()=>sameView()&&UI.modal===modal&&S===state&&JSON.stringify(S)===json};
 }
@@ -4396,8 +4396,8 @@ Object.assign(MODAL_ACT,{
     const m=UI.modal;if(m?.t!=='memo-edit'||m.saving||UI.memoSaving||UI.directSaving||!canPermission('notes.manage'))return;
     const text=$('#memo-text')?.value.trim(),machineId=$('#memo-machine')?.value||null,employeeId=$('#memo-employee')?.value||null;
     if(!text){toast('請填寫一句備忘');return;}if(!machineId&&!employeeId){toast('請至少指定一台機台或一位人員');return;}
-    const activeStore=STORE,user=STORE.session?.user?.id,epoch=STORE.authEpoch||0,before=S,beforeJSON=JSON.stringify(S),date=UI.date,factory=UI.factory;
-    const sameContext=()=>STORE===activeStore&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===epoch&&!PV&&UI.date===date&&UI.factory===factory&&canPermission('notes.manage');
+    const activeStore=STORE,client=STORE.sb,user=STORE.session?.user?.id,epoch=STORE.authEpoch||0,before=S,beforeJSON=JSON.stringify(S),date=UI.date,factory=UI.factory;
+    const sameContext=()=>STORE===activeStore&&STORE.sb===client&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===epoch&&!PV&&UI.date===date&&UI.factory===factory&&canPermission('notes.manage');
     const owns=()=>UI.modal===m&&sameContext()&&S===before&&JSON.stringify(S)===beforeJSON;
     m.memoId??=uid();m.memoCreatedAt??=new Date().toISOString();m.memoDraft={text,machineId,employeeId,pinned:!!$('#memo-pinned')?.checked};
     m.error=null;m.saving=true;UI.memoSaving=m;button.disabled=true;renderModal();
