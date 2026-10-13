@@ -106,11 +106,22 @@ process.on("uncaughtException", (e) => {
 
 // ---------- solver（runner 上執行；失敗即整案失敗） ----------
 function solve(request) {
+  if (process.env.SIM_DEBUG) {
+    const snap = request.snapshot || {};
+    console.error('[req] keys=' + Object.keys(request).join(',') + ' event=' + JSON.stringify(request.event).slice(0, 200));
+    console.error('[req] snapKeys=' + Object.keys(snap).join(','));
+    console.error('[req] now=' + JSON.stringify(request.now) + ' limit=' + request.time_limit);
+    for (const k of Object.keys(snap)) { const v = snap[k]; console.error('[req] ' + k + '=' + (Array.isArray(v) ? v.length : JSON.stringify(v).slice(0, 120))); }
+    console.error('[req] machines4=' + JSON.stringify((snap.machines || []).filter(m => ['f1e','f1b'].includes(m.id))));
+    console.error('[req] picked=' + JSON.stringify((snap.employees || []).filter(e => [E01,E02,E03].includes(e.id))).slice(0, 700));
+  }
   const child = spawnSync("uv", ["run", "--frozen", "python", "-m", "scripts.plan_stdio"], {
     cwd: solverDir, input: JSON.stringify(request), encoding: "utf8", timeout: 120000, maxBuffer: 32 * 1024 * 1024,
   });
   if (child.error || child.status !== 0) throw new Error(`solver 失敗：${clean(child.error?.message || child.stderr?.slice(-400) || "exit " + child.status)}`);
-  return JSON.parse(child.stdout);
+  const out = JSON.parse(child.stdout);
+  if (process.env.SIM_DEBUG) console.error('[res] ' + JSON.stringify(out).slice(0, 800));
+  return out;
 }
 
 // 選項診斷摘要（找不到可套用方案時列原因）
