@@ -33,7 +33,7 @@
 - 2026-10-13使用者已回覆：維持公開、改用加密備份。新追蹤prompt已更新，不再等待可見性選擇；加密完整備份與還原本身仍是0037門檻。
 - 使用者再明確要求「先保留舊檔，只改新備份」，不刪既有backup/debug artifacts或log。
 - 新正式唯讀完整DB加密run38352489633／artifact11791661615已成功；下載真正解密SHA256驗證通過。完整隔離Supabase PG17還原run38353201806成功（角色SQL、Auth真實資料、full.dump ACL、FK/RLS等，無stub）。Storage物件0。新backup/nightly尚未merge main，舊nightly暫停保留以防明文。
-- 最新修復head1986377：工具20/20＋實際PGlite recovery-proof SQL通過。03451e1兩套CI成功；1986377 Tests38353205423/38353200703也全成功，同新密文C1–C7 run38353425842待核對。詳見ENCRYPTED_BACKUP_2026-10-13.md。
+- 最新修復head1986377：工具20/20＋實際PGlite recovery-proof SQL通過。03451e1兩套CI成功；1986377 Tests38353205423/38353200703也全成功。同新密文C1–C7 run38353425842 **PASS=7 FAIL=0 未成立=0**（已對到實際log，不只看job綠燈）。詳見ENCRYPTED_BACKUP_2026-10-13.md。
 - 下一項：補0037的migration新鮮還原證據＋data fingerprint＋single-transaction安全關卡；驗最新CI並推進staging solver與跨帳號同步。不是因備份可還原就直接合併PR16或解除正式setup_pending。
 - 舊nightly-backup ID367614493已disabled_manually，防止新明文備份；age私鑰已用本人+SYSTEM ACL保管，GitHub兩個BACKUP_AGE_*秘密已設定，不展示私鑰。
 - 本輪加密模組真實age測試6/6；新增完整DB與角色加密工作流。詳見docs/ENCRYPTED_BACKUP_2026-10-13.md。尚未將完整DB還原驗收當作通過。
