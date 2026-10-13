@@ -4528,7 +4528,7 @@ async function changeExecutionConfirmation(button,confirmed){
     if(m)closeModal();release();
     const result=await reloadFromStore({background:true});if(!owner.sameView()||UI.modal)return;
     if(result==='applied'&&m?.t==='execution'){UI.modal=m;renderModal();}
-    toast(result==='applied'?tx(confirmed?'已確認完工（已存到資料庫）':'已取消確認，回報仍保留'):tx('操作已保存；尚未讀到最新資料，請更新核對。'));
+    toast(result==='applied'?tx(confirmed?(owner.store.kind==='local'?'已確認完工（已存在這台裝置）':'已確認完工（已存到資料庫）'):'已取消確認，回報仍保留'):tx('操作已保存；尚未讀到最新資料，請更新核對。'));
   }catch(e){
     if(!owner.current())return;
     const pendingDb=DB_MIGRATION_PENDING.test(e.message||'');

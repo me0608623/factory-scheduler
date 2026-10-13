@@ -11,6 +11,7 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "已確認完工（已存在這台裝置）": {en:"Completion confirmed and saved on this device",vi:"Đã xác nhận hoàn thành và lưu trên thiết bị này",th:"ยืนยันงานเสร็จและบันทึกบนอุปกรณ์นี้แล้ว"},
   "正在更新完工確認；關閉視窗不會取消已送出的確認。": {en:"Updating completion confirmation. Closing this dialog does not cancel a submitted confirmation.",vi:"Đang cập nhật xác nhận hoàn thành. Đóng cửa sổ không hủy yêu cầu đã gửi.",th:"กำลังอัปเดตการยืนยันงานเสร็จ การปิดหน้าต่างไม่ยกเลิกคำขอที่ส่งแล้ว"},
   "已確認完工（已存到資料庫）": {en:"Completion confirmed and saved to the database",vi:"Đã xác nhận hoàn thành và lưu vào cơ sở dữ liệu",th:"ยืนยันงานเสร็จและบันทึกในฐานข้อมูลแล้ว"},
   "已取消確認，回報仍保留": {en:"Confirmation removed; the report is retained",vi:"Đã hủy xác nhận; báo cáo vẫn được giữ",th:"ยกเลิกการยืนยันแล้ว รายงานยังคงอยู่"},

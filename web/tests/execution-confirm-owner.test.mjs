@@ -56,7 +56,8 @@ test('actual LocalStore confirm and unconfirm plus actual protected reread persi
   try{for(const confirm of [true,false]){const f=fixture(confirm);f.ctx.STORE=new LocalStore();Object.assign(f.ctx.S,{employees:[{id:'E',leaves:[]}],machines:[{id:'M'}],orders:[{id:'O'}],blocks:[{id:'B',oid:'O',emp:'E',m:'M',date:'2000-01-01',qty:100,s:480,e:540,pin:true}]});await f.ctx.STORE.sync(f.ctx.S);const before=JSON.stringify(f.ctx.S.blocks);
     Object.assign(f.ctx,{lastLocalWrite:0,pendingReload:false,normalizeState:()=>{},remoteReloadBlocked:()=>!!(f.ctx.UI.modal||f.ctx.UI.executionSaving||f.ctx.PV)});
     const at=source.indexOf('async function reloadFromStore(');vm.runInContext(source.slice(at,source.indexOf('async function refreshCloudSnapshot',at)),f.ctx);
-    f.queue.resolve();f.start();await tick();assert.equal(f.ctx.S.execution[0].confirmed,confirm,JSON.stringify(f.events));assert.equal((await f.ctx.STORE.load()).execution[0].confirmed,confirm);assert.equal(JSON.stringify(f.ctx.S.blocks),before);assert.equal(f.ctx.UI.modal,f.m);}
+    f.queue.resolve();f.start();await tick();assert.equal(f.ctx.S.execution[0].confirmed,confirm,JSON.stringify(f.events));assert.equal((await f.ctx.STORE.load()).execution[0].confirmed,confirm);assert.equal(JSON.stringify(f.ctx.S.blocks),before);assert.equal(f.ctx.UI.modal,f.m);
+    if(confirm)assert.match(f.events.filter(e=>e?.type==='toast').at(-1).text,/存在這台裝置/);}
   }finally{if(old===undefined)delete globalThis.localStorage;else globalThis.localStorage=old;}
 });
 test('actual execution workbench exposes confirmation controls only for authorized completed work',()=>{
