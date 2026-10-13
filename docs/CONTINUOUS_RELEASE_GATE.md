@@ -42,6 +42,7 @@
 - 收尾關閉兩端modal/More，寫端回普通root/新bundle、10/15/1廠/20段，PV及modal皆0。明確還原blockedURLs=[]、offline=false/latency0/throughput-1、Network.disable、Emulation.clear；限工具捕获範圍warn/error0。IAB20/24/25/21/23已markHandoff。正式服務/DB/1023/Auth/角色授權/setup_pending及0037未改，既有測試12人8資源20單103段未重匯；本輪唯一雲端排程提交為上述隔離庫C方案。
 - 最新origin/main **5ce857f**含他人 **a6b7e4a**（匯入13鍵三語、2項實際modal/翻譯回歸）與文件，讀diff後普通merge保留為 **90bf55276b258896c3aff9cecd71abced5addb9c**並推；不是部署到正式。整合版本機`node --test --test-reporter=dot tests/*.test.mjs`與build exit0，新本機bundle **index-CLoEQO2V.js**。此整合版新CI Tests **38426008893／38426003626**在23:55仍in_progress，smoke **38426008887／38426003528**success；尚未部署90bf552，不用已驗6dc3c6d冒稱新版全部E2E。
 - PR16 worktree HEAD/remote9047987、乾淨、modifier只原Vite後，普通merge90bf552为 **aa920f6ad413876ae89ca3ce118038679cb22a99**，本機全套與build exit0 **index-Lj8WiijM.js**，保留seed preflight/CSS/docs差異；已推，該新SHA CI需下輪核對。PR16/18仍draft，不能因本次真套用通過就合main／正式部署。
+- 收尾最新核對：PR16 aa920f6 Tests **38426297478／38426289216**及smoke **38426297476／38426288816**已全部completed/success，優先於上一項的待核狀態。仍未部署該整合版或通過不同帳號／自動同步門檻；不重做真C方案写入。
 - 下一輪先核最新head及90bf552/aa920f6 CI，綠後僅部署尚未上線的匯入翻譯整合版並只讀驗收，不重做已過C方案寫入。可續查方案套用中仍看似可選的卡片／條件重排入口（handler已擋pv-pick，但視覺disabled是否一致須先真重現），以及失敗/409/草稿保護等安全缺陷。真正不同帳號/角色、Realtime自動更新、offline409及原生Safari/正式VITE_TEST_*仍未全過；nightly367614493仍需等加密版本安全進main才啟用。10分鐘追蹤ACTIVE，不自行停止。
 
 #### 2026-10-13 23:19 heartbeat／23:38：雲端方案套用的連點、舊回應與回條缺陷
