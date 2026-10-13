@@ -37,8 +37,8 @@
 - runtime **b188b33d208dbb37627a894371593968285d8538**：同步設PV.applying、重複確認／取消／換方案handler不執行；桌面頂列與手機既有底列均以同一儲存中文字停用。捕捉原store/user/authEpoch/PV/S物件、內容及version，RPC回來再核對；reload只有真applied且同登入／未進新預覽才showResult。store要求apply_plan契約的UUID change-set回條，空／ malformed不算確認；讀回真快照之前不前移baseline/version。未確認結果離開預覽先補讀，提示「排程套用結果待確認，請更新班表核對；不要重複套用。」四語，不盲重送，也不讓取消誤稱排程未變。
 - 新增 **12項實際app/Store函式回歸**（連點、替換preview/store/user/epoch/S、原物件內容修改、version、補讀失敗／補讀時換帳號、取消／換方案、回條空值、無登入、保存情境唯讀）；手機HTML真函式＋解析測試延伸auto儲存中。另新增 **真PGlite＋完整migration apply_plan回條遺失**：DB確實提交、版本1／一段／一筆稽核／applied_option=A，原baseline仍0且未提前接受；一次補讀恢復真值，RPC只送1次。這是本機隔離SQL，不是staging真ORTools E2E。
 - 最終全套web **551/551**（`node --test --test-reporter=dot tests/*.test.mjs` exit0；前一輪TAP亦551/551）、最終聚焦28/28與cloud12/12、build成功 **index-C9j4oXHx.js**；既有大chunk警告保留。Impeccable全文/context一次/harden/craft-floor完整、detector app一次 **[]**，技能只影響儲存／失敗回饋，不重設計Gantt或CSS。
-- **尚未部署b188b33**，新同SHA CI待推送後核對；staging仍已驗58b73ba/index-BnYNQgRr.js，不拿此舊E2E冒稱新修復通過。沒有新Render資源／費用、沒有正式部署／正式DB/Auth/角色／1023/setup_pending寫入。IAB20/24/25/21/23已markHandoff，沒有開新設定信、猜密碼或改憑證；20/24仍同qa-lead，不是跨帳號。
-- 下一輪優先核b188b33同SHA CI，綠後安全FF既有staging前端並核版本／bundle；用真雲端測试「維持現狀」套用一次，觀察一筆apply_plan、回條後班表及手動补讀一致，保留正常版本／稽核，不reset。補桌面／手機儲存中按鈕可見、不可取消／連點的真操作證據，測試失敗不盲重送。之後安全同步PR16，真正不同帳號／角色、Realtime、offline409、原生Safari與正式VITE_TEST_*門檻未全過仍不得合併／正式部署；nightly仍不能啟用。10分鐘追蹤保持ACTIVE，修完此項繼續下一缺陷。
+- **尚未部署b188b33**，修復及文件已推；推送head **0f64da76563d3e43137194d5b45290c3c27e2290**（包含runtime b188b33）Tests **38423856402／38423852793**及smoke **38423856357／38423852342**在23:39仍in_progress。因一次推兩commit，請查推送head的CI，不用未單獨推送的runtime SHA查不到run就冒稱失敗。後續僅文件提交仍需讀最新head再核其CI。staging仍已驗58b73ba/index-BnYNQgRr.js，不拿此舊E2E冒稱新修復通過。沒有新Render資源／費用、沒有正式部署／正式DB/Auth/角色／1023/setup_pending寫入。IAB20/24/25/21/23已markHandoff，沒有開新設定信、猜密碼或改憑證；20/24仍同qa-lead，不是跨帳號。
+- 下一輪優先核最新分支head（包含b188b33修復）的同SHA CI，綠後安全FF既有staging前端並核版本／bundle；用真雲端測试「維持現狀」套用一次，觀察一筆apply_plan、回條後班表及手動补讀一致，保留正常版本／稽核，不reset。補桌面／手機儲存中按鈕可見、不可取消／連點的真操作證據，測試失敗不盲重送。之後安全同步PR16，真正不同帳號／角色、Realtime、offline409、原生Safari與正式VITE_TEST_*門檻未全過仍不得合併／正式部署；nightly仍不能啟用。10分鐘追蹤保持ACTIVE，修完此項繼續下一缺陷。
 
 #### 2026-10-13 23:01 heartbeat／23:16：安全重連新版部署及真網路失敗／取消驗收
 
