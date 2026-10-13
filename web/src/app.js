@@ -2354,8 +2354,8 @@ function manualStripHTML(o){
   return '<section class="pv pv-manual" aria-label="'+tx('手動排班預覽')+'">'+
    '<div class="pv-h"><span class="pv-badge">'+(bad?'需要處理':'預覽中')+'</span>'+
    '<div class="pv-t"><b>'+esc(P.movedLabel)+'</b><small>'+esc(P.source)+' → '+esc(P.target)+(P.newQty!==undefined?tx('；預計 {n} 件',{n:P.newQty}):'')+(P.remaining?tx('；此站還有 {n} 件未排',{n:P.remaining}):'')+tx('。還沒套用，正式排程不會變。')+'</small></div><div class="spacer"></div>'+
-   (PV.applying?'<button class="btn primary" disabled>'+tx('正在儲存，請稍候…')+'</button>':
-   '<button class="btn" data-act="pv-cancel">'+tx('取消')+'</button><button class="btn primary" data-act="pv-apply"'+(bad?' disabled':'')+'>'+tx('確認套用')+'</button>')+'</div>'+
+   '<div class="pv-strip-actions">'+(PV.applying?'<button class="btn primary" disabled>'+tx('正在儲存，請稍候…')+'</button>':
+   '<button class="btn" data-act="pv-cancel">'+tx('取消')+'</button><button class="btn primary" data-act="pv-apply"'+(bad?' disabled':'')+'>'+tx('確認套用')+'</button>')+'</div></div>'+
    '<div class="pv-row"><div class="seg" role="group" aria-label="'+tx('預覽圖與下方排程表顯示')+'"><button data-act="pv-mode" data-v="cmp" aria-pressed="'+(PV.mode==="cmp")+'">'+tx('對照')+'</button><button data-act="pv-mode" data-v="new" aria-pressed="'+(PV.mode==="new")+'">'+tx('調整後')+'</button><button data-act="pv-mode" data-v="orig" aria-pressed="'+(PV.mode==="orig")+'">'+tx('原本')+'</button></div>'+
    '<span class="hint">'+(PV.mode==="cmp"?"灰虛線＝原本位置，亮框＝調整後；點方塊或右側列表可看單項變化":PV.mode==="new"?"只看調整後的位置":"只看原本；紅框＝會被移走的工作")+'</span><div class="spacer"></div>'+
    '<div class="pv-dates"><span class="hint">'+tx('影響的日期')+'</span>'+(dates.map(ds=>'<button class="pv-date" data-act="pv-date" data-v="'+ds+'" aria-pressed="'+(ds===UI.date)+'"><b class="num">'+md(ds)+'</b><small>'+WD[parseD(ds).getUTCDay()]+' · '+d.dates[ds]+' 處</small></button>').join("")||'<span class="hint">'+tx('無')+'</span>')+'</div></div>'+
@@ -2458,12 +2458,21 @@ function dpBodyHTML(){
   const pins=!P.problems.length&&P.unpinned.length?'<div class="issues">'+P.unpinned.map(x=>'<div class="issue">'+esc(x.label)+' 已固定（釘）。確認後會解除固定並移動它；取消則保持原樣。</div>').join("")+'</div>':'';
   return sugSec+impSec+dueSec+pins;
 }
+// Keep mobile actions outside the scrolling sheet body, even when collapsed.
+// The existing guarded handlers remain the only way to apply or cancel.
+function pvDrawerActionsHTML(o){
+  const manual=PV.kind==="manual",bad=manual?!o.applicable:o.applicable===false;
+  return '<div class="pv-drawer-actions">'+(PV.applying?
+    '<button class="btn primary" disabled>'+tx('正在儲存，請稍候…')+'</button>':
+    '<button class="btn" data-act="pv-cancel">'+tx('取消')+'</button>'+
+    (PV.savedScenario?'':'<button class="btn primary" data-act="pv-apply"'+(bad?' disabled':'')+'>'+tx(manual?'確認套用':'用這套')+'</button>'))+'</div>';
+}
 function manualDrawerHTML(o){
   const P=PV.P,nav=PV.nav;
   return '<aside class="pv-drawer pv-manual-drawer'+(PV.sheetCollapsed?' collapsed':'')+'" aria-label="'+tx('手動排班預覽')+'">'+
    '<div class="pv-drawer-h">'+(nav.stack.length?'<button class="btn dp-back" data-act="dp-back">← '+tx('返回上一步')+'</button>':'')+
    '<h3>'+esc(dpTitle(nav,P))+'</h3><button class="iconbtn" data-act="pv-sheet" aria-label="'+(PV.sheetCollapsed?tx('展開'):tx('收合'))+'">'+(PV.sheetCollapsed?'▴':'▾')+'</button></div>'+
-   '<div class="pv-drawer-b"><div class="dp-mobile-summary">'+esc(P.movedLabel)+'：'+esc(P.source)+' → '+esc(P.target)+'</div>'+dpBodyHTML()+'</div></aside>';
+   '<div class="pv-drawer-b"><div class="dp-mobile-summary">'+esc(P.movedLabel)+'：'+esc(P.source)+' → '+esc(P.target)+'</div>'+dpBodyHTML()+'</div>'+pvDrawerActionsHTML(o)+'</aside>';
 }
 function diffOf(o){
   if(o.diff)return o.diff;
@@ -2606,7 +2615,7 @@ function pvPanelHTML(o){
   const strip='<section class="pv" aria-label="'+tx('預覽')+'">'+
    '<div class="pv-h"><span class="pv-badge">'+(PV.savedScenario?'保存情境':'預覽中')+'</span><div class="pv-t"><b>'+esc(PV.title)+'</b><small>'+(PV.savedScenario?'只讀比較；正式班表與現場進度不會變更。':'還沒套用，排程不會變。左邊甘特表＝選中的那套；差異色塊＝綠新增／黃搬動／虛線會移走。　計算：'+planEngineLabel(o.solverMethod,PV.engine))+'</small></div><div class="spacer"></div>'+
    (canPermissionRaw('scenarios.manage')&&!PV.savedScenario?'<button class="btn" data-act="scenario-save">'+tx('保存試排情境')+'</button>':'')+
-   '<button class="btn" data-act="pv-cancel">'+(PV.savedScenario?'結束查看':'取消')+'</button><button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+tx('用這套')+'</button></div>'+
+   '<div class="pv-strip-actions"><button class="btn" data-act="pv-cancel">'+(PV.savedScenario?'結束查看':'取消')+'</button><button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+tx('用這套')+'</button></div></div>'+
    '<div class="pv-row"><div class="seg" role="group" aria-label="'+tx('預覽圖與下方排程表顯示')+'"><button data-act="pv-mode" data-v="cmp" aria-pressed="'+(PV.mode==="cmp")+'">'+tx('對照')+'</button><button data-act="pv-mode" data-v="new" aria-pressed="'+(PV.mode==="new")+'">'+tx('調整後')+'</button><button data-act="pv-mode" data-v="orig" aria-pressed="'+(PV.mode==="orig")+'">'+tx('原本')+'</button></div>'+
    '<span class="hint">'+(PV.mode==="cmp"?"灰虛線＝原本位置，彩色＝調整後（綠新增、黃搬動）":PV.mode==="new"?"只看調整後：綠框＝新增的工作，黃框＝搬動的工作":"只看原本；紅虛線＝會被移走的工作")+'</span><div class="spacer"></div>'+
    '<div class="pv-dates"><span class="hint">'+tx('影響的日期')+'</span>'+(dates.map(ds=>'<button class="pv-date" data-act="pv-date" data-v="'+ds+'" aria-pressed="'+(ds===UI.date)+'"><b class="num">'+md(ds)+'</b><small>'+WD[parseD(ds).getUTCDay()]+' · '+d.dates[ds]+' 處</small></button>').join("")||'<span class="hint">'+tx('無')+'</span>')+'</div></div>'+
@@ -2620,7 +2629,7 @@ function pvPanelHTML(o){
    '<div class="pv-tabs">'+sub.map(([k,t])=>'<button class="tg" data-act="pv-tab" data-v="'+k+'" aria-pressed="'+(PV.tab===k)+'">'+t+'</button>').join("")+'</div>'+body+
    (PV.savedScenario?'<div class="hint">保存時的說明：'+esc(o.desc||'—')+'</div>':ai+'<div class="field"><label for="pv-note">'+tx('備註（會寫進紀錄）')+'</label><input class="inp" id="pv-note" value="'+esc(PV.note)+'" placeholder="'+tx('例：馬達燒掉，廠商下午來修')+'" autocomplete="off"></div>')+
    (PV.savedScenario?'':rerunHTML())+
-   '</div></aside>';
+   '</div>'+pvDrawerActionsHTML(o)+'</aside>';
   return strip+drawer;
 }
 function openPlans(title,logTitle,kind,applyEvent,strategies,extra={}){
