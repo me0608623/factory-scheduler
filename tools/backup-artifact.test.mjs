@@ -22,6 +22,20 @@ test('ignores expired and malformed candidates and chooses newest creation time'
     backup(22,'invalid'),backup(3),backup(2,'2026-10-12T22:00:00Z'),backup(1,'2026-10-12T21:00:00Z')]})});
   assert.equal(result.id,2);
 });
+
+test('encrypted database backup is eligible but similarly named drill artifacts are not',async()=>{
+  const result=await findBackup({repo,now,fetchImpl:async()=>response({total_count:4,artifacts:[
+    backup(50,'2026-10-12T23:30:00Z',{name:'db-backup-encrypted-drill-50'}),
+    backup(49,'2026-10-12T23:00:00Z',{name:'db-backup-encrypted-49'}),
+    backup(48,'2026-10-12T22:00:00Z',{name:'db-backup-48'}),
+    backup(47,'2026-10-12T23:40:00Z',{name:'db-backup-encrypted-47-extra'})]})});
+  assert.equal(result.id,49,'select the real encrypted backup, not a newer test payload');
+});
+
+test('explicit ID for a drill artifact is refused instead of attempting decryption',async()=>{
+  await assert.rejects(findBackup({repo,now,artifactId:'50',fetchImpl:async()=>response(
+    backup(50,undefined,{name:'db-backup-encrypted-drill-50'}))}),/not an unexpired/);
+});
 test('explicit ID is validated and uses metadata instead of listing',async()=>{
   let calls=0;
   assert.equal((await findBackup({repo,now,artifactId:'42',fetchImpl:async url=>{

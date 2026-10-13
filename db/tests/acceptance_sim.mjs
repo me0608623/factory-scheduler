@@ -115,8 +115,12 @@ function solve(request) {
   const child = spawnSync("uv", ["run", "--frozen", "python", "-m", "scripts.plan_stdio"], {
     cwd: solverDir, input: JSON.stringify(safeRequest), encoding: "utf8", timeout: 120000, maxBuffer: 32 * 1024 * 1024,
   });
-  if (child.error || child.status !== 0) throw new Error(`solver 失敗：${clean(child.error?.message || child.stderr?.slice(-400) || "exit " + child.status)}`);
-  const out = JSON.parse(child.stdout);
+  // stderr and spawn error messages may include private request fields. Public
+  // diagnostics keep only a bounded exit/error code; structural summaries above
+  // remain available without publishing restored personnel or source metadata.
+  if (child.error || child.status !== 0) throw new Error(`solver 失敗（exit ${child.status ?? 'none'}${child.error ? ', 啟動或逾時錯誤' : ''}）；私密診斷未公開`);
+  let out;
+  try{out=JSON.parse(child.stdout);}catch{throw new Error('solver 回傳格式錯誤；私密內容未公開');}
   if (process.env.SIM_DEBUG) console.error('[res] '+JSON.stringify({issues:out.issues?.length,
     options:out.options?.map(o=>({id:o.id,status:o.status,applicable:o.applicable,blocks:o.blocks?.length}))}));
   return out;
@@ -350,6 +354,7 @@ await runCase("C5 交期不足（求解軟限制＋新單逾期套用閘門）",
   if (plan.options.some(o => o.applicable)) out.push("必然逾期的新單不應有可直接套用方案");
   const summary = [JSON.stringify(plan.options.map((o) => o.diagnostics || [])), JSON.stringify(plan.summary || plan.options.map((o) => o.lines || []))].join(" ");
   if (!/超過期限/.test(summary)) out.push("方案資訊未標示逾期（超過期限）");
+  if (!/可以加班|調整期限/.test(summary)) out.push("未提供可行建議（加班／調整期限）");
   // Plan options serialize blocks for the DB RPC, not the solver Snapshot.
   const blocks=opt.blocks.filter(b=>b.order_id===ev.order.id);
   for (const step of [0,1]) if(blocks.filter(b=>b.step_seq===step).reduce((n,b)=>n+b.qty,0)!==1200) out.push(`站 ${step} 件數≠1200`);

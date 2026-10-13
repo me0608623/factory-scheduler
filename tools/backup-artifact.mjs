@@ -4,7 +4,10 @@ import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
 const API='https://api.github.com';
-const backupName=/^db-backup-/;
+// Only actual producer names qualify. Drill/proof artifacts can share the
+// prefix but are not a database recovery point; encrypted backups must remain
+// eligible after the public repository switches its nightly producer.
+const backupName=/^db-backup-(?:encrypted-)?[0-9]+$/;
 const PER_PAGE=100;
 
 function repositoryPath(repo){

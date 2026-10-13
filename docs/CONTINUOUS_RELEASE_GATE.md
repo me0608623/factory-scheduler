@@ -30,6 +30,15 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 16:50 heartbeat：安全整合最新main與模擬診斷隱私防護
+
+- 開始工作目錄乾淨，沒有重疊modifier；正常fetch並普通merge **0e60483**，不切換共享checkout、不force push。四個衝突：acceptance-sim、backup-drill、C5案例、solver calendar bans。保留本分支已真驗收的分頁／密文解密及calendar union（忽略無長度區間、不合併真實工作占用），保留main新增test_leave_holiday_overlap三項測試與其他文件／工作流變更。C5保留完整求解件數、獨立合法性、實際DB拒絕及savepoint回滾，合入main新增「加班／調整期限」建議斷言，沒有弱化逾期套用閘門。
+- 新缺陷實際重現：執行合併中的真simulation solve函式，2/2隱私測試修前失敗——main新增/tmp/sim-last-request.json寫出完整原始請求，且失敗stderr可外帶姓名／備註；另加無效stdout案例，真JSON.parse例外會夾帶原文而失敗。最小修正不寫快照檔，錯誤只報exit／失敗類型與格式錯誤，不回傳stdout／stderr；console仍有安全結構摘要。acceptance artifact僅原有安全報告，不納入main新增/tmp/sim-*.json；舊artifact／log依使用者要求保留，沒有刪除。
+- 同步新備份策略時發現額外名稱碰撞：現有工具仍以db-backup-前綴接受任何演練／後綴檔。真mock HTTP兩項修前失敗（誤選較新的假檔＋明確ID不拒絕）；現限制兩個實際producer格式db-backup-數字與db-backup-encrypted-數字。已以GitHub實際metadata確認現存11791661615名為db-backup-encrypted-38352489633、未過期；沒有下載或展示正式內容。保留加密真備份資格，不沿用main排除所有encrypted的降級。
+- 回歸：新3項實際driver執行期隱私＋2項artifact HTTP回歸通過；全部工具 **31/31**（真age加解密、未skip）、web **440/440**、build通過；solver新增測試與完整跨層等待同SHA CI，Windows OR-Tools仍不繞過防護。本機Python trampoline連YAML解析啟動都失敗，故不拿未執行的YAML解析當證據，交由GitHub workflow parser/CI核對。
+- catalog-inventory／permissions-drill的main改進保留，仍是舊public備份診斷流程，未 dispatch：目前不聲稱這兩套可用新密文或公開輸出已隱私合格，後續另需安全整合；不為QA上傳人員盤點或身份資料。C1–C7原已通過不無故重跑，只針對本輪實質整合變更補驗C5。備份與正式0037不重做，正式1023、帳號權限與setup_pending不動。
+- PR16/18仍不合併進main，真第二帳號／同步仍缺登入與同意；本輪沒有部署正式Render、寫正式DB或寄信。nightly367614493仍停用至安全加密版本進main，Codex10分鐘追蹤仍ACTIVE。下一步以本輪提交及CI／C5實證結果為準接續，不能拿單輪tests綠燈當全部發布門檻。
+
 #### 2026-10-13 16:12 heartbeat：背景補讀競爭修復（發布狀態見後續追加）
 
 - 本輪開始 own worktree 乾淨，沒有其他修改／部署程序在此目錄；不改共享checkout。canonical staging root 已實查 CF-Cache-Status=EXPIRED 並提供 **index-6NbuiVNe.js**，fcd9d2e 的舊首頁快取阻礙解除，沒有重部署舊版或清除build cache。
