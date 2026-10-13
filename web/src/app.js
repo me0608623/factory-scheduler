@@ -1880,7 +1880,7 @@ const MODALS={
     return p.steps.map((st,step)=>({o,p,st,step,remaining:remainingQty(o.qty,S.blocks,o.id,step,null,S.execution||[])}))
       .filter(x=>x.remaining>0&&(UI.factory==="all"||factoryOf(x.st)===UI.factory));
   });
-  if(!choices.length)return {title:tx('手動排班'),body:'<div class="hint">目前沒有可新增的工作：此廠工序已排滿，或尚未建立工單。可先新增工單，再回來安排人員與時段。</div>',
+  if(!choices.length)return {title:tx('手動排班'),body:'<div class="hint">'+tx('目前沒有可新增的工作：此廠工序已排滿，或尚未建立工單。可先新增工單，再回來安排人員與時段。')+'</div>',
     foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button><button class="btn primary" data-act="ord-new">'+tx('＋新增工單')+'</button>'};
   if(!m.draft){const start=UI.date===todayStr()?Math.max(DAY0,Math.ceil(nowMin()/10)*10):DAY0;
     m.draft={choice:m.choice||choices[0].o.id+":"+choices[0].step,machine:"",employee:"",s:Math.min(start,DAY1-10),e:Math.min(DAY1,Math.min(start,DAY1-10)+60)};}
@@ -1922,16 +1922,16 @@ ot(m){
   const available=shownEmployees().filter(e=>!e.leaves.includes(d)&&(m.overrides[e.id]===null?overtimeDefault(e,d):m.overrides[e.id])).length;
   const people=shownEmployees().map(e=>{
     const base=overtimeDefault(e,d),value=m.overrides[e.id],yes=value===null?base:value;
-    return '<div class="ot-person"><div class="ot-person-title"><b>'+esc(e.name)+'</b><small>固定星期：'+(base?'可加班':'不加班')+(value===null?'':' · 今天臨時調整')+(e.leaves.includes(d)?' · 請假':'')+'</small></div>'+
+    return '<div class="ot-person"><div class="ot-person-title"><b>'+esc(e.name)+'</b><small>'+tx('固定星期')+'：'+(base?tx('可加班'):tx('不加班'))+(value===null?'':' · '+tx('今天臨時調整'))+(e.leaves.includes(d)?' · '+tx('請假'):'')+'</small></div>'+
       '<div class="toggles"><button class="tg" data-act="ot-person" data-id="'+esc(e.id)+'" data-v="1" aria-label="'+tx('{name} 今天可加班',{name:esc(e.name)})+'" aria-pressed="'+!!yes+'">'+tx('今天可加班')+'</button>'+
       '<button class="tg" data-act="ot-person" data-id="'+esc(e.id)+'" data-v="0" aria-label="'+tx('{name} 今天不加班',{name:esc(e.name)})+'" aria-pressed="'+!yes+'">'+tx('今天不加班')+'</button>'+
       (value===null?'':'<button class="btn" data-act="ot-reset" data-id="'+esc(e.id)+'" aria-label="'+tx('{name} 恢復固定設定',{name:esc(e.name)})+'">'+tx('恢復固定設定')+'</button>')+'</div></div>';
   }).join("");
   return {title:tx("{date} 加班設定",{date:mdw(d)}),body:
-    '<div class="field"><span class="lab">'+tx('今天是否開放加班')+'</span><div class="toggles">'+tg("ot-day","1",m.open,"開放加班")+tg("ot-day","0",!m.open,"不開放")+'</div></div>'+
+    '<div class="field"><span class="lab">'+tx('今天是否開放加班')+'</span><div class="toggles">'+tg("ot-day","1",m.open,tx('開放加班'))+tg("ot-day","0",!m.open,tx('不開放'))+'</div></div>'+
     (m.open?'<div class="field"><label for="ot-end">'+tx('加班到幾點')+'</label><select class="inp" id="ot-end">'+[1050,1080,1110,1140,1170,1200].map(t=>'<option value="'+t+'"'+(m.otEnd===t?" selected":"")+'>'+hm(t)+'</option>').join("")+'</select></div>':"")+
-    '<div class="hint">依員工的固定星期預先顯示。下面只調整今天，不會改到其他同星期的日期；請假者仍不排工作。</div>'+
-    '<div class="field"><span class="lab">今天可加班 '+available+' 人</span><div class="ot-people">'+people+'</div></div>',
+    '<div class="hint">'+tx('依員工的固定星期預先顯示。下面只調整今天，不會改到其他同星期的日期；請假者仍不排工作。')+'</div>'+
+    '<div class="field"><span class="lab">'+tx('今天可加班 {n} 人',{n:available})+'</span><div class="ot-people">'+people+'</div></div>',
     foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="ot-save">'+tx('確認並套用到排程')+'</button>'};
 },
 emp(m){
@@ -2150,9 +2150,10 @@ MODALS.cal=m=>{
   const D=m.draft,ro=!canCalendar(),T=todayStr();
   const openD=d=>{const o=D.over[d];return o?o==="work":!!D.week[parseD(d).getUTCDay()];};
   const hol=Object.keys(HOLI).filter(d=>d>=T&&d<=addDays(T,120)).sort();
-  const body='<div class="field"><span class="lab">'+tx('每週固定上班的日子')+'</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("c-week",w,D.week[w],"週"+WD[w],"",ro)).join("")+'</div></div>'+
+  const WEEK_LABELS=["週日","週一","週二","週三","週四","週五","週六"];   // 查表避免 tx 複合鍵（終極棘輪）
+  const body='<div class="field"><span class="lab">'+tx('每週固定上班的日子')+'</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("c-week",w,D.week[w],tx(WEEK_LABELS[w]),"",ro)).join("")+'</div></div>'+
    '<div class="field"><span class="lab">'+tx('接下來的國定假日（預設照常上班，只標示工資加倍）')+'</span><div class="result">'+
-   (hol.map(d=>'<div class="rline" style="align-items:center"><span style="flex:1">'+mdw(d)+"　"+esc(HOLI[d])+'</span>'+tg("c-day",d,openD(d),openD(d)?"上班":"停工","",ro)+'</div>').join("")||'<div class="empty">'+tx('近期沒有國定假日')+'</div>')+'</div></div>'+
+   (hol.map(d=>'<div class="rline" style="align-items:center"><span style="flex:1">'+mdw(d)+"　"+esc(HOLI[d])+'</span>'+tg("c-day",d,openD(d),openD(d)?tx('上班'):tx('停工'),"",ro)+'</div>').join("")||'<div class="empty">'+tx('近期沒有國定假日')+'</div>')+'</div></div>'+
    '<div class="hint">'+tx('其他單日要停工或加開，直接到那一天按「改為停工／改為上班」。')+'</div>';
   return {title:tx('上班日設定'),body,foot:ro?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="c-save">'+tx('儲存')+'</button>'};
 };
