@@ -75,6 +75,19 @@ function confirmedExecutionReceipt(value,request){
 export class SupabaseStore {
   kind = "supabase";
   authEpoch = 0;
+  #confirmationLedger = null;
+
+  #confirmationState() {
+    const client=this.sb,user=this.session?.user?.id,epoch=this.authEpoch||0;
+    let state=this.#confirmationLedger;
+    if(!state||state.client!==client||state.user!==user||state.epoch!==epoch){
+      state={client,user,epoch,blocks:new Map()};this.#confirmationLedger=state;
+    }
+    return state;
+  }
+  // Page-session only. A fresh read is not proof that an uncertain RPC ended.
+  hasPendingConfirmation(blockId) {return this.#confirmationState().blocks.has(String(blockId).toLowerCase());}
+  hasPendingConfirmations() {return this.#confirmationState().blocks.size>0;}
 
   constructor(client) {
     this.sb = client;
@@ -246,17 +259,21 @@ export class SupabaseStore {
   async confirmExecution(blockId, confirmed) {
     const client=this.sb,assertOwner=this.requestOwnerGuard();
     const pending='完工確認結果待核對，請更新班表查看；不要重複送出。';
-    const {data,error,status}=await assertOwner.authorize(client.rpc('confirm_work_execution',{p_block:blockId,p_confirmed:confirmed}));assertOwner();
-    if(error){
-      if((['42501','P0001','P0002'].includes(error.code)&&(status==null||status>=400&&status<500))||
-        (error.code==='PGRST202'&&status===404))throw Object.assign(new Error(error.message),{rejected:true});
-      // A gateway failure may hide a committed confirmation. This RPC has no
-      // replay ID: ask for a read, never claim it failed or invite a resend.
-      throw new UnconfirmedWriteError(pending);
-    }
-    if(!data||Array.isArray(data)||!receiptBlock(data.blockId,blockId)||typeof data.confirmed!=='boolean'||data.confirmed!==confirmed||
-      !Number.isSafeInteger(data.version)||data.version<1)throw new UnconfirmedWriteError(pending);
-    return data;
+    const ledger=this.#confirmationState(),key=String(blockId).toLowerCase();
+    if(ledger.blocks.has(key))throw new UnconfirmedWriteError(pending);
+    const attempt={};ledger.blocks.set(key,attempt);
+    const clear=()=>{if(this.#confirmationLedger===ledger&&ledger.blocks.get(key)===attempt)ledger.blocks.delete(key);};
+    try{
+      const {data,error,status}=await assertOwner.authorize(client.rpc('confirm_work_execution',{p_block:blockId,p_confirmed:confirmed}));assertOwner();
+      if(error){
+        if((['42501','P0001','P0002'].includes(error.code)&&(status==null||status>=400&&status<500))||
+          (error.code==='PGRST202'&&status===404))throw Object.assign(new Error(error.message),{rejected:true});
+        throw new UnconfirmedWriteError(pending);
+      }
+      if(!data||Array.isArray(data)||!receiptBlock(data.blockId,blockId)||typeof data.confirmed!=='boolean'||data.confirmed!==confirmed||
+        !Number.isSafeInteger(data.version)||data.version<1)throw new UnconfirmedWriteError(pending);
+      clear();return data;
+    }catch(error){if(error.rejected)clear();throw error;}
   }
 
   // 舊版 Excel 作為獨立歷史資料儲存，絕不更動目前排程快照。

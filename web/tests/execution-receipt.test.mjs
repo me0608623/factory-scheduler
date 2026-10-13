@@ -81,8 +81,13 @@ test('real committed confirmation hidden by HTTP503 is not labelled unsaved by a
     assert.equal(ctx.S.execution[0].confirmed,false);const persisted=await reader.load();assert.equal(persisted.execution[0].confirmed,true);assert.equal(persisted.version,3);
     assert.equal((await db.query('select count(*)::int n from work_execution_events')).rows[0].n,2);
     const planned=(await db.query('select start_min,end_min,qty from schedule_blocks where id=$1',[block])).rows[0];assert.deepEqual(planned,{start_min:480,end_min:540,qty:60});
-    // Characterize the unmodified SQL contract separately: explicit resend is
-    // NOT idempotent. The message fix must not claim this risk is resolved.
+    // The uncertain SDK cannot resend, even after closing/reopening or reading.
+    ctx.UI.modal={t:'execution'};ctx.S=persisted;
+    await ctx.changeExecutionConfirmation({disabled:false,dataset:{id:block}},true);
+    await ctx.changeExecutionConfirmation({disabled:false,dataset:{id:block}},false);
+    assert.equal(calls,1);assert.equal((await reader.load()).version,3);
+    // Characterize the unmodified SQL contract separately: another client is
+    // not protected by this page ledger. Server idempotency is still missing.
     await reader.confirmExecution(block,true);assert.equal((await reader.load()).version,4);
     assert.equal((await db.query("select count(*)::int n from change_sets where title='確認完工'")).rows[0].n,2);
   }finally{await db.close();}
