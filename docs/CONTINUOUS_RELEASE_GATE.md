@@ -30,6 +30,16 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 22:23 heartbeat／22:32：計算在途連點、取消與過期結果修復
+
+- 起點8c0513d乾淨；確認無其他modifier/deploy，原5202 Vite仍在；本輪新啟的同port IPv6 Vite為session45566，收尾停止此新增副本，保留原5202。指定交接已讀；舊NEXT_TASKS的0037／staging deploy hook／寄信待同意歷史不重做。寄測試帳號設定信已獲准及送出，沒有新第二帳號登入證據，不重寄或改密碼。正式1023/0037/setup_pending/角色授權以及測試Supabase排程零寫入。
+- 新測試執行 **真app openPlans/openPlansSolver/openPlansLocal/openModal/closeModal函式**（Node VM、明確合成transport，非source字串成功斷言），修前8項 **0 pass/8 fail**：同步三連點送3次、取消後成功仍進PV、取消後error仍排備援timer、換modal仍接舊結果、舊結果以新S重新包base、切user/store/epoch/version仍接受、local timer取消仍計算、沒有loading/retry狀態。沒有製造真雲端競爭或宣稱刪除服務端已計算的preview。
+- 最小修正固定每次計算的modal/PV、store/user/authEpoch、S身分/序列化base/version；同一在途工作不重送，關閉／換彈窗立即失效，await及local timer再驗，拒絕過期結果且不重啟備援。新工作不被舊finally清掉，正常error/空方案會解除busy可重試；本機timer例外也被捕捉。服務端已送出的計算未Abort，取消的是接受結果，不宣稱後端計算／preview記錄已撤回。
+- 原modal新增aria-busy、三語「計算中，可取消；班表尚未變更。」並停用非close操作，關閉X／取消及Escape沿用可操作路徑；無CSS/Gantt/抽屜/日週規則變更。Impeccable context及harden/craft-floor全文，detector一次[]；不是完整a11y/真機Safari驗收。操作及關閉生命週期涵蓋auto/fault/leave/order/recover共用入口，其他事件表單需真瀏覽器後續覆核。
+- 聚焦先49/49成功；擴充至11項時timeout備援測試因VM跨realm microtask未排完而fail，改setImmediate單次flush而未放寬斷言，**11/11成功**。初始完整 **525/526** 不當綠；修fixture後完整526/526，最後補跨身份不重畫舊modal保護，再重新全套 **526/526／0 fail**（51.15秒）＋build成功 **index-DhxFvM8v.js**，既有chunk警告保留。完整log僅本機outputs/plan-race-web-tests-final-20261013.txt。
+- 真本機 **http://localhost:5202/?local=1**（與正式無連線、0當日示範色塊）從更多→自動排班→計算，確實生成3套瀏覽器備援方案；直接取消回10/13/1廠、0 modal/PV/色塊，runtime warn/error查詢0。計算太快，未捕捉新busy可見／中心命中或在途Escape的真UI，不以VM測試冒稱手機/桌面busy全部通過；沒有套用或儲存。tab25保留續測。
+- runtime **01740ea** 已提交；最新main8ff680c/7101cc9/8c5e609僅另一agent文件15行，以普通merge保留為 **dfc24865a413a11c7135b18054efbb5625a8fd8f**已推。同SHA Tests **38414186563／38414175203**、smoke **38414186826／38414175427**均 completed/success。PR16尚未同步此版、兩PR仍draft，staging仍99d0760，不把本機新build當線上已更新。接續安全同步乾淨PR16、FF既有staging source並核真正auto-deploy/live SHA（App範圍已縮小factory-only）、busy/取消真桌面手機及錯誤記錄；門檻未全過不合正式。Codex10分鐘追蹤ACTIVE，不因526綠結案。本機取消後截圖outputs/local-plan-cancel-20261013.png不當雲端seed證據。
+
 #### 2026-10-13使用者要求線上測試資料／同意自行處理測試登入
 
 - 使用者要求實際部署網站可測拖曳，並回覆「你自行處理，沒有密碼就創新帳號，不要再詢問我而停止作業」。視為同意前一題具體的測試帳號設定信用途；既有帳號存在，不額外建立重複帳號，也不替本人輸入／修改新密碼。**先前寄信同意尚缺的阻礙已解除**，不要再沿用舊段落或重複詢問／重寄。
