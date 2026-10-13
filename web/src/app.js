@@ -1864,9 +1864,10 @@ function renderModal(){
   const keep=root.querySelector(".overlay"),focusToken=keep&&root.contains(document.activeElement)?modalFocusToken(document.activeElement):null;
   const st=keep?keep.scrollTop:0;
   const importBusy=m.t==='import-preview'&&m.saving;
-  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!(m.planBusy||importBusy||m.t==='legacy-preview'&&m.saving||['memo-edit','leave-request'].includes(m.t)&&m.saving||m.t==='legacy-history'&&m.loading)+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close"'+(importBusy?' disabled':'')+' aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
+  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!(m.planBusy||importBusy||m.t==='legacy-preview'&&m.saving||['memo-edit','leave-request'].includes(m.t)&&m.saving||m.t==='execution-report'&&m.busy||m.t==='legacy-history'&&m.loading)+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close"'+(importBusy?' disabled':'')+' aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
   if(importBusy)root.querySelectorAll('input,select,textarea,button').forEach(el=>el.disabled=true);
   if(['memo-edit','leave-request'].includes(m.t)&&m.saving)root.querySelectorAll('input,select,textarea').forEach(el=>el.disabled=true);
+  if(m.t==='execution-report'&&m.busy)root.querySelectorAll('input,select,textarea,button:not([data-act="close"])').forEach(el=>el.disabled=true);
   if(m.planBusy)root.querySelectorAll('input,select,textarea,button:not([data-act="close"])').forEach(el=>el.disabled=true);
   const ov=$("#ov");ov.scrollTop=st;
   const cb=$("#cbx"),modal=ov.querySelector(".modal");
@@ -3478,7 +3479,7 @@ function sideHealthHTML(){
 function updateSyncChip(){const el=$("#syncchip");if(el)el.outerHTML=syncChipHTML();const side=$(".side-health");if(side)side.outerHTML=sideHealthHTML();}
 let syncChain=Promise.resolve(),syncPending=0,syncEpoch=0,lastSyncState='ok';
 // 同步進行中關閉分頁＝靜默丟失變更：離開前提示（僅在真的有寫入在途時）
-addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state==="busy"||UI.leaveBrushSaving||UI.memoSaving||UI.directSaving){e.preventDefault();e.returnValue="";}});
+addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state==="busy"||UI.leaveBrushSaving||UI.memoSaving||UI.directSaving||UI.executionSaving){e.preventDefault();e.returnValue="";}});
 function queueSync(entry){
   if(STORE.kind==='supabase'&&!STORE.session?.user?.id){changedWriteSession();return Promise.resolve(false);}
   const snapshot=structuredClone(S),epoch=syncEpoch,activeStore=STORE,writer=STORE.session?.user?.id,authEpoch=STORE.authEpoch||0;
@@ -3571,7 +3572,7 @@ async function refreshCloudSnapshot(){
     else if(result==='deferred')toast(tx('已保留目前操作；完成或取消後再更新班表。'));
   }finally{remoteLoading=false;if(result!=='failed')maybeReload();}
 }
-function remoteReloadBlocked(){return !!(PV||drag||generalDrag||UI.modal||UI.editCell||UI.confirmRow||UI.leaveBrushSaving||UI.memoSaving||UI.directSaving||UI.drawer==='settings'||syncPending>0||SYNC.state!=='ok');}
+function remoteReloadBlocked(){return !!(PV||drag||generalDrag||UI.modal||UI.editCell||UI.confirmRow||UI.leaveBrushSaving||UI.memoSaving||UI.directSaving||UI.executionSaving||UI.drawer==='settings'||syncPending>0||SYNC.state!=='ok');}
 function onRealtimeStatus(status){
   const previous=SYNC.realtime;SYNC.realtime=status;updateSyncChip();
   // The stream cannot replay every missed database event. Also reconcile the
@@ -4591,7 +4592,9 @@ MODALS['execution-report']=m=>{
   return {title:tx('回報')+' '+(order(b.oid)?.code||'?')+' · '+stepName(b),body:
     '<dl class="kv"><dt>'+tx('原定')+'</dt><dd>'+mdw(b.date)+' '+hm(b.s)+'–'+hm(b.e)+' · '+b.qty+' 件</dd><dt>'+tx('狀態')+'</dt><dd>'+reportStatus(r)+'</dd><dt>'+tx('實際開始')+'</dt><dd>'+esc(actual(r?.startedAt))+'</dd><dt>'+tx('實際完成')+'</dt><dd>'+esc(actual(r?.finishedAt))+'</dd></dl>'+
     '<div class="hint">'+(r?'已鎖定排程，不可拖曳、改量、解除固定或刪除。':'按開始後會鎖定此段工作。')+' 件數填累計，不是這次增加量；完成會記錄實際時間，不用原定結束時間代替。</div>'+
-    (r&&r.status!=='done'?'<div class="field"><label for="execution-qty">'+tx('累計已做件數')+'</label><input class="inp" id="execution-qty" type="number" min="'+r.qtyDone+'" max="'+b.qty+'" step="1" value="'+r.qtyDone+'"></div>':'')+
+    (m.busy?'<div class="hint" role="status">'+tx('回報處理中；關閉視窗不會取消已送出的回報。')+'</div>':'')+
+    (m.error?'<div class="issue" role="alert">'+esc(m.error)+'</div>':'')+
+    (r&&r.status!=='done'?'<div class="field"><label for="execution-qty">'+tx('累計已做件數')+'</label><input class="inp" id="execution-qty" type="number" min="'+r.qtyDone+'" max="'+b.qty+'" step="1" value="'+esc(m.qtyDraft??r.qtyDone)+'"></div>':'')+
     (r?.status==='done'?'<div class="hint">已完成 '+r.qtyDone+' 件；相對原定差異 '+(r.qtyDone-b.qty)+' 件。此版不提供修改已完成回報。</div>':''),
     foot:'<div class="work-report-actions">'+(allowed&&r?.status!=='done'?
       (m.pendingRequest?'<button class="btn danger" data-act="report-work" data-v="retry">'+tx('重試上一筆回報')+'</button>':
@@ -4600,21 +4603,43 @@ MODALS['execution-report']=m=>{
         '<button class="btn success" data-act="report-work" data-v="finish" '+(!r?'disabled':'')+'>'+tx('完工')+'</button>'):'')+'<button class="btn" data-act="close">'+tx('關閉')+'</button></div>'};
 };
 async function reportWork(button){
-  const m=UI.modal;if(m?.t!=='execution-report'||m.busy||PV)return;
+  const m=UI.modal;if(m?.t!=='execution-report'||m.busy||UI.executionSaving||UI.directSaving||UI.memoSaving||UI.leaveBrushSaving||S.setupPending||PV)return;
   const b=S.blocks.find(b=>b.id===m.id);if(!b||!canReport(reportingRole(),STORE.employeeId,b))return;
+  const previous=m.reportOwner;
+  if(previous&&(STORE!==previous.store||STORE.sb!==previous.client||STORE.session?.user?.id!==previous.user||(STORE.authEpoch||0)!==previous.epoch)){
+    m.error=tx('登入狀態已變更，請重新整理後確認帳號。');renderModal();return;
+  }
+  const owner=directWriteOwner(()=>!S.setupPending&&canReport(reportingRole(),STORE.employeeId,b)),hadPending=!!m.pendingRequest;
   const action=button.dataset.v,r=executionOf(S,b.id),qty=action==='start'?0:Number($('#execution-qty')?.value);
   if(!m.pendingRequest&&action!=='start'&&!$('#execution-qty')?.value.trim()){toast('請填入累計已做件數；沒有產出請明確填 0');return;}
   if(!m.pendingRequest&&(!Number.isInteger(qty)||qty<(r?.qtyDone||0)||qty>b.qty)){toast('累計件數不可倒退或超過原定件數');return;}
   m.pendingRequest ||= {id:uid(),blockId:b.id,action,qtyDone:qty,expectedRevision:r?.revision||0};
-  m.busy=true;button.disabled=true;
-  try{await syncChain;await STORE.reportExecution(m.pendingRequest);await reloadFromStore();m.pendingRequest=null;undoStack=[];toast(tx('進度已保存'));}
-  catch(e){
-    const confirmed=e.rejected||e.conflict;
-    toast(confirmed?e.message:'沒存到：網路或伺服器沒有確認這筆回報，請按「重試上一筆回報」');
-    if(e.rejected)m.pendingRequest=null;
-    if(e.conflict){m.pendingRequest=null;await reloadFromStore();}
+  m.reportOwner ||= {store:owner.store,client:owner.store.sb,user:owner.store.session?.user?.id,epoch:owner.store.authEpoch||0};
+  m.qtyDraft=m.pendingRequest.qtyDone;m.error=null;m.busy=true;button.disabled=true;
+  const operation={};UI.executionSaving=operation;let dispatched=false;renderModal();
+  const release=()=>{if(UI.executionSaving===operation)UI.executionSaving=null;};
+  const reconcile=async success=>{
+    m.busy=false;closeModal();release();
+    const result=await reloadFromStore({background:true});if(!owner.sameView()||UI.modal)return;
+    if(result==='applied'){UI.modal=m;renderModal();}
+    toast(result==='applied'?success:tx('回報已處理；尚未讀到最新資料，請更新核對。'));
+  };
+  try{
+    await syncChain;if(!owner.current())return;
+    dispatched=true;await owner.store.reportExecution(m.pendingRequest);if(!owner.current())return;
+    m.pendingRequest=null;m.reportOwner=null;delete m.qtyDraft;undoStack=[];
+    await reconcile(tx('進度已保存'));
   }
-  finally{m.busy=false;if(UI.modal===m)renderModal();}
+  catch(e){
+    if(!owner.current())return;
+    m.error=e.rejected||e.conflict?e.message:tx('尚未確認儲存這筆回報；請按「重試上一筆回報」，不要另送新的一筆。');
+    if(e.rejected||e.conflict){m.pendingRequest=null;m.reportOwner=null;}
+    if(e.conflict){delete m.qtyDraft;await reconcile(e.message);}
+  }
+  finally{
+    if(!dispatched&&!hadPending){m.pendingRequest=null;m.reportOwner=null;}
+    m.busy=false;button.disabled=false;release();if(owner.sameView()&&UI.modal===m)renderModal();maybeReload();
+  }
 }
 
 // ---------- 工作內容、設備／工位、一般工作排班 ----------
