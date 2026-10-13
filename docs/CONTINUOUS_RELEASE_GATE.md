@@ -30,6 +30,12 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 22:17：依本人回覆縮小 Render App 倉庫授權
+
+- 使用者明確選擇「只允許 factory-scheduler」。既有 installation **170996374** 從 All repositories 改為 Only select repositories，僅選 **me0608623/factory-scheduler** 後按 Save；GitHub 導回 Render，重新開原 Configure 讀取已保存狀態：Only select repositories checked、Selected 1 repository、只有 factory-scheduler、Save/Cancel disabled。沒有新增授權、改密碼或重裝 App；其他公開倉庫仍有 GitHub 頁面註明的 read-only 例外，不宣稱完全禁止讀所有公開程式碼。
+- 本機證據 **outputs/render-app-factory-only-20261013.png** 已保存並目視，沒有公開上傳；GitHub 設定與既有測試 session tabs 保留 handoff。Render MCP 再核 staging web repo/source/root/autoDeploy 仍正確，最新 live **99d0760 / dep-db73bb6q1p3s73euliag**（原 new_commit 事件），沒有為權限縮小製造空提交或重複部署。這不等同縮小後又發生新 push 的 webhook 驗證，下一筆安全 runtime 更新時再核對。
+- 起點 e3a8153 工作樹乾淨；其同 SHA Tests **38411091684** 及 Deployment smoke **38411091856** 均 completed/success。本次只收斂 GitHub 安裝範圍及補紀錄，沒有程式變更，沒有 Supabase/正式1023寫入，也沒有合 PR16/18 或正式部署。發布門檻與下一項 auto 計算在途連點／取消探索仍依下段記錄；未進行的競爭測試不當通過。Codex持續追蹤未停用。
+
 #### 2026-10-13使用者確認Render授權／22:08：自動部署恢復、新版真雲端套用復原及補讀
 
 - 起點1715e56乾淨、無其他modifier／deploy；只有專屬Vite/esbuild。PR16 f5a85db Tests **38406785146／38406776111**及smoke **38406784793／38406776055**實查全success。最新main後續3筆只新增另一agent文件15行，以普通merge保留为 **c4f8f3fcea887f712b669773d13c9038ba68708d**，不切共享checkout、不force、不合PR到main。以下是**staging**驗收，正式1023/0037/setup_pending/帳號個人權限及正式服務未操作。
