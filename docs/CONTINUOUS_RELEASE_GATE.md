@@ -30,6 +30,19 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
+#### 2026-10-13 20:12 heartbeat／20:45：儲存確認、衝突佇列覆写及Render既有登入恢復
+
+- 起點f731e4c乾淨，無其他modifier／deploy，僅原Vite/esbuild；全部指定交接讀取，main仍11c7d9c。上輪2d040d0 Tests **38395295245／38395289396**與smoke **38395295244／38395289506**、PR16 de0957b Tests **38395359154／38395350915**與smoke **38395359346／38395350794**均實查success；docs-only f731e4c Tests **38395513041**與smoke **38395513030**success。這不是發布門檻全過，不合main，不重做0037／匯入／還原。
+- 新儲存契約缺陷：7條回版本的RPC（rosters、transfers、rush、work_log、work_contents、work_assignments、groups）會用Number(data)無條件接受null／畸形回應，並記住錯誤baseline。真正SupabaseStore＋明確mock transport的8項測試修前 **7 fail／1 pass**，修後只接受安全數字且恰為previous+1；13種缺漏／錯型／錯版本均拒絕，不改S.version/store.version/base/protectedBase，不以HTTP成功當確認。
+- 新UnconfirmedWriteError明確表示「儲存结果待确认，重试核对，修改保留」，不能把可能已提交的回應遺失說成確定沒存到，也不誤報成功。Impeccable main/context一次及harden/craft-floor全文已讀，只改錯誤回饋／安全邏輯，不改Gantt／抽屜版型。兩個新增提示en/vi/th齊全；初始app/i18n/store detector為[]，不當全面手機／桌面視覺驗收。
+- 真本機PGlite＋全migrations（Auth為明確stub、合成帳號，非真Supabase登入）：直接執行全部7 RPC，確認它們實際返回數字且每次version+1，不是nullable/void。另執行真queueSync＋真SupabaseStore＋真SQL：首筆group寫入已commit但transport故意丟掉確認；第一次UI保持error/待確認，版本基準不先跳；按重試遇版本衝突，真正重讀已存結果。最终該group與change_set各一次，version=1，未把一次重試當第二次成功寫入。其他void RPC／save_blocks UUID回條未改，不能宣稱所有寫入契約都已驗過。
+- **新P0級 lost update 實證**：第一筆group修改被transport暫緩，第二筆本機快照先排進queue，再讓另一寫入先commit REMOTE；原queue第一筆40001後load最新baseline，第二筆舊快照卻用新版本寫回。真SQL覆核顯示REMOTE被刪，只剩LOCAL-A/B；新第11項修前 **10 pass／1 fail**，不是只看字串或toast。僅本機拋棄式DB，未在正式／測試雲端製造此衝突。
+- 最小修queue generation：衝突／權限恢復讀取前後各遞增epoch，舊快照及恢復期間新排的快照均不自動重放；讀完後新動作仍可正常儲存。修後同SQL實證REMOTE保留、version仍1、LOCAL-A/B change_set=0。正常兩次成功仍依序寫入。恢復結果真的applied才說已載入／已還原；failed或reject保持error/待確認，reject也不打斷整條syncChain。新增reject探針修前確有unhandledRejection，修後有界3項queue測試通過。過程首次patch因原try/catch在同一行而context不匹配，未套用；讀實際原文後重新patch成功，沒有猜測改寫。
+- write-confirmation共 **14項**，含7×13畸形回應、真SQL契約、回應遺失重試、真衝突舊佇列、failed/reject恢復、恢復期間新佇列、正常順序；既有undo測試只補epoch初始化，沒有放寬断言。修復各階段聚焦通過；最後全web **497/497／0 fail**（87.8秒）及build成功（index-DMIDQlxN.js）。先前493綠不取代新增P0修復後最後497結果；同SHA CI推送後仍待核對。既有chunk警告不改。
+- **Render登入阻礙已有實際改善**：tab17點既有「GitHub／Last used」後直接進到staging服務，沒有輸入／變更密碼、沒有新的Authorize頁或新增授權；不再說需本人登入Render。只讀Settings的Build／Auto-Deploy，不開Environment，不讀金鑰／Deploy Hook。畫面確認來源branch codex/excel-friendly-ui-20260930、root web、On Commit、Git Credentials為既有本人、沒有列出的include/ignore paths；這不能證明GitHub App／webhook全正常，也不能確立自動部署失靈根因。完整AX設定不輸出，僅篩選非私密欄；OAuth callback參數未存入文件／截圖。
+- 用Render-deploy主指引與deployment-details/post-deploy-checks核對，只更新既有staging來源：確認8ffa475為2d040d0祖先後，**fast-forward推2d040d0至原staging branch**，沒有切共享checkout、沒有force／改服務配置／新增服務／費用。該SHA上一輪CI已全綠。更新後兩次MCP及畫面均仍只有 **5476 live／dep-db70mojrjlhs739hte6g**，最後20:45實查沒有新deploy；不能把source push冒稱部署完成，也不手動trigger autoDeploy=yes服務來繞過限制。solver程式未改，不重複部署。登入後設定截圖 `outputs/render-login-restored-20261013.png` 保存並目視（只含服務頂部與General，沒有env或hook）。tab17保留handoff，後續可直接診斷不需重複求登入。
+- 本輪正式1023、0037、setup_pending、角色／個人授權、測試Supabase全未寫入，所有新mutations只在本機拋棄式PGlite。另一測試帳號及設定信同意仍缺；真跨帳號／OR-Tools apply／新版補讀與衝突的雲端E2E／原生Safari未過。PR16/18仍draft，正式未合併／部署，nightly仍等加密main安全發布，Codex10分鐘追蹤ACTIVE。下一輪先核對最新CI，再推含web改動的新runtime SHA到原staging分支並查auto deploy／在已登入Render診斷；勿重做旧M20寫入／復原。之後優先驗save_blocks UUID確認與登入切換時的在途寫入，不以目前7條數值RPC測試放行所有路徑。
+
 #### 2026-10-13 19:52 heartbeat／20:08：斷線單次補讀與非彈窗草稿保護
 
 - 起點7751ce8乾淨，無其他modifier／deploy，僅專屬Vite/esbuild。最新main仍11c7d9c，新增提交僅兩份agent文件；不重做正式0037、備份還原、C1–C7或測試資料匯入。7751ce8同SHA Tests **38392987907／38392982273**、smoke **38392987997／38392982212**全部success，實查frontend log **474 tests／474 pass／0 fail**，補足上一輪追加測試後完整回歸的證據。
@@ -40,6 +53,8 @@
 - 新增manual-refresh **9項**：執行真正case、補讀函式；另用真正SupabaseStore加明確mock RPC驗完整snapshot可接受、畸形{}不清空可見班表或寫入baseline。覆蓋連點、離線、讀取中開草稿、版本／帳號／store切換、正常／畸形RPC、非Error失敗及舊路徑；相關測試加翻譯棘輪 **38/38**。中途480、482、483通過不取代最後結果；三項草稿guard增加後重新完整跑 **483/483／0 fail**（89秒）及最終build成功（index-BWR-IV48.js）。舊大chunk警告保留。推送後同SHA CI仍待核對，不把本機回歸當staging E2E。
 - Render tab17仍是Sign In，未重複詢問／猜密碼／改配置／手動trigger；新版尚未stage live，不能把5476的真雲端手動套用／復原當此新補讀或7751提示修復的E2E。沒有第二帳號或寄設定信同意，PR16/18維持draft、未合main或正式部署。nightly **367614493仍disabled_manually**（用api實查；workflow view不支援--json的首次工具查詢已改正）。Codex10分鐘追蹤ACTIVE，保留5個QA/login handoff。
 - 本輪正式1023、setup_pending、角色／個人授權與測試Supabase均未寫入；上一輪測試M20正常apply＋undo的兩個版本／稽核仍保留，沒有倒轉或重置。下一步核對最新CI、安全同步PR16與main文件、取得Render登入後核對真正部署SHA，再驗新補讀兩端與離線／409；不同帳號、OR-Tools真正套用與原生Safari門檻仍未過，不能提前發布。
+- 修正 **a68a0d6** 已提交；以普通merge納入main 11c7d9c的兩份docs更新後，持久分支 **2d040d094e846c4a73ec484a434d306418bcd3ae**已推送。main沒有被合入PR／改寫，沒有force。PR16事前核對1451cff本地／remote一致、worktree乾淨且只有原Vite/esbuild，普通merge到 **de0957bf4b6a5cdcd3d08d9577990770e203a3c4**已推；相對持久分支仍保留原3項runtime/test差異（seed preflight、banner對比、seed回歸）與其2份docs。
+- **20:11最新核對**：2d040d0 Tests **38395295245／38395289396**仍in_progress，smoke **38395295244／38395289506**success；PR16 de0957b Tests **38395359154／38395350915**仍in_progress，smoke **38395359346／38395350794**success。未以先前7751綠替代最新SHA CI。PR16/18仍draft、沒有部署新版，下一輪先查上述run與最新HEAD，不重跑已通過的本機483、正式0037或原M20apply／undo。
 
 #### 2026-10-13 19:31 heartbeat／19:49：真雲端手動套用、復原與成功提示時序
 

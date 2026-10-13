@@ -11,6 +11,8 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "無法載入最新版本，尚未確認儲存；請重試。": {en:"Could not load the latest version. Save is unconfirmed; please retry.",vi:"Không thể đọc phiên bản mới nhất. Chưa xác nhận lưu; vui lòng thử lại.",th:"ไม่สามารถโหลดเวอร์ชันล่าสุด ยังยืนยันการบันทึกไม่ได้ กรุณาลองใหม่"},
+  "雲端儲存結果待確認，請按重試核對；目前修改仍保留。": {en:"Cloud save is unconfirmed. Tap Retry to check; your changes are preserved.",vi:"Chưa xác nhận lưu trên đám mây. Nhấn Thử lại để kiểm tra; các thay đổi vẫn được giữ.",th:"ยังยืนยันการบันทึกบนคลาวด์ไม่ได้ แตะลองใหม่เพื่อตรวจสอบ การแก้ไขยังคงอยู่"},
   "無法讀取最新班表，請稍後再試。": {en:"Could not read the latest schedule. Please try again later.",vi:"Không thể đọc lịch mới nhất. Vui lòng thử lại sau.",th:"ไม่สามารถอ่านตารางล่าสุดได้ กรุณาลองใหม่ภายหลัง"},
   "按此更新班表": {en:"Tap to refresh schedule",vi:"Nhấn để cập nhật lịch",th:"แตะเพื่ออัปเดตตาราง"},
   "請先完成或取消目前操作，再更新班表。": {en:"Finish or cancel your current task before refreshing the schedule.",vi:"Hoàn tất hoặc hủy thao tác hiện tại trước khi cập nhật lịch.",th:"ทำงานปัจจุบันให้เสร็จหรือยกเลิกก่อนอัปเดตตาราง"},
