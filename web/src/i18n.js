@@ -11,6 +11,9 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "計算中，可取消；班表尚未變更。": {en:"Calculating. You can cancel; the schedule has not changed.",vi:"Đang tính. Bạn có thể hủy; lịch chưa thay đổi.",th:"กำลังคำนวณ ยกเลิกได้ ตารางยังไม่เปลี่ยน"},
+  "排程資料已改變，請重新計算。": {en:"Schedule data changed. Please calculate again.",vi:"Dữ liệu lịch đã thay đổi. Vui lòng tính lại.",th:"ข้อมูลตารางเปลี่ยนแล้ว กรุณาคำนวณใหม่"},
+  "排程計算失敗，請重試。": {en:"Schedule calculation failed. Please retry.",vi:"Tính lịch thất bại. Vui lòng thử lại.",th:"คำนวณตารางไม่สำเร็จ กรุณาลองใหม่"},
   "登入狀態已變更，請重新整理後確認帳號。": {en:"Your sign-in has changed. Reload and check the account before continuing.",vi:"Trạng thái đăng nhập đã thay đổi. Tải lại và kiểm tra tài khoản trước khi tiếp tục.",th:"สถานะการเข้าสู่ระบบเปลี่ยนไป กรุณาโหลดใหม่และตรวจสอบบัญชีก่อนดำเนินการต่อ"},
   "無法載入最新版本，尚未確認儲存；請重試。": {en:"Could not load the latest version. Save is unconfirmed; please retry.",vi:"Không thể đọc phiên bản mới nhất. Chưa xác nhận lưu; vui lòng thử lại.",th:"ไม่สามารถโหลดเวอร์ชันล่าสุด ยังยืนยันการบันทึกไม่ได้ กรุณาลองใหม่"},
   "雲端儲存結果待確認，請按重試核對；目前修改仍保留。": {en:"Cloud save is unconfirmed. Tap Retry to check; your changes are preserved.",vi:"Chưa xác nhận lưu trên đám mây. Nhấn Thử lại để kiểm tra; các thay đổi vẫn được giữ.",th:"ยังยืนยันการบันทึกบนคลาวด์ไม่ได้ แตะลองใหม่เพื่อตรวจสอบ การแก้ไขยังคงอยู่"},
