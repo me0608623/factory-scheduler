@@ -6,6 +6,10 @@
 
 依優先級排序（P0 最高）。每項完成後打勾並記錄 commit。
 
+## P1（新發現，輪 74）
+
+- [ ] **模擬驗收 C1-C7 在 main 上 FAIL=6（2026-10-13 run 38342663837）**：C1/C2/C4/C5/C6/C7 全部「無可套用方案」——四個方案全 INFEASIBLE、TEST 工單 0 排程；C3（負面案例）通過。上次綠＝2026-10-02（72e9314）。**兩個待分流的假設**：①solver 變更（72e9314..main 含軟性切換成本+短件分類+reification 修正）在「真實備份還原資料」形態下不可行 ②sim 情境與現行 snapshot/solver 期望漂移（自 10-02 起 sim 腳本零變更）。**分流步驟**：同備份 artifact 下，分別在 72e9314 與 main 各跑 only=C1 對照（workflow 支援 artifact_id 參數）；若舊碼綠新碼紅＝solver 回歸（P0 級）；若兩者皆紅＝備份資料形態改變所致，改 sim 情境。web 端 solver 正常（輪 65 staging OR-Tools 3 方案可套用）＝線上排程路徑不受影響的旁證
+
 ## P2（重要改善）
 
 - [x] 登入頁 backdrop/3D rAF 記憶體洩漏（→ `fc7a87f`）
