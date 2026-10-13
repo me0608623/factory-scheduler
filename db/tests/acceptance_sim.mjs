@@ -193,7 +193,7 @@ await must("工序", `INSERT INTO product_steps (product_id,seq,process,rate,tra
   ('11111111-aaaa-4aaa-8aaa-111111111101',1,'沖壓',1,60,2),
   ('11111111-aaaa-4aaa-8aaa-111111111101',2,'包裝',4,60,2),
   ('11111111-aaaa-4aaa-8aaa-111111111102',0,'裁切',2,60,1),
-  ('11111111-aaaa-4aaa-8aaa-111111111102',1,'焊接',1,60,1) ON CONFLICT (product_id,seq) DO NOTHING`);
+  ('11111111-aaaa-4aaa-8aaa-111111111102',1,'焊接',1,0,1) ON CONFLICT (product_id,seq) DO NOTHING`);
 await must("模具", `INSERT INTO machine_products (machine_id,product_id) VALUES
   ('f1e','11111111-aaaa-4aaa-8aaa-111111111101'),('f1e','11111111-aaaa-4aaa-8aaa-111111111102'),
   ('f1b','11111111-aaaa-4aaa-8aaa-111111111102'),
@@ -232,6 +232,8 @@ if (process.env.SIM_DEBUG) {
   console.error('[snap] ot=' + JSON.stringify(snapDump.overtime || snapDump.dayOT || null).slice(0, 200));
   console.error('[snap] blocksOnTestMachines=' + (snapDump.blocks || []).filter(b => ['f1e','f1b','f2k','f2ac'].includes(b.m || b.machine)).length);
   console.error('[snap] firstEmp=' + JSON.stringify((snapDump.employees || [])[0]));
+  console.error('[snap] wa=' + cnt(snapDump.work_assignments) + ' tf=' + cnt(snapDump.transfer_orders) + ' rosters=' + cnt(snapDump.staff_rosters) + ' wc=' + cnt(snapDump.work_contents));
+  console.error('[snap] pickedEmps=' + JSON.stringify((snapDump.employees || []).filter(e => [E01,E02,E03].includes(e.id)).map(e => ({ f: e.factory, skills: e.skills, leaves: e.leaves, noOT: e.no_overtime, otw: e.overtime_weekdays, rev: e.review_status }))));
   console.error('[snap] testMachFactories=' + JSON.stringify(mine.map(m => ({ id: m.id, factory: m.factory, products: cnt(m.products) }))));
   console.error('[snap] testProducts=' + JSON.stringify((snapDump.products || []).filter(pr => String(pr.id).startsWith('11111111')).map(pr => ({ id: String(pr.id).slice(-4), steps: (pr.steps || []).map(st => ({ proc: st.proc, factory: st.factory, rate: st.rate, batch: st.batch })) }))));
 }
