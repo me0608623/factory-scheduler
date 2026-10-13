@@ -162,3 +162,10 @@ test('缺陷#16 回歸：switch case 內的箭頭函式主體必須被呼叫（l
   assert.match(app, /case "feedback-send":\{const h=async a=>\{/, 'feedback-send 需為宣告＋呼叫形式');
   assert.match(app, /case "ln-save":\{const h=async a=>\{/, 'ln-save 需為宣告＋呼叫形式');
 });
+
+test('缺陷#16 補強：ln-save 本機模式提前擋下（handler 已可被呼叫，但本機 STORE.sb 不存在會吐原始 TypeError 給使用者）', () => {
+  const i = app.indexOf('case "ln-save"');
+  assert.ok(i >= 0);
+  const seg = app.slice(i, i + 260);
+  assert.match(seg, /STORE\.kind==="local"\)\{toast\("本機示範模式無法設定 LINE 通知/, 'ln-save 需在本機模式給友善提示');
+});
