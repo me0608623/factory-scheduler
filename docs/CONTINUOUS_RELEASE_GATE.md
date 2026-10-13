@@ -40,6 +40,7 @@
 - 新profile-session **6項**覆蓋两阶段×三种身份变更、寫姓名三負一正、正常token、半份授權不採用、失敗清舊cache、6種畸形grant及缺profile、profile失敗不查grants。前4項＋既有Auth/真PGlite Store回歸 **23/23**是在追加契約防護前；之後最終聚焦 **8/8**，最終完整web **515/515／0 fail**（54秒），build成功（index-D67ONLEY.js），原chunk警告保留。只store/backend邊界邏輯及測試，沒有UI/CSS重設，不宣稱瀏覽器真人Auth/手機版型／跨帳號同步完成。
 - runtime **99d0760**已提交，普通merge最新main為 **7a307b8813b5584a28cadd991e14a90a1d5d384d**已推。PR16事前e76796c本地/remote一致且乾淨，只既有Vite/esbuild，普通merge到 **f5a85db1269f1bad6002a09b808730082d08f705**已推；原3項runtime/test差異與2份docs保留。這兩個新SHA CI須後續核對，不能拿上一個e767/6f綠冒稱它們綠。
 - 下一項安全探索：同一session的多個_profile並行／授權變更讀取晚回應次序，以及init/login在途SDK結果是否可復活登出身份；尚未測，不當已確認缺陷。log_change無version的UUID遺失仍待設計安全核對，不能盲重試重複稽核；故障重排、OR-Tools真套用、跨帳號/角色/雙端/offline/409/原生Safari仍門檻未過。工作環境保留，Codex10分鐘追蹤ACTIVE，不因515綠結案。
+- 最後核對：7a307b8 Tests **38406469537／38406463149**及smoke **38406469485／38406463975**全success；PR16 f5a85db Tests **38406785146／38406776111**仍in_progress，smoke **38406784793／38406776055**success。新建置未部署，不用持久分支綠冒稱PR16全CI已完成。tab23/21/20 handoff重新保留，工作區乾淨。
 
 #### 2026-10-13使用者續作：最新CI全綠，GitHub Render App未安裝，停在新增授權前
 
