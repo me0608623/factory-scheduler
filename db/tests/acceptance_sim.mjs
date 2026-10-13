@@ -197,6 +197,8 @@ await must("週休", `UPDATE calendar_weekly SET is_open=(weekday NOT IN (0,6))`
 await must("停工日", `INSERT INTO calendar_days (date,is_open,note) VALUES ('${SHUTDOWN}',false,'TEST 停工日（非法定假日）') ON CONFLICT (date) DO UPDATE SET is_open=false,note=EXCLUDED.note`);
 // 情境隔離：清掉真實資料的跨廠加工單（sim 不測 tf 整合；74 張真實單的物料期望會約束 timeline 模型）
 await must("清跨廠單", `DELETE FROM transfer_orders`);
+// 實驗3：連趕貨紀錄（31）與請假詢問（14）一併清——排除最後兩個非零真實資料表
+await must("清趕貨與請假詢問", `DELETE FROM rush_orders; DELETE FROM leave_requests`);
 await must("機台工序", `UPDATE machines SET process='裁切' WHERE id='f1e'; UPDATE machines SET process='焊接' WHERE id='f1b'; UPDATE machines SET process='沖壓' WHERE id='f2k'; UPDATE machines SET process='包裝' WHERE id='f2ac'`);
 // 真實備份的 1023 匯入機台可能 review_status=pending；solver 拒絕以未核定資源排程（main.py:174 同規則），基準一律視為已核定
 await must("機台核定", `UPDATE machines SET review_status='confirmed' WHERE id IN ('f1e','f1b','f2k','f2ac')`);
