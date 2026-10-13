@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { makeDb, FakeSupabase } from "./fake-supabase.mjs";
 import { SupabaseStore } from "../src/store/supabase.js";
 import { toSnapshot, fromSnapshot, applyOption } from "../src/convert.js";
+import { requestQuery } from './request-query.mjs';
 
 const BOSS = "11111111-1111-4111-8111-111111111111";
 const LEAD = "22222222-2222-4222-8222-222222222222";
@@ -282,7 +283,7 @@ test('apply_plan committed with lost UUID receipt is unconfirmed until a real re
   const opt={id:'A',name:'少動',lines:[],blocks:[{order_id:A01,step_seq:0,machine_id:'a',employee_id:E1,date:'2026-10-05',start_min:480,end_min:540,qty:120}],effects:{}};
   const pv=(await db.query("insert into plan_previews (kind,title,event,base_version,options) values ('auto','回條測試','{}',0,$1) returning id",[JSON.stringify([opt])])).rows[0].id;
   const rpc=lead.sb.rpc.bind(lead.sb);let applyCalls=0;
-  lead.sb.rpc=async(fn,args)=>{const r=await rpc(fn,args);if(fn==='apply_plan'){applyCalls++;assert.equal(r.error,null);return {...r,data:null};}return r;};
+  lead.sb.rpc=(fn,args)=>requestQuery(async()=>{const r=await rpc(fn,args);if(fn==='apply_plan'){applyCalls++;assert.equal(r.error,null);return {...r,data:null};}return r;});
   await assert.rejects(lead.applyPlan(pv,'A'),e=>e.unconfirmed===true);
   assert.equal(lead.version,0);assert.equal(lead.base,baseline);
   const loaded=await lead.load();assert.equal(loaded.version,1);assert.equal(loaded.blocks.length,1);
@@ -316,7 +317,7 @@ test('儲存失敗（服務無回應）不留部分寫入，重新讀取仍是�
   S.blocks.push(blk());
   // 模擬網路層故障：rpc 直接丟例外（非衝突、非權限）
   const orig = lead.sb.rpc.bind(lead.sb);
-  lead.sb.rpc = async () => { throw new Error('network down'); };
+  lead.sb.rpc = () => requestQuery(() => { throw new Error('network down'); });
   await assert.rejects(lead.sync(S, { kind: 'move', title: '組長的調整' }), /network down/);
   lead.sb.rpc = orig;
   assert.equal(await count('select count(*)::int n from schedule_blocks'), 0, '資料庫沒有任何新方塊');

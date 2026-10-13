@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {SupabaseStore} from '../src/store/supabase.js';
+import {requestQuery} from './request-query.mjs';
 
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const implementation=source.slice(source.indexOf('async function pvApply(){'),source.indexOf('\nObject.assign(MODAL_ACT,{',source.indexOf('async function pvApply(){')));
@@ -55,15 +56,16 @@ test('RPC failure keeps current preview and unlocks confirmation without undo',a
 });
 test('applyPlan requires UUID receipt; null or malformed HTTP success is unconfirmed',async()=>{
   for(const data of [null,undefined,{},'',4,'not-a-uuid']){
-    const s=new SupabaseStore({rpc:async()=>({data,error:null})});s.session={user:{id:'lead'}};
+    const s=new SupabaseStore({rpc:()=>requestQuery(()=>({data,error:null}))});s.session={user:{id:'lead'},access_token:'synthetic-token'};
     await assert.rejects(s.applyPlan('preview','A'),e=>e.unconfirmed===true);
   }
 });
 test('applyPlan validates the same client and auth lifetime before accepting receipt',async()=>{
   for(const change of ['user','epoch','client']){
-    let reply;const client={rpc:()=>new Promise(resolve=>reply=resolve)};
-    const s=new SupabaseStore(client);s.session={user:{id:'lead'}};
+    let reply,entered;const ready=new Promise(resolve=>entered=resolve),client={rpc:()=>requestQuery(()=>new Promise(resolve=>{reply=resolve;entered();}))};
+    const s=new SupabaseStore(client);s.session={user:{id:'lead'},access_token:'synthetic-token'};
     const task=s.applyPlan('preview','A');
+    await ready;
     if(change==='user')s.session={user:{id:'other'}};
     if(change==='epoch')s.authEpoch++;
     if(change==='client')s.sb={};
@@ -71,7 +73,7 @@ test('applyPlan validates the same client and auth lifetime before accepting rec
   }
 });
 test('valid apply receipt preserves baseline until an actual snapshot refresh',async()=>{
-  const s=new SupabaseStore({rpc:async()=>({data:receipt,error:null})});s.session={user:{id:'lead'}};s.version=4;
+  const s=new SupabaseStore({rpc:()=>requestQuery(()=>({data:receipt,error:null}))});s.session={user:{id:'lead'},access_token:'synthetic-token'};s.version=4;
   await s.applyPlan('preview','A');assert.equal(s.version,4);assert.equal(s.base,null);
 });
 test('current apply cannot be canceled or switched through retained event handlers',async()=>{
@@ -97,7 +99,7 @@ test('unconfirmed reply exits preview and reconciles without success or undo',as
   assert.ok(!h.log.includes('undo')&&!h.log.includes('success'));
 });
 test('signed-out caller never invokes apply RPC',async()=>{
-  let calls=0;const s=new SupabaseStore({rpc:async()=>{calls++;return {data:receipt};}});
+  let calls=0;const s=new SupabaseStore({rpc:()=>requestQuery(()=>{calls++;return {data:receipt};})});
   await assert.rejects(s.applyPlan('preview','A'),e=>e.unconfirmed===true);assert.equal(calls,0);
 });
 test('saved read-only scenario never sends an apply request',async()=>{
