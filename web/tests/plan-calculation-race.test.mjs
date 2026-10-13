@@ -11,9 +11,9 @@ function functionText(name){
 function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
 function harness(local=false){
   const request=deferred(),calls=[],previews=[],timers=[],messages=[];
-  const store={kind:'supabase',version:4,authEpoch:1,session:{user:{id:'test-user'}},can:()=>true,jwt:()=> 'synthetic-token'};
-  const ctx={S:{setupPending:false,blocks:[],orders:[],machines:[]},UI:{modal:{t:'auto'}},PV:null,STORE:store,
-    SOLVER:{up:!local,capabilities:[],plansDb:()=>{calls.push('request');return request.promise;}},
+  const store={kind:local?'local':'supabase',version:4,authEpoch:1,session:{user:{id:'test-user'}},can:()=>true,jwt:()=> 'synthetic-token'};
+  const ctx={AbortController,S:{setupPending:false,blocks:[],orders:[],machines:[]},UI:{modal:{t:'auto'}},PV:null,STORE:store,
+    SOLVER:{up:!local,capabilities:[],check:async()=>false,plansDb:()=>{calls.push('request');return request.promise;}},
     assignments:()=>[],planTimeLimit:()=>3,todayStr:()=> '2026-10-15',nowMin:()=>480,
     toast:x=>messages.push(x),tx:x=>x,renderModal:()=>{},maybeReload:()=>{},$:()=>null,
     modalReturnFocus:null,HTMLElement:class {},document:{activeElement:null,body:{}},requestAnimationFrame:()=>{},
@@ -79,4 +79,32 @@ test('local calculation failures are reported and leave a retryable modal',async
   const p=h.run();h.timers.forEach(f=>f());await p;
   assert.equal(h.ctx.UI.modal.planBusy,false);assert.equal(h.previews.length,0);
   assert.ok(h.messages.includes('排程計算失敗，請重試。'));
+});
+test('a user calculation retries an unavailable service once, then uses its recovered solver',async()=>{
+  const h=harness(true),health=deferred(),checks=[];
+  h.ctx.STORE.kind='supabase';
+  h.ctx.SOLVER.check=options=>{checks.push(options);return health.promise;};
+  const p=h.run();assert.equal(checks.length,1);assert.equal(h.timers.length,0);
+  h.ctx.SOLVER.up=true;health.resolve(true);await new Promise(resolve=>setImmediate(resolve));
+  h.reply();await p;assert.equal(h.calls.filter(x=>x==='request').length,1);assert.equal(h.previews[0].extra.engine,'OR-Tools');
+  assert.equal(checks[0].timeoutMs,45000);
+});
+test('closing during the health retry aborts it and cannot open either preview engine',async()=>{
+  const h=harness(true),health=deferred();let options;
+  h.ctx.STORE.kind='supabase';
+  h.ctx.SOLVER.check=o=>{options=o;return health.promise;};const p=h.run();
+  assert.ok(options?.signal);h.ctx.closeModal();assert.equal(options.signal.aborted,true);
+  h.ctx.SOLVER.up=true;health.resolve(true);await p;assert.equal(h.calls.length,0);assert.equal(h.timers.length,0);assert.equal(h.previews.length,0);
+});
+test('incident-only permission can recover the solver but cannot use whole-board fallback',async()=>{
+  const h=harness(true);h.ctx.STORE.kind='supabase';h.ctx.STORE.can=()=>false;
+  h.ctx.SOLVER.check=async()=>{h.ctx.SOLVER.up=true;return true;};const p=h.run();h.reply();await p;
+  assert.equal(h.calls.filter(x=>x==='request').length,1);assert.equal(h.previews.length,1);
+  const unavailable=harness(true);unavailable.ctx.STORE.kind='supabase';unavailable.ctx.STORE.can=()=>false;await unavailable.run();
+  assert.equal(unavailable.timers.length,0);assert.equal(unavailable.previews.length,0);
+});
+test('missing solver work capability cannot expose whole-board fallback to incident-only users',async()=>{
+  const h=harness();h.ctx.STORE.can=()=>false;h.ctx.assignments=()=>[{id:'work'}];
+  const p=h.run();h.timers.forEach(f=>f());await p;
+  assert.equal(h.timers.length,0);assert.equal(h.previews.length,0);assert.equal(h.calls.length,0);
 });
