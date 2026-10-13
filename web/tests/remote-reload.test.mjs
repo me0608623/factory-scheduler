@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
+import {SupabaseStore} from '../src/store/supabase.js';
 
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const start=source.indexOf('async function reloadFromStore(');
@@ -15,6 +16,19 @@ function harness(){
   vm.createContext(ctx);vm.runInContext(implementation,ctx);
   return {ctx,timers,writes};
 }
+
+test('actual Store rejects an incomplete background RPC without replacing the visible board or baseline',async()=>{
+  const h=harness();let data={version:1,employees:[{id:'TEST-E',name:'測試',skills:[]}],machines:[],products:[],orders:[],blocks:[],calendar:{}},history=0;
+  const chain={select:()=>chain,order:()=>chain,limit:async()=>{history++;return {data:[],error:null};}};
+  const store=new SupabaseStore({rpc:async()=>({data,error:null}),from:()=>chain});
+  store.session={user:{id:'TEST-USER'}};store.role='lead';
+  const visible=await store.load();h.ctx.STORE=store;h.ctx.S=visible;
+  const base=store.base,protectedBase=store.protectedBase,before=JSON.stringify(visible);
+  data={};h.ctx.onRemoteChange('reconcile');await h.timers.shift()();
+  assert.equal(h.ctx.S,visible);assert.equal(JSON.stringify(h.ctx.S),before);
+  assert.equal(store.version,1);assert.equal(store.base,base);assert.equal(store.protectedBase,protectedBase);
+  assert.equal(history,1);assert.deepEqual(h.writes,[],'no rendered empty board or optimistic write');
+});
 test('remote timer rechecks preview/modal/drag/write guards before reading',async()=>{
   for(const mode of ['preview','modal','drag','generalDrag','writing','unsaved']){
     const h=harness();h.ctx.onRemoteChange('orders');
