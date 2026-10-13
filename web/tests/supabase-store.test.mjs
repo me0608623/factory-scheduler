@@ -180,7 +180,7 @@ test("讀取、只寫有變的列、紀錄", async () => {
   const f = S2.machines.find((m) => m.id === "c").faults[0];
   assert.equal(f.note, "馬達");
   assert.equal(f.orig.length, 1);
-  assert.equal(S2.dayOT["2026-10-06"], true);
+  assert.equal(S2.dayOT["2026-10-06"], 1200, "寫入側把 true 持久化為 1200；ot_ends 修復後忠實帶回（消費端 true 與 1200 語意等價）");
   assert.equal(S2.log[0].title, "李四 10/6 請假");
   assert.equal(S2.log[1].sum, "排了兩段");
   assert.deepEqual(toSnapshot(S2).blocks.length, 2);

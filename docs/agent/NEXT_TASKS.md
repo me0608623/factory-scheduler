@@ -1,6 +1,14 @@
 # 過夜開發待辦清單
 
+> 完整 16 缺陷總表與覆核狀態：見 **docs/agent/DEFECT_HUNT_REPORT.md**（輪 71 彙整）
+>
+> **缺陷探索系列總覽（輪 33-60，2026-10-13）**：15 個缺陷修復（全部已部署**正式站**、CI 全綠、測試 406 項）；12 項擴大覆蓋候選兩輪全覆蓋。**使用者動作僅三件**：①正式庫套用 0037（下方 migration 段）②staging web deploy hook（下方）③staging Realtime support ticket 回覆追蹤。
+
 依優先級排序（P0 最高）。每項完成後打勾並記錄 commit。
+
+## P1（新發現，輪 74）
+
+- [ ] **模擬驗收 C1-C7 FAIL=6（輪 74 發現、輪 75 分流）**：已證＝非 solver 回歸（同 artifact 舊碼同紅）＋已修 pick 全 pending 崩潰（/）；未解＝INFEASIBLE 根因（次輪 sim 加快照 dump：比對既有 blocks/faults/work_execution 占用）：C1/C2/C4/C5/C6/C7 全部「無可套用方案」——四個方案全 INFEASIBLE、TEST 工單 0 排程；C3（負面案例）通過。上次綠＝2026-10-02（72e9314）。**兩個待分流的假設**：①solver 變更（72e9314..main 含軟性切換成本+短件分類+reification 修正）在「真實備份還原資料」形態下不可行 ②sim 情境與現行 snapshot/solver 期望漂移（自 10-02 起 sim 腳本零變更）。**分流步驟**：同備份 artifact 下，分別在 72e9314 與 main 各跑 only=C1 對照（workflow 支援 artifact_id 參數）；若舊碼綠新碼紅＝solver 回歸（P0 級）；若兩者皆紅＝備份資料形態改變所致，改 sim 情境。web 端 solver 正常（輪 65 staging OR-Tools 3 方案可套用）＝線上排程路徑不受影響的旁證
 
 ## P2（重要改善）
 
@@ -52,10 +60,38 @@
 
 ## 待使用者設定（機器無法代勞）
 
-- [ ] **RENDER_STAGING_WEB_DEPLOY_HOOK**：Render → factory-scheduler-web-staging → Settings → Create Deploy Hook → 貼到 GitHub Secrets。設好後 staging web 可用「部署 Render staging 網站」workflow 手動更新（目前 staging 跑的是 10/11 前的舊版）
+- [ ] **RENDER_STAGING_WEB_DEPLOY_HOOK**：Render → factory-scheduler-web-staging → Settings → Create Deploy Hook → 貼到 GitHub Secrets。**現況（輪 60 指紋實證）**：staging web 仍是輪 43 之前的版本（EN 模式日期仍「（二）」非「(Tue)」）＝不含輪 37-51 的前端修復（輪班#9/聊天#10-11/平面圖#12/產能入口#13/反饋#14/情境#15）；staging 資料庫已有 0037（輪 36），故雲端權限管理在舊前端上仍可運作。設好 hook 後一鍵更新
 - [ ] **正式站測試模式啟用**：Render web 服務的環境變數已預留 VITE_TEST_* 四個欄位（render.yaml，輪次 111）——只需在 Dashboard 填 staging 的值即可（步驟見 docs/TEST_MODE.md；填好後登入頁會出現「進入測試模式」按鈕）
 
 ## 依賴升級待辦（破壞性跨度，需獨立輪驗證）
 
 - [x] pglite 0.3.16 → 0.5.8（→ 輪次 106）：全套 379 綠＋build 綠，沙箱完整相容
 - [x] saxes 5 → 6（→ 輪次 107）：scan 包裝器 API 相容，14 相關測試＋379 全綠
+
+## 資料庫 migration 待套用（正式環境，需使用者執行）
+
+- [ ] **0037 權限白名單補齊（main `16a6d86`）**：正式庫套用前「更多→權限管理→儲存權限」必失敗（前端 15 鍵 vs DB 13 鍵，四層不一致詳見輪 36）。套用＝GitHub Actions「套用資料庫 migration」workflow 選 `0037_permission_whitelist_complete.sql`（會先檢查最新備份）。staging 已套用並驗證
+- 附註：staging 測試帳號 test-lead 密碼已於輪 36 重設（與 test-viewer 同值，值見 staging SQL editor 片段歷史）；三測試帳號僅供測試
+
+## 環境問題（需使用者留意的 Supabase staging Realtime 故障）
+
+- [ ] **staging Realtime 故障（診斷更新 22:50）**：Pause→Resume 已執行仍 500。回應體＝Cloudflare「error code: 1101」（Supabase Realtime Worker 內部例外）＝**平台側損壞**非金鑰/設定/程式問題。下一步：Dashboard → Database → Replication → Realtime → 任意表 toggle 關再開（重新發佈）；仍不行則 Supabase support ticket（免費版可報平台故障）。正式站不受影響
+
+- [ ] 開發體驗（非產品缺陷）：切換頁面時 history.replaceState 會剝掉 ?local=1，重新整理後靜默改連 staging——本機隔離測試需重新帶參數；可考慮 local 模式記在 sessionStorage
+
+- [ ] **Realtime 故障期間的分頁新鮮度（輪 59 實證）**：無 Realtime 時他分頁收不到即時更新且徽章仍「已同步」（語意＝寫入同步，非資料最新）——是否加輪詢備援或「上次更新」時間戳＝產品決策
+
+- [ ] **邊界觀察（輪 70，低優先）**：closeDaysPlanBad 遇 qty=0 的工序塊會 TypeError 靜默中止 c-save——真實排程引擎不產出此形資料，但若未來 Excel 匯入能產出 qty=0 塊需先補防護
+
+- [ ] **PR #16（測試模式發佈驗收）審查結論（輪 73）**：程式面通過（分支 384 綠＋build 綠、schema 閘門/深色對比修復無疑慮）；維持 draft——①使用者門檻：Supabase 登入匯入測試 project＋正式 Render VITE_TEST_*＋staging solver 更新 ②合併前需先同步 main（分支落後 24 提交，缺 #8-#16 修復與 24 個測試）
+
+## 產品決策待辦（輪班表，使用者決定方向）
+
+- [ ] 複製下一週期是否保留自訂名稱（現況：自訂名稱被預設名稱取代，如「測試-雙週班表A」→「2026-10-27 1 廠班表」）
+- [ ] 輪班草稿缺少刪除入口（上限 24 份；用滿只能清本機資料）——是否加刪除鈕＋二次確認
+
+## 待真人驗收（自動化受阻項，5 分鐘可完成）
+
+- [x] **衝突路徑 UI（雙分頁）**（→ 輪 13）：A 跳版寫入後 B 過期套用——**安全屬性成立**（DB 未被覆蓋、無部分寫入）；但 staging 基礎設施逾時掩蓋 40001 判定（顯示 timeout 而非衝突 toast）。正式環境待一次確認（solver 常駐）
+
+- [ ] **Excel 匯入（選檔→檢查並預覽）**：匯出範本→填資料→匯入預覽。自動化受阻（IAB 不支援 file chooser）——需真人驗收（匯出功能已於輪 17 實證）

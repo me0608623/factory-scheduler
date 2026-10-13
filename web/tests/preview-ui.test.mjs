@@ -88,3 +88,84 @@ test('preview-nav.js：純模組——只重用純數量函式，不碰 DOM／�
 test('同步中關閉分頁有 beforeunload 提示（防靜默丟失在途寫入）', () => {
   assert.match(app, /addEventListener\("beforeunload"[\s\S]*?syncPending>0\|\|SYNC\.state==="busy"/, '守門需涵蓋在途同步');
 });
+test('加班日渲染不崩潰：dayHTML 必須用 di.otEnd（裸 otEnd 會 ReferenceError）', () => {
+  assert.match(app, /return \{type,hol,ot,win,w,open,special,otEnd\};/, 'dayInfo 需回傳 otEnd');
+  assert.match(app, /hm\(di\.otEnd\)/, 'dayHTML 的加班到標籤需用 di.otEnd');
+  const dayHTMLBody = app.slice(app.indexOf('function dayHTML'), app.indexOf('function blkHTML'));
+  assert.doesNotMatch(dayHTMLBody, /hm\(otEnd\)/, 'dayHTML 內不得有裸 otEnd（其他模組有局部 otEnd 屬合法）');
+});
+test('加班設定無變更時有明確回饋（不再靜默關閉）', () => {
+  assert.match(app, /if\(!changed\)\{closeModal\(\);toast\("設定沒有變更，未儲存"\);return;\}/, 'no-op 分支需 toast');
+});
+
+test('只改「加班到幾點」也被視為變更——changed 判斷需先讀選單並比對 otEnd', () => {
+  const head = app.slice(app.indexOf('function saveDailyOT'), app.indexOf('function saveDailyOT') + 700);
+  const readSelAt = head.indexOf('m.otEnd=sel');
+  const changedAt = head.indexOf('const changed=');
+  assert.ok(readSelAt > -1 && changedAt > -1 && readSelAt < changedAt, '選單值必須在 changed 計算前讀取');
+  assert.match(head, /\(\!\!m\.open&&S\.dayOT\[d\]!==m\.otEnd\)/, 'changed 需比對 otEnd');
+});
+test('停工/日曆儲存前有產量矛盾閘門（repair 可產出違反後站≤前站的排程，伺服器會拒）', () => {
+  assert.match(app, /function closeDaysPlanBad\(calOverride\)/, '需有純探測函式');
+  assert.match(app, /materialFlowIssue\(S\.blocks,b\.oid,b\.step,absOf,S\.execution\|\|\[\]\)\)bad\.push/, '探測需用 materialFlowIssue');
+  // toggleOpen 與 c-save 兩個入口都要先閘後改
+  const t1 = app.indexOf('const bad=closeDaysPlanBad();');
+  const closeDaysAt = app.indexOf('const r=closeDays();', t1);
+  assert.ok(t1 > -1 && closeDaysAt > t1, 'toggleOpen：閘門在 closeDays 之前');
+  const t2 = app.indexOf('closeDaysPlanBad({week:');
+  const pushUndoAt = app.indexOf('pushUndo();S.cal=', t2);
+  assert.ok(t2 > -1 && pushUndoAt > t2, 'c-save：草稿探測在 pushUndo 之前');
+});
+test('leaveq 工作數提示與 lq-go 同口徑（futureOf 過濾）', () => {
+  assert.match(app, /const n=S\.blocks\.filter\(b=>b\.emp===E\.id&&b\.date===m\.date&&futureOf\(b\)\)\.length/, 'hint 計數需含 futureOf');
+});
+test('月曆筆刷的 undo 快照在變更前（復原必須能還原筆刷套用）', () => {
+  const i = app.indexOf('let cnt=0');
+  const seg = app.slice(i - 200, i + 900);
+  const pushAt = seg.indexOf('pushUndo()');
+  const loopAt = seg.indexOf('applyBrush(eid,x)');
+  assert.ok(pushAt > -1 && loopAt > -1 && pushAt < loopAt, 'pushUndo 必須在 applyBrush 迴圈之前');
+});
+
+test('缺陷#13 回歸：case "analytics" 必須自帶 break 與頁面切換主體（曾掉 break 落入 line-notify——點產能分析開成 LINE 通知視窗）', () => {
+  const i = app.indexOf('case "analytics"');
+  assert.ok(i >= 0, '找不到 analytics case');
+  const seg = app.slice(i, app.indexOf('case "line-notify"'));
+  assert.match(seg, /UI\.page="analytics";[\s\S]*?render\(\);[\s\S]*?break;/, 'analytics case 需完整主體＋break，不得落入下一個 case');
+  assert.ok(!/case "analytics":UI\.page="analytics";\s*case/.test(app), 'analytics case 不得直接落到下一個 case（缺 break）');
+});
+
+test('缺陷#14 回歸：feedback-send 需在本機模式提前擋下（查看反饋有擋、送出沒擋＝不一致；本機 STORE.sb 不存在會靜默失敗）', () => {
+  const i = app.indexOf('case "feedback-send"');
+  assert.ok(i >= 0, '找不到 feedback-send case');
+  const seg = app.slice(i, i + 200);
+  assert.match(seg, /STORE\.kind==="local"\)\{toast\(/, '本機模式要先提示改用 Email，不得走到 STORE.sb');
+});
+
+test('缺陷#15 回歸：保存試排情境按鈕不得用被 !PV 閘門的 canScenarios（該鈕只在預覽中渲染，canPermission 在 PV 期間恒 false＝按鈕永遠不出現的死代碼）', () => {
+  assert.match(app, /function canPermission\(key\)\{return !PV&&canPermissionRaw\(key\);\}/, 'canPermission 需委派 raw 檢查');
+  assert.match(app, /canPermissionRaw\('scenarios\.manage'\)&&!PV\.savedScenario\?'<button[^>]+scenario-save/, '保存情境鈕需用 raw 權限（不受 !PV 影響）');
+});
+
+test('缺陷#16 回歸：switch case 內的箭頭函式主體必須被呼叫（ln-save/feedback-send 曾是「建立即丟」＝按鈕完全無聲無效，雲端本機皆然）', () => {
+  // 掃描所有 case "X":…=>{ … };break; 模式：break 前必須有對箭頭的呼叫 }…(a)
+  const re = /case "([a-z0-9-]+)":(\{const h=)?(async )?([a-zA-Z]+)=>\{/g;
+  let m; const dead = [];
+  while ((m = re.exec(app))) {
+    const bIdx = app.indexOf('break;', m.index);
+    if (bIdx < 0 || bIdx - m.index > 4000) continue;
+    const tail = app.slice(bIdx - 40, bIdx);
+    if (!/\}\s*\(\s*a\s*\)|h\(a\)/.test(tail)) dead.push(m[1] + ' tail=' + JSON.stringify(tail.slice(-24)));
+  }
+  assert.deepEqual(dead, [], '不得存在未被呼叫的 case 箭頭主體：' + JSON.stringify(dead));
+  // 這兩個案例已改為 h(a) 呼叫形式
+  assert.match(app, /case "feedback-send":\{const h=async a=>\{/, 'feedback-send 需為宣告＋呼叫形式');
+  assert.match(app, /case "ln-save":\{const h=async a=>\{/, 'ln-save 需為宣告＋呼叫形式');
+});
+
+test('缺陷#16 補強：ln-save 本機模式提前擋下（handler 已可被呼叫，但本機 STORE.sb 不存在會吐原始 TypeError 給使用者）', () => {
+  const i = app.indexOf('case "ln-save"');
+  assert.ok(i >= 0);
+  const seg = app.slice(i, i + 260);
+  assert.match(seg, /STORE\.kind==="local"\)\{toast\("本機示範模式無法設定 LINE 通知/, 'ln-save 需在本機模式給友善提示');
+});

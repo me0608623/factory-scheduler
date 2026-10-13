@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import ExcelJS from "exceljs";
+import fs from "node:fs";
 import { buildScheduleWorkbook, IMPORT_HEADERS, parseImportWorkbook, readImportXlsx } from "../src/excel.js";
 
 function importBook() {
@@ -92,4 +93,35 @@ test("舊版實際排程只讀預覽，不誤當成會清空排程的匯入範�
   assert.equal(parsed.legacy.days["2024-10-23"]["2廠"].find(x => x.cell === "O5").machine, "手動機7（右）");
   assert.equal(parsed.legacy.days["2024-10-23"]["2廠"].find(x => x.cell === "AC5").machine, "包裝");
   assert.equal(parsed.legacy.days["2024-10-23"]["2廠"].find(x => x.cell === "AN5").machine, "請假人員");
+});
+
+test('匯入範本結構與往返：public/匯入範本.xlsx 四表表頭與 IMPORT_HEADERS 完全一致、空列跳過、填一列可零錯解析', async () => {
+  const buf = fs.readFileSync('public/匯入範本.xlsx');
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buf);
+  // 表頭逐一對齊（範本改版若動表頭會被 IMPORT_HEADERS 驗證擋下——這裡提前抓）
+  for (const [name, headers] of Object.entries(IMPORT_HEADERS)) {
+    const ws = wb.getWorksheet(name);
+    assert.ok(ws, `範本缺少「${name}」工作表`);
+    const got = headers.map((_, i) => String(ws.getRow(1).getCell(i + 1).value ?? ''));
+    assert.deepEqual(got, headers, `「${name}」表頭與 IMPORT_HEADERS 不一致`);
+  }
+  // 空範本（只有預格式空列）不可匯入：錯誤是「至少填一位」而非結構錯
+  const empty = parseImportWorkbook(wb);
+  assert.ok(empty.errors.some(e => /至少填一位/.test(e)), '空白範本應擋「至少填一位」');
+  assert.ok(!empty.errors.some(e => /表頭|工作表/.test(e)), '空白範本不得有結構錯誤：' + JSON.stringify(empty.errors));
+  // 填一列有效資料 → 零錯誤、欄位映射正確（下載連結 a[href=/匯入範本.xlsx] 的實際內容可往返）
+  const set = (sheet, vals) => { const r = wb.getWorksheet(sheet).getRow(2); vals.forEach((v, i) => r.getCell(i + 1).value = v); };
+  set('員工', ['E1', '測試員', 1, 'M1', '否', '2026-10-20']);
+  set('機台', ['M1', '測試機', '裁切', 'P1']);
+  set('產品工序', ['P1', '測試品', 1, '裁切', 2, 0]);
+  set('工單', ['O1', 'P1', 10, '2026-10-20', 1]);
+  const parsed = parseImportWorkbook(wb);
+  assert.deepEqual(parsed.errors, [], '填一列有效資料應零錯誤');
+  assert.equal(parsed.data.employees[0].id, 'E1');
+  assert.deepEqual(parsed.data.employees[0].skills, ['M1']);
+  assert.deepEqual(parsed.data.employees[0].leaves, ['2026-10-20']);
+  assert.equal(parsed.data.machines[0].proc, '裁切');
+  assert.equal(parsed.data.orders[0].code, 'O1');
+  assert.equal(parsed.data.orders[0].qty, 10);
 });

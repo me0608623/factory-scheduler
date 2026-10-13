@@ -116,3 +116,31 @@ test('queryKinds：關鍵字對應事實類型，決定聊天只帶相關事實'
   const none=chatContext(raw0,{date:'2026-09-30',factory:1,question:'你好'});
   assert.ok(all.facts.length<none.facts.length,'有關鍵字時事實較少（過濾生效）');
 });
+test('特別趕貨欠什麼：本機路徑與排程服務同口徑——趕貨鍵路由到 rush、出貨/開工/完成日落於當天才成事實',()=>{
+  const r=raw();r.rush_orders=[
+    {id:'r1',f1:{shipDate:'2026-09-30',vendor:'供應商甲',shortQty:50,note:'缺料'},f2:{startDate:'2026-10-01',dueDate:'2026-10-03',itemProcess:'沖壓',desc:'補件',qty:50,note:''}},
+    {id:'r2',f1:{shipDate:'2026-10-01',vendor:'供應商乙',shortQty:30,note:''},f2:{startDate:'2026-10-02',dueDate:'2026-09-30',itemProcess:'焊接',desc:'補件',qty:30,note:''}}];
+  // 關鍵字路由（與 solver query_kinds 同序：趕貨在缺料之前）
+  assert.deepEqual(queryKinds('特別趕貨欠什麼？'),['rush','material']);
+  assert.deepEqual(queryKinds('欠貨'),['rush','material']);
+  assert.deepEqual(queryKinds('缺料'),['material','transfer']);
+  // 9/30：r1 出貨日命中；r2 僅 f2.dueDate=9/30 命中（二廠預計完成）
+  const c30=chatContext(r,{date:'2026-09-30',factory:1});
+  const rush30=c30.facts.filter(f=>f.kind==='rush');
+  assert.equal(rush30.length,2,'兩筆都在 9/30 有命中日');
+  assert.ok(rush30.some(f=>f.text.includes('出貨')&&f.text.includes('供應商甲')&&f.text.includes('欠 50 件')&&f.text.includes('備註 缺料')));
+  assert.ok(rush30.some(f=>f.text.includes('二廠預計完成')&&f.text.includes('供應商乙')));
+  assert.ok(rush30.every(f=>f.text.includes('紀錄不代表可排或可交')),'必須帶保守但書');
+  // 10/1：r1 二廠開工＋r2 出貨
+  const c1=chatContext(r,{date:'2026-10-01',factory:1});
+  const t1=c1.facts.filter(f=>f.kind==='rush').map(f=>f.text);
+  assert.ok(t1.some(t=>t.includes('二廠開工')&&t.includes('沖壓')));
+  assert.ok(t1.some(t=>t.includes('出貨')&&t.includes('供應商乙')));
+  // 10/4：無命中→不留事實；問趕貨要誠實說沒有（非冒充）
+  const c4=chatContext(r,{date:'2026-10-04',factory:1});
+  assert.ok(!c4.facts.some(f=>f.kind==='rush'));
+  assert.match(answerFromFacts('特別趕貨欠什麼？',c4).answer,/不代表其他日期/);
+  // 回答可引用（citations 對得起事實 id）
+  const a=answerFromFacts('特別趕貨欠什麼？',c1);
+  assert.ok(a.citations.length>0&&a.citations.every(id=>c1.facts.some(f=>f.id===id)));
+});

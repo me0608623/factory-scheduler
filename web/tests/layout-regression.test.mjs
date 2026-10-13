@@ -197,3 +197,20 @@ test('桌面抽屜高度：pane sticky 且以可視高度為準（不被排程�
   assert.ok(app.includes('updateHeaderVar') && app.includes('ResizeObserver'), '缺少 --hdr-h 動態量測');
   assert.ok(app.includes('try{sp.setPointerCapture'), 'setPointerCapture 需容錯（合成指標會拋錯中斷拖曳）');
 });
+
+test('缺陷#11 回歸：聊天室安裝當下必須呼叫 positionPanel（手機沿用桌機浮動座標會讓藥丸跑到畫面外且無法點擊補救）', () => {
+  const block = chatUI.slice(chatUI.indexOf('addEventListener(\'resize\',()=>positionPanel())'), chatUI.indexOf('addEventListener(\'resize\',()=>positionPanel())') + 400);
+  assert.match(block, /addEventListener\('resize',\(\)=>positionPanel\(\)\);[\s\S]*?positionPanel\(\);/, '安裝浮動定位後必須立即 positionPanel() 一次（清除手機上的桌機殘留座標）');
+});
+
+test('缺陷#12 回歸：廠區平面圖 page-top 必須在說明後關閉、內容包 fullpage（原本整頁塞在 sticky row-flex 容器內，畫布只剩 ~322px、桌機永遠 3 欄）', () => {
+  const app = fs.readFileSync(path.join(src, 'app.js'), 'utf8');
+  const fn = app.slice(app.indexOf('function floorPageHTML()'), app.indexOf('function initFloor()'));
+  assert.ok(fn.includes("'<div class=\"fullpage\"><div class=\"page-top\">"), '要以 fullpage 包頁、page-top 開頭');
+  // page-sub 之後必須立刻關閉 page-top（圖例/畫布/提示都在外面）
+  const subIdx = fn.indexOf("tx('floorHint')");
+  const afterSub = fn.slice(subIdx, subIdx + 80);
+  assert.match(afterSub, /<\/p><\/div>'\+/, 'page-sub 後要關閉 page-top');
+  // 畫布與圖例不得在 page-top 內（檢查關閉點早於 canvas）
+  assert.ok(fn.indexOf("floor-canvas") > fn.indexOf("floorHint") + 80, 'canvas 要在 page-top 之外');
+});

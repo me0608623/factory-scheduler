@@ -44,17 +44,26 @@ function dailyContext(raw,{date,factory='all'}){
     if(overlap)push('alert',m.label+' 有重疊工作，需檢查',m.id);
   }
   for(const o of orders.values())if(o.due<date&&activities.some(a=>a.text.startsWith(o.code+' · ')))push('deadline',o.code+' 交期 '+o.due+' 已過；仍有当日預排，實際是否完工需現場回報',o.id);
+  // 特別趕貨：以一廠出貨日／二廠開工日／二廠預計完成日落在當天為準；只是紀錄，不代表可排或可交（與排程服務端同口徑）
+  for(const r of raw.rush_orders||[]){
+    const f1=r.f1||{},f2=r.f2||{},hits=[['出貨',f1.shipDate],['二廠開工',f2.startDate],['二廠預計完成',f2.dueDate]].filter(([,v])=>v===date).map(([k])=>k);
+    if(!hits.length)continue;
+    const parts=[];
+    if(f1.vendor||f1.desc||f1.shortQty!=null)parts.push('一廠欠貨：'+(f1.vendor||'未填廠商')+' '+(f1.desc||'')+' 欠 '+(f1.shortQty!=null?f1.shortQty:'未填')+' 件'+(f1.note?'（備註 '+f1.note+'）':''));
+    if(f2.itemProcess||f2.desc||f2.qty!=null)parts.push('二廠加工：'+(f2.itemProcess||'')+' '+(f2.desc||'')+' '+(f2.qty!=null?f2.qty:'未填')+' 件'+(f2.note?'（備註 '+f2.note+'）':''));
+    push('rush','特別趕貨（'+hits.join('、')+'）：'+(parts.join('；')||'僅有日期，內容未填')+'；紀錄不代表可排或可交',r.id);
+  }
   ledgerFacts(raw,date,factory,push);
   for(const a of activities)push('work',a.text,a.id);
   return facts;
 }
 export function queryKinds(q){
-  if(/故障|修復|修好/.test(q))return ['fault'];if(/請假/.test(q))return ['leave','alert'];if(/輪班|班別|崗位|人力/.test(q))return ['roster','alert'];if(/跨廠|流轉|送回|交料/.test(q))return ['transfer','material','deadline'];if(/缺料|待料|物料|點收/.test(q))return ['material','transfer'];if(/衝突|重疊|問題/.test(q))return ['alert','execution_alert','fault','deadline','material'];if(/交期|逾期/.test(q))return ['deadline','material'];if(/進度|完成|開始|累計|回報/.test(q))return ['execution','execution_alert'];return null;
+  if(/故障|修復|修好/.test(q))return ['fault'];if(/請假/.test(q))return ['leave','alert'];if(/輪班|班別|崗位|人力/.test(q))return ['roster','alert'];if(/跨廠|流轉|送回|交料/.test(q))return ['transfer','material','deadline'];if(/趕貨|欠貨|缺貨|急貨/.test(q))return ['rush','material'];if(/缺料|待料|物料|點收/.test(q))return ['material','transfer'];if(/衝突|重疊|問題/.test(q))return ['alert','execution_alert','fault','deadline','material'];if(/交期|逾期/.test(q))return ['deadline','material'];if(/進度|完成|開始|累計|回報/.test(q))return ['execution','execution_alert'];return null;
 }
 export function chatContext(raw,{date,end_date=date,factory='all',question=''}){
   if(!validDate(date)||!validDate(end_date)||end_date<date||(Date.parse(end_date)-Date.parse(date))/864e5>30)throw new Error('查詢日期範圍必須為 1–31 日');
   if(JSON.stringify(raw).length>3000000)throw new Error('排程資料超過查詢容量');
-  for(const [key,cap] of [['employees',500],['machines',1000],['orders',5000],['blocks',10000],['work_assignments',10000],['work_execution',10000],['staff_rosters',24],['transfer_orders',1000]])if((raw[key]||[]).length>cap)throw new Error('排程資料超過查詢容量');
+  for(const [key,cap] of [['employees',500],['machines',1000],['orders',5000],['blocks',10000],['work_assignments',10000],['work_execution',10000],['staff_rosters',24],['transfer_orders',1000],['rush_orders',2000]])if((raw[key]||[]).length>cap)throw new Error('排程資料超過查詢容量');
   const all=[];for(let at=Date.parse(date+'T00:00:00Z');at<=Date.parse(end_date+'T00:00:00Z');at+=864e5)all.push(...dailyContext(raw,{date:new Date(at).toISOString().slice(0,10),factory}));
   const kinds=queryKinds(question),names=(raw.employees||[]).filter(e=>e.name?.length>=2&&question.includes(e.name)).map(e=>e.name);
   const relevant=all.filter(f=>f.kind==='summary'||(!kinds||kinds.includes(f.kind))&&(!names.length||names.some(n=>f.text.includes(n))));

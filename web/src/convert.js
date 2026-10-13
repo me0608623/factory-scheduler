@@ -81,7 +81,7 @@ export function fromSnapshot(snap) {
     groups: (snap.staff_groups || []).map(g=>({id:g.id,name:g.name,department:g.department||null,homeFactory:g.home_factory??null,sourceRef:g.source_ref||null})),
     groupMembers: (snap.staff_group_members || []).map(m=>({groupId:m.group_id,employeeId:m.employee_id,reviewStatus:m.review_status,sourceRef:m.source_ref||null})),
     cal: { week: c.week || [false, true, true, true, true, true, true], over },
-    dayOT: { ...(c.overtime || {}) },
+    dayOT: Object.fromEntries(Object.entries(c.overtime || {}).map(([d, v]) => [d, (snap.ot_ends && snap.ot_ends[d] != null) ? snap.ot_ends[d] : v])), // ot_ends（0032）在快照頂層；缺時退 true
     holidays: { ...(c.holidays || {}) },
     employees: (snap.employees || []).map((e) => ({ id: e.id, name: e.name, factory: e.factory || 1, color: e.color || 0, skills: [...e.skills],
       maxMachines: e.max_concurrent_machines || 1, reviewStatus: e.review_status || 'confirmed', sourceRef: e.source_ref || null,

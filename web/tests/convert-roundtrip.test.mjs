@@ -82,3 +82,18 @@ test('blockToDb/blockFromDb 往返保留欄位、pin 強制布林、缺 id 補 U
   assert.match(fresh.id,/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,'缺 id 要補合法 UUID v4');
   assert.equal(fresh.pin,false,'pinned=0 → pin=false');
 });
+
+test('快照帶回加班結束分鐘（ot_ends）——自訂加班到 18:00 不會靜默變 20:00', () => {
+  const mk = (ot, ends) => ({
+    calendar: { week: [false, true, true, true, true, true, true], overtime: ot },
+    ...(ends ? { ot_ends: ends } : {}),
+    employees: [], machines: [], products: [], orders: [], blocks: [],
+    holidays: {}, work_windows: [],
+  });
+  const withEnd = fromSnapshot(mk({ '2026-10-12': true }, { '2026-10-12': 1080 }));
+  assert.equal(withEnd.dayOT['2026-10-12'], 1080, 'ot_ends 的 1080 必須帶回 dayOT');
+  const noEnd = fromSnapshot(mk({ '2026-10-13': true }));
+  assert.equal(noEnd.dayOT['2026-10-13'], true, '無 ot_ends 退回 true');
+  const off = fromSnapshot(mk({}));
+  assert.equal(Object.keys(off.dayOT).length, 0);
+});

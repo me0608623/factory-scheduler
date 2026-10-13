@@ -106,11 +106,22 @@ process.on("uncaughtException", (e) => {
 
 // ---------- solver（runner 上執行；失敗即整案失敗） ----------
 function solve(request) {
+  if (process.env.SIM_DEBUG) {
+    const snap = request.snapshot || {};
+    console.error('[req] keys=' + Object.keys(request).join(',') + ' event=' + JSON.stringify(request.event).slice(0, 200));
+    console.error('[req] snapKeys=' + Object.keys(snap).join(','));
+    console.error('[req] now=' + JSON.stringify(request.now) + ' limit=' + request.time_limit);
+    for (const k of Object.keys(snap)) { const v = snap[k]; console.error('[req] ' + k + '=' + (Array.isArray(v) ? v.length : JSON.stringify(v).slice(0, 120))); }
+    console.error('[req] machines4=' + JSON.stringify((snap.machines || []).filter(m => ['f1e','f1b'].includes(m.id))));
+    console.error('[req] picked=' + JSON.stringify((snap.employees || []).filter(e => [E01,E02,E03].includes(e.id))).slice(0, 700));
+  }
   const child = spawnSync("uv", ["run", "--frozen", "python", "-m", "scripts.plan_stdio"], {
     cwd: solverDir, input: JSON.stringify(request), encoding: "utf8", timeout: 120000, maxBuffer: 32 * 1024 * 1024,
   });
   if (child.error || child.status !== 0) throw new Error(`solver 失敗：${clean(child.error?.message || child.stderr?.slice(-400) || "exit " + child.status)}`);
-  return JSON.parse(child.stdout);
+  const out = JSON.parse(child.stdout);
+  if (process.env.SIM_DEBUG) console.error('[res] ' + JSON.stringify(out).slice(0, 800));
+  return out;
 }
 
 // 選項診斷摘要（找不到可套用方案時列原因）
@@ -184,7 +195,13 @@ const must = async (label, sql) => { try { await s.one(sql); } catch (e) { throw
 
 await must("週休", `UPDATE calendar_weekly SET is_open=(weekday NOT IN (0,6))`);
 await must("停工日", `INSERT INTO calendar_days (date,is_open,note) VALUES ('${SHUTDOWN}',false,'TEST 停工日（非法定假日）') ON CONFLICT (date) DO UPDATE SET is_open=false,note=EXCLUDED.note`);
+// 情境隔離：清掉真實資料的跨廠加工單（sim 不測 tf 整合；74 張真實單的物料期望會約束 timeline 模型）
+await must("清跨廠單", `DELETE FROM transfer_orders`);
+// 實驗3：連趕貨紀錄（31）與請假詢問（14）一併清——排除最後兩個非零真實資料表
+await must("清趕貨與請假詢問", `DELETE FROM rush_orders; DELETE FROM leave_requests`);
 await must("機台工序", `UPDATE machines SET process='裁切' WHERE id='f1e'; UPDATE machines SET process='焊接' WHERE id='f1b'; UPDATE machines SET process='沖壓' WHERE id='f2k'; UPDATE machines SET process='包裝' WHERE id='f2ac'`);
+// 真實備份的 1023 匯入機台可能 review_status=pending；solver 拒絕以未核定資源排程（main.py:174 同規則），基準一律視為已核定
+await must("機台核定", `UPDATE machines SET review_status='confirmed' WHERE id IN ('f1e','f1b','f2k','f2ac')`);
 await must("產品", `INSERT INTO products (id,code,name) VALUES ('11111111-aaaa-4aaa-8aaa-111111111101','TEST-P01','TEST 跨廠品'),('11111111-aaaa-4aaa-8aaa-111111111102','TEST-P02','TEST 單廠品') ON CONFLICT (code) DO NOTHING`);
 await must("工序", `INSERT INTO product_steps (product_id,seq,process,rate,transfer_batch,factory) VALUES
   ('11111111-aaaa-4aaa-8aaa-111111111101',0,'裁切',2,60,1),
@@ -208,12 +225,33 @@ const pick = async (fac, n) => {
 };
 const eF1 = await pick(1, 2), eF2 = await pick(2, 1);
 const [E01, E02, E03] = [...eF1, ...eF2];
+// 員工也一體核定（真實備份的 1023 匯入員工可能 pending；solver 不排未核定人員）
+await must("員工核定", `UPDATE employees SET review_status='confirmed' WHERE id IN ('${E01}','${E02}','${E03}')`);
 await must("技能", `INSERT INTO employee_skills (employee_id,machine_id) VALUES ('${E01}','f1e'),('${E01}','f1b'),('${E02}','f1e'),('${E03}','f2k'),('${E03}','f2ac') ON CONFLICT DO NOTHING`);
 const boss = await s.one("SELECT user_id FROM profiles WHERE role='boss' LIMIT 1");
 await must("身分", `SET request.jwt.claim.sub='${boss}'`);
 await must("解除 setup_pending（僅副本）", `UPDATE schedule_state SET setup_pending=false`);
 await must("加班時段維持預設", `SELECT count(*) FROM work_windows`);
 console.log(`基準完成：${setup.length} 項；員工 F1×2（TEST-E01/E02）、F2×1（TEST-E03）`);
+// 既有資料占用快照（INFEASIBLE 排查用）：sim 走「新單插入」而 app 走「全單重排」，占用差異是線索
+if (process.env.SIM_DEBUG) {
+  const snapDump = JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`));
+  const cnt = (a) => Array.isArray(a) ? a.length : a;
+  console.error('[snap] blocks=' + cnt(snapDump.blocks) + ' employees=' + cnt(snapDump.employees) +
+    ' machines=' + cnt(snapDump.machines) + ' orders=' + cnt(snapDump.orders) +
+    ' execution=' + cnt(snapDump.work_execution || snapDump.execution) +
+    ' workWindows=' + cnt(snapDump.work_windows) + ' faults=' + (snapDump.machines || []).reduce((n, m) => n + cnt(m.faults), 0));
+  const mine = (snapDump.machines || []).filter(m => ['f1e','f1b','f2k','f2ac'].includes(m.id));
+  console.error('[snap] testMachines=' + JSON.stringify(mine.map(m => ({ id: m.id, procs: cnt(m.faults), rev: m.review_status }))));
+  console.error('[snap] week=' + JSON.stringify(snapDump.calendar ? snapDump.calendar.week : null) + ' over=' + JSON.stringify(snapDump.calendar ? Object.keys(snapDump.calendar.over || {}) : null));
+  console.error('[snap] ot=' + JSON.stringify(snapDump.overtime || snapDump.dayOT || null).slice(0, 200));
+  console.error('[snap] blocksOnTestMachines=' + (snapDump.blocks || []).filter(b => ['f1e','f1b','f2k','f2ac'].includes(b.m || b.machine)).length);
+  console.error('[snap] firstEmp=' + JSON.stringify((snapDump.employees || [])[0]));
+  console.error('[snap] wa=' + cnt(snapDump.work_assignments) + ' tf=' + cnt(snapDump.transfer_orders) + ' rosters=' + cnt(snapDump.staff_rosters) + ' wc=' + cnt(snapDump.work_contents));
+  console.error('[snap] pickedEmps=' + JSON.stringify((snapDump.employees || []).filter(e => [E01,E02,E03].includes(e.id)).map(e => ({ f: e.factory, skills: e.skills, leaves: e.leaves, noOT: e.no_overtime, otw: e.overtime_weekdays, rev: e.review_status }))));
+  console.error('[snap] testMachFactories=' + JSON.stringify(mine.map(m => ({ id: m.id, factory: m.factory, products: cnt(m.products) }))));
+  console.error('[snap] testProducts=' + JSON.stringify((snapDump.products || []).filter(pr => String(pr.id).startsWith('11111111')).map(pr => ({ id: String(pr.id).slice(-4), steps: (pr.steps || []).map(st => ({ proc: st.proc, factory: st.factory, rate: st.rate, batch: st.batch })) }))));
+}
 
 // ---------- 案例執行 ----------
 const now = { date: T, min: 480 };

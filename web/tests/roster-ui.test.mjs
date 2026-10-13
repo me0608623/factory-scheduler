@@ -90,3 +90,24 @@ test('班別儲存：跨夜時段合法保存、非法時段擋下',()=>{
   assert.ok(bad.calls.toast.some(m=>/時段格式/.test(m)),'非法時段以提示擋下');
   assert.equal(bad.calls.commit.length,0);
 });
+
+test('缺陷#9 回歸：＋班別預設為「新增班別」而非第一個既有班（避免新增時靜默覆寫既有班別）',()=>{
+  const {S,p}=fixture();
+  // fixture 已有 day 班＋全部工作格指向 day
+  const m={t:'roster-shift',id:'p'};
+  S && void m;
+  const r=make({S});
+  const html=r.ui.modals['roster-shift'](m).body;
+  // 表單預設必須是新增（空白），不是載入 day 班的內容
+  assert.match(html,/id="rs-name"[^>]*value=""/,'名稱欄預設必須空白（新增語意）');
+  assert.match(html,/id="rs-segments"[^>]*value=""/,'時段欄預設必須空白（新增語意）');
+  assert.match(html,/option value="day"[^>]*>日班/,'既有班別仍列在選單可供編輯');
+  // 行為面：以「新增」語意存新班別後，day 班必須仍在、未被改名
+  const r2=make({S});
+  r2.deps.ui.modal={t:'roster-shift',id:'p',draft:{shiftId:'',name:'測試-夜班',segments:'22:00-次日06:30'}};
+  r2.ui.actions['rs-shift-save']({dataset:{id:'p'}});
+  const saved=S.staffRosters[0];
+  const day=saved.shifts.find(s=>s.id==='day');
+  assert.ok(day&&day.name==='日班','day 班不得被新增操作改名/覆寫');
+  assert.equal(saved.shifts.length,2,'新增後應有兩個班別');
+});
