@@ -350,18 +350,18 @@ await runCase("C4 機台故障（兩階段・故障適應實際區段）", async
   return out.length ? "FAIL" : "PASS";
 });
 
-await runCase("C5 交期不足（軟限制）", async (out) => {
+await runCase("C5 交期不足（新單逾期降級）", async (out) => {
+  // 9-26 產品決策（ef89d07）：新工單會逾期時方案降級為不可套用（applicable 只看硬規則，
+  // 逾期屬軟性目標但對「新單承諾」是明確勸退訊號）。本案例驗證降級行為＋診斷標示。
   const ev = orderEvent("TEST-O5", P2, 1200, 1);
   const plan = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: ev, now, time_limit: 3 });
   console.error(`[選項] 共${(plan.options||[]).length}個：${(plan.options||[]).map(o=>o.id+(o.applicable?"+":"-")+(o.solver_method==="keep"?"k":"")).join("")}`);
-  const opt = plan.options.find((o) => o.applicable && o.solver_method !== "keep");
-  if (!opt) { noOpt(plan, out, "逾期訂單應仍可套用（軟限制）——卻無可套用方案"); return "FAIL"; }
+  if (!(plan.options || []).length) { noOpt(plan, out, "連方案都沒有（回歸：全案 INFEASIBLE）"); return "FAIL"; }
+  const nonKeep = plan.options.filter((o) => o.solver_method !== "keep");
+  if (nonKeep.some((o) => o.applicable)) out.push("逾期新單仍有可套用方案——與 ef89d07 降級決策矛盾");
   const summary = [JSON.stringify(plan.options.map((o) => o.diagnostics || [])), JSON.stringify(plan.summary || plan.options.map((o) => o.lines || []))].join(" ");
-  if (!/超過期限/.test(summary)) out.push("方案資訊未標示逾期（超過期限）");
-  await applyOption(plan, ev, opt.id, "TEST-O5");
-  if (await stationQty("TEST-O5", 0) !== 1200 || await stationQty("TEST-O5", 1) !== 1200) out.push("站件數≠1200");
-  const end = await lastBlockAbs("TEST-O5");
-  if (end <= dayIdx(D(1)) * 1440 + 1020) out.push("完工未超過交期（與逾期診斷矛盾）");
+  if (!/超過期限/.test(summary)) out.push("降級方案未標示逾期原因（超過期限）");
+  if (!/可以加班|調整期限/.test(summary)) out.push("未提供可行建議（加班／調整期限）");
   return out.length ? "FAIL" : "PASS";
 });
 
