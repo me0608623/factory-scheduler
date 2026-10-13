@@ -30,7 +30,7 @@
 
 ### 最新checkpoint（接續時優先讀本段）
 
-#### 2026-10-13 18:32 heartbeat：雲端快照契約與基準防護
+#### 2026-10-13 18:22 heartbeat／18:58覆核：雲端快照契約與基準防護
 
 - 起點fd279a2乾淨、無其他modifier／deploy；全部指定交接已核對。PR16 2c105b3的Tests38382783155補查三job成功（另一38382788656需再核對），不把歷史docs的0037／模擬失敗當新工作。正式資料、帳號權限及schema皆不動。
 - 使用Impeccable harden：main全文、context一次、harden/craft-floor全文已讀，context允許窄域existing refinement、不建立PRODUCT/DESIGN新世界。沿用現有錯誤訊息與班表／抽屜／日週切換，不改CSS；機械detector兩個Store目標為[]。技能影響是拒絕錯誤資料、保留狀態與真空狀態相容，不是視覺重設。
@@ -38,6 +38,12 @@
 - 新增10項測試：5類真Store拒絕、完整migrations真RPC與真正0列/SQL nullweek、舊版/未來欄位相容、無私密值的錯誤、10,000段有界純契約驗證、真Store+真app background函式交叉測試（錯回應不render空表、S/baseline/reference不變）。大型fixture明確只是shape，重疊不能當可行排程。初次zero fixture用了不存在closed狀態，依schema改done後才取得真SQL通過，不把fixture錯當產品bug。
 - 聚焦29/29、全web **459/459**與build通過；原大chunk警告保留。尚須同SHA CI、既有staging web部署與桌面/手機瀏覽器實證，未部署前不宣稱線上已修。Render-deploy main及post-deploy checks全文已讀；只使用既有測試web，不改環境变量、新增費用或重部署沒改的solver。
 - IAB tab15真qa-lead組長session仍有效，10/12／1廠、19段DOM基準保存（data-id/aria-label/text/style），目前f6舊版仍顯示即時更新中斷；沒有第二帳號，不宣稱Realtime或跨端已修。未按儲存/用這套，也未重匯測試資料。PR16/18仍draft、nightly仍停用，Codex10分鐘追蹤ACTIVE。
+- 修正提交 **5476a60e60781d50c55ebc803b4dd1a544051b06** 已推，Tests **38384643880／38384651609** 與smoke **38384643898／38384651601**成功。PR16在原工作樹乾淨、remote一致、無modifier後普通merge同步 **568ce40f5f20ec46fcc7708893703076cb4d504c**；Tests **38385329291／38385323257**及smoke **38385329183／38385323200**全success，原seed preflight、banner對比與seed回歸保留。兩PR仍draft，本輪查mergeable為UNKNOWN，不冒稱已合併或已通過全部發布門檻。
+- 既有staging web來源分支以fast-forward同步到5476；兩次核對未有新的auto部署後才觸發一次clearCache=false部署，**dep-db70mojrjlhs739hte6g** 於 **10:44:08.159Z** live，版本5476。真qa-lead一般root reload載入 **index-iTKt6-Fj.js**，正常接受真雲端快照；預設10/13停工空表是既有日期設定，切前一日10/12後19段aria-label/text/style與部署前完全一致（data-id為null，不拿它宣稱已驗DB id）。solver程式未改，不重複部署；沒有改Render環境變數、增加資源或費用。
+- 手機 **390×844 Chromium**：工作方塊正常開窗、開始時間08:00改成草稿08:10後按Escape，視窗关闭、焦點回同一工作方塊，19段DOM完全一致；pageOverflow=false。未按預覽／儲存／用這套，沒有任何雲端資料寫入，不把這次取消驗收當真正套用或跨帳號同步。桌面與手機都顯示雲端已儲存／即時更新中斷；缺第二帳號與平台恢復證據仍不能放行。不是原生iPhone Safari測試。
+- HTTP200畸形{}的瀏覽器負向注入 **未驗證**：CDP Fetch第一次缺少non-Document resourceType被拒，另一嘗試REPL綁定不存在，最後清理的Fetch.disable不支援而掩蓋了注入結果。這些是驗收工具問題，不是產品bug、不能冒稱已見啟動失敗UI。已用受支援Fetch.enable patterns=[]清除raw interception並正常reload恢復qa-lead，再次證明10/12原19段一致，沒有留下阻擋規則。上述畸形回應防護仍有真Store／真app函式回歸證據，但尚無完整瀏覽器負向E2E。
+- 部署後10:43:46Z起Render error filter取得0筆、hasMore=false，瀏覽器最近20筆error查詢0筆；這是該觀察窗的錯誤檢查，不代表所有歷史或Realtime功能正常。本機驗收截圖保存 `outputs/staging-contract-restored-20261013.png`、`outputs/staging-contract-mobile-20261013.png`（不放公開artifact），已目視覆核；fullPage手機截圖的fixed底部導覽位置不作viewport命中證據。viewport已reset，測試tab已markHandoff。
+- 舊nightly367614493實查仍disabled_manually，未更改Codex ACTIVE追蹤。正式1023、0037、帳號與權限完全未碰。下一輪先核對本文件最新提交與工作區，再探索測試模式啟動失敗時的重試／回正式入口及資料列契約邊界；先實際重現再修，不因459全綠停止，也不在登入門檻未過時強推正式部署。
 
 #### 2026-10-13 18:13 heartbeat：權限演練假綠與密文消費防護
 
