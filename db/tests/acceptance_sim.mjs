@@ -218,6 +218,21 @@ await must("身分", `SET request.jwt.claim.sub='${boss}'`);
 await must("解除 setup_pending（僅副本）", `UPDATE schedule_state SET setup_pending=false`);
 await must("加班時段維持預設", `SELECT count(*) FROM work_windows`);
 console.log(`基準完成：${setup.length} 項；員工 F1×2（TEST-E01/E02）、F2×1（TEST-E03）`);
+// 既有資料占用快照（INFEASIBLE 排查用）：sim 走「新單插入」而 app 走「全單重排」，占用差異是線索
+if (process.env.SIM_DEBUG) {
+  const snapDump = JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`));
+  const cnt = (a) => Array.isArray(a) ? a.length : a;
+  console.error('[snap] blocks=' + cnt(snapDump.blocks) + ' employees=' + cnt(snapDump.employees) +
+    ' machines=' + cnt(snapDump.machines) + ' orders=' + cnt(snapDump.orders) +
+    ' execution=' + cnt(snapDump.work_execution || snapDump.execution) +
+    ' workWindows=' + cnt(snapDump.work_windows) + ' faults=' + (snapDump.machines || []).reduce((n, m) => n + cnt(m.faults), 0));
+  const mine = (snapDump.machines || []).filter(m => ['f1e','f1b','f2k','f2ac'].includes(m.id));
+  console.error('[snap] testMachines=' + JSON.stringify(mine.map(m => ({ id: m.id, procs: cnt(m.faults), rev: m.review_status }))));
+  console.error('[snap] week=' + JSON.stringify(snapDump.calendar ? snapDump.calendar.week : null) + ' over=' + JSON.stringify(snapDump.calendar ? Object.keys(snapDump.calendar.over || {}) : null));
+  console.error('[snap] ot=' + JSON.stringify(snapDump.overtime || snapDump.dayOT || null).slice(0, 200));
+  console.error('[snap] blocksOnTestMachines=' + (snapDump.blocks || []).filter(b => ['f1e','f1b','f2k','f2ac'].includes(b.m || b.machine)).length);
+  console.error('[snap] firstEmp=' + JSON.stringify((snapDump.employees || [])[0]));
+}
 
 // ---------- 案例執行 ----------
 const now = { date: T, min: 480 };
