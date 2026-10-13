@@ -2098,13 +2098,13 @@ auto(){
 /* ---------- 匯出 ---------- */
 export(){
   return {title:tx('Excel 匯出／匯入'),body:
-   '<button class="btn primary" data-act="x-xlsx" style="height:60px;justify-content:flex-start">'+IC.down+'下載 '+mdw(UI.date)+' 彩色排程 Excel（.xlsx）</button>'+
+   '<button class="btn primary" data-act="x-xlsx" style="height:60px;justify-content:flex-start">'+IC.down+tx('下載 {date} 彩色排程 Excel（.xlsx）',{date:mdw(UI.date)})+'</button>'+
    '<button class="btn" data-act="erp-export" style="height:60px;justify-content:flex-start">'+tx('匯出完工量 CSV（會計用）')+'</button>'+
-   '<button class="btn" data-act="x-print-day" style="height:60px;justify-content:flex-start">列印 '+mdw(UI.date)+' 現場班表</button>'+
-   '<button class="btn" data-act="x-template" style="height:60px;justify-content:flex-start">'+IC.down+'下載批次匯入範本（.xlsx）</button>'+
+   '<button class="btn" data-act="x-print-day" style="height:60px;justify-content:flex-start">'+tx('列印 {date} 現場班表',{date:mdw(UI.date)})+'</button>'+
+   '<button class="btn" data-act="x-template" style="height:60px;justify-content:flex-start">'+IC.down+tx('下載批次匯入範本（.xlsx）')+'</button>'+
    (canArchive()?'<button class="btn" data-act="x-import" style="height:60px;justify-content:flex-start">'+tx('選擇 Excel 檔案，檢查並預覽')+'</button><input id="xlsx-import" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>':'')+
    '<div class="hint">舊版排程可獨立存為歷史資料，按日期查看 1 廠、2 廠，不改目前排程。批次匯入範本會取代基本資料，只有老闆能確認。</div>'+
-   '<button class="btn" data-act="x-copy-day" style="height:60px;justify-content:flex-start">複製 '+mdw(UI.date)+' 排程表（和原本 Excel 一樣的格式）</button>'+
+   '<button class="btn" data-act="x-copy-day" style="height:60px;justify-content:flex-start">'+tx('複製 {date} 排程表（和原本 Excel 一樣的格式）',{date:mdw(UI.date)})+'</button>'+
    '<button class="btn" data-act="x-copy-all" style="height:60px;justify-content:flex-start">'+tx('複製全部明細（每段一列）')+'</button>'+
    ('<button class="btn primary" data-act="x-dl" style="height:60px;justify-content:flex-start">'+IC.down+'下載全部明細 CSV 檔</button>')+
    '<div class="hint">'+tx('複製後，直接貼到 Google 試算表或 Excel 的 A1 格。')+'</div>'};
