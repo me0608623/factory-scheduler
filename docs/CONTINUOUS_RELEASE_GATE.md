@@ -1,5 +1,15 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R3 checkpoint：缺陷#25 memo 未知結果關窗重開重複列（RED→最小修→GREEN）
+
+- 起點 ad92da1 clean 無 modifier。
+- **缺陷重現（真 SQL＋實際 handler，先 RED）**：SDK 第一發**真提交 schedule_memos 後丟網路錯**（結果未知）→handler catch 顯示錯誤→使用者關窗→重開全新 memo 表單輸入同內容再存（成功 204）→**資料庫同一內容兩列（2!==1 RED）**。首版測試誤用不存在機台 'synthetic-machine' 踩 FK（machine_id references machines）致 0!==1 假 RED——已改用種子機台 'a' 並以 stash 對照取得真 RED（2!==1）。
+- **最小修正（8f98a21）**：UI.memoUnknown session 清單（鍵=memoDraft JSON、值={id,sk:user@epoch}）。未知結果（catch）登記原 id；同 session **同內容**重試沿用原 id → upsert 落同一列不重複；成功 ACK 清除登記；跨 session（user/epoch 不同）不沿用。不改 UI 流程、不加輪詢、不阻擋使用者。
+- **回歸**：聚焦 memo 14/14（新測 GREEN）；全套 web **803/803**＋build PASS；push 後 CI 實查 @8f98a21 Tests／smoke／Synthetic 全 success。未同步 PR16（下輪）、未部署 staging（runtime 變更累積中，依「程式碼未變化不重複部署」原則待批次）。
+- **密文工作流排程策略評估（記錄，無程式變更）**：新鮮度 24h 由 encrypted-backup.mjs 強制；密文備份僅經 backup-drill create=true 產生（R2 已驗證鏈路）。策略＝**維持隨需 dispatch**（每次先 backup-drill create 再帶新 artifact_id dispatch 兩工作流，R2 流程可重現）；定期化（重新啟用 nightly）維持紅線——待 PR18 密文版安全進 main 並核對後才考慮，屬使用者既定條件。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 保持停用。PR16/18 draft 門檻不變。
+- 下一步：①memo 重複防護同步 PR16；②評估 staging 批次部署（累積 0a64219+8f98a21 兩 runtime 變更）；③繼續新缺陷探索（候選：leave-request-save 同類 unknown 重複——同模式可快速實證）。
+
 ## 2026-10-15 15-min tracking R2 checkpoint：密文工作流端到端全通＋PR16 同步 memo 修正
 
 - 起點 9d830f6 clean 無 modifier。R1 遺留 artifact 檢查：唯一密文備份 db-backup-encrypted-38352489633（2026-10-13T05:40Z）已超 24h 新鮮度（encrypted-backup.mjs maxAgeMs=24h 強制）——先以既有 backup-drill create 流程產新備份。
