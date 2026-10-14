@@ -1,5 +1,14 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R9 checkpoint：undo×補讀互動探索——假設被既有契約否決（無缺陷，實證收斂）
+
+- 起點 96c1540 clean。**假說**：未知結果補讀（#27 reconcile）套用伺服器事實後，undoStack 殘留舊快照——undo+sync 可能覆蓋剛現形的已准假等狀態。
+- **實驗**：寫真 SQL RED（補讀後 undoStack 未清）＋最小修（onRemoteChange reconcile applied 時 undoStack=[]）。修後聚焦綠但全套 **2 RED**：execution-receipt #8/#164 明確鎖定「late-ACK 補讀**不得**清 undo」（其測試以 undoStack 為契約斷言）——07:53 checkpoint 設計有意的保護。
+- **否決理由（查證）**：undo 後 sync 撞**排程版本衝突守門**（supabase-store 測試「排程已被別人更新→整份拒絕、不留半套」）——跨版本覆蓋已被既有防護攔截；殘留 undo 屬「回到已知狀態」語意。跨契約變更需使用者決策，不單方改。
+- **處置**：撤回實驗修（git checkout）＋移除假說測試；回歸 **807/807**＋build PASS＝回到 17c7d91 基線，零淨變更。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 停用；PR16/18 draft 門檻不變。
+- 下一步：①新缺陷探索（候選：scenarioReadOwner 唯讀族、TV 模式下 direct-write 顯示）；②發布門檻待使用者側不變。
+
 ## 2026-10-15 15-min tracking R8 checkpoint：staging 批次部署 17c7d91（#28＋橫幅修）完成驗收
 
 - 起點 9fd1a4a clean；**09131b5 為 17c7d91 祖先** OK → 普通 push `17c7d91:codex/excel-friendly-ui-20260930`（09131b5..17c7d91，non-force）。
