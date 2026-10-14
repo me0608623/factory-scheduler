@@ -2,9 +2,15 @@
 
 > **狀態總覽（R45 起常態更新；輪段詳細證據往下）**
 > - **本系列修復**：#32–#42 共 11 件（離線靜默丟失×2、衝突復活×2、undo 覆蓋遠端、null-modal 家族×3 大類 38 處、realtime 輪詢備援、日視圖平方級效能 20×、列印彈出封鎖崩潰）。測試 web 430→853。
-> - **staging**：線上 889e882（bundle index-BYOY76_0.js，含 #32–#41）。#42 所在的 41d4f88 部署已觸發（21:22Z，通道恢復）但 build 逾 15 分鐘仍 in_progress——下輪驗證；若卡死屬 Render 建置佇列問題。
+> - **staging**：線上 41d4f88（bundle index-DxKb0Nzr.js，**#32–#42 全部上線**）。備忘：本次 build 耗 ~40 分鐘（此前 2-3 分）——Render 建置偶發慢，非斷線；push 觸發正常。
 > - **PR16/18 均 draft**：#18 head＝本分支（自動跟隨）、#16＝test-mode 分支（每輪同步；最新 853/853 綠）。
 > - **待使用者（合併前必做）**：①Render staging 部署通道檢查＋hook secret；②staging Realtime 平台 ticket（WS 500）；③第二帳戶（同意信未回覆不得再寄）；④正式 VITE_TEST_* 三值；⑤全部通過後：真實跨帳戶/手機桌面同步、斷線衝突回饋驗收 → 才合併 PR → 才部署正式。
+
+## 2026-10-15 15-min tracking R48 checkpoint：#42 上線驗證完成——#32–#42 全部在 staging
+
+- 41d4f88 deployment **success**（build 實際耗 ~40 分鐘——判定修正：R47 的「卡住」實為 Render 建置偶發慢，非故障）。cache-buster 得新 bundle index-DxKb0Nzr.js，內含 `瀏覽器封鎖了列印視窗`×2（字典＋呼叫點）＝**#42 修復上線**。
+- 狀態：#32–#42 共 11 件修復全部在 staging；測試 web 430→853；PR16/18 draft 待使用者側驗收序列。
+- 本輪無程式碼變更。
 
 ## 2026-10-15 15-min tracking R47 checkpoint：41d4f88 build 卡住（41d4f88 in_progress）＋LINE 通知流程審查（無缺陷）
 
