@@ -1,5 +1,12 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R11 checkpoint：TV 模式×direct-write 顯示與釋放路徑審查（無缺陷，安靜輪）
+
+- 起點 5d8af73 clean 無新事件（main/PR 無變動、CI 綠）。
+- **唯讀審查**：①TV 模式（body.tv）僅隱藏 .cards/.admin 與停用聊天，ops-drawer 保持運作＝設計（管理模式切換存在）；directWriteStatus 在 people/notes 抽屜正常渲染。②releaseDirectWrite 手術式更新受**操作身分守門**（`UI.directSaving!==operation` 早退）—— op1 釋放時若 op2 在途不會誤啟用；按鈕 disabled 公式雖未含跨族旗標，但 runDrawerWrite 入口守門（directSaving||memoSaving||leaveBrushSaving||modal||PV 全擋）完備——視覺差異不构成資料風險。③leave-resolve/memo-pin 均帶 data-direct-write-control。結論：無缺陷。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 停用；門檻不變。
+- 下一步：繼續新缺陷探索；發布門檻待使用者側。
+
 ## 2026-10-15 15-min tracking R10 checkpoint：main 例行合併＋PR16 平行度稽核＋scenarioReadOwner 唯讀族審查（無缺陷）
 
 - 起點 ef3c470 clean。**main 例行合併**：origin/main（d7a6f04，僅 fs-hunt docs 23 行）普通 merge → **553d8af**；全套 **807/807**＋build；push 後 CI Tests／smoke／Synthetic 全 success @553d8af。
