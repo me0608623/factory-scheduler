@@ -1,5 +1,13 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R27 checkpoint：缺陷#37 null-modal 別名家族（16 處）＋既有家族測試空洞斷言修實
+
+- 探索類別：連點×取消後寫入。#30/#31 修了直接 `UI.modal.x` 模式，漏了**別名模式**（`const m=UI.modal` 後 `m.x`、`UI.modal&&find` 缺前半）。清單：confirmStep、m-leave、m-emp-save、m-emp-del、m-fault、m-mach-save、o-save、b-emp、b-mach、b-pin、b-del、b-fix、pd-save、pm-save、group-member、group-save——視窗已關時（連點第二下／背景關窗與點擊交錯）拋未捕捉 TypeError。
+- **附帶發現（測試品質）**：null-modal-guards.test.mjs 第二塊的 `doesNotThrow(()=>{try{H()}catch(e){}})`＝吞錯空洞斷言——b-emp/b-mach/b-pin/b-fix/m-emp-del 從未被真正驗證。改為真斷言（不吞錯＋不得改狀態）後立刻抓到 b-fix 漏網（`UI.modal.id` null TypeError），佐證空洞斷言的危害。
+- 修正：16 處加 `if(!m)/?.draft/if(!b)` 守門（confirmStep 回傳 false＝未確認）。新測試 `web/tests/null-modal-alias-guards.test.mjs`（括號平衡掃描切片器——跳過字串/模板/註解；pm-save 排版不規則需此法）14 handler＋confirmStep 真斷言全過。
+- 驗收：全套 web 835/835 綠＋build 過。staging 部署驗收見下。 
+- staging 部署驗收（ec7cf20）：CI 先綠後前進 codex/excel-friendly-ui-20260930（463df2e→ec7cf20）；Render deployment success；cache-buster 得新 bundle index-pwJoTStN.js，內含 confirmStep 壓縮形 `const n=u.modal;return n?n.confirm===e?!0:(…,!1):!1`（null→false 不解參考）與 `modal&&m.blocks.find` 守門×4（b-emp/b-mach/b-pin/b-fix）。
+
 ## 2026-10-15 15-min tracking R26 checkpoint：缺陷#36 遠端變更後復原＝覆蓋同事寫入（undoStack 未隨基準失效）
 
 - 探索類別：版本衝突×狀態不一致。`reloadFromStore` applied 路徑替換 S 但不清 undoStack：同事 B 變更套用後，A 按「復原」把舊基準快照套回→`commit`→`sync`——實證讀 `store/supabase.js` sync（`diffRows(this.base,S)`＋版本閘只比當前版）＝**版本閘擋不住，B 的變更被寫回舊狀態**。R9 曾撤回同類修法因 execution-receipt 鎖定「補讀不清 undo」。

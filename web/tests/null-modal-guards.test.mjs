@@ -37,6 +37,7 @@ test('block-side handlers with modal id lookup stay safe when modal already clos
     const next=n1>0?n1:source.indexOf('\n});',at);
     const raw=source.slice(at+('"'+name+'":').length,next).replace(/\r/g,'').replace(/,\s*$/,'');
     vm.runInContext('var H='+raw+';',c);
-    assert.doesNotThrow(()=>{try{c.H(c.a);}catch(e){/* 自身驗證錯誤可接受；僅 null-modal TypeError 算數 */}},name+' must not throw uncaught');
+    assert.doesNotThrow(()=>c.H(c.a),name+' with UI.modal=null must not throw');
+    assert.equal(c.S.blocks[0].pin,false,name+' must not mutate state');
   }
 });
