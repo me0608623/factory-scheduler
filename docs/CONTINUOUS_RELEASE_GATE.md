@@ -1,5 +1,13 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R14 checkpoint：staging 批次部署 d8ee0bd（#29）完成驗收
+
+- 起點 0ed8a7b clean；**17c7d91 為 d8ee0bd 祖先** OK → 普通 push `d8ee0bd:codex/excel-friendly-ui-20260930`（17c7d91..d8ee0bd，non-force）。
+- **部署證據**：GitHub deployment **7062943883** sha=**d8ee0bd**，statuses[0]=**success**；staging 服務 bundle `index-DsS5eFgY.js`（新構建）。
+- **runtime 標記驗證**：線上 bundle 壓縮後 `function oy(t){if(!t||!ct())return;const e=t.date…`＝#29 的 null-modal 守門**已在線上**。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 停用；PR16/18 draft 門檻不變（PR16 已含至 6962b5f）。
+- 下一步：①MODAL_ACT 連點類系統性掃描；②發布門檻待使用者側。
+
 ## 2026-10-15 15-min tracking R13 checkpoint：缺陷#29 ot-save 連點第二下未捕捉 TypeError
 
 - 起點 87fee23 clean。**探索**（連點／靜默失敗類）：`"ot-save":()=>saveDailyOT(UI.modal)` 無 m 存在守門——第一下同步完成（含 closeModal）後，連點第二下事件到達時 UI.modal=null → `m.date` 拋 **未捕捉 TypeError**（僅 console，使用者無感知；首次儲存已成功故資料無損，但屬靜默處理器錯誤）。RED：vm 編譯實際函式呼叫 `saveDailyOT(null)` 確實拋出。
