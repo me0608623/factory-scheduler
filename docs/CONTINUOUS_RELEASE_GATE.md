@@ -6,6 +6,13 @@
 > - **PR16/18 均 draft**：#18 head＝本分支（自動跟隨）、#16＝test-mode 分支（每輪同步；最新 853/853 綠）。
 > - **待使用者（合併前必做）**：①Render staging 部署通道檢查＋hook secret；②staging Realtime 平台 ticket（WS 500）；③第二帳戶（同意信未回覆不得再寄）；④正式 VITE_TEST_* 三值；⑤全部通過後：真實跨帳戶/手機桌面同步、斷線衝突回饋驗收 → 才合併 PR → 才部署正式。
 
+## 2026-10-15 15-min tracking R53 checkpoint：請假筆刷×undo 瀏覽器探針——結果「未能確認」（非缺陷判定）
+
+- 嘗試：人員月曆抽屜→選「休假」筆刷→點 10/20→觀察格 class 與 undo。結果：格 class 停留 working、undo 停用——套用未發生或視覺標記不反映 leaves（我對 class 名的假設未經證實）。全程零錯誤零崩潰。
+- 判定：**inconclusive**，不宣稱缺陷——筆刷完整流程已由 leave-brush-save.test.mjs 等單元測試鎖定（本地模式下 RPC 分支跳過、本地套用路徑已覆蓋）；瀏覽器探針失敗最可能是互動序列未完成（抽屜內按鈕的 aria-name 與實際 data-act 對應未核實）而非產品行為。
+- 教訓（記錄）：瀏覽器層驗證寫入類流程前，先核對「視覺狀態的 DOM 表徵」（class/attr）再斷言；無表徵即無法判讀。
+- 本輪無程式碼變更、無部署。
+
 ## 2026-10-15 15-min tracking R52 checkpoint：組合交叉驗證——#41 render memo × undo × 換人寫入（真實 DOM，全過）
 
 - 情境（本地 dev＋本機模式＋window.__errs）：blk 視窗換人（張三→林七，b-emp 寫入）→ 板面即時更新為「林七 A01」→ 更多→復原上一步 → 板面回到「張三 A01」。全程零錯誤。
