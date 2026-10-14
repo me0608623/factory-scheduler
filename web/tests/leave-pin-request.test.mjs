@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {LocalStore} from '../src/store/local.js';
+import {SupabaseStore} from '../src/store/supabase.js';
+import {createClient} from '@supabase/supabase-js';
+import {makeDb,FakeSupabase} from './fake-supabase.mjs';
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
 const tick=()=>new Promise(r=>setImmediate(r));
@@ -23,6 +26,68 @@ function fixture(kind='leave'){
 }
 const reloads=f=>f.events.filter(e=>e?.type==='reload');
 const toasts=f=>f.events.filter(e=>e?.type==='toast');
+function reconciliation(f){
+  const timers=[],reads=[];f.ctx.S.log=[];Object.assign(f.ctx,{drag:null,generalDrag:null,syncPending:0,SYNC:{state:'ok'},lastLocalWrite:0,pendingReload:false,reloadTimer:null,remoteLoading:false,
+    setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout:()=>{},normalizeState:()=>{},notificationEnabled:()=>false,showDeviceNotification:()=>{}});
+  f.ctx.STORE.load=async()=>{reads.push('read');return {...f.ctx.S,memos:[{...f.ctx.S.memos[0],pinned:true}],leaveRequests:[{...f.ctx.S.leaveRequests[0],status:'approved'}]};};
+  const at=source.indexOf('async function reloadFromStore(');vm.runInContext(source.slice(at,source.indexOf('// ---------- 帳號與連線',at)),f.ctx);
+  return {timers,reads};
+}
+
+test('late successful leave creation, approval and pin queue one read after their drawer closes',async()=>{
+  for(const kind of ['leave','resolve','pin']){
+    const f=fixture(kind),h=reconciliation(f),job=f.run(f.button);f.ctx.UI.modal=null;f.ctx.UI.drawer=null;f.pending.resolve();await job;
+    assert.equal(h.timers.length,1,kind);assert.equal(h.reads.length,0);await h.timers.shift()();assert.equal(h.reads.length,1);
+    assert.equal(f.ctx.UI.modal,null);assert.equal(f.ctx.UI.drawer,null);assert.equal(f.writes.length,1);assert.equal(toasts(f).length,0);
+  }
+});
+
+test('late direct successes leave new drafts and previews intact until one safe reread',async()=>{
+  for(const kind of ['leave','resolve','pin'])for(const mode of ['modal','preview']){
+    const f=fixture(kind),h=reconciliation(f),job=f.run(f.button),state=f.ctx.S;
+    f.ctx.UI.modal=mode==='modal'?{t:'new-draft',value:'keep'}:null;if(mode==='preview')f.ctx.PV={draft:'keep'};const modal=f.ctx.UI.modal,preview=f.ctx.PV;
+    f.pending.resolve();await job;assert.equal(f.ctx.pendingReload,true,kind+'/'+mode);assert.equal(h.timers.length,0);
+    assert.equal(f.ctx.S,state);assert.equal(f.ctx.UI.modal,modal);assert.equal(f.ctx.PV,preview);assert.equal(toasts(f).length,0);
+    f.ctx.UI.modal=null;f.ctx.PV=null;f.ctx.maybeReload();assert.equal(h.timers.length,1);await h.timers.shift()();assert.equal(h.reads.length,1);assert.equal(f.writes.length,1);
+  }
+});
+
+test('old account, store, client and epoch ACKs never schedule direct-action reconciliation for a new session',async()=>{
+  for(const kind of ['leave','resolve','pin'])for(const mode of ['user','store','client','epoch']){
+    const f=fixture(kind),h=reconciliation(f),job=f.run(f.button);f.ctx.UI.modal=null;
+    if(mode==='user')f.ctx.STORE.session={user:{id:'B'}};if(mode==='store')f.ctx.STORE={...f.ctx.STORE};if(mode==='client')f.ctx.STORE.sb={};if(mode==='epoch')f.ctx.STORE.authEpoch++;
+    f.pending.resolve();await job;assert.equal(f.ctx.pendingReload,false);assert.equal(h.timers.length,0);assert.equal(h.reads.length,0);
+  }
+});
+
+for(const kind of ['leave','resolve','pin'])test('real SQL and SDK '+kind+' late success reconciles after the new draft closes, without replay',async()=>{
+  const db=await makeDb();try{
+    const actor='44444444-4444-4444-8444-444444444444',memo='55555555-5555-4555-8555-555555555555',leave='66666666-6666-4666-8666-666666666666',newLeave='77777777-7777-4777-8777-777777777777';
+    await db.query("insert into auth.users(id,email) values($1,'synthetic-direct@invalid')",[actor]);await db.query("update profiles set role='boss' where user_id=$1",[actor]);
+    const employee=(await db.query("select id from employees where name='張三'")).rows[0].id,date=(await db.query('select (current_date+1)::text date')).rows[0].date;
+    await db.query("insert into schedule_memos(id,text,machine_id,pinned,author,created_by) values($1,'Synthetic memo','a',false,'Synthetic',$2)",[memo,actor]);
+    if(kind!=='leave')await db.query("insert into leave_requests(id,employee_id,date,note,status,created_by) values($1,$2,$3,'Synthetic','pending',$4)",[leave,employee,date,actor]);
+    const fake=new FakeSupabase(db,{});fake.uid=actor;const reader=new SupabaseStore(fake);await reader.init();const state=await reader.load(),before=JSON.stringify(state.blocks);
+    const ready=deferred(),gate=deferred();let calls=0;const sdk=createClient('https://synthetic.invalid','sb_publishable_synthetic',{accessToken:async()=> 'synthetic',global:{fetch:async(url,options)=>{
+      calls++;const args=JSON.parse(options.body),path=new URL(url).pathname;
+      const result=kind==='resolve'?(assert.equal(path,'/rest/v1/rpc/resolve_leave_request'),await fake.rpc('resolve_leave_request',args)):
+        kind==='pin'?(assert.equal(path,'/rest/v1/schedule_memos'),await fake.from('schedule_memos').upsert(args,{onConflict:'id'})):
+        (assert.equal(path,'/rest/v1/leave_requests'),await fake.from('leave_requests').insert(args));
+      assert.equal(result.error,null);ready.resolve();await gate.promise;return new Response(null,{status:204});
+    }}});
+    const store=new SupabaseStore(sdk);store.session={user:{id:actor},access_token:'synthetic'};
+    const f=fixture(kind);f.ctx.S=state;f.ctx.STORE=store;f.ctx.uid=()=>newLeave;f.ctx.$=s=>({value:s==='#leave-request-employee'?employee:s==='#leave-request-date'?date:'Synthetic note'});
+    f.button.dataset.id=kind==='pin'?memo:leave;const h=reconciliation(f);store.load=async options=>{assert.equal(options.remember,false);h.reads.push('read');return reader.load({remember:false});};
+    const job=f.run(f.button);const dispatched=await Promise.race([ready.promise.then(()=>true),job.then(()=>false)]);
+    assert.equal(dispatched,true,f.m?.error||JSON.stringify(toasts(f)));const draft=f.ctx.UI.modal={t:'new-draft',value:'keep'};gate.resolve();await job;
+    assert.equal(f.ctx.pendingReload,true);assert.equal(h.reads.length,0);assert.equal(f.ctx.S,state);assert.equal(f.ctx.UI.modal,draft);
+    f.ctx.UI.modal=null;f.ctx.maybeReload();assert.equal(h.timers.length,1);await h.timers.shift()();
+    assert.equal(h.reads.length,1);assert.equal(calls,1);assert.equal(toasts(f).length,0);assert.equal(JSON.stringify(f.ctx.S.blocks),before);
+    if(kind==='pin')assert.equal(f.ctx.S.memos.find(m=>m.id===memo).pinned,true);
+    if(kind==='resolve'){assert.equal(f.ctx.S.leaveRequests.find(r=>r.id===leave).status,'approved');assert.equal((await db.query('select count(*)::int n from leaves where employee_id=$1 and date=$2',[employee,date])).rows[0].n,1);}
+    if(kind==='leave'){assert.equal(f.ctx.S.leaveRequests.find(r=>r.id===newLeave).status,'pending');assert.equal((await db.query('select count(*)::int n from leave_requests where id=$1',[newLeave])).rows[0].n,1);}
+  }finally{await db.close();}
+});
 
 test('memo pin CSS keeps a 44px target and room for its neighboring author label',()=>{
   const css=readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
