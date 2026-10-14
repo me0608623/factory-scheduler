@@ -2,9 +2,15 @@
 
 > **狀態總覽（R45 起常態更新；輪段詳細證據往下）**
 > - **本系列修復**：#32–#42 共 11 件（離線靜默丟失×2、衝突復活×2、undo 覆蓋遠端、null-modal 家族×3 大類 38 處、realtime 輪詢備援、日視圖平方級效能 20×、列印彈出封鎖崩潰）。測試 web 430→853。
-> - **staging**：線上 889e882（bundle index-BYOY76_0.js，含 #32–#41）。**#42 未部署**——Render 部署通道對 fe574fb 起持續靜默（push 不觸發），需使用者檢查 Render dashboard 或補 RENDER_STAGING_WEB_DEPLOY_HOOK secret 手動觸發。
+> - **staging**：線上 889e882（bundle index-BYOY76_0.js，含 #32–#41）。#42 所在的 41d4f88 部署已觸發（21:22Z，通道恢復）但 build 逾 15 分鐘仍 in_progress——下輪驗證；若卡死屬 Render 建置佇列問題。
 > - **PR16/18 均 draft**：#18 head＝本分支（自動跟隨）、#16＝test-mode 分支（每輪同步；最新 853/853 綠）。
 > - **待使用者（合併前必做）**：①Render staging 部署通道檢查＋hook secret；②staging Realtime 平台 ticket（WS 500）；③第二帳戶（同意信未回覆不得再寄）；④正式 VITE_TEST_* 三值；⑤全部通過後：真實跨帳戶/手機桌面同步、斷線衝突回饋驗收 → 才合併 PR → 才部署正式。
+
+## 2026-10-15 15-min tracking R46 checkpoint：部署通道恢復（41d4f88 build 進行中）＋意見反饋流程審查（無缺陷）
+
+- 部署：fe574fb/41d4f88 的 deployment 於 21:22Z 出現（通道恢復＝先前為延遲非斷線），但 build in_progress 逾 15 分鐘（先前均 2-3 分鐘）——Render 建置佇列變慢或卡住；線上仍 889e882。下輪驗證 #42 上線。
+- 審查（無缺陷）：feedback-send＝本地模式擋、空值擋、disabled 雙擊鎖、失敗復原、insert 後 stale 檢查；feedback-list＝role 閘＋RPC limit 50＋stale-modal 檢查＋catch 關窗；渲染端 `esc(x.author)`／`esc(category)`／訊息跳脫——使用者內容無 XSS 面。
+- 本輪無程式碼變更。
 
 ## 2026-10-15 15-min tracking R45 checkpoint：負結果輪（analytics 審查）＋頂部常態狀態總覽塊設立
 
