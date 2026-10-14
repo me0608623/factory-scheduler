@@ -1,5 +1,14 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R38 checkpoint：缺陷#41（發現＋實測，修復排下輪）——日視圖渲染隨段數平方成長
+
+- 方法：本地 dev server＋本機模式，以 localStorage 種子擴充（15 機台＝5 原始＋10 複製，blocks 覆蓋 10/15 全日）。每級先重置→重新生示範→種子→reload，取 navigation timing 的 domContentLoadedEventEnd。種子教訓：樣板須取自完整 block（缺 oid 的空殼會讓渲染崩成空板）；頁面 evaluate 只吃 template literal 形式。
+- **實測縮放曲線（DCL、全部 block 有渲染、零錯誤）**：495 段→847ms；990 段→4,563ms；1,980 段→17,717ms。倍率：2 倍段數→約 4-5 倍時間＝**平方級**。
+- 影響：量產規模（1023 人名冊→數十機台、每日数百至上千段）日視圖將數秒至十數秒白屏/凍結，違反長者即時操作要求。互動 render（日期切換）同成本——evaluate 32 秒上限內跑不完一次來回。
+- 熱點假說（已讀碼佐證）：`orderStatus(o)`（app.js:600）每次呼叫 `S.blocks.filter(b=>b.oid===o.id)` 全掃；每個 block 的渲染（blkHTML/issuesOf/statusTag）多次觸發→O(n²)。次要：`effectiveBlockQty`／`executionOf` 在熱迴圈重複計算。
+- 修復方向（下輪主任務）：render 期 order-status 快取（注意 S 就地變異使「S 識別」快取鍵不安全——須 render 呼叫範圍內傳遞或明確失效）＋回歸＋部署＋大資料複測。
+- 本輪無程式碼變更、無部署；測試分頁已清資料關閉、dev server 已停。
+
 ## 2026-10-15 15-min tracking R37 checkpoint：負結果輪——worklog/win/chat-context 三模組審查（皆無缺陷），src 模組掃描全部完成
 
 - 審查①（worklog.js）：嚴格驗證（時 0–23／分 0–59、1e9 上限、文字長度上限、id 唯一、5000 列、每列至少一欄）——saveTableForm 已接入，無缺陷。
