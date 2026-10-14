@@ -1450,7 +1450,10 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "factory":{const v=a.dataset.v==="all"?"all":Number(a.dataset.v);setFactory(v);render();if(v==="all")openModal({t:'transfer-board'});break;}
     case "groups":openModal({t:'groups'});break;
     case "tour":{closeModal();UI.drawer=null;render();setTimeout(()=>startTour(TOUR_STEPS,{tx}),350);break;}
-    case "logout":(async a=>{if(STORE.kind!=="supabase"){toast(tx('本機模式沒有登入帳號'));return;}closeModal();
+    case "logout":(async a=>{if(STORE.kind!=="supabase"){toast(tx('本機模式沒有登入帳號'));return;}
+      // 與 beforeunload 同風險：未確認儲存的變更只在本機，登出即丟失
+      if(syncPending>0||SYNC.state!=="ok"||executionRetries.has(STORE)||STORE.hasPendingConfirmations?.()){toast(tx('有變更尚未確認儲存；請先按上方儲存狀態重試，確認後再登出。'));return;}
+      closeModal();
       try{await STORE.logout();toast("已登出");}catch(e){toast("登出失敗："+e.message);}
       showLogin();})();break;
     case "access":{if(STORE.role!=='boss'){toast("只有老闆可以管理權限");break;}openModal({t:'access-accounts',loading:true,accounts:[]});(async()=>{try{const accounts=await STORE.listAccessAccounts();if(UI.modal?.t==='access-accounts'){UI.modal.loading=false;UI.modal.accounts=accounts;renderModal();}}catch(e){toast(e.message);closeModal();}})();break;}

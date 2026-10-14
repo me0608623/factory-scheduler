@@ -1,5 +1,14 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R25 checkpoint：缺陷#35 未確認儲存時登出靜默丟失＋成員舊引用/時區審查（無缺陷）
+
+- 探索類別：靜默丟失（#32 同型不同出口）。`case "logout"` 直接 `STORE.logout()`——syncPending>0、SYNC.state==="error"（離線未存）、未確認回報任一成立時登出，本機變更無警告永久丟失；beforeunload 對同一風險已攔（R22），出口不一致。
+- 重現：新測試 `web/tests/logout-pending-guard.test.mjs`（vm 切 logout case 包 switch 執行）修復前 3 RED（在途/失敗/未確認回報皆照常登出）。
+- 最小修正（app.js logout case）：與 beforeunload 同條件 `syncPending>0||SYNC.state!=="ok"||executionRetries.has(STORE)||STORE.hasPendingConfirmations?.()` → toast 中止（新 i18n 鍵三語已補）。乾淨狀態登出不受影響——4/4 綠。
+- 同輪負結果審查（無缺陷）：①成員刪除舊引用——`UI.focus` 家族全為 id 比對或 `emp()?.name||fallback`；`renderModal` 對 null body 自動 `closeModal()`，前景補讀替換 S 與 modal 重渲染原子同步（實體消失即自動關窗，無點擊窗口）；`normalizeState` 有 group 孤兒回退。②時區——日期模型＝本地日期字串↔UTC dayNum 對稱往返（parseD/fmtD/dayNum 全 UTC、todayStr/nowMin 全本地），無混合。③`emp()` 未守門解參考掃描 10 處——b-emp 的 `emp(b.emp).name` 名單來自當前 S 重繪、gw-apply 的 `emp(D.emp).name` 被 assignmentIssues「工作內容或員工不存在」前置攔截，皆不可達。
+- 驗收：全套 web 828/828 綠＋build 過。staging 部署驗收見下。 
+- staging 部署驗收（98c85c9）：CI 先綠後前進 codex/excel-friendly-ui-20260930（e333d6f→98c85c9）；Render deployment success（SHA=98c85c9）；bundle index-BhHUim0j.js 內 `…call(I)){R(l("有變更尚未確認儲存…` 守門形狀存在（文案兩處＝字典＋呼叫點）。
+
 ## 2026-10-15 15-min tracking R24 checkpoint：缺陷#34 一般工作預覽確認復活遠端已刪工作＋權限邊界審查（其餘無缺陷）
 
 - 探索類別：版本衝突×取消後寫入。延續 #33：衝突恢復前景補讀替換 S 不受 modal 守門（remoteReloadBlocked 只擋背景），一般工作預覽（general-preview）開著時若遠端已刪該段，`gw-apply` 的 `assignments(S).filter(a=>a.id!==D.id).concat(D)` 無條件 concat＝復活已刪工作，套用後覆蓋另一裝置刪除。
