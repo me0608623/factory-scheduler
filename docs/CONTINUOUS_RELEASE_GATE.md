@@ -1,5 +1,12 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R23 checkpoint：缺陷#33 拖曳中衝突恢復→舊引用復活已刪工作
+
+- 探索類別：版本衝突×競爭。路徑：`queueSync` conflict 分支前景 `reloadFromStore()` 不受 `remoteReloadBlocked()` 守門（設計上衝突必須換基準），會在拖曳中整體替換 S＋render。pointerup 拖曳處理器用 pointerdown 捕獲的舊 block 物件引用叫 `dragPreview`，其內 `if(!moved){moved={...b};S.blocks.push(moved);}` 會把遠端已刪除的段「復活」並 pin——套用後覆蓋另一裝置的刪除（取消後寫入／版本衝突類）。單擊路徑（openModal blk）已有 `if(!b)return null` 守門；`b-preview`／`blk-new` 呼叫者分別有 find 守門／全新 block，不受影響。
+- 重現：新測試 `web/tests/drag-conflict-resurrection.test.mjs`——(1) vm 編譯真 `dragPreview`（withState stub 走真 S 替換語意）證明餵舊引用時 after 內出現 pin=true 的復活 block；(2) vm 切 pointerup 語句測 move/resize/點擊三路。修復前 2 RED（move/resize 未攔）。
+- 最小修正（app.js pointerup，`endDrag();drag=null;` 之後）：`if(!S.blocks.some(x=>x.id===d.b.id)){toast(tx(...));return;}`——block 已不在最新 S 即中止拖曳並提示（新 i18n 鍵三語已補，棘輪測試通過）。修復後 5/5 綠。
+- 驗收：全套 web 821/821 綠＋build 過。staging 部署驗收：見本段下方部署行。 
+
 ## 2026-10-15 15-min tracking R22 checkpoint：缺陷#32 離線後關分頁靜默丟失（beforeunload 漏攔 error 狀態）
 
 - 探索類別：離線／靜默丟失（本輪計畫優先項）。路徑審查發現 supabase 模式 S 只存在記憶體（localStorage 僅 UI 偏好），同步失敗（如斷網）後 `queueSync` 進 catch：`SYNC.state="error"`、`syncPending` 歸零——而 `beforeunload` 守門只攔 `SYNC.state==="busy"`，關分頁無警告＝本機未存變更靜默丟失。

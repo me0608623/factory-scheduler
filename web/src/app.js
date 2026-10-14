@@ -1270,6 +1270,8 @@ document.addEventListener("pointerup",()=>{
   if(!drag)return;const d=drag;
   if(!d.started){drag=null;openModal({t:"blk",id:d.b.id});return;}
   endDrag();drag=null;
+  // 衝突恢復補讀可能在拖曳中替換 S：遠端已刪除這段工作時，不得用拖曳的舊引用把它復活
+  if(!S.blocks.some(x=>x.id===d.b.id)){toast(tx('班表剛被別人更新，你拖的這段工作已不在最新班表，未套用；請確認最新班表後再操作。'));return;}
   if(d.mode==="resize"){
     if(d.target&&d.target.e!==d.b.e)enterManualPreview(dragPreview(d.b,d.b.m,d.b.s,{end:d.target.e,qty:d.target.qty}));
     return;
