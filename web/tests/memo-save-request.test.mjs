@@ -22,7 +22,7 @@ function fixture(){
 const reloads=f=>f.events.filter(e=>e?.type==='reload');
 const toasts=f=>f.events.filter(e=>e?.type==='toast');
 function reconciliation(f){
-  const timers=[],reads=[];f.ctx.S.log=[];Object.assign(f.ctx,{drag:null,generalDrag:null,syncPending:0,SYNC:{state:'ok'},lastLocalWrite:0,pendingReload:false,reloadTimer:null,remoteLoading:false,
+  const timers=[],reads=[];f.ctx.S.log=[];Object.assign(f.ctx,{drag:null,generalDrag:null,syncPending:0,SYNC:{state:'ok'},lastLocalWrite:0,pendingReload:false,undoStack:[],reloadTimer:null,remoteLoading:false,
     setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout:()=>{},normalizeState:()=>{},notificationEnabled:()=>false,showDeviceNotification:()=>{}});
   f.ctx.STORE.load=async()=>{reads.push('read');return {...f.ctx.S,memos:[{id:'saved-memo',text:'Synthetic memo'}]};};
   const at=source.indexOf('async function reloadFromStore(');vm.runInContext(source.slice(at,source.indexOf('// ---------- 帳號與連線',at)),f.ctx);
@@ -129,7 +129,7 @@ test('actual LocalStore save plus actual protected reload adds one memo without 
   const f=fixture(),old=globalThis.localStorage,data=new Map();globalThis.localStorage={getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v)};
   try{
     f.ctx.S={...f.ctx.S,employees:[],machines:[],products:[],orders:[]};f.ctx.STORE=new LocalStore();await f.ctx.STORE.sync(f.ctx.S);
-    const before=JSON.stringify(f.ctx.S.blocks);Object.assign(f.ctx,{lastLocalWrite:0,pendingReload:false,normalizeState:()=>{},remoteReloadBlocked:()=>!!(f.ctx.UI.modal||f.ctx.PV||f.ctx.UI.memoSaving)});
+    const before=JSON.stringify(f.ctx.S.blocks);Object.assign(f.ctx,{lastLocalWrite:0,pendingReload:false,undoStack:[],normalizeState:()=>{},remoteReloadBlocked:()=>!!(f.ctx.UI.modal||f.ctx.PV||f.ctx.UI.memoSaving)});
     const at=source.indexOf('async function reloadFromStore(');vm.runInContext(source.slice(at,source.indexOf('async function refreshCloudSnapshot',at)),f.ctx);
     await f.ctx.save(f.button);assert.equal(f.ctx.UI.modal,null);assert.equal(f.ctx.S.memos.length,1);assert.equal(f.ctx.S.memos[0].text,'Synthetic memo');
     assert.equal(JSON.stringify(f.ctx.S.blocks),before);assert.equal((await f.ctx.STORE.load()).memos.length,1);assert.equal(toasts(f).at(-1).text,'備忘已保存');

@@ -27,7 +27,7 @@ function fixture(kind='leave'){
 const reloads=f=>f.events.filter(e=>e?.type==='reload');
 const toasts=f=>f.events.filter(e=>e?.type==='toast');
 function reconciliation(f){
-  const timers=[],reads=[];f.ctx.S.log=[];Object.assign(f.ctx,{drag:null,generalDrag:null,syncPending:0,SYNC:{state:'ok'},lastLocalWrite:0,pendingReload:false,reloadTimer:null,remoteLoading:false,
+  const timers=[],reads=[];f.ctx.S.log=[];Object.assign(f.ctx,{drag:null,generalDrag:null,syncPending:0,SYNC:{state:'ok'},lastLocalWrite:0,pendingReload:false,undoStack:[],reloadTimer:null,remoteLoading:false,
     setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout:()=>{},normalizeState:()=>{},notificationEnabled:()=>false,showDeviceNotification:()=>{}});
   f.ctx.STORE.load=async()=>{reads.push('read');return {...f.ctx.S,memos:[{...f.ctx.S.memos[0],pinned:true}],leaveRequests:[{...f.ctx.S.leaveRequests[0],status:'approved'}]};};
   const at=source.indexOf('async function reloadFromStore(');vm.runInContext(source.slice(at,source.indexOf('// ---------- 帳號與連線',at)),f.ctx);
@@ -180,7 +180,7 @@ test('actual LocalStore leave, approval and pin handlers keep schedules intact a
     for(const kind of ['leave','pin','resolve']){
       const f=fixture(kind);f.ctx.STORE=new LocalStore();f.ctx.S={...f.ctx.S,employees:[{id:'synthetic-person',name:'Synthetic'}],machines:[],products:[],orders:[],calendar:{},leaves:[]};
       f.ctx.S.employees[0].leaves=[];f.ctx.S.leaveRequests[0].employeeId='synthetic-person';f.ctx.S.leaveRequests[0].date='2026-10-16';await f.ctx.STORE.sync(f.ctx.S);const before=JSON.stringify(f.ctx.S.blocks);
-      Object.assign(f.ctx,{lastLocalWrite:0,pendingReload:false,normalizeState:()=>{},remoteReloadBlocked:()=>!!(f.ctx.UI.modal||f.ctx.PV||f.ctx.UI.directSaving)});
+      Object.assign(f.ctx,{lastLocalWrite:0,pendingReload:false,undoStack:[],normalizeState:()=>{},remoteReloadBlocked:()=>!!(f.ctx.UI.modal||f.ctx.PV||f.ctx.UI.directSaving)});
       const at=source.indexOf('async function reloadFromStore(');vm.runInContext(source.slice(at,source.indexOf('async function refreshCloudSnapshot',at)),f.ctx);
       await f.run(f.button);const stored=await f.ctx.STORE.load();assert.equal(JSON.stringify(stored.blocks),before);assert.equal(JSON.stringify(f.ctx.S.blocks),before);
       if(kind==='leave'){assert.equal(stored.leaveRequests.length,2);assert.equal(stored.leaveRequests[1].status,'pending');assert.equal(Object.keys(stored.calendar).length,0);}

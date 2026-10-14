@@ -13,7 +13,7 @@ function harness(){
   const ctx={S:{version:1,blocks:[{id:'LOCAL'}],log:[]},UI:{date:'2026-10-15',factory:'F1',modal:null,prefs:{}},
     SYNC:{state:'ok',realtime:'CHANNEL_ERROR'},PV:null,drag:null,generalDrag:null,syncPending:0,
     STORE:{kind:'supabase',version:1,session:{user:{id:'TEST-USER'}},load:async opts=>{reads.push(opts);return {version:2,blocks:[{id:'REMOTE'}],log:[]};},acceptLoaded:s=>{ctx.STORE.version=s.version;}},
-    pendingReload:false,reloadTimer:null,remoteLoading:false,lastLocalWrite:0,
+    pendingReload:false,undoStack:[],reloadTimer:null,remoteLoading:false,lastLocalWrite:0,
     setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout:()=>{},tx:x=>x,toast:t=>messages.push(t),
     render:()=>{},normalizeState:()=>{},updateSyncChip:()=>{},queueSync:entry=>writes.push(entry),notificationEnabled:()=>false};
   vm.createContext(ctx);vm.runInContext(code+'\nasync function clickSync(){switch("sync"){'+action+'}}',ctx);
