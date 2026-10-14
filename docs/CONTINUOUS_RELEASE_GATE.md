@@ -6,6 +6,12 @@
 > - **PR16/18 均 draft**：#18 head＝本分支（自動跟隨）、#16＝test-mode 分支（每輪同步；最新 853/853 綠）。
 > - **待使用者（合併前必做）**：①Render staging 部署通道檢查＋hook secret；②staging Realtime 平台 ticket（WS 500）；③第二帳戶（同意信未回覆不得再寄）；④正式 VITE_TEST_* 三值；⑤全部通過後：真實跨帳戶/手機桌面同步、斷線衝突回饋驗收 → 才合併 PR → 才部署正式。
 
+## 2026-10-15 15-min tracking R49 checkpoint：負結果輪——權限管理流程與 szoom 縮放模組審查（皆無缺陷）
+
+- 審查①（權限管理 access-*）：boss 閘×modal 型別檢查（`?.t` 可選鏈）×disabled 雙擊鎖×失敗復原×stale-modal 檢查×成功後重取清單——老闆帳號 checkbox disabled 防自鎖。僅讀碼審查，未動任何帳號（紅線遵守）。
+- 審查②（szoom.js）：clampZ 有限值檢查＋百分位 round、localStorage 壞資料回預設、日↔週切換遲滯門檻、rAF 節流帶 generation 取消（無洩漏）、錨點數學除法 Math.max(1,…) 護欄——無缺陷。
+- 狀態：staging 41d4f88（#32–#42 全上線）；PR16/18 draft；本輪無程式碼變更、無部署。
+
 ## 2026-10-15 15-min tracking R48 checkpoint：#42 上線驗證完成——#32–#42 全部在 staging
 
 - 41d4f88 deployment **success**（build 實際耗 ~40 分鐘——判定修正：R47 的「卡住」實為 Render 建置偶發慢，非故障）。cache-buster 得新 bundle index-DxKb0Nzr.js，內含 `瀏覽器封鎖了列印視窗`×2（字典＋呼叫點）＝**#42 修復上線**。
