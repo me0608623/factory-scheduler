@@ -3460,8 +3460,8 @@ function sideHealthHTML(){
 }
 function updateSyncChip(){const el=$("#syncchip");if(el)el.outerHTML=syncChipHTML();const side=$(".side-health");if(side)side.outerHTML=sideHealthHTML();}
 let syncChain=Promise.resolve(),syncPending=0,syncEpoch=0,lastSyncState='ok';
-// 同步進行中關閉分頁＝靜默丟失變更：離開前提示（僅在真的有寫入在途時）
-addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state==="busy"||UI.leaveBrushSaving||UI.memoSaving||UI.directSaving||UI.executionSaving||UI.scenarioSaving||executionRetries.has(STORE)||STORE.hasPendingConfirmations?.()){e.preventDefault();e.returnValue="";}});
+// 同步中或上次同步失敗（本機變更尚未確認存進雲端）關閉分頁＝靜默丟失變更：離開前提示
+addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state!=="ok"||UI.leaveBrushSaving||UI.memoSaving||UI.directSaving||UI.executionSaving||UI.scenarioSaving||executionRetries.has(STORE)||STORE.hasPendingConfirmations?.()){e.preventDefault();e.returnValue="";}});
 function queueSync(entry){
   if(STORE.kind==='supabase'&&!STORE.session?.user?.id){changedWriteSession();return Promise.resolve(false);}
   const snapshot=structuredClone(S),epoch=syncEpoch,activeStore=STORE,writer=STORE.session?.user?.id,authEpoch=STORE.authEpoch||0;
