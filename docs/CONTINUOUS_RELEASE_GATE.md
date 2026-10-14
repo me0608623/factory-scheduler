@@ -7,6 +7,7 @@
 - 重現/鎖定：新測試 `web/tests/realtime-poll-fallback.test.mjs` 四案例——失敗啟動有界輪詢且走守門路徑、CONNECTING 不啟動、恢復清除、無 session 自清。修復前 2 RED。附帶 reconnect-refresh fixture 補 setInterval/clearInterval/realtimePoll 全域（harness 依賴更新，斷言未動）。
 - 同輪負結果：saveScenarioFromModal（13 欄位 owner＋#28 ledger＋刪除清 ledger＋scenarioStale 基準比對 applicable:false）與 syncStatusView/cloud-status——無缺陷。
 - 驗收：全套 web 845/845 綠＋build 過。staging 部署驗收見下。 
+- staging 部署驗收（c924b9c）：CI 先綠後前進 codex/excel-friendly-ui-20260930（df19a51→c924b9c）；Render deployment success；cache-buster 得新 bundle index-Z6fMnM-j.js，內含 `CHANNEL_ERROR","TIMED_OUT","CLOSED"].includes` 輪詢啟動條件（變數名已壓縮）。注意：平台 Realtime 仍故障中——本輪上線的是輪詢備援，不代表同步已修（無真實平台恢復證據）。
 
 ## 2026-10-15 15-min tracking R34 checkpoint：一般工作完整流程 E2E（真實瀏覽器）——#34 守門無誤殺＋輸入驗證真擋
 
