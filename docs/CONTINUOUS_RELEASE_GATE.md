@@ -1,5 +1,13 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R10 checkpoint：main 例行合併＋PR16 平行度稽核＋scenarioReadOwner 唯讀族審查（無缺陷）
+
+- 起點 ef3c470 clean。**main 例行合併**：origin/main（d7a6f04，僅 fs-hunt docs 23 行）普通 merge → **553d8af**；全套 **807/807**＋build；push 後 CI Tests／smoke／Synthetic 全 success @553d8af。
+- **PR16 平行度稽核**：diff a209e17..ef3c470 runtime＝僅 2 檔——`styles.css`（PR16 多 `color:var(--ink)` 於 environment-banner 按鈕）與 `cloud-test-seed.test.mjs`（PR16 多 14 行）＝**另一 agent 的 test-mode 特有提交**（非 gate 遺失），依協議保留在 PR16、不反向覆蓋；我的全部 runtime 修正（#25-#28＋橫幅）在 PR16 齊備（非 merge 稽核：826cacb..a209e17 僅含本系列提交）。無需動作。
+- **scenarioReadOwner 唯讀族審查（唯讀）**：openScenarioList/viewScenario 皆有 owner 模式（store/client/user/epoch/modal/PV/S/focus 全比對）、loading 態、`item.id!==id` 防護、getScenario 兩 store 實作對應——未發現缺陷，不重做既有覆蓋。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 停用；門檻不變。
+- 下一步：①新缺陷探索；②發布門檻待使用者側（第二帳戶同意信未回）。
+
 ## 2026-10-15 15-min tracking R9 checkpoint：undo×補讀互動探索——假設被既有契約否決（無缺陷，實證收斂）
 
 - 起點 96c1540 clean。**假說**：未知結果補讀（#27 reconcile）套用伺服器事實後，undoStack 殘留舊快照——undo+sync 可能覆蓋剛現形的已准假等狀態。
