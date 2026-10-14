@@ -1,5 +1,13 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R37 checkpoint：負結果輪——worklog/win/chat-context 三模組審查（皆無缺陷），src 模組掃描全部完成
+
+- 審查①（worklog.js）：嚴格驗證（時 0–23／分 0–59、1e9 上限、文字長度上限、id 唯一、5000 列、每列至少一欄）——saveTableForm 已接入，無缺陷。
+- 審查②（win.js 浮動視窗）：clampRect 邊界夾制（至少露出 60×40 供抓回）、拖曳 5px 門檻＋suppressClick 防誤點、zIndex 60–78 低於 modal overlay(80)、localStorage 壞資料 fallback、手機 CSS 版型切換——無缺陷。
+- 審查③（chat-context.js 排程助理）：唯讀投影安全設計——3MB 總量與各表數量上限、日期範圍 1–31 日驗證、「刪除｜修改｜套用」關鍵字直接回唯讀宣告、不投影自由文字欄位、facts 上限 100＋limitations 聲明——無缺陷。
+- **里程碑：src/ 全部 40+ 模組的缺陷探索掃描完成**（R22-R37：#32-#40 共 9 缺陷修復上線；負結果審查 20+ 項）。剩餘風險面集中在：需真實平台的使用者側驗收（跨帳戶同步等）與 solver/db 層（各有 211/171 測試鎖定）。
+- 本輪無程式碼變更、無部署。下一輪：轉向深度負載邊界（大量資料下的 render 效能/re-flow）或等待使用者側動作後的驗收準備。
+
 ## 2026-10-15 15-min tracking R36 checkpoint：groups 成員流程 E2E（真實瀏覽器）——建組／成員持久化／連點儲存／兩段停用全過
 
 - 環境同 R33/34（本地 dev server＋本機模式＋window.__errs）。實測流程：
