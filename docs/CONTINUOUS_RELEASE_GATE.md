@@ -1,5 +1,22 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R33 checkpoint：瀏覽器層 smoke——本地 dev server＋本機模式，四項真實 DOM 連點全過
+
+- 環境：`npm run dev`（localhost:5173，最新工作區程式碼）＋本機模式示範資料（無憑證需求）；頁面掛 `window.__errs` 收集 error/unhandledrejection；受測碼＝#29-#39 全部修復在內的現行原始碼。技術要點：新分頁隔離使用者開着的 staging 分頁；新手導覷 dialog 疊層先「跳過導覽」。
+- ①上班日設定（c-save 家族）：dblclick 儲存 → modal 恰好關閉、零錯誤。
+- ②加班設定（ot-person/ot-day/saveDailyOT 家族）：dblclick 人員切換＋dblclick「確認並套用到排程」→ 乾淨關閉、零錯誤。
+- ③區塊刪除兩段確認（b-del）：點「刪除這段」→ 按鈕轉「再按一次確認刪除」（armed=1）→ 關閉視窗 → 區塊仍在、零錯誤（取消路徑安全）。注意：blk modal 無「取消」鈕（foot=刪除/重排/關閉/預覽），首次定位誤判後依快照重建。
+- ④連點開啟區塊：dblclick 方塊 → modal 開啟且保持、零錯誤（連點第二擊不誤關）。
+- 結論：#29-#39 修復在真實瀏覽器 DOM 互動下行為正確；dev server 與測試分頁已清理。無程式碼變更、無部署。
+
+## 2026-10-15 15-min tracking R32 checkpoint：負結果輪——qtyDraft 邊界／work-queue／manual.js 三項審查（皆無缺陷）
+
+- 審查①（reportWork 數量邊界）：`Number.isInteger`＋不倒退（`qty<(r?.qtyDone||0)`）＋不超量（`qty>b.qty`）＋空值明確要求填 0＋HTML min/max＋衝突時 delete qtyDraft 由 reconcile 重建——已有 15+ receipt 測試鎖定，無缺口。
+- 審查②（work-queue.js）：純診斷投影（無寫入）；缺工序有 fallback 列、`Math.max(0,remaining)`、`canArrange` 五條件、排序鏈完整——無缺陷。
+- 審查③（manual.js 數值換算）：`Math.floor(minutes*rate+1e-8)` epsilon 進位、batchReadyMinute 插值除法無零分母（produced 在首點必為 0 且單調）、materialFlowIssue 0.5 件容差——數值處理縝密，無缺陷。
+- 附帶：R31 的 docs 提交已同步 PR16（791e14e→6887611）。
+- 連兩輪負結果＝探索熱區收斂的訊號。下一輪改變策略：優先做**瀏覽器層 smoke**（本地 dev server＋本機模式，不需憑證）覆蓋近期修復的 null-modal 家族實際 DOM 互動，或深挖 settings 偏好 RPC 持久化路徑。
+
 ## 2026-10-15 15-min tracking R31 checkpoint：負結果輪——floor/overview/chat/wl-del 六項審查（皆無缺陷）＋PR 狀態核對
 
 - 審查①（floor.js 平面圖）：唯讀純邏輯模組（「不吃任何寫入」），全程 `||{}`/`||[]` 防禦、auto-排列有 cursor>999 保底、roundRect 為現代 Chrome 支援——無缺陷。佈局編輯器不存在（machine_layout 資料庫側，hint 明示），拖曳寫入風險封閉。
