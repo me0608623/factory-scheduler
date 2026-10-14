@@ -6,6 +6,11 @@
 > - **PR16/18 均 draft**：#18 head＝本分支（自動跟隨）、#16＝test-mode 分支（每輪同步；最新 853/853 綠）。
 > - **待使用者（合併前必做）**：①Render staging 部署通道檢查＋hook secret；②staging Realtime 平台 ticket（WS 500）；③第二帳戶（同意信未回覆不得再寄）；④正式 VITE_TEST_* 三值；⑤全部通過後：真實跨帳戶/手機桌面同步、斷線衝突回饋驗收 → 才合併 PR → 才部署正式。
 
+## 2026-10-15 15-min tracking R51 checkpoint：驗收腳本文件——`docs/ACCEPTANCE_SCRIPT.md`
+
+- 新增使用者側驗收腳本（A 登入角色／B 排程套用與跨裝置同步／C 斷線與衝突回饋／D 大資料與匯出列印），每項附「預期」並對應本系列修復編號（#32–#42），通過標準與後續合併順序。第二帳戶與 Realtime 恢復後照單操作即可完成發布門檻的實測部分。
+- 狀態：staging 41d4f88；PR16/18 draft；本輪無程式碼變更、無部署。
+
 ## 2026-10-15 15-min tracking R50 checkpoint：負結果輪——board-locate/table-marks/table-sort/tour 四模組（無缺陷）；互動模組掃尾完成
 
 - 審查（皆無缺陷）：①board-locate＝唯讀復位提示，null/零尺寸護欄＋cleanup 模式；②table-marks＝localStorage 型別驗證＋完整 escaping＋長度上限（200/60）；③table-sort＝型別比較器＋空值雙向墊底＋穩定排序（索引決勝）＋escaping；④tour＝placement 鉗位、stop 清理、rendering 重入鎖、pre 步驟 fallback、舊引擎 try/catch。
