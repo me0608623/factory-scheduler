@@ -6,6 +6,7 @@
 - 修復：`if(!w){toast(tx(...));return;}`——三語提示「請允許彈出視窗後再按一次列印」。
 - 重現/鎖定：新測試 `web/tests/print-popup-guard.test.mjs`（vm 編譯真函式，window.open stub 回 null／回正常 document 兩案例）。修復前 1 RED（TypeError）。——2/2 綠。
 - 驗收：全套 web 852/852 綠＋build 過。staging 部署驗收見下。 
+- staging 部署狀態：fe574fb 推送後 deployment 逾 4 分鐘未出現（與 R39 情節同＝間歇性 Render/GitHub App 延遲；上次於下次推送時恢復）。本提交後再觀察；若持續未部署則列使用者檢查項（Render dashboard）。
 
 ## 2026-10-15 15-min tracking R42 checkpoint：匯出 Excel 下載流程雙層驗證（產物＋瀏覽器）——無缺陷
 
