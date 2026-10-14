@@ -2953,14 +2953,14 @@ MODALS.leaveq=m=>{
     foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="lq-go" '+(E.leaves.includes(m.date)?"disabled":"")+'>'+tx('看調整方案')+'</button>'};
 };
 Object.assign(MODAL_ACT,{
-  "inc-step":a=>{UI.modal.step=a.dataset.v;renderModal();},
-  "inc-back":()=>{UI.modal.step=null;renderModal();},
+  "inc-step":a=>{if(!UI.modal)return;UI.modal.step=a.dataset.v;renderModal();},
+  "inc-back":()=>{if(!UI.modal)return;UI.modal.step=null;renderModal();},
   "inc-mach":a=>openModal({t:"mach",id:a.dataset.v,fromInc:true}),
   "inc-emp":a=>openModal({t:"leaveq",id:a.dataset.v}),
   "inc-rush":()=>{if(canOrders())openModal({t:"ord",id:null,pri:0});else toast("目前沒有新增急單的權限");},
-  "lq-date":a=>{UI.modal.date=a.dataset.v;renderModal();},
+  "lq-date":a=>{if(!UI.modal)return;UI.modal.date=a.dataset.v;renderModal();},
   "lq-go":()=>{
-    if(!canIncidents())return;
+    if(!canIncidents()||UI.modal?.t!=="leaveq")return;
     const eid=UI.modal.id,d=UI.modal.date,E=emp(eid);
     const n=S.blocks.filter(b=>b.emp===eid&&b.date===d&&futureOf(b)).length;
     if(!n){pushUndo();E.leaves.push(d);commit({kind:"leave",title:E.name+" "+md(d)+" 請假（當天沒有排工作）",lines:[]},"incidents.manage");closeModal();toast("已登記，當天沒有他的工作");return;}
@@ -3118,7 +3118,7 @@ Object.assign(MODAL_ACT,{
     commit({kind:"edit",title:tx('刪除員工')+" "+E.name,lines},"master.manage");
     lines.length?showResult():closeModal();
   },
-  "m-proc":a=>{UI.modal.draft.proc=a.dataset.v;rerender();},
+  "m-proc":a=>{if(!UI.modal?.draft)return;UI.modal.draft.proc=a.dataset.v;rerender();},
   "m-mach-factory":a=>{if(!canMaster())return;UI.modal.draft.factory=+a.dataset.v;rerender();},
   "m-prod":a=>{if(!canMaster())return;toggleIn(UI.modal.draft.products,a.dataset.v);rerender();},
   "m-fd":a=>{captureFault(UI.modal);UI.modal.fd=+a.dataset.v;rerender();},
@@ -3719,14 +3719,14 @@ MODALS['person-month']=m=>{
     foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="pm-save">'+tx('套用到這個月')+'</button>'};
 };
 Object.assign(MODAL_ACT,{
-  "pd-set":a=>{UI.modal.leave=a.dataset.v==="leave";rerender();},
+  "pd-set":a=>{if(!UI.modal)return;UI.modal.leave=a.dataset.v==="leave";rerender();},
   "pd-save":()=>{
     if(!canIncidents())return;
     const m=UI.modal;
     closeModal();
     applyPersonDay(m.id,m.d,!!m.leave);
   },
-  "pm-week":a=>{const w=+a.dataset.v,set=UI.modal.off;set.has(w)?set.delete(w):set.add(w);rerender();},
+  "pm-week":a=>{if(!UI.modal?.off)return;const w=+a.dataset.v,set=UI.modal.off;set.has(w)?set.delete(w):set.add(w);rerender();},
   "pm-save":()=>{
     if(!canIncidents())return;
     const m=UI.modal,E=emp(m.id);

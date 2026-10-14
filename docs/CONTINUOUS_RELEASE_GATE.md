@@ -1,5 +1,21 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R14 checkpoint：staging 批次部署 d8ee0bd（#29）完成驗收
+
+- 起點 0ed8a7b clean；**17c7d91 為 d8ee0bd 祖先** OK → 普通 push `d8ee0bd:codex/excel-friendly-ui-20260930`（17c7d91..d8ee0bd，non-force）。
+- **部署證據**：GitHub deployment **7062943883** sha=**d8ee0bd**，statuses[0]=**success**；staging 服務 bundle `index-DsS5eFgY.js`（新構建）。
+- **runtime 標記驗證**：線上 bundle 壓縮後 `function oy(t){if(!t||!ct())return;const e=t.date…`＝#29 的 null-modal 守門**已在線上**。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 停用；PR16/18 draft 門檻不變（PR16 已含至 6962b5f）。
+- 下一步：①MODAL_ACT 連點類系統性掃描；②發布門檻待使用者側。
+
+## 2026-10-15 15-min tracking R13 checkpoint：缺陷#29 ot-save 連點第二下未捕捉 TypeError
+
+- 起點 87fee23 clean。**探索**（連點／靜默失敗類）：`"ot-save":()=>saveDailyOT(UI.modal)` 無 m 存在守門——第一下同步完成（含 closeModal）後，連點第二下事件到達時 UI.modal=null → `m.date` 拋 **未捕捉 TypeError**（僅 console，使用者無感知；首次儲存已成功故資料無損，但屬靜默處理器錯誤）。RED：vm 編譯實際函式呼叫 `saveDailyOT(null)` 確實拋出。
+- **最小修正（d8ee0bd）**：`if(!m||!canCalendar())return;` 一行——視窗已關＝安全 no-op。
+- **回歸**：新測 ot-save-guard 1/1（含 undefined）；全套 **808/808**＋build；CI @d8ee0bd Tests／smoke／Synthetic 全 success。**PR16 同步**→**6962b5f**（**809/809**＋build）push。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 停用；門檻不變。staging 未部署（累積 d8ee0bd 一個 runtime 變更，下輪批次）。
+- 下一步：①staging 批次部署 d8ee0bd；②繼續連點類掃描（其他 `MODAL_ACT` 直取 UI.modal 而無守門者）。
+
 ## 2026-10-15 15-min tracking R12 checkpoint：輸入邊界審查＋staging 情境清單唯讀驗收（無缺陷，安靜輪）
 
 - 起點 096e05b clean 無新事件。**輸入邊界審查（唯讀）**：memo-text maxlength=140＋送出前 trim＋空值 toast（DB check btrim 1-140 對齊）；leave-request 日期空值有守門；schedule-diff 空值/同日有守門；memo 機台/人員 select 空廠退化為「不指定」——邊界完備，無缺陷。
