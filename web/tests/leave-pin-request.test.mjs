@@ -190,3 +190,38 @@ test('actual LocalStore leave, approval and pin handlers keep schedules intact a
     }
   }finally{if(old===undefined)delete globalThis.localStorage;else globalThis.localStorage=old;}
 });
+
+test('unknown leave insert then close-reopen resubmit shows friendly conflict and schedules safe reread, never a second row',async()=>{
+  const db=await makeDb();try{
+    const actor='44444444-4444-4444-8444-444444444444';
+    await db.query("insert into auth.users(id,email) values($1,'synthetic-leave2@invalid')",[actor]);
+    await db.query("update profiles set role='boss' where user_id=$1",[actor]);
+    const employee=(await db.query("select id from employees where name='張三'")).rows[0].id,date=(await db.query('select (current_date+2)::text date')).rows[0].date;
+    const fake=new FakeSupabase(db,{});fake.uid=actor;
+    const reader=new SupabaseStore(fake);await reader.init();const state=await reader.load();
+    let failFirst=true;
+    const sdk=createClient('https://synthetic.invalid','sb_publishable_synthetic',{accessToken:async()=> 'synthetic',global:{fetch:async(url,options)=>{
+      const args=JSON.parse(options.body);
+      const result=await fake.from('leave_requests').insert(args);
+      if(result.error){const e=new Error(result.error.message||'insert failed');e.code=result.error.code;throw e;}
+      if(failFirst){failFirst=false;throw new TypeError('Failed to fetch');}
+      return new Response(null,{status:204});
+    }}});
+    const store=new SupabaseStore(sdk);store.session={user:{id:actor},access_token:'synthetic'};
+    const ids=['88888888-8888-4888-8888-888888888888','99999999-9999-4999-8999-999999999999'];let seq=0;const f=fixture('leave');f.ctx.S=state;f.ctx.STORE=store;f.ctx.uid=()=>ids[seq++];
+    f.ctx.$=s=>({value:s==='#leave-request-employee'?employee:s==='#leave-request-date'?date:'Synthetic note'});
+    const h=reconciliation(f);store.load=async options=>{h.reads.push('read');return reader.load({remember:false});};
+    await f.run(f.button);                                  // #1 commits to SQL, response lost
+    assert.ok(f.m.error,'first save surfaced its error');
+    f.ctx.closeModal();
+    f.ctx.UI.modal={t:'leave-request'};                     // user reopens the form for the same person/date
+    await f.run(f.button);                                  // #2 hits one-pending unique index
+    assert.ok(!/duplicate key|unique constraint|leave_requests_one_pending/i.test(f.ctx.UI.modal?.error||''),'resubmit must explain the conflict in plain words, not raw SQL');
+    assert.equal(f.ctx.pendingReload,true,'conflict after unknown outcome must schedule one safe reread');
+    f.ctx.UI.modal=null;f.ctx.UI.drawer=null;f.ctx.maybeReload();
+    assert.ok(h.timers.length>=1,'safe reread timer queued');await h.timers.shift()();
+    assert.equal(h.reads.length,1);
+    const rows=(await db.query('select count(*)::int n from leave_requests where employee_id=$1 and date=$2',[employee,date])).rows[0].n;
+    assert.equal(rows,1,'partial unique index keeps exactly one pending row');
+  }finally{await db.close();}
+});

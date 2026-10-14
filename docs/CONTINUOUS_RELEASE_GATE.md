@@ -1,5 +1,15 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R4 checkpoint：缺陷#26 leave 重送撞唯一索引（友善訊息＋安全補讀）＋PR16 同步
+
+- 起點 96f81d4 clean 無 modifier。
+- **PR16 同步 R3 修正**：worktree 核對 clean/local=tracking=remote=22a6cda → 普通 merge → **61609a4**（含 8f98a21 memo 防重複）；全套 **804/804**＋build，push 22a6cda..61609a4；CI 實查 Tests／smoke／Synthetic 全 success @61609a4。
+- **缺陷#26 實證（先 RED，真 PGlite SQL＋實際 handler）**：leave_requests 有部分唯一索引 leave_requests_one_pending(employee_id,date where pending)——**資料層不會重複**（列數恆 1），但未知結果（第一發真提交後丟網路錯）→關窗→重開重送→撞索引→catch 把 **「duplicate key value violates unique constraint」原始 SQL 直送長者畫面**且不排補讀（詢問遲遲不現形）＝顯示層缺陷。RED 斷言「不得出現原始 SQL；須排一次安全補讀」。過程三段自我糾正：①首版踩 FK 假 RED；②fixture uid 非 UUID 假成功（兩發都沒進索引）；③插樁清理誤刪斷言行——最終以獨立探針證實真路徑後取得真 RED。
+- **最小修正（5329c48）**：catch 辨識 dupPending（code 23505／訊息含 leave_requests_one_pending|duplicate key|unique constraint）→ 顯示「這天可能已有等待中的請假詢問（剛才的送出可能已成立）；關閉視窗後系統會自動核對最新資料。」＋同 session 排 pendingReload 一次安全補讀（既有 maybeReload 守門）。不改 DB、不加輪詢。
+- **回歸**：聚焦 leave 19/19（新測 GREEN：友善訊息＋補讀 1 次＋列數 1）；全套 **804/804**＋build PASS；push 96f81d4..5329c48，CI 實查 @5329c48 Tests／smoke／Synthetic 全 success。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 保持停用；PR16/18 draft 門檻不變。5329c48 尚未同步 PR16（下輪）。
+- 下一步：①同步 5329c48 至 PR16；②評估 staging 批次部署（runtime 變更累積 0a64219/8f98a21/5329c48）；③新缺陷探索（候選：memo/leave 之外 direct-write 家族 review——runDrawerWrite 的審核/釘選未知結果同類 UX）。
+
 ## 2026-10-15 15-min tracking R3 checkpoint：缺陷#25 memo 未知結果關窗重開重複列（RED→最小修→GREEN）
 
 - 起點 ad92da1 clean 無 modifier。
