@@ -2216,10 +2216,10 @@ Object.assign(MODAL_ACT,{
       done(moved,P){closeModal();dpApplied(moved,P);}
     });
   },
-  "c-week":a=>{if(!canCalendar())return;const w=+a.dataset.v,D=UI.modal.draft;D.week[w]=!D.week[w];rerender();},
-  "c-day":a=>{if(!canCalendar())return;const d=a.dataset.v,D=UI.modal.draft;const def=!!D.week[parseD(d).getUTCDay()];const cur=D.over[d]?D.over[d]==="work":def;const nv=!cur;if(nv===def)delete D.over[d];else D.over[d]=nv?"work":"off";rerender();},
+  "c-week":a=>{if(!canCalendar()||!UI.modal?.draft)return;const w=+a.dataset.v,D=UI.modal.draft;D.week[w]=!D.week[w];rerender();},
+  "c-day":a=>{if(!canCalendar()||!UI.modal?.draft)return;const d=a.dataset.v,D=UI.modal.draft;const def=!!D.week[parseD(d).getUTCDay()];const cur=D.over[d]?D.over[d]==="work":def;const nv=!cur;if(nv===def)delete D.over[d];else D.over[d]=nv?"work":"off";rerender();},
   "c-save":()=>{
-    if(!canCalendar())return;
+    if(!canCalendar()||!UI.modal?.draft)return;
     const D=UI.modal.draft,openD=d=>{const o=D.over[d];return o?o==="work":!!D.week[parseD(d).getUTCDay()];};
     if(readOnly&&S.blocks.some(b=>futureOf(b)&&!openD(b.date))){toast("新設定會移動既有工作；還需要「調整與自動排程」權限");return;}
     const bad=closeDaysPlanBad({week:[...UI.modal.draft.week],over:{...UI.modal.draft.over}});
@@ -3046,7 +3046,7 @@ MODALS.help=m=>{
     '<div class="help-sec"><h4 style="margin:0;font-size:21px;font-weight:900">'+esc(title)+'</h4><ol>'+steps.map(s=>'<li>'+tx(s)+'</li>').join("")+'</ol>'+(tip?'<div class="tip">'+tx(tip)+'</div>':"")+'</div>',
     foot:(m.sec>0?'<button class="btn" data-act="help-sec" data-v="'+(m.sec-1)+'">‹ '+tx('上一步')+'</button>':"")+'<div class="spacer"></div>'+(m.sec<HELP.length-1?'<button class="btn primary" data-act="help-sec" data-v="'+(m.sec+1)+'">'+tx('下一步')+' ›</button>':'<button class="btn primary" data-act="close">'+tx('完成')+'</button>')};
 };
-MODAL_ACT["help-sec"]=a=>{UI.modal.sec=+a.dataset.v;const ov=$("#ov");renderModal();if(ov)$("#ov").scrollTop=0;};
+MODAL_ACT["help-sec"]=a=>{if(!UI.modal)return;UI.modal.sec=+a.dataset.v;const ov=$("#ov");renderModal();if(ov)$("#ov").scrollTop=0;};
 // 功能解說：主題選擇 → 逐步導覽（左側導覽列獨立入口，不動新手導覽）
 MODALS["row-mark"]=m=>({title:tx('標記／填色'),body:
   '<div class="mk-swatches">'+MARK_COLORS.map(c=>'<button class="mk-swatch sw-'+c.k+(m.draft.c===c.k?" on":"")+'" data-act="mk-color" data-v="'+c.k+'" aria-pressed="'+(m.draft.c===c.k)+'" title="'+tx(c.label)+'">'+tx(c.label)+'</button>').join("")+'</div>'+
@@ -3066,9 +3066,9 @@ function toggleIn(arr,v){const i=arr.indexOf(v);if(i>=0)arr.splice(i,1);else arr
 function showResult(){openModal({t:"logone",id:S.log[0].id});}
 function captureFault(m){const fs=$("#f-fs"),nt=$("#f-note");if(fs)m.fs=+fs.value;if(nt)m.note=nt.value;}
 Object.assign(MODAL_ACT,{
-  "ot-day":a=>{if(!canCalendar())return;UI.modal.open=a.dataset.v==="1";rerender();},
-  "ot-person":a=>{if(!canCalendar())return;const selected=a.dataset.v==="1";UI.modal.overrides[a.dataset.id]=selected===overtimeDefault(emp(a.dataset.id),UI.modal.date)?null:selected;rerender();},
-  "ot-reset":a=>{if(!canCalendar())return;UI.modal.overrides[a.dataset.id]=null;rerender();},
+  "ot-day":a=>{if(!canCalendar()||!UI.modal)return;UI.modal.open=a.dataset.v==="1";rerender();},
+  "ot-person":a=>{if(!canCalendar()||!UI.modal?.overrides)return;const selected=a.dataset.v==="1";UI.modal.overrides[a.dataset.id]=selected===overtimeDefault(emp(a.dataset.id),UI.modal.date)?null:selected;rerender();},
+  "ot-reset":a=>{if(!canCalendar()||!UI.modal?.overrides)return;UI.modal.overrides[a.dataset.id]=null;rerender();},
   "ot-save":()=>saveDailyOT(UI.modal),
   "m-color":a=>{if(!canMaster())return;UI.modal.draft.color=+a.dataset.v;rerender();},
   "m-emp-factory":a=>{if(!canMaster())return;const d=UI.modal.draft;d.factory=+a.dataset.v;d.skills=d.skills.filter(id=>factoryOf(mach(id))===d.factory);rerender();},
