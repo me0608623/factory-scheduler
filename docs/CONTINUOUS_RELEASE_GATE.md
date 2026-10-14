@@ -1,5 +1,12 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R20/R21 checkpoint：queueSync 失敗→重試保存語意鎖定（無缺陷）
+
+- 起點 0f4c6ec clean（R20 中斷後 R21 接續完成同一探索）。**假說**：save 失敗後按「重試」（queueSync(null)）——重試快照取當下 S，若 S.log 在失敗後被任何路徑清掉，紀錄會遺失。
+- **實證（真 LocalStore sync 路徑＋vm 編譯實際 queueSync）**：失敗（SYNTH_FAIL）→ error 呈現 → 按重試（null entry）→ 成功——**S.log 恰 1 筆、持久化 log 恰 1 筆**＝重試快照完整保留紀錄與資料。過程自我糾正×2：①harness 缺 syncChain（ReferenceError）補上；②誤解 queueSync 會推 S.log（實為 commit 職責）——測試改為模擬 commit 先推再 queueSync。**無產品缺陷**（queueSync 不動 S.log；snapshot 取呼叫時 S）。
+- **提交 2ec9afa**：新測鎖定「失敗→重試保存」語意；全套 **812/812**＋build；CI 全綠。**PR16 同步**→**7fc3e31**（**813/813**）。純測試變更，staging 不部署（runtime 未變）。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 停用；門檻不變。
+- 下一步：新缺陷類探索（優先：離線／版本衝突／權限邊界）。
 ## 2026-10-15 15-min tracking R19 checkpoint：undo 連點語意鎖定＋a11y toast/syncChip 審查（無缺陷）
 
 - 起點 bd40eec clean。**探索**：undo() 為 async（commit await）——連點第二下會否交錯寫入？**實證（vm 編譯實際 undo）**：兩次 undo 各自 pop 一筆快照、各 commit 一次、終態＝最舊快照——語意正確（同步 pop 先於 await，快照序列不交錯）；queueSync 的 syncChain 序列化保證兩次 commit 不交錯落庫。初版測試斷言方向寫反（stack 頂端=最舊），修正後 GREEN——非產品缺陷。
