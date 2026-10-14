@@ -6,6 +6,12 @@
 > - **PR16/18 均 draft**：#18 head＝本分支（自動跟隨）、#16＝test-mode 分支（每輪同步；最新 853/853 綠）。
 > - **待使用者（合併前必做）**：①Render staging 部署通道檢查＋hook secret；②staging Realtime 平台 ticket（WS 500）；③第二帳戶（同意信未回覆不得再寄）；④正式 VITE_TEST_* 三值；⑤全部通過後：真實跨帳戶/手機桌面同步、斷線衝突回饋驗收 → 才合併 PR → 才部署正式。
 
+## 2026-10-15 15-min tracking R50 checkpoint：負結果輪——board-locate/table-marks/table-sort/tour 四模組（無缺陷）；互動模組掃尾完成
+
+- 審查（皆無缺陷）：①board-locate＝唯讀復位提示，null/零尺寸護欄＋cleanup 模式；②table-marks＝localStorage 型別驗證＋完整 escaping＋長度上限（200/60）；③table-sort＝型別比較器＋空值雙向墊底＋穩定排序（索引決勝）＋escaping；④tour＝placement 鉗位、stop 清理、rendering 重入鎖、pre 步驟 fallback、舊引擎 try/catch。
+- **里程碑：src/ 全部模組（40+）在 R22–R50 間至少完整審查一輪**。後續探索策略轉為：組合情境交叉（已修復缺陷的互動面）與使用者側驗收準備。
+- 狀態：staging 41d4f88（#32–#42 全上線）；PR16/18 draft；本輪無程式碼變更、無部署。
+
 ## 2026-10-15 15-min tracking R49 checkpoint：負結果輪——權限管理流程與 szoom 縮放模組審查（皆無缺陷）
 
 - 審查①（權限管理 access-*）：boss 閘×modal 型別檢查（`?.t` 可選鏈）×disabled 雙擊鎖×失敗復原×stale-modal 檢查×成功後重取清單——老闆帳號 checkbox disabled 防自鎖。僅讀碼審查，未動任何帳號（紅線遵守）。
