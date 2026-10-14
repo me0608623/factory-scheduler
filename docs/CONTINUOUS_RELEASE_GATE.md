@@ -1,5 +1,33 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R1 checkpoint：memo 交接修正完成驗證＋密文工作流唯讀覆核
+
+- 起點 HEAD a83b0d4（ahead 3：merge＋main 兩 docs），未提交＝HANDOFF_20MIN 指定的 memo late-ACK 交接修正（app.js 7 行＋memo-save-request.test.mjs 56 行）＋12:48 checkpoint 6 行＋未追蹤交接文件。重疊核對：app.js mtime 停 10-14 08:13、doc 12:50，無其他 modifier/deploy；20 分鐘 heartbeat 屬另一 chat（handoff 記錄），本 15 分鐘追蹤為使用者最新 /goal，重疊時仍只做唯讀核對。
+- **交接修正完成**：聚焦 memo 13/13；全套 web **802/802 exit0**＋build PASS——交接未確認的全套結果現已確認。commit **0a64219**（fix: reconcile late successful memo save with safe reread）＋**3eb15ce**（docs: 20min handoff checkpoint），普通 push a596364..3eb15ce。CI 實查 @3eb15ce：**Tests／Deployment smoke／Synthetic 全 success**。
+- **catalog-inventory／permissions-drill 密文相容唯讀覆核（未 dispatch）**：兩工作流已是密文專用——BACKUP_ENCRYPTED_ONLY=true 不回退明文、unzip 後 layout 驗證 database.tar.age、真 age 解密（BACKUP_AGE_IDENTITY secret）、umask 077、私有輸出只寫 RUNNER_TEMP 不進 log（diagnostics withheld）、artifact 只上傳數值白名單 inventory.md、always 清理明文與私鑰。本機工具測試 **16/22**，6 失敗全數歸因本機缺 age 執行檔（與歷史 checkpoint 記錄相同 6 項，which age 無此命令；CI runner apt-get 裝 age 先前 57/57）。**未驗證**：兩工作流真 dispatch 端到端（需新鮮加密備份 artifact）；下一輪先查 db-backup-encrypted-* artifact 存在與新鮮度再決定。
+- 正式 1023／0037／Auth／角色／資料未動；無 cloud 寫入、無寄信、無新明文 artifact、無新資源。PR16 未同步 memo 修正（其 worktree 仍在 534e574），PR16/18 仍 draft、發布門檻不變；nightly 367614493 保持停用。
+- 下一步：①查加密備份 artifact 新鮮度→決定 catalog/permissions dispatch；②memo 修正同步 PR16（先核 clean/無 modifier/remote 一致）；③候選：memo 未知/遺失結果跨關窗重開之重複儲存（handoff 指定，尚未實證）。
+
+## 2026-10-14 12:48 checkpoint 使用者停止舊追蹤並交接二十分鐘排程
+
+- 使用者明確要求停止原 cron、交给另一 agent 建立每 20 分鐘直到用戶停止的持續接續 prompt。舊 Codex heartbeat `automation` 已透過 automation_update 設 PAUSED，讀回 TOML 確認；本條取代歷史 checkpoint 的追蹤 ACTIVE 敘述，不影響仍 disabled_manually 的 GitHub nightly367614493。
+- 未提交 memo late ACK 最小修正保留在 app.js/memo-save-request.test.mjs；HEAD a83b0d4，54/54 聚焦與 build PASS，全套測試 session 無法取回最終結果、仍未確認，尚未 commit/push/CI/同步PR16或deploy，不冒稱已發布。
+- 交接詳見 `docs/HANDOFF_20MIN_2026-10-14.md`；另一 agent 只處理新追蹤設定，不同時修改程式或部署。正式1023/0037/Auth/角色/資料未動，發布門檻不放寬。新追蹤 `20`「產線排程20分鐘持續接續」已建立為 heartbeat/ACTIVE/每20分鐘返回原chat；主agent完整讀回prompt、target及interval20驗證，舊automation仍PAUSED。只有使用者要求停止才停，無重複ACTIVE排程。
+
+## 2026-10-14 08:05 checkpoint：請假／備忘釘選成功晚回覆安全補讀
+
+- **08:10收尾（取代下文stage待確認）**：stage Tests **38488348435**與smoke **38488348454**現全success。Render app error於00:10:23Z後核實 **00:08:05–00:10:07Z**窗 **0/hasMorefalse**，只輸出彙總，非長期健康/Realtime恢复。PR16/18實查OPEN/draft/MERGEABLE，不因全綠放行正式；6QA tabs/dev保留，doc-only不更新stage/solver，持久worktree供下輪繼續。
+
+- 起點 **92f2a1d21196111234c025e9a663252b746800d0** clean，指定交接/缺陷總表/NEXT_TASKS/測試模式與最新checkpoint已讀；process僅既有esbuild/本輪shell，沒有第二modifier/deploy。fetch main **317c375**只有他人2檔15新增/2刪除紀錄，普通merge **ff7065d**保留，不切換共享checkout、不丟棄提交。正式1023/setup_pending/Auth/角色/授權/schema與資料未動、不再0037。
+- 探索→有效RED：3項actual handler＋actual background timer生命周期 **2 RED/1 PASS**；請假新增/審核/釘選成功晚回覆後S仍舊、pendingReload=false。另3條真PGlite migrated SQL＋actual SDK/204＋handler/600ms timer，各實際提交後hold回覆→新draft，皆在pendingReload=false有效RED；**6項新增分次有效重現合計5 RED/1 PASS**。不是源碼字串/HTTP200驗收，不是真雲端慢網路/兩actor資料寫入。
+- **fixture問題分開記**：最初3 SQL setup缺created_by而23502，補合成actor後leave case又因同人同日既有pending踩唯一索引23505，且ready只等commit造成1測等待/2測連帶取消（共3 cancelled）。加Promise.race捕捉handler已返回、並只在resolve/pin種既有leave後才取得上述有效RED。這些不是產品5個新缺陷或真平台等待；沒有改migration/唯一索引/權限以迴避測試。
+- **37fd415ec2466ed25481ebb86a4286e7f69b596f**只改`runDrawerWrite`與`leave-request-save`已完成成功但owner失效時：sameSession則pendingReload，finally既有maybeReload/600ms有界安全補讀。新草稿/preview/拖曳/在途/失敗写入仍前後guard延後，不重開舊視窗、不toast新draft、不向新actor讀取、不重送或另建request，不恢復失去owner的LINE副作用。Store/RPC/migration、未知失敗分類與memo-save另一路徑未改，不稱所有直接寫入風險已修。
+- 聚焦 **50/50**、完整本機web dot exit0、build **index-78YwSAKS.js**通過，CI實測 **798/798 web、57/57工具**；來源Tests **38488020425/38488024508**、smoke **38488020571/38488024566**、synthetic **38488024543**全success。真SQL每條證明draft/原S不變，關閉後read1次，操作只dispatch1次、planned blocks逐項不變。create為pending且新ID只有1列；approve為approved且employee/date的leave1列；pin為true。沒有拿請假詢問成功當已准假。既有chunk>500k warning保留，不重跑age缺依賴6項/skip/stub/備份或新還原。
+- Impeccable harden/craft-floor讀完、context同session不重跑，保留抽屜/版面/44px操作區與文案；detector一次無輸出，非全a11y或真手機Safari驗收。HTML/CSS/字典零變化，不重做已修手機抽屜。Computer Use skill已讀，既有IAB真qa-lead普通root **10/14／1廠22段/dialog0**只讀基準與6QA tabs/dev保留，沒有cloud審核/新增請假/釘選/報工/確認/套用。
+- PR16 clean/無modifier（只有既有node19520/esbuild36560/本輪shell），local/tracking/ls-remote **b9ee82c**一致後普通merge **534e574b098b14caecd2dbd19191eb848332caaf**，原5檔105insert/3delete保留；50/50聚焦與build **index-2tQQ0ptl.js**成功後non-force push。PR16 Tests **38488138555/38488142101**、smoke **38488138549/38488142143**、synthetic **38488142097**現全success，沒有合main或正式deploy。
+- Render deploy/monitor/post-deploy已讀；list_services核實既有 **srv-daubq860tbcc73eq5s6g / codex/excel-friendly-ui-20260930 / autoDeploy=yes / rootDir=web**。source5runs全success且remote精確909d1c0＋ancestor後non-force更新stage **37fd415**；auto new_commit **dep-db7cfj7avr4c73f4sl7g**於 **00:08:04.105546Z live37fd415**，普通rootHTTP200/**CF HIT/index-ocxx-Pc7.js**；真qa-lead普通reload同bundle，等雲端heading後 **10/14／1廠22段DOM id/label/text/style一致、dialog0/browser error0**。只讀load相容不是已實際觸發平台晚ACK/兩actor同步；沒有任何cloud寫入。Stage smoke **38488348454**success、Tests **38488348435**與2分鐘app error窗待收尾。solver/tools/workflow零diff，不主動重deploy solver/清cache/改env/建立資源。
+- 不重匯12/8/20/103，不改正式資料/0037/帳號/密碼/寄信，不新增真明文dump/SQL/請求/身份artifact/log或費用。PR16/18仍draft，真不同actor角色/套用/手機桌面sync/斷線衝突/VITE_TEST門檻未全過，nightly367614493保持停用，本追蹤ACTIVE。下一候選：**memo-save自有sameContext路徑**成功晚ACK是否同類不補讀，尚未實證/修；以及直接寫入unknown結果的核對流程，不把本輪成功分支修正稱全面恢復。
+
 ## 2026-10-14 07:53 checkpoint：成功報工晚到後安全補讀
 
 - **07:58收尾（取代下文stage待確認）**：stage Tests **38487179649**與smoke **38487179646**全success；Render app error於23:58:16Z後查實際 **23:56:06–23:58:08Z**窗 **0/hasMorefalse**，只输出彙總、不是真長期健康/Realtime恢復。PR16與PR18實查OPEN/draft/MERGEABLE，不因全綠或可merge而放行正式。6QA tabs/dev保留，doc-only不更新stage/solver，持久worktree供下一輪繼續。
