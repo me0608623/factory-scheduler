@@ -1,5 +1,14 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R30 checkpoint：負結果輪——safe() 家族掃描收尾＋四個候選審查（皆無缺陷）
+
+- **safe() 同型掃描收尾**：除 app.js／transfer-ui／roster-ui 外，其餘模組（chat-ui/settings/overview/worklog/win/groups/manual/overtime）grep 無任何 `ui.modal` 解參考——#37/#38/#39 家族全面關閉。
+- 審查①（鍵盤啟動）：`.blk` 有 tabindex=0 role=button 且主 keydown（app.js:1310+）處理 Enter/Space（PV 中走 pvClickBlock）；`.workblk` 有獨立 keydown（:4884）——無缺口。
+- 審查②（confirmRow 兩段確認殘留）：切頁（:1469）與開 modal（:2293）皆清 confirmRow；殘留時按鈕本身顯示「再按一次刪除」紅字＝武裝狀態可見非靜默——設計可接受。
+- 審查③（tfAutoArchive 導航觸發寫入）：localStorage 月標記冪等＋n>0 才 commit＋commit 有 transfers.manage 中央閘；離線失敗僅本月不自動重試（資料完整、可手動歸檔、下月自癒）——影響可接受，不修。
+- 審查④（月曆筆刷殘留）：person-day 入口 `if(!canIncidents())break`（:1356）＋leaveBrushSaving 擋連點＋完成時 sameOwner/sameView/canIncidents 再驗（:1427-1429）；武裝狀態有按鈕高亮＋提示文字可見——無缺陷。
+- 本輪無程式碼變更、無部署。下一輪：新缺陷類（執行報表 reconcile 的 cancel 路徑或 floor 平面圖互動）。
+
 ## 2026-10-15 15-min tracking R29 checkpoint：缺陷#39 roster-ui null-modal／失蹤草稿家族（17 處）
 
 - 探索類別：#38 延伸。`roster-ui.js` 三個子家族：①safe() 內 `ui.modal.draft`／`const m=ui.modal` 後 `m.draft`（null→英文 TypeError toast）；②`current(id)` 失蹤輪班草稿後直接 `.shifts`／`structuredClone(undefined).x`；③`document.getElementById('rs-rate').value` DOM 缺失＋rs-apply `m.t` 未守門＋rs-auto（未包 safe，自有 catch）同型。共 17 處。
