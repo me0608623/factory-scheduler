@@ -1,5 +1,12 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R12 checkpoint：輸入邊界審查＋staging 情境清單唯讀驗收（無缺陷，安靜輪）
+
+- 起點 096e05b clean 無新事件。**輸入邊界審查（唯讀）**：memo-text maxlength=140＋送出前 trim＋空值 toast（DB check btrim 1-140 對齊）；leave-request 日期空值有守門；schedule-diff 空值/同日有守門；memo 機台/人員 select 空廠退化為「不指定」——邊界完備，無缺陷。
+- **staging 情境清單唯讀 E2E（qa-lead session、零寫入）**：更多→試排情境開啟正常（17c7d91 bundle）——標題、隱私 hint、「還沒有保存的情境」空態、保存目前排程鈕在；關閉正常。scenarioReadOwner 唯讀族在部署版實證可用。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 停用；門檻不變。
+- 下一步：繼續新缺陷探索；發布門檻待使用者側。
+
 ## 2026-10-15 15-min tracking R11 checkpoint：TV 模式×direct-write 顯示與釋放路徑審查（無缺陷，安靜輪）
 
 - 起點 5d8af73 clean 無新事件（main/PR 無變動、CI 綠）。
