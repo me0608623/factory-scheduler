@@ -1,5 +1,55 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R12 checkpoint：輸入邊界審查＋staging 情境清單唯讀驗收（無缺陷，安靜輪）
+
+- 起點 096e05b clean 無新事件。**輸入邊界審查（唯讀）**：memo-text maxlength=140＋送出前 trim＋空值 toast（DB check btrim 1-140 對齊）；leave-request 日期空值有守門；schedule-diff 空值/同日有守門；memo 機台/人員 select 空廠退化為「不指定」——邊界完備，無缺陷。
+- **staging 情境清單唯讀 E2E（qa-lead session、零寫入）**：更多→試排情境開啟正常（17c7d91 bundle）——標題、隱私 hint、「還沒有保存的情境」空態、保存目前排程鈕在；關閉正常。scenarioReadOwner 唯讀族在部署版實證可用。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 停用；門檻不變。
+- 下一步：繼續新缺陷探索；發布門檻待使用者側。
+
+## 2026-10-15 15-min tracking R11 checkpoint：TV 模式×direct-write 顯示與釋放路徑審查（無缺陷，安靜輪）
+
+- 起點 5d8af73 clean 無新事件（main/PR 無變動、CI 綠）。
+- **唯讀審查**：①TV 模式（body.tv）僅隱藏 .cards/.admin 與停用聊天，ops-drawer 保持運作＝設計（管理模式切換存在）；directWriteStatus 在 people/notes 抽屜正常渲染。②releaseDirectWrite 手術式更新受**操作身分守門**（`UI.directSaving!==operation` 早退）—— op1 釋放時若 op2 在途不會誤啟用；按鈕 disabled 公式雖未含跨族旗標，但 runDrawerWrite 入口守門（directSaving||memoSaving||leaveBrushSaving||modal||PV 全擋）完備——視覺差異不构成資料風險。③leave-resolve/memo-pin 均帶 data-direct-write-control。結論：無缺陷。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 停用；門檻不變。
+- 下一步：繼續新缺陷探索；發布門檻待使用者側。
+
+## 2026-10-15 15-min tracking R10 checkpoint：main 例行合併＋PR16 平行度稽核＋scenarioReadOwner 唯讀族審查（無缺陷）
+
+- 起點 ef3c470 clean。**main 例行合併**：origin/main（d7a6f04，僅 fs-hunt docs 23 行）普通 merge → **553d8af**；全套 **807/807**＋build；push 後 CI Tests／smoke／Synthetic 全 success @553d8af。
+- **PR16 平行度稽核**：diff a209e17..ef3c470 runtime＝僅 2 檔——`styles.css`（PR16 多 `color:var(--ink)` 於 environment-banner 按鈕）與 `cloud-test-seed.test.mjs`（PR16 多 14 行）＝**另一 agent 的 test-mode 特有提交**（非 gate 遺失），依協議保留在 PR16、不反向覆蓋；我的全部 runtime 修正（#25-#28＋橫幅）在 PR16 齊備（非 merge 稽核：826cacb..a209e17 僅含本系列提交）。無需動作。
+- **scenarioReadOwner 唯讀族審查（唯讀）**：openScenarioList/viewScenario 皆有 owner 模式（store/client/user/epoch/modal/PV/S/focus 全比對）、loading 態、`item.id!==id` 防護、getScenario 兩 store 實作對應——未發現缺陷，不重做既有覆蓋。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 停用；門檻不變。
+- 下一步：①新缺陷探索；②發布門檻待使用者側（第二帳戶同意信未回）。
+
+## 2026-10-15 15-min tracking R9 checkpoint：undo×補讀互動探索——假設被既有契約否決（無缺陷，實證收斂）
+
+- 起點 96c1540 clean。**假說**：未知結果補讀（#27 reconcile）套用伺服器事實後，undoStack 殘留舊快照——undo+sync 可能覆蓋剛現形的已准假等狀態。
+- **實驗**：寫真 SQL RED（補讀後 undoStack 未清）＋最小修（onRemoteChange reconcile applied 時 undoStack=[]）。修後聚焦綠但全套 **2 RED**：execution-receipt #8/#164 明確鎖定「late-ACK 補讀**不得**清 undo」（其測試以 undoStack 為契約斷言）——07:53 checkpoint 設計有意的保護。
+- **否決理由（查證）**：undo 後 sync 撞**排程版本衝突守門**（supabase-store 測試「排程已被別人更新→整份拒絕、不留半套」）——跨版本覆蓋已被既有防護攔截；殘留 undo 屬「回到已知狀態」語意。跨契約變更需使用者決策，不單方改。
+- **處置**：撤回實驗修（git checkout）＋移除假說測試；回歸 **807/807**＋build PASS＝回到 17c7d91 基線，零淨變更。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 停用；PR16/18 draft 門檻不變。
+- 下一步：①新缺陷探索（候選：scenarioReadOwner 唯讀族、TV 模式下 direct-write 顯示）；②發布門檻待使用者側不變。
+
+## 2026-10-15 15-min tracking R8 checkpoint：staging 批次部署 17c7d91（#28＋橫幅修）完成驗收
+
+- 起點 9fd1a4a clean；**09131b5 為 17c7d91 祖先** OK → 普通 push `17c7d91:codex/excel-friendly-ui-20260930`（09131b5..17c7d91，non-force）。
+- **部署證據**：GitHub deployment **7061203125** sha=**17c7d91** env=web-staging，statuses[0]=**success**。staging 服務 bundle `index-BHdCzvO3.js`（與 09131b5 版 BdRv0dC4 不同＝新構建）。
+- **runtime 標記驗證**：線上 bundle grep `scenario-unknown:`（#28）＝1、`directWriteError=null`（橫幅修）＝1——R7 兩修已上線。
+- **瀏覽器實際驗收（qa-lead session）**：看板 boot 正常、10/14 22 段、dialog 0、bundle 一致。未按雲端寫入。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 停用；PR16/18 draft 門檻不變（PR16 已含全部至 a209e17）。
+- 下一步：①新缺陷探索（候選：undo 與 direct-write 補讀互動、scenarioReadOwner 唯讀族）；②PR16/18 發布門檻仍待使用者側（第二帳戶同意信未回）。
+
+## 2026-10-15 15-min tracking R7 checkpoint：缺陷#28 情境同名重開重複列＋directWriteError 殘留橫幅（兩修）
+
+- 起點 9ed8431 clean 無 modifier。
+- **缺陷#28 實證（save_planning_scenario RPC 語意）**：RPC 依 **id 冪等**（同 id+同名+同載荷→回原 id），但**無名稱唯一性**——未知結果（第一發真提交後丟網路錯）→關窗→重開保存視窗同名→makeScenario 產生**新 id**→插入成功→**同名兩列**（RED：真 PGlite+真 RPC+實際 handler，rows 2!==1）。同 modal 重試本就安全（m.item 引用重用，idempotent）。
+- **最小修正（17c7d91）**：UI.scenarioUnknown session 清單（鍵=名稱 trim、值={id,sk:user@epoch}）——catch 登記原 id；同 session 同名重試沿用原 id（RPC 冪等回原列）；成功 ACK 清除；跨 session 不沿用；改名＝新鍵不沿用（既有測試「改名不默默存舊名」保持）。已知拒絕也會登記（無害：重試撞「情境代號已使用」得到清楚已知錯）。既有測試 #4 的參考相等斷言放寬為 JSON 序列化相等（ledger 重試產生結構相同新物件，行為意圖=同 id+同載荷）。
+- **directWriteError 生命週期修（同 commit）**：#27 的安全補讀套用後，殘留的「處理失敗」橫幅與新狀態（已准假）矛盾——reloadFromStore applied 路徑加 `UI.directWriteError=null`。RED（真 SQL：RPC 提交+丟回應→橫幅在→補讀 timer→approved 浮現→橫幅仍在）→修後 GREEN。清除僅在 applied（deferred/failed 不清）。
+- **回歸**：scenario 7/7、leave-pin 21/21、memo 14/14；全套 **807/807**＋build；push 9ed8431..17c7d91，CI Tests／smoke／Synthetic 全 success。**PR16 同步**：merge→**a209e17**（**808/808**＋build）push。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 停用；門檻不變。staging 仍在 09131b5（兩修未部署，累積中）。
+- 下一步：①staging 批次部署 17c7d91（含 #28＋橫幅修）＋驗收；②繼續新缺陷（候選：scenarioReadOwner 家族唯讀路徑、undo 與 direct-write 互動）。
+
 ## 2026-10-15 15-min tracking R6 checkpoint：staging 批次部署 09131b5 完成驗收＋execution ledger 覆蓋複查
 
 - 起點 34fe380 clean；核對 **37fd415 為 09131b5 祖先**（merge-base --is-ancestor OK）→ 普通 push `09131b5:codex/excel-friendly-ui-20260930`（37fd415..09131b5，non-force）。
