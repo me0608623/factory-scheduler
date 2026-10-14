@@ -1,5 +1,14 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R18 checkpoint：staging 批次部署 e6ba43d（#31）完成驗收
+
+- 起點 e562bed clean；**7fc989b 為 e6ba43d 祖先** OK → 普通 push `e6ba43d:codex/excel-friendly-ui-20260930`（7fc989b..e6ba43d，non-force）。
+- **部署證據**：GitHub deployment **7064419439** sha=**e6ba43d**，statuses[0]=**success**；staging bundle `index-Bnyk9wq0.js`。
+- **runtime 標記驗證（壓縮形狀）**：`"c-save":()=>{var i;if(!ct()||!((i=u.modal)!=null&&i.draft))return;` 與 `if(!u.modal)return;u.modal.sec`（help-sec）＝#31 守門在線上。
+- **瀏覽器驗收（qa-lead session、零寫入）**：boot 正常、10/14 22 段、dialog 0、bundle 一致。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 停用；PR16/18 draft 門檻不變（PR16 已含至 8603679）。null-modal 掃描系列（#29/#30/#31 共 15 守門）全數上線。
+- 下一步：新缺陷類探索（掃描收斂後轉向）；發布門檻待使用者側。
+
 ## 2026-10-15 15-min tracking R17 checkpoint：缺陷#31 日曆／說明／加班切換族守門（#30 掃描延續）
 
 - 起點 16eace8 clean。**listener 級掃描**：列級掃全部 `UI\.modal\.<prop>` 直取（40 處），回溯所屬 handler 守門分類——多數 m-*/o-*/p-* 切換鈕只在 modal 開啟時存在（同步 render 移除按鈕，連點第二下不可達）；**可達風險**＝會關窗的 c-save/c-week/c-day 族（c-save 成功後 closeModal＋dpApplied）、help-sec（modal 內 sec 切換，防禦性）、ot-day/ot-person/ot-reset（加班設定切換族，ot-save 已修但同窗鄰鈕未守）。
