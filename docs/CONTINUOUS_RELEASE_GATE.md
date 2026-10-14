@@ -1,5 +1,14 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R24 checkpoint：缺陷#34 一般工作預覽確認復活遠端已刪工作＋權限邊界審查（其餘無缺陷）
+
+- 探索類別：版本衝突×取消後寫入。延續 #33：衝突恢復前景補讀替換 S 不受 modal 守門（remoteReloadBlocked 只擋背景），一般工作預覽（general-preview）開著時若遠端已刪該段，`gw-apply` 的 `assignments(S).filter(a=>a.id!==D.id).concat(D)` 無條件 concat＝復活已刪工作，套用後覆蓋另一裝置刪除。
+- 重現：新測試 `web/tests/general-apply-resurrection.test.mjs`（vm 編譯真 `previewGeneral`＋真 `gw-apply`，模擬預覽後 S 替換）修復前 1 RED：A1 復活＋commit 已送。
+- 最小修正：`previewGeneral` 在 modal 記 `existed`；`gw-apply` 若 `existed&&` 當前 S 已無此 id → toast 中止不寫（新 i18n 鍵三語已補）。全新插入（existed=false）與正常移動不受影響——3/3 綠。
+- 同輪權限邊界審查（無缺陷）：`commit(entry,permission)` 中央閘＋`canPermission` PV 擋寫；undo 在 PV_BLOCK 內；blk→report-open 開 modal 未守門但 `reportWork` 提交有 `canPermission`×`canReport`（含 worker 只能報自己：`employeeId===block.emp` 且優先序正確）；`general-edit` 對失蹤 id 走新建草稿不崩潰；`b-pin`/`b-mach` 先變更後 commit 的本地分歧由 e.permission 恢復讀兜底。
+- 驗收：全套 web 824/824 綠＋build 過。staging 部署驗收見下。 
+- staging 部署驗收（e333d6f）：CI 先綠後前進 codex/excel-friendly-ui-20260930（357238d→e333d6f）；Render deployment success（per_page=1 查得，SHA=e333d6f）；bundle index-CEdbho95.js 內守門壓縮形狀 `modal.existed&&!Se(m).some(s=>s.id===t.id)){R(l("這段工作已被別人更新移除…` 存在（文案兩處＝字典＋呼叫點）。
+
 ## 2026-10-15 15-min tracking R23 checkpoint：缺陷#33 拖曳中衝突恢復→舊引用復活已刪工作
 
 - 探索類別：版本衝突×競爭。路徑：`queueSync` conflict 分支前景 `reloadFromStore()` 不受 `remoteReloadBlocked()` 守門（設計上衝突必須換基準），會在拖曳中整體替換 S＋render。pointerup 拖曳處理器用 pointerdown 捕獲的舊 block 物件引用叫 `dragPreview`，其內 `if(!moved){moved={...b};S.blocks.push(moved);}` 會把遠端已刪除的段「復活」並 pin——套用後覆蓋另一裝置的刪除（取消後寫入／版本衝突類）。單擊路徑（openModal blk）已有 `if(!b)return null` 守門；`b-preview`／`blk-new` 呼叫者分別有 find 守門／全新 block，不受影響。
