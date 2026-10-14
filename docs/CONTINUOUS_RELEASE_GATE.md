@@ -1,5 +1,13 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R19 checkpoint：undo 連點語意鎖定＋a11y toast/syncChip 審查（無缺陷）
+
+- 起點 bd40eec clean。**探索**：undo() 為 async（commit await）——連點第二下會否交錯寫入？**實證（vm 編譯實際 undo）**：兩次 undo 各自 pop 一筆快照、各 commit 一次、終態＝最舊快照——語意正確（同步 pop 先於 await，快照序列不交錯）；queueSync 的 syncChain 序列化保證兩次 commit 不交錯落庫。初版測試斷言方向寫反（stack 頂端=最舊），修正後 GREEN——非產品缺陷。
+- **a11y 審查（唯讀）**：toast 元素 role=status ✓（隱含 aria-live=polite）；syncChip 以 title 呈現錯誤訊息＋可見文字（tx 文案）✓；錯誤轉換時 queueSync 已有 toast 通道。無缺陷。
+- **提交 912bacf**：新測（undo 連點語意鎖定，防未來回歸）；全套 **811/811**＋build；CI 全綠。**PR16 同步**→**5dbd041**（**812/812**）。純測試變更，staging 無需重部署（服務 runtime 未變）。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 停用；門檻不變。
+- 下一步：新缺陷類探索（候選：競爭類——syncChain 與 undo 互動在 save 失敗重試路徑）。
+
 ## 2026-10-15 15-min tracking R18 checkpoint：staging 批次部署 e6ba43d（#31）完成驗收
 
 - 起點 e562bed clean；**7fc989b 為 e6ba43d 祖先** OK → 普通 push `e6ba43d:codex/excel-friendly-ui-20260930`（7fc989b..e6ba43d，non-force）。
