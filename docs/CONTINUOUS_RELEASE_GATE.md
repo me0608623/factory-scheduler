@@ -1,5 +1,12 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R40 checkpoint：缺陷#41 修復（20×）＋staging 部署通道故障判定（需使用者）
+
+- **#41 修復**：R39 的形狀二分補完——2,706 段分散 60 天（今日 45 段）DCL 僅 474ms ⇒ 成本全在「單日板面渲染」。真兇：issuesOf 內每段呼叫的 `readyAbs`／`materialFlowIssue` 各自 O(群組²)（每段掃該工單該工序全部段並對時間點插值）。修正：以 `(oid,step)` 為鍵做 render 期快取（misc Map，同 R39 重置語意，pushOK 路徑不快取）——同群組每段重複計算→每群組一次。
+- **量測（集中單日 15 機台）**：495→364ms（原 847）、990→515ms（原 4,563＝8.9×）、1,980→888ms（原 17,717＝**20×**）；曲線轉趨線性。互動：同日重渲染 660ms、切日 113ms、切回大日 605ms（原 >32s 逾時）——零錯誤。全套 web **849/849 綠**＋build 過。
+- **後續**：889e882 推送後 deployment 正常觸發（19:58Z）且 success——通道自行恢復（d9a9bd7/42c17b1 的靜默判定為暫時性 Render/GitHub App 逾時，非永久斷線；staging hook secret 仍建議使用者補設以備手動觸發）。cache-buster 得新 bundle index-BYOY76_0.js，內含 `__fsRenderMemo`×2（#41 快取上線）。
+- **staging 部署通道故障（需使用者）**：d9a9bd7 與 42c17b1 推送後 Render deployment 逾 10 分鐘未出現（deployments API 仍 c924b9c@18:10Z）；repo hooks=[] ⇒ 部署一向走 Render GitHub App——該連線疑已斷。倉庫僅有正式 `RENDER_WEB_DEPLOY_HOOK`／`RENDER_SOLVER_DEPLOY_HOOK`，**無 `RENDER_STAGING_WEB_DEPLOY_HOOK`**（既有手動 workflow deploy-render-staging.yml 缺 secret 會安全跳過）。**使用者動作**：Render→factory-scheduler-web-staging→Settings→Create Deploy Hook 貼到 GitHub Secrets，或修 GitHub App 連線。staging 線上仍 c924b9c（含 #32-#40 全部修復；缺 #41——效能修復不影響 staging 小資料行為）。
+
 ## 2026-10-15 15-min tracking R39 checkpoint：缺陷#41 修復嘗試——render 期 memo 上線（正確性鎖定）但量測曲線不變，#41 保持開放
 
 - 已上線（app.js）：`orderStatus`／`issuesOf`（裸呼叫）的 render 期 memo——`globalThis.__fsRenderMemo` 存放、以 S 識別為鍵；`render()`／`renderModal()` 進入與 `withState()` 進出清空（就地變異／預覽 reflow 後保新鮮）；`pushOK` 路徑永不快取。內聯 globalThis 操作＝vm fixture 免改。
