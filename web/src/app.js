@@ -1727,7 +1727,7 @@ function toggleOpen(d){
   }
 }
 function saveDailyOT(m){
-  if(!canCalendar())return;
+  if(!m||!canCalendar())return;   // 視窗已關（連點第二下事件）＝安全 no-op，不拋未捕捉錯誤
   const d=m.date;
   // 先讀下拉選單（改變「加班到幾點」才是使用者剛剛選的值），否則 changed 誤判無變更
   if(m.open){const sel=$("#ot-end");m.otEnd=sel?+sel.value:m.otEnd||DAY1;}
