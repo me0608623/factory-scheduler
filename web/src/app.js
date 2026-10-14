@@ -4051,6 +4051,7 @@ function printDaySchedule(){
   '<scr'+'ipt>window.print()</scr'+'ipt></body></html>';
 
   const w=window.open('','_blank','width=900,height=700');
+  if(!w){toast(tx('瀏覽器封鎖了列印視窗；請在網址列允許彈出視窗後再按一次列印。'));return;}
   w.document.write(html);
   w.document.close();
 }

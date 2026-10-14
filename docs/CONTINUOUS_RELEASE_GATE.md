@@ -1,5 +1,12 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R43 checkpoint：缺陷#42 列印視窗被彈出封鎖＝未捕捉崩潰無提示
+
+- 缺陷：`printDaySchedule`（app.js:4053）`window.open` 回 null（瀏覽器封鎖彈出——首次使用常見）時 `w.document.write` 直接 TypeError，未捕捉、無任何使用者回饋。全 codebase 唯一 window.open 站位。
+- 修復：`if(!w){toast(tx(...));return;}`——三語提示「請允許彈出視窗後再按一次列印」。
+- 重現/鎖定：新測試 `web/tests/print-popup-guard.test.mjs`（vm 編譯真函式，window.open stub 回 null／回正常 document 兩案例）。修復前 1 RED（TypeError）。——2/2 綠。
+- 驗收：全套 web 852/852 綠＋build 過。staging 部署驗收見下。 
+
 ## 2026-10-15 15-min tracking R42 checkpoint：匯出 Excel 下載流程雙層驗證（產物＋瀏覽器）——無缺陷
 
 - 產物層：新測試 `web/tests/excel-export-artifact.test.mjs`——scheduleXlsx 位元組為有效 zip（PK 魔數）且含 xl/worksheets、sharedStrings、workbook entries。內容正確性由既有 excel.test.mjs 的 buildScheduleWorkbook 往返覆蓋（分工明確，不重複）。教訓：xlsx 匯出的 zip local header 可能走 data descriptor（csize=0），位元組級解壓驗證過度工程——名稱掃描＋魔數即足以鎖產物層。
