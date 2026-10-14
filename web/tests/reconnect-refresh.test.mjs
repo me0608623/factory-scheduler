@@ -18,7 +18,7 @@ async function started({offline=false,localEmpty=false,cloudEmpty=false}={}){
     acceptLoaded:s=>{ctx.STORE.version=s.version;},subscribe:(change,cb)=>{status=cb;if(!localEmpty)cb('CONNECTING');}},
     S:null,UI:{date:'2026-10-12',view:'day',factory:1,prefs:{},modal:null},SYNC:{state:'ok',realtime:null},
     PV:null,drag:null,generalDrag:null,syncPending:0,lastLocalWrite:0,pendingReload:false,undoStack:[],reloadTimer:null,remoteLoading:false,
-    scheduleChat:null,SOLVER:{check:async()=>false},location:{search:''},URLSearchParams,
+    scheduleChat:null,realtimePoll:null,setInterval:()=>0,clearInterval:()=>{},SOLVER:{check:async()=>false},location:{search:''},URLSearchParams,
     stopLoginViz:()=>{},showLogin:()=>assert.fail('must retain current login'),normalizeState:()=>{},
     makeDemo:()=>{if(!localEmpty)assert.fail('must never substitute demo data for this cloud state');demo++;ctx.S=snapshot(1);},
     queueSync:()=>{saved++;return Promise.resolve(true);},

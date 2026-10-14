@@ -3569,11 +3569,21 @@ async function refreshCloudSnapshot(){
   }finally{remoteLoading=false;if(result!=='failed')maybeReload();}
 }
 function remoteReloadBlocked(){return !!(PV||drag||generalDrag||UI.modal||UI.editCell||UI.confirmRow||UI.leaveBrushSaving||UI.memoSaving||UI.directSaving||UI.executionSaving||UI.scenarioSaving||UI.drawer==='settings'||syncPending>0||SYNC.state!=='ok');}
+let realtimePoll=null;
 function onRealtimeStatus(status){
   const previous=SYNC.realtime;SYNC.realtime=status;updateSyncChip();
   // The stream cannot replay every missed database event. Also reconcile the
   // initial snapshot/join gap; repeated SUBSCRIBED callbacks are not new joins.
   if(status==='SUBSCRIBED'&&previous!=='SUBSCRIBED')onRemoteChange('reconcile');
+  // 平台 Realtime 故障（CHANNEL_ERROR/TIMED_OUT/CLOSED）期間的有界安全補讀：
+  // 定時走 onRemoteChange('reconcile')＝既有守門路徑（remoteReloadBlocked／S 未變 accept），
+  // 不覆蓋草稿、預覽或在途寫入；恢復訂閱或登入狀態消失即停。
+  if(STORE.kind==='supabase'&&['CHANNEL_ERROR','TIMED_OUT','CLOSED'].includes(status)&&!realtimePoll){
+    realtimePoll=setInterval(()=>{
+      if(STORE.kind!=='supabase'||!STORE.session?.user?.id||SYNC.realtime==='SUBSCRIBED'){clearInterval(realtimePoll);realtimePoll=null;return;}
+      onRemoteChange('reconcile');
+    },60000);
+  }else if(status==='SUBSCRIBED'&&realtimePoll){clearInterval(realtimePoll);realtimePoll=null;}
 }
 function onRemoteChange(source){
   if(source==="account_permissions"){
