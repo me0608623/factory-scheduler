@@ -1,5 +1,11 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-14 12:48 checkpoint 使用者停止舊追蹤並交接二十分鐘排程
+
+- 使用者明確要求停止原 cron、交给另一 agent 建立每 20 分鐘直到用戶停止的持續接續 prompt。舊 Codex heartbeat `automation` 已透過 automation_update 設 PAUSED，讀回 TOML 確認；本條取代歷史 checkpoint 的追蹤 ACTIVE 敘述，不影響仍 disabled_manually 的 GitHub nightly367614493。
+- 未提交 memo late ACK 最小修正保留在 app.js/memo-save-request.test.mjs；HEAD a83b0d4，54/54 聚焦與 build PASS，全套測試 session 無法取回最終結果、仍未確認，尚未 commit/push/CI/同步PR16或deploy，不冒稱已發布。
+- 交接詳見 `docs/HANDOFF_20MIN_2026-10-14.md`；另一 agent 只處理新追蹤設定，不同時修改程式或部署。正式1023/0037/Auth/角色/資料未動，發布門檻不放寬。新追蹤 `20`「產線排程20分鐘持續接續」已建立為 heartbeat/ACTIVE/每20分鐘返回原chat；主agent完整讀回prompt、target及interval20驗證，舊automation仍PAUSED。只有使用者要求停止才停，無重複ACTIVE排程。
+
 ## 2026-10-14 08:05 checkpoint：請假／備忘釘選成功晚回覆安全補讀
 
 - **08:10收尾（取代下文stage待確認）**：stage Tests **38488348435**與smoke **38488348454**現全success。Render app error於00:10:23Z後核實 **00:08:05–00:10:07Z**窗 **0/hasMorefalse**，只輸出彙總，非長期健康/Realtime恢复。PR16/18實查OPEN/draft/MERGEABLE，不因全綠放行正式；6QA tabs/dev保留，doc-only不更新stage/solver，持久worktree供下輪繼續。
