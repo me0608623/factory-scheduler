@@ -4351,7 +4351,10 @@ async function runDrawerWrite(button,permission,write,success){
     releaseDirectWrite(operation);
     const result=await reloadFromStore({background:true});if(!owner.sameView()||UI.modal)return;
     render();toast(result==='applied'?success:tx('操作已保存；尚未讀到最新資料，請更新核對。'));
-  }catch(e){if(owner.current()){UI.directWriteError={drawer:operation.drawer,text:e.message};releaseDirectWrite(operation);render();toast(e.message);}}
+  }catch(e){
+    if(owner.current()){UI.directWriteError={drawer:operation.drawer,text:e.message};releaseDirectWrite(operation);render();toast(e.message);}
+    if(owner.sameSession())pendingReload=true;   // 結果未知（可能已提交）：排一次安全補讀讓已提交狀態現形，maybeReload 守門不覆蓋草稿
+  }
   finally{button.disabled=false;releaseDirectWrite(operation);maybeReload();}
 }
 async function resolveLeaveRequest(button){
