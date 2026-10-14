@@ -144,3 +144,29 @@ test('actual LocalStore quota failure preserves retry and retry uses the same id
     const stored=await f.ctx.STORE.load();assert.equal(stored.memos.length,1);assert.equal(stored.memos[0].id,id);
   }finally{if(old===undefined)delete globalThis.localStorage;else globalThis.localStorage=old;}
 });
+
+test('unknown memo result then close-reopen same content must not create a duplicate row',async()=>{
+  const db=await makeDb();try{
+    const actor='44444444-4444-4444-8444-444444444444';
+    await db.query("insert into auth.users(id,email) values($1,'synthetic-memo3@invalid')",[actor]);
+    await db.query("update profiles set role='boss' where user_id=$1",[actor]);
+    const fake=new FakeSupabase(db,{});fake.uid=actor;
+    const reader=new SupabaseStore(fake);await reader.init();const state=await reader.load();
+    const ids=['66666666-6666-4666-8666-666666666666','77777777-7777-4777-8777-777777777777'];let n=0;let failFirst=true;
+    const sdk=createClient('https://synthetic.invalid','sb_publishable_synthetic',{accessToken:async()=> 'synthetic',global:{fetch:async(url,options)=>{
+      const result=await fake.from('schedule_memos').upsert(JSON.parse(options.body),{onConflict:'id'});
+      assert.equal(result.error,null);
+      if(failFirst){failFirst=false;throw new TypeError('Failed to fetch');}
+      return new Response(null,{status:204});
+    }}});
+    const store=new SupabaseStore(sdk);store.session={user:{id:actor},access_token:'synthetic'};store.userName='Synthetic';
+    const f=fixture();f.ctx.uid=()=>ids[n++];f.ctx.STORE=store;f.ctx.S=state;f.ctx.$=s=>({value:s==='#memo-text'?'Synthetic memo':s==='#memo-machine'?'a':'',checked:false});
+    await f.ctx.save(f.button);                       // #1 commits to SQL, response lost → error surfaced
+    assert.ok(f.m.error,'first save surfaced its error in the owned modal');
+    f.ctx.closeModal();
+    f.ctx.UI.modal={t:'memo-edit'};                   // user reopens a brand-new memo form, same content
+    await f.ctx.save(f.button);                       // #2 succeeds (204)
+    const rows=(await db.query('select count(*)::int n from schedule_memos')).rows[0].n;
+    assert.equal(rows,1,'same-content reopen must upsert the same row instead of duplicating');
+  }finally{await db.close();}
+});
