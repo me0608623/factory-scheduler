@@ -7,6 +7,7 @@
 - 測試：新 `web/tests/transfer-ui-null-modal.test.mjs`＝**模組級直測**（import 真 transferUI，非 vm 切片）三案例——null-modal 五 action 安靜 no-op、合法預覽→apply 仍寫入（fixture 對齊 transfers.test 的合法加工單）、失蹤 batch id 不炸。fixture 教訓：tf-flow-preview 的未來時間檢查用真實時鐘時分（at 用 T00:00）、validateTransfers 要求 workIds 指向實體工作內容。
 - 同輪負結果（無缺陷）：import-preview 確認路徑防禦完整（importOwner store/writer/epoch＋importCandidate 同一性＋importExpected 快照比對＋base 比對＋await 後 modal/owner 再驗）。
 - 驗收：全套 web 838/838 綠＋build 過。staging 部署驗收見下。 
+- staging 部署驗收（dc42bf0）：CI 先綠後前進 codex/excel-friendly-ui-20260930（ec7cf20→dc42bf0）；Render deployment success；cache-buster 得新 bundle index-CVyVk1_z.js，守門壓縮形狀 `modal;if(!t)return`／`modal;if(!e)return` 存在。
 
 ## 2026-10-15 15-min tracking R27 checkpoint：缺陷#37 null-modal 別名家族（16 處）＋既有家族測試空洞斷言修實
 
