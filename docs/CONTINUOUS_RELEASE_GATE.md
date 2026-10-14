@@ -8,6 +8,7 @@
 - 重現/鎖定：新測試 `web/tests/undo-remote-reload.test.mjs` 四案例——applied 遠端變更清棧、其後 undo 不覆蓋遠端且無寫入、補讀後的新 push 仍可正常 undo、deferred（本地未存變更）不清棧。修復前 2 RED。
 - 附帶：6 個編譯 reloadFromStore 的測試 fixture 補 `undoStack:[]` 全域（新依賴的 harness 更新，斷言未動）。
 - 驗收：全套 web 832/832 綠＋build 過。staging 部署驗收見下。 
+- staging 部署驗收（463df2e）：CI 先綠後前進 codex/excel-friendly-ui-20260930（98c85c9→463df2e）；Render deployment success（SHA=463df2e）。注意：首次抓 index 仍是舊 hash（CDN 快取），cache-buster 重抓得新 bundle index-DkVIpR0D.js，內含判別壓縮形狀 `new Set((g.execution||[]).map(S=>S.blockId)),w=({blocks…` 與條件清棧 `b&&(Qe.length=0)`。
 
 ## 2026-10-15 15-min tracking R25 checkpoint：缺陷#35 未確認儲存時登出靜默丟失＋成員舊引用/時區審查（無缺陷）
 
