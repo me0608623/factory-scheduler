@@ -4795,7 +4795,7 @@ MODALS['general-edit']=m=>{
 };
 function previewGeneral(D){
   const issues=assignmentIssues(S,D,dayInfo(D.date).win,{today:todayStr(),nowMin:nowMin()});
-  openModal({t:'general-preview',draft:structuredClone(D),issues});
+  openModal({t:'general-preview',draft:structuredClone(D),existed:assignments(S).some(a=>a.id===D.id),issues});
 }
 MODALS['general-preview']=m=>({title:tx('一般工作排班預覽'),body:
   '<dl class="kv"><dt>'+tx('工作內容')+'</dt><dd>'+esc(workName(m.draft))+'</dd><dt>'+tx('執行員工')+'</dt><dd>'+esc(emp(m.draft.emp)?.name||'未指定')+'</dd><dt>'+tx('設備／工位')+'</dt><dd>'+esc(mach(m.draft.resourceId)?.label||'不需機台')+'</dd><dt>'+tx('時段')+'</dt><dd>'+esc(m.draft.date)+' '+hm(m.draft.s)+'–'+hm(m.draft.e)+'（'+(m.draft.e-m.draft.s)+' 分）</dd></dl>'+
@@ -4815,6 +4815,8 @@ MODALS['general-remove']=m=>({title:tx('移除工作預覽'),body:'<div class="h
 MODAL_ACT['gw-remove']=()=>{if(PV||readOnly||S.setupPending||UI.modal?.t!=='general-remove')return;const a=assignments(S).find(a=>a.id===UI.modal.id);if(!a||absOf(a.date,a.s)<nowAbs())return;pushUndo();S.workAssignments=assignments(S).filter(x=>x.id!==a.id);closeModal();commit({kind:'edit',title:tx('移除一般工作')+' '+workName(a),lines:[]});};
 MODAL_ACT['gw-apply']=()=>{
   if(PV||readOnly||S.setupPending||UI.modal?.t!=='general-preview')return;const D=UI.modal.draft;
+  // 預覽開著時，較早的佇列寫入衝突恢復會前景替換 S：遠端已刪除這段工作時不得用它復活
+  if(UI.modal.existed&&!assignments(S).some(a=>a.id===D.id)){toast(tx('這段工作已被別人更新移除，未套用；請確認最新班表後再操作。'));return;}
   const issues=assignmentIssues(S,D,dayInfo(D.date).win,{today:todayStr(),nowMin:nowMin()});if(issues.length){toast(issues.join('；'));return;}
   pushUndo();S.workAssignments=assignments(S).filter(a=>a.id!==D.id).concat(D);closeModal();commit({kind:'edit',title:tx('安排')+' '+workName(D)+' · '+emp(D.emp).name,lines:[]});
 };
