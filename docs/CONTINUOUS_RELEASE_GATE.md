@@ -1,5 +1,11 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R44 checkpoint：負結果輪（TV／排程比對）＋部署通道持續靜默→列使用者檢查項
+
+- 審查（無缺陷）：TV／大螢幕＝body class 切換＋聊天 enabled() 閘（無計時器無複雜狀態）；排程比對 computeScheduleDiff＝純集合運算（Set O(n)、render 端 `o?o.code:\"\"` null 防護）；win.js 浮動視窗已於 R37 審過。
+- **部署通道**：fe574fb（#42 修復）與 41d4f88 推送後 deployment 持續未出現（最後仍 889e882@19:58Z，線上 bundle index-BYOY76_0.js）。兩次重觸發無效——由「間歇延遲」升級為**持續靜默，列使用者檢查項**：Render dashboard → factory-scheduler-web-staging 的 GitHub 連線／Auto-Deploy 設定，或手動 Deploy；另建議補設 RENDER_STAGING_WEB_DEPLOY_HOOK secret 以便日後用既有 deploy-render-staging workflow 手動觸發。影響範圍：#42（列印彈出封鎖時的錯誤路徑提示）未上線——非資料風險。
+- 本輪無程式碼變更。下一輪：若使用者已修通道則部署驗證；否則繼續缺陷探索（候選：analytics 產能分析、feedback 意見反饋流程）。
+
 ## 2026-10-15 15-min tracking R43 checkpoint：缺陷#42 列印視窗被彈出封鎖＝未捕捉崩潰無提示
 
 - 缺陷：`printDaySchedule`（app.js:4053）`window.open` 回 null（瀏覽器封鎖彈出——首次使用常見）時 `w.document.write` 直接 TypeError，未捕捉、無任何使用者回饋。全 codebase 唯一 window.open 站位。
