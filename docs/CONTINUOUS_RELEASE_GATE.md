@@ -6,6 +6,12 @@
 > - **PR16/18 均 draft**：#18 head＝本分支（自動跟隨）、#16＝test-mode 分支（每輪同步；最新 853/853 綠）。
 > - **待使用者（合併前必做）**：①Render staging 部署通道檢查＋hook secret；②staging Realtime 平台 ticket（WS 500）；③第二帳戶（同意信未回覆不得再寄）；④正式 VITE_TEST_* 三值；⑤全部通過後：真實跨帳戶/手機桌面同步、斷線衝突回饋驗收 → 才合併 PR → 才部署正式。
 
+## 2026-10-15 15-min tracking R47 checkpoint：41d4f88 build 卡住（41d4f88 in_progress）＋LINE 通知流程審查（無缺陷）
+
+- 部署：41d4f88 deployment build in_progress 已逾 25 分鐘（先前均 2-3 分鐘）——Render 建置卡住/佇列壅塞，屬平台端問題（**使用者檢查項**：Render dashboard→Events 看 build 卡在哪步，或手動 retry）。線上仍 889e882（#32–#41）；#42 待此 build 完成後上線。
+- 審查（無缺陷）：line-notify.js＝token 留 solver 端（前端零密鑰）、fetch catch→false、ID 欄位 esc；ln-save＝本地模式擋＋disabled 鎖＋trim＋upsert onConflict user_id 冪等＋失敗復原。
+- 本輪無程式碼變更。
+
 ## 2026-10-15 15-min tracking R46 checkpoint：部署通道恢復（41d4f88 build 進行中）＋意見反饋流程審查（無缺陷）
 
 - 部署：fe574fb/41d4f88 的 deployment 於 21:22Z 出現（通道恢復＝先前為延遲非斷線），但 build in_progress 逾 15 分鐘（先前均 2-3 分鐘）——Render 建置佇列變慢或卡住；線上仍 889e882。下輪驗證 #42 上線。
