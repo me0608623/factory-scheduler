@@ -4344,7 +4344,10 @@ async function runDrawerWrite(button,permission,write,success){
   if(!permission()||UI.directSaving||UI.memoSaving||UI.leaveBrushSaving||UI.modal||PV)return;
   const owner=directWriteOwner(permission),operation={drawer:UI.drawer};UI.directSaving=operation;UI.directWriteError=null;button.disabled=true;render();
   try{
-    await write(owner.store);if(!owner.current())return;
+    await write(owner.store);
+    if(!owner.current()){
+      if(owner.sameSession())pendingReload=true;return;
+    }
     releaseDirectWrite(operation);
     const result=await reloadFromStore({background:true});if(!owner.sameView()||UI.modal)return;
     render();toast(result==='applied'?success:tx('操作已保存；尚未讀到最新資料，請更新核對。'));
@@ -4368,7 +4371,10 @@ Object.assign(MODAL_ACT,{
     const owner=directWriteOwner(()=>canIncidents()),url=SOLVER?.url,token=owner.store.kind==='supabase'?owner.store.jwt():null,en=emp(employeeId);
     const operation={drawer:UI.drawer};m.leaveDraft={employeeId,date,note};m.error=null;m.saving=true;UI.directSaving=operation;button.disabled=true;renderModal();
     try{
-      await owner.store.createLeaveRequest({id:uid(),employeeId,date,note,status:'pending'});if(!owner.current())return;
+      await owner.store.createLeaveRequest({id:uid(),employeeId,date,note,status:'pending'});
+      if(!owner.current()){
+        if(owner.sameSession())pendingReload=true;return;
+      }
       if(url&&token)sendLineNotify(url,token,'leave_request','請假待批：'+(en?en.name:'有人')+' '+md(date)).catch(()=>{});
       m.saving=false;releaseDirectWrite(operation);closeModal();
       const result=await reloadFromStore({background:true});if(!owner.sameView()||UI.modal)return;
