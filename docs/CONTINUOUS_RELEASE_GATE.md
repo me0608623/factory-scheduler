@@ -1,5 +1,13 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R1 checkpoint：memo 交接修正完成驗證＋密文工作流唯讀覆核
+
+- 起點 HEAD a83b0d4（ahead 3：merge＋main 兩 docs），未提交＝HANDOFF_20MIN 指定的 memo late-ACK 交接修正（app.js 7 行＋memo-save-request.test.mjs 56 行）＋12:48 checkpoint 6 行＋未追蹤交接文件。重疊核對：app.js mtime 停 10-14 08:13、doc 12:50，無其他 modifier/deploy；20 分鐘 heartbeat 屬另一 chat（handoff 記錄），本 15 分鐘追蹤為使用者最新 /goal，重疊時仍只做唯讀核對。
+- **交接修正完成**：聚焦 memo 13/13；全套 web **802/802 exit0**＋build PASS——交接未確認的全套結果現已確認。commit **0a64219**（fix: reconcile late successful memo save with safe reread）＋**3eb15ce**（docs: 20min handoff checkpoint），普通 push a596364..3eb15ce。CI 實查 @3eb15ce：**Tests／Deployment smoke／Synthetic 全 success**。
+- **catalog-inventory／permissions-drill 密文相容唯讀覆核（未 dispatch）**：兩工作流已是密文專用——BACKUP_ENCRYPTED_ONLY=true 不回退明文、unzip 後 layout 驗證 database.tar.age、真 age 解密（BACKUP_AGE_IDENTITY secret）、umask 077、私有輸出只寫 RUNNER_TEMP 不進 log（diagnostics withheld）、artifact 只上傳數值白名單 inventory.md、always 清理明文與私鑰。本機工具測試 **16/22**，6 失敗全數歸因本機缺 age 執行檔（與歷史 checkpoint 記錄相同 6 項，which age 無此命令；CI runner apt-get 裝 age 先前 57/57）。**未驗證**：兩工作流真 dispatch 端到端（需新鮮加密備份 artifact）；下一輪先查 db-backup-encrypted-* artifact 存在與新鮮度再決定。
+- 正式 1023／0037／Auth／角色／資料未動；無 cloud 寫入、無寄信、無新明文 artifact、無新資源。PR16 未同步 memo 修正（其 worktree 仍在 534e574），PR16/18 仍 draft、發布門檻不變；nightly 367614493 保持停用。
+- 下一步：①查加密備份 artifact 新鮮度→決定 catalog/permissions dispatch；②memo 修正同步 PR16（先核 clean/無 modifier/remote 一致）；③候選：memo 未知/遺失結果跨關窗重開之重複儲存（handoff 指定，尚未實證）。
+
 ## 2026-10-14 12:48 checkpoint 使用者停止舊追蹤並交接二十分鐘排程
 
 - 使用者明確要求停止原 cron、交给另一 agent 建立每 20 分鐘直到用戶停止的持續接續 prompt。舊 Codex heartbeat `automation` 已透過 automation_update 設 PAUSED，讀回 TOML 確認；本條取代歷史 checkpoint 的追蹤 ACTIVE 敘述，不影響仍 disabled_manually 的 GitHub nightly367614493。
