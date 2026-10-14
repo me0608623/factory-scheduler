@@ -1,5 +1,14 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R8 checkpoint：staging 批次部署 17c7d91（#28＋橫幅修）完成驗收
+
+- 起點 9fd1a4a clean；**09131b5 為 17c7d91 祖先** OK → 普通 push `17c7d91:codex/excel-friendly-ui-20260930`（09131b5..17c7d91，non-force）。
+- **部署證據**：GitHub deployment **7061203125** sha=**17c7d91** env=web-staging，statuses[0]=**success**。staging 服務 bundle `index-BHdCzvO3.js`（與 09131b5 版 BdRv0dC4 不同＝新構建）。
+- **runtime 標記驗證**：線上 bundle grep `scenario-unknown:`（#28）＝1、`directWriteError=null`（橫幅修）＝1——R7 兩修已上線。
+- **瀏覽器實際驗收（qa-lead session）**：看板 boot 正常、10/14 22 段、dialog 0、bundle 一致。未按雲端寫入。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 停用；PR16/18 draft 門檻不變（PR16 已含全部至 a209e17）。
+- 下一步：①新缺陷探索（候選：undo 與 direct-write 補讀互動、scenarioReadOwner 唯讀族）；②PR16/18 發布門檻仍待使用者側（第二帳戶同意信未回）。
+
 ## 2026-10-15 15-min tracking R7 checkpoint：缺陷#28 情境同名重開重複列＋directWriteError 殘留橫幅（兩修）
 
 - 起點 9ed8431 clean 無 modifier。
