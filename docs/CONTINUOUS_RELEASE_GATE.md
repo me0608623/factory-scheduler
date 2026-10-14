@@ -1,5 +1,14 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R16 checkpoint：staging 批次部署 7fc989b（#30 家族）完成驗收
+
+- 起點 6202d10 clean；**d8ee0bd 為 7fc989b 祖先** OK → 普通 push `7fc989b:codex/excel-friendly-ui-20260930`（d8ee0bd..7fc989b，non-force）。
+- **部署證據**：GitHub deployment **7063807879** sha=**7fc989b**，statuses[0]=**success**；staging bundle `index-CEwznBi0.js`。
+- **runtime 標記驗證（壓縮形狀）**：`if(!t||!ct())return`（#29）＝1；`"lq-go":()=>{var a;if(!Me()||((a=u.modal)==null?void 0:a.t)!=="leaveq"`（#30 型別守門）＝在線上。
+- **瀏覽器驗收（qa-lead session、零寫入）**：boot 正常、10/14 22 段、dialog 0、bundle 一致。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 停用；PR16/18 draft 門檻不變（PR16 已含至 740b127）。
+- 下一步：①DRAWER_ACT／document 級同型掃描；②發布門檻待使用者側。
+
 ## 2026-10-15 15-min tracking R15 checkpoint：缺陷#30 null-modal 直取家族系統性清掃（#29 同型 ×7）
 
 - 起點 8e93d64 clean。**系統性掃描**：正則掃 app.js 全部 data-act handler——直取 `UI.modal.<prop>` 而無存在守門者共 11 處；逐一 vm 編譯實測（compile 實際程式碼、UI.modal=null、doesNotThrow）。
