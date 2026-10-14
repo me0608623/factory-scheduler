@@ -3539,7 +3539,15 @@ async function reloadFromStore({background=false}={}){
   try{
     const s=await activeStore.load({remember:false});
     if(!s||!accept()){pendingReload=true;return 'deferred';}
-    activeStore.acceptLoaded?.(s);S=s;normalizeState();UI.directWriteError=null;render();return 'applied';   // 已套用最新狀態＝事實已揭曉，殘留的失敗橫幅與新狀態矛盾，一併清除
+    // 已套用最新狀態＝事實已揭曉，殘留的失敗橫幅與新狀態矛盾，一併清除。
+    // undoStack 是舊基準的快照：若這次補讀動了 sync 所屬內容（別人的排程變更），
+    // 事後按「復原」會把同事變更寫回舊狀態且版本閘擋不住（diff 以 base 為準、版本是當前版）→ 清棧。
+    // 只動 execution／已回報 block（含 pin，回報流程 RPC 管理、sync 有 assertExecutionProtected 擋復原）
+    // 或 log 的補讀＝自己的延遲 ACK 回讀，undo 自己的編輯仍合法且安全 → 不清。
+    const reported=new Set((s.execution||[]).map(r=>r.blockId));
+    const syncOwned=({blocks,execution:_e,executionEvents:_ee,log:_l,version:_v,...rest})=>({...rest,blocks:(blocks||[]).filter(b=>!reported.has(b.id))});
+    const baselineMoved=JSON.stringify(syncOwned(s))!==JSON.stringify(syncOwned(S));
+    activeStore.acceptLoaded?.(s);S=s;normalizeState();UI.directWriteError=null;if(baselineMoved)undoStack.length=0;render();return 'applied';
   }catch(e){if(!sameSession()){pendingReload=true;return 'deferred';}if(background)pendingReload=true;toast(typeof e?.message==='string'&&e.message?tx(e.message):tx('無法讀取最新班表，請稍後再試。'));return 'failed';}
 }
 async function refreshCloudSnapshot(){

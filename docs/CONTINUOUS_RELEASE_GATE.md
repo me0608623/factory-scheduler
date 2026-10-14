@@ -1,5 +1,15 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R26 checkpoint：缺陷#36 遠端變更後復原＝覆蓋同事寫入（undoStack 未隨基準失效）
+
+- 探索類別：版本衝突×狀態不一致。`reloadFromStore` applied 路徑替換 S 但不清 undoStack：同事 B 變更套用後，A 按「復原」把舊基準快照套回→`commit`→`sync`——實證讀 `store/supabase.js` sync（`diffRows(this.base,S)`＋版本閘只比當前版）＝**版本閘擋不住，B 的變更被寫回舊狀態**。R9 曾撤回同類修法因 execution-receipt 鎖定「補讀不清 undo」。
+- 根因分流（本輪新實證）：receipt 場景＝自己延遲 ACK 回讀，只動 execution／**已回報 block 的 pin**（RPC 所屬，`assertExecutionProtected` 含 pin 擋復原，undo 安全）；我的場景＝sync 所屬 rows/blocks 變更（危險）。用獨立探針（reader.load 前後欄位 diff）證實回報只改 `blocks[].pin`。
+- 最小修正（app.js reloadFromStore applied）：比較新舊狀態的 **sync 所屬投影**（排除 execution／executionEvents／log／version／已回報 blocks）——有差＝基準真的移動→清 undoStack；無差（echo）→保 undo。receipt 語意（own-echo 後 undo 自己的編輯）完整保留。
+- 重現/鎖定：新測試 `web/tests/undo-remote-reload.test.mjs` 四案例——applied 遠端變更清棧、其後 undo 不覆蓋遠端且無寫入、補讀後的新 push 仍可正常 undo、deferred（本地未存變更）不清棧。修復前 2 RED。
+- 附帶：6 個編譯 reloadFromStore 的測試 fixture 補 `undoStack:[]` 全域（新依賴的 harness 更新，斷言未動）。
+- 驗收：全套 web 832/832 綠＋build 過。staging 部署驗收見下。 
+- staging 部署驗收（463df2e）：CI 先綠後前進 codex/excel-friendly-ui-20260930（98c85c9→463df2e）；Render deployment success（SHA=463df2e）。注意：首次抓 index 仍是舊 hash（CDN 快取），cache-buster 重抓得新 bundle index-DkVIpR0D.js，內含判別壓縮形狀 `new Set((g.execution||[]).map(S=>S.blockId)),w=({blocks…` 與條件清棧 `b&&(Qe.length=0)`。
+
 ## 2026-10-15 15-min tracking R25 checkpoint：缺陷#35 未確認儲存時登出靜默丟失＋成員舊引用/時區審查（無缺陷）
 
 - 探索類別：靜默丟失（#32 同型不同出口）。`case "logout"` 直接 `STORE.logout()`——syncPending>0、SYNC.state==="error"（離線未存）、未確認回報任一成立時登出，本機變更無警告永久丟失；beforeunload 對同一風險已攔（R22），出口不一致。

@@ -10,7 +10,7 @@ const implementation=source.slice(start,source.indexOf('// ---------- 帳號與�
 function harness(){
   const timers=[],writes=[],ctx={S:{version:1,blocks:[{id:'local'}],log:[]},PV:null,drag:null,generalDrag:null,UI:{modal:null,prefs:{}},SYNC:{state:'ok'},syncPending:0,
     STORE:{kind:'supabase',version:1,load:async()=>{writes.push('load');return {version:2,blocks:[{id:'remote'}],log:[]};},can:()=>true},
-    lastLocalWrite:0,pendingReload:false,reloadTimer:null,remoteLoading:false,
+    lastLocalWrite:0,pendingReload:false,undoStack:[],reloadTimer:null,remoteLoading:false,
     setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout:()=>{},normalizeState:()=>{},render:()=>writes.push('render'),toast:()=>{},
     tx:x=>x,notificationEnabled:()=>false,showDeviceNotification:()=>{},closeModal:()=>{ctx.UI.modal=null;}};
   vm.createContext(ctx);vm.runInContext(implementation,ctx);
