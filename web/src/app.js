@@ -4387,13 +4387,16 @@ Object.assign(MODAL_ACT,{
     const text=$('#memo-text')?.value.trim(),machineId=$('#memo-machine')?.value||null,employeeId=$('#memo-employee')?.value||null;
     if(!text){toast('請填寫一句備忘');return;}if(!machineId&&!employeeId){toast('請至少指定一台機台或一位人員');return;}
     const activeStore=STORE,client=STORE.sb,user=STORE.session?.user?.id,epoch=STORE.authEpoch||0,before=S,beforeJSON=JSON.stringify(S),date=UI.date,factory=UI.factory;
-    const sameContext=()=>STORE===activeStore&&STORE.sb===client&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===epoch&&!PV&&UI.date===date&&UI.factory===factory&&canPermission('notes.manage');
+    const sameSession=()=>STORE===activeStore&&STORE.sb===client&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===epoch;
+    const sameContext=()=>sameSession()&&!PV&&UI.date===date&&UI.factory===factory&&canPermission('notes.manage');
     const owns=()=>UI.modal===m&&sameContext()&&S===before&&JSON.stringify(S)===beforeJSON;
     m.memoId??=uid();m.memoCreatedAt??=new Date().toISOString();m.memoDraft={text,machineId,employeeId,pinned:!!$('#memo-pinned')?.checked};
     m.error=null;m.saving=true;UI.memoSaving=m;button.disabled=true;renderModal();
     try{
       await activeStore.saveMemo({id:m.memoId,...m.memoDraft,author:activeStore.userName||'本機',createdAt:m.memoCreatedAt});
-      if(!owns())return;
+      if(!owns()){
+        if(sameSession())pendingReload=true;return;
+      }
       m.saving=false;if(UI.memoSaving===m)UI.memoSaving=null;closeModal();
       const result=await reloadFromStore({background:true});
       if(!sameContext()||UI.modal)return;

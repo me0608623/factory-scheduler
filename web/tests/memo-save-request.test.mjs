@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {LocalStore} from '../src/store/local.js';
+import {SupabaseStore} from '../src/store/supabase.js';
+import {createClient} from '@supabase/supabase-js';
+import {makeDb,FakeSupabase} from './fake-supabase.mjs';
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
 const tick=()=>new Promise(r=>setImmediate(r));
@@ -18,6 +21,59 @@ function fixture(){
 }
 const reloads=f=>f.events.filter(e=>e?.type==='reload');
 const toasts=f=>f.events.filter(e=>e?.type==='toast');
+function reconciliation(f){
+  const timers=[],reads=[];f.ctx.S.log=[];Object.assign(f.ctx,{drag:null,generalDrag:null,syncPending:0,SYNC:{state:'ok'},lastLocalWrite:0,pendingReload:false,reloadTimer:null,remoteLoading:false,
+    setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout:()=>{},normalizeState:()=>{},notificationEnabled:()=>false,showDeviceNotification:()=>{}});
+  f.ctx.STORE.load=async()=>{reads.push('read');return {...f.ctx.S,memos:[{id:'saved-memo',text:'Synthetic memo'}]};};
+  const at=source.indexOf('async function reloadFromStore(');vm.runInContext(source.slice(at,source.indexOf('// ---------- 帳號與連線',at)),f.ctx);
+  return {timers,reads};
+}
+
+test('late successful new memo after close queues one read without reopening, replaying or toasting',async()=>{
+  const f=fixture(),h=reconciliation(f),job=f.ctx.save(f.button);f.ctx.closeModal();f.pending.resolve();await job;
+  assert.equal(h.timers.length,1);assert.equal(h.reads.length,0);await h.timers.shift()();assert.equal(h.reads.length,1);
+  assert.equal(f.ctx.S.memos[0].id,'saved-memo');assert.equal(f.ctx.UI.modal,null);assert.equal(f.writes.length,1);assert.equal(toasts(f).length,0);
+});
+
+test('late successful new memo preserves the newer draft, preview or failed write until safe reread',async()=>{
+  for(const mode of ['modal','preview','unsaved']){
+    const f=fixture(),h=reconciliation(f),job=f.ctx.save(f.button),state=f.ctx.S;
+    f.ctx.UI.modal=mode==='modal'?{t:'new-draft',value:'keep'}:null;if(mode==='preview')f.ctx.PV={draft:'keep'};if(mode==='unsaved'){f.ctx.UI.date='2026-10-15';f.ctx.SYNC.state='error';}
+    const modal=f.ctx.UI.modal,preview=f.ctx.PV;f.pending.resolve();await job;
+    assert.equal(f.ctx.pendingReload,true,mode);assert.equal(h.timers.length,0);assert.equal(f.ctx.S,state);assert.equal(f.ctx.UI.modal,modal);assert.equal(f.ctx.PV,preview);
+    f.ctx.UI.modal=null;f.ctx.PV=null;f.ctx.SYNC.state='ok';f.ctx.maybeReload();assert.equal(h.timers.length,1);await h.timers.shift()();assert.equal(h.reads.length,1);assert.equal(f.writes.length,1);
+  }
+});
+
+test('old account, client, store or epoch memo ACK cannot enqueue reconciliation for another session',async()=>{
+  for(const mode of ['user','client','store','epoch']){
+    const f=fixture(),h=reconciliation(f),job=f.ctx.save(f.button);f.ctx.UI.modal=null;
+    if(mode==='user')f.ctx.STORE.session={user:{id:'B'}};if(mode==='client')f.ctx.STORE.sb={};if(mode==='store')f.ctx.STORE={...f.ctx.STORE};if(mode==='epoch')f.ctx.STORE.authEpoch++;
+    f.pending.resolve();await job;assert.equal(f.ctx.pendingReload,false);assert.equal(h.timers.length,0);assert.equal(h.reads.length,0);
+  }
+});
+
+test('real SQL and SDK new memo late success keeps a newer draft and reconciles one persisted row after close',async()=>{
+  const db=await makeDb();try{
+    const actor='44444444-4444-4444-8444-444444444444',id='55555555-5555-4555-8555-555555555555';
+    await db.query("insert into auth.users(id,email) values($1,'synthetic-memo@invalid')",[actor]);await db.query("update profiles set role='boss' where user_id=$1",[actor]);
+    const fake=new FakeSupabase(db,{});fake.uid=actor;const reader=new SupabaseStore(fake);await reader.init();const state=await reader.load(),before=JSON.stringify(state.blocks);
+    const ready=deferred(),gate=deferred();let calls=0;
+    const sdk=createClient('https://synthetic.invalid','sb_publishable_synthetic',{accessToken:async()=> 'synthetic',global:{fetch:async(url,options)=>{
+      assert.equal(new URL(url).pathname,'/rest/v1/schedule_memos');calls++;const result=await fake.from('schedule_memos').upsert(JSON.parse(options.body),{onConflict:'id'});
+      assert.equal(result.error,null);ready.resolve();await gate.promise;return new Response(null,{status:204});
+    }}});
+    const store=new SupabaseStore(sdk);store.session={user:{id:actor},access_token:'synthetic'};store.userName='Synthetic';
+    const f=fixture();f.ctx.S=state;f.ctx.STORE=store;f.ctx.uid=()=>id;f.ctx.$=s=>({value:s==='#memo-text'?'Synthetic memo':s==='#memo-machine'?'a':'',checked:false});
+    const h=reconciliation(f);store.load=async options=>{assert.equal(options.remember,false);h.reads.push('read');return reader.load({remember:false});};
+    const job=f.ctx.save(f.button),dispatched=await Promise.race([ready.promise.then(()=>true),job.then(()=>false)]);assert.equal(dispatched,true,f.m.error);
+    const draft=f.ctx.UI.modal={t:'new-draft',value:'keep'};gate.resolve();await job;
+    assert.equal(f.ctx.pendingReload,true);assert.equal(h.reads.length,0);assert.equal(f.ctx.S,state);assert.equal(f.ctx.UI.modal,draft);
+    f.ctx.UI.modal=null;f.ctx.maybeReload();assert.equal(h.timers.length,1);await h.timers.shift()();
+    assert.equal(h.reads.length,1);assert.equal(calls,1);assert.equal(f.ctx.S.memos.find(m=>m.id===id).text,'Synthetic memo');assert.equal(toasts(f).length,0);
+    assert.equal(JSON.stringify(f.ctx.S.blocks),before);assert.equal((await db.query('select count(*)::int n from schedule_memos where id=$1',[id])).rows[0].n,1);
+  }finally{await db.close();}
+});
 test('late memo ACK never closes a newer dialog, reloads drafts or reports success in another context',async()=>{
   for(const kind of ['closed','modal','store','client','user','epoch','preview','state','mutation','date','factory','permission']){
     const f=fixture(),job=f.ctx.save(f.button);
