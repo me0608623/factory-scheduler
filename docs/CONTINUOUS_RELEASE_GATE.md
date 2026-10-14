@@ -6,6 +6,7 @@
 - 重現：新測試 `web/tests/drag-conflict-resurrection.test.mjs`——(1) vm 編譯真 `dragPreview`（withState stub 走真 S 替換語意）證明餵舊引用時 after 內出現 pin=true 的復活 block；(2) vm 切 pointerup 語句測 move/resize/點擊三路。修復前 2 RED（move/resize 未攔）。
 - 最小修正（app.js pointerup，`endDrag();drag=null;` 之後）：`if(!S.blocks.some(x=>x.id===d.b.id)){toast(tx(...));return;}`——block 已不在最新 S 即中止拖曳並提示（新 i18n 鍵三語已補，棘輪測試通過）。修復後 5/5 綠。
 - 驗收：全套 web 821/821 綠＋build 過。staging 部署驗收：見本段下方部署行。 
+- staging 部署驗收（357238d）：CI 先綠後前進 codex/excel-friendly-ui-20260930（984bc5b→357238d）；Render deployment 7068491086 success；bundle index-BeWhS65c.js 內守門壓縮形狀 `if(!….blocks.some(x=>x.id===t.b.id)){R(l("班表剛被別人更新…` 存在（toast 文案字串兩處＝字典＋呼叫點）。
 
 ## 2026-10-15 15-min tracking R22 checkpoint：缺陷#32 離線後關分頁靜默丟失（beforeunload 漏攔 error 狀態）
 
