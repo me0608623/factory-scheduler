@@ -7,6 +7,7 @@
 - 最小修正（app.js logout case）：與 beforeunload 同條件 `syncPending>0||SYNC.state!=="ok"||executionRetries.has(STORE)||STORE.hasPendingConfirmations?.()` → toast 中止（新 i18n 鍵三語已補）。乾淨狀態登出不受影響——4/4 綠。
 - 同輪負結果審查（無缺陷）：①成員刪除舊引用——`UI.focus` 家族全為 id 比對或 `emp()?.name||fallback`；`renderModal` 對 null body 自動 `closeModal()`，前景補讀替換 S 與 modal 重渲染原子同步（實體消失即自動關窗，無點擊窗口）；`normalizeState` 有 group 孤兒回退。②時區——日期模型＝本地日期字串↔UTC dayNum 對稱往返（parseD/fmtD/dayNum 全 UTC、todayStr/nowMin 全本地），無混合。③`emp()` 未守門解參考掃描 10 處——b-emp 的 `emp(b.emp).name` 名單來自當前 S 重繪、gw-apply 的 `emp(D.emp).name` 被 assignmentIssues「工作內容或員工不存在」前置攔截，皆不可達。
 - 驗收：全套 web 828/828 綠＋build 過。staging 部署驗收見下。 
+- staging 部署驗收（98c85c9）：CI 先綠後前進 codex/excel-friendly-ui-20260930（e333d6f→98c85c9）；Render deployment success（SHA=98c85c9）；bundle index-BhHUim0j.js 內 `…call(I)){R(l("有變更尚未確認儲存…` 守門形狀存在（文案兩處＝字典＋呼叫點）。
 
 ## 2026-10-15 15-min tracking R24 checkpoint：缺陷#34 一般工作預覽確認復活遠端已刪工作＋權限邊界審查（其餘無缺陷）
 
