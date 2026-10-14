@@ -1,5 +1,13 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R28 checkpoint：缺陷#38 transfer-ui null-modal×5＋safe() 英文 TypeError toast（tf-work 未包裝＝未捕捉）
+
+- 探索類別：#37 家族延伸至模組層。`transfer-ui.js` 的 `safe()` 把 null-modal TypeError 轉成**英文技術訊息 toast**（現場長者看到 "Cannot read properties of null (reading 'draft')"）；`tf-work` 未包 safe 更是未捕捉崩潰。清單：normalizedDraft（tf-save 用）、tf-work、tf-batch-save、tf-flow-preview、tf-flow-apply＋防禦性 `if(!o)return`（tf-flow/tf-plan 對失蹤 batch id）。
+- 修正：5 處 `?.`／`if(!m?.draft)return`＋tf-save 對 normalizedDraft 回 null 的處理＋2 處失蹤 batch 守門。
+- 測試：新 `web/tests/transfer-ui-null-modal.test.mjs`＝**模組級直測**（import 真 transferUI，非 vm 切片）三案例——null-modal 五 action 安靜 no-op、合法預覽→apply 仍寫入（fixture 對齊 transfers.test 的合法加工單）、失蹤 batch id 不炸。fixture 教訓：tf-flow-preview 的未來時間檢查用真實時鐘時分（at 用 T00:00）、validateTransfers 要求 workIds 指向實體工作內容。
+- 同輪負結果（無缺陷）：import-preview 確認路徑防禦完整（importOwner store/writer/epoch＋importCandidate 同一性＋importExpected 快照比對＋base 比對＋await 後 modal/owner 再驗）。
+- 驗收：全套 web 838/838 綠＋build 過。staging 部署驗收見下。 
+
 ## 2026-10-15 15-min tracking R27 checkpoint：缺陷#37 null-modal 別名家族（16 處）＋既有家族測試空洞斷言修實
 
 - 探索類別：連點×取消後寫入。#30/#31 修了直接 `UI.modal.x` 模式，漏了**別名模式**（`const m=UI.modal` 後 `m.x`、`UI.modal&&find` 缺前半）。清單：confirmStep、m-leave、m-emp-save、m-emp-del、m-fault、m-mach-save、o-save、b-emp、b-mach、b-pin、b-del、b-fix、pd-save、pm-save、group-member、group-save——視窗已關時（連點第二下／背景關窗與點擊交錯）拋未捕捉 TypeError。

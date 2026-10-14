@@ -8,7 +8,7 @@ export function transferUI({state,ui,esc,uid,canEdit,open,close,syncInputs,commi
   const warnings=items=>items.map(t=>'<div class="issue">'+esc(t)+'</div>').join('');
   const current=id=>transferOrders(state()).find(o=>o.id===id);
   const commitOrders=(orders,title)=>{const S=state(),candidate={...S,transferOrders:orders};validateTransfers(candidate,{before:S});S.transferOrders=orders;clearUndo();close();commit({kind:'edit',title,lines:[]});};
-  const normalizedDraft=()=>{syncInputs();const D=structuredClone(ui.modal.draft);for(const k of ['notified','expectedSend','due','urgentDue'])if(k in D)D[k]=document.getElementById('tf-'+k)?.value||null;if('totalQty' in D)D.totalQty=document.getElementById('tf-totalQty')?.value===''?null:Number(D.totalQty);return D;};
+  const normalizedDraft=()=>{syncInputs();const m=ui.modal;if(!m?.draft)return null;const D=structuredClone(m.draft);for(const k of ['notified','expectedSend','due','urgentDue'])if(k in D)D[k]=document.getElementById('tf-'+k)?.value||null;if('totalQty' in D)D.totalQty=document.getElementById('tf-totalQty')?.value===''?null:Number(D.totalQty);return D;};
   const safe=f=>()=>{if(!canEdit())return;try{f();}catch(e){toast(e.message);}};
   const modals={
     'transfer-board'(){const S=state(),rows=transferOrders(S).filter(o=>ui.factory==='all'||[o.fromFactory,o.toFactory,o.returnFactory].includes(ui.factory)).sort((a,b)=>String(a.notified||a.due||'9999').localeCompare(String(b.notified||b.due||'9999')));
@@ -36,14 +36,14 @@ export function transferUI({state,ui,esc,uid,canEdit,open,close,syncInputs,commi
   };
   const actions={
     transfers:()=>open({t:'transfers'}),'tf-new':()=>{if(canEdit())open({t:'transfer-edit'});},'tf-detail':a=>open({t:'transfer-detail',id:a.dataset.id}),'tf-edit':a=>open({t:'transfer-edit',id:a.dataset.id}),
-    'tf-work':a=>{if(!canEdit())return;syncInputs();const d=ui.modal.draft;d.workIds=d.workIds.filter(id=>id!==a.dataset.id).concat(d.workIds.includes(a.dataset.id)?[]:[a.dataset.id]);open(ui.modal);},
-    'tf-save':safe(()=>{const D=normalizedDraft();D.code=D.code.trim();D.itemCode=D.itemCode.trim();for(const k of ['fromFactory','toFactory','returnFactory'])D[k]=Number(D[k]);commitOrders(transferOrders(state()).filter(o=>o.id!==D.id).concat(D),'更新跨廠加工單 '+D.code);}),
+    'tf-work':a=>{if(!canEdit()||!ui.modal?.draft)return;syncInputs();const d=ui.modal.draft;d.workIds=d.workIds.filter(id=>id!==a.dataset.id).concat(d.workIds.includes(a.dataset.id)?[]:[a.dataset.id]);open(ui.modal);},
+    'tf-save':safe(()=>{const D=normalizedDraft();if(!D)return;D.code=D.code.trim();D.itemCode=D.itemCode.trim();for(const k of ['fromFactory','toFactory','returnFactory'])D[k]=Number(D[k]);commitOrders(transferOrders(state()).filter(o=>o.id!==D.id).concat(D),'更新跨廠加工單 '+D.code);}),
     'tf-batch':a=>{if(canEdit())open({t:'transfer-batch',id:a.dataset.id});},
-    'tf-batch-save':safe(()=>{syncInputs();const m=ui.modal,orders=structuredClone(transferOrders(state())),o=orders.find(o=>o.id===m.id);if(o.status!=='active')throw new Error('加工單未啟用');o.batches.push(m.draft);commitOrders(orders,'建立跨廠批次 '+m.draft.code);}),
-    'tf-flow':a=>{if(!canEdit())return;const o=transferOrders(state()).find(o=>o.batches.some(b=>b.id===a.dataset.id));open({t:'transfer-flow',id:o.id,batchId:a.dataset.id});},
-    'tf-flow-preview':safe(()=>{syncInputs();const m=ui.modal,event=structuredClone(m.draft),now=today()+'T'+new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Taipei',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());if(event.at>now)throw new Error('實際流轉不能填未來時間');appendFlow(state(),m.id,event);open({t:'transfer-flow-preview',id:m.id,event});}),
-    'tf-flow-apply':safe(()=>{const m=ui.modal;if(m.t!=='transfer-flow-preview')return;const next=appendFlow(state(),m.id,m.event);commitOrders(transferOrders(next),'登記跨廠 '+FLOW_ACTIONS[m.event.action]);}),
-    'tf-plan':a=>{if(!canEdit()||state().setupPending){toast('請先核定名冊與工時再排班');return;}const o=transferOrders(state()).find(o=>o.batches.some(b=>b.id===a.dataset.id)),b=o.batches.find(b=>b.id===a.dataset.id);if(!o.workIds.length){toast('請先在加工需求選擇已核定工作內容');return;}ui.factory=o.toFactory;open({t:'general-edit',draft:{id:uid(),workId:o.workIds[0],emp:'',resourceId:null,date:ui.date,s:480,e:540,qty:b.plannedQty,orderId:null,note:'',transferBatchId:b.id,transferStage:'process'}});}
+    'tf-batch-save':safe(()=>{syncInputs();const m=ui.modal;if(!m?.draft)return;const orders=structuredClone(transferOrders(state())),o=orders.find(o=>o.id===m.id);if(!o||o.status!=='active')throw new Error('加工單未啟用');o.batches.push(m.draft);commitOrders(orders,'建立跨廠批次 '+m.draft.code);}),
+    'tf-flow':a=>{if(!canEdit())return;const o=transferOrders(state()).find(o=>o.batches.some(b=>b.id===a.dataset.id));if(!o)return;open({t:'transfer-flow',id:o.id,batchId:a.dataset.id});},
+    'tf-flow-preview':safe(()=>{syncInputs();const m=ui.modal;if(!m?.draft)return;const event=structuredClone(m.draft),now=today()+'T'+new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Taipei',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());if(event.at>now)throw new Error('實際流轉不能填未來時間');appendFlow(state(),m.id,event);open({t:'transfer-flow-preview',id:m.id,event});}),
+    'tf-flow-apply':safe(()=>{const m=ui.modal;if(m?.t!=='transfer-flow-preview'||!m.event)return;const next=appendFlow(state(),m.id,m.event);commitOrders(transferOrders(next),'登記跨廠 '+FLOW_ACTIONS[m.event.action]);}),
+    'tf-plan':a=>{if(!canEdit()||state().setupPending){toast('請先核定名冊與工時再排班');return;}const o=transferOrders(state()).find(o=>o.batches.some(b=>b.id===a.dataset.id));if(!o)return;const b=o.batches.find(b=>b.id===a.dataset.id);if(!o.workIds.length){toast('請先在加工需求選擇已核定工作內容');return;}ui.factory=o.toFactory;open({t:'general-edit',draft:{id:uid(),workId:o.workIds[0],emp:'',resourceId:null,date:ui.date,s:480,e:540,qty:b.plannedQty,orderId:null,note:'',transferBatchId:b.id,transferStage:'process'}});}
   };
   return {modals,actions};
 }
