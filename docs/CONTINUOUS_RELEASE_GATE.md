@@ -6,6 +6,13 @@
 > - **PR16/18 均 draft**：#18 head＝本分支（自動跟隨）、#16＝test-mode 分支（每輪同步；最新 853/853 綠）。
 > - **待使用者（合併前必做）**：①Render staging 部署通道檢查＋hook secret；②staging Realtime 平台 ticket（WS 500）；③第二帳戶（同意信未回覆不得再寄）；④正式 VITE_TEST_* 三值；⑤全部通過後：真實跨帳戶/手機桌面同步、斷線衝突回饋驗收 → 才合併 PR → 才部署正式。
 
+## 2026-10-15 15-min tracking R52 checkpoint：組合交叉驗證——#41 render memo × undo × 換人寫入（真實 DOM，全過）
+
+- 情境（本地 dev＋本機模式＋window.__errs）：blk 視窗換人（張三→林七，b-emp 寫入）→ 板面即時更新為「林七 A01」→ 更多→復原上一步 → 板面回到「張三 A01」。全程零錯誤。
+- 意義：#41 的 render 期 memo（含 #36 的 undo 語意與 R40 的 (oid,step) 快取）在真實瀏覽器互動下與寫入/復原路徑正確互動——memo 於每次 render 進入時清空，就地變異後的板面是新鮮的。
+- 技術備忘：b-emp 換人後 blk modal 自動關閉但 overlay 殘留一次（點擊被封鎖）——Esc 一次即清；此為 modal 關閉動畫/時序的已知行為，非缺陷（snapshot 顯示 dialog 已不在 DOM，overlay div 遲一拍移除）。
+- 本輪無程式碼變更、無部署。
+
 ## 2026-10-15 15-min tracking R51 checkpoint：驗收腳本文件——`docs/ACCEPTANCE_SCRIPT.md`
 
 - 新增使用者側驗收腳本（A 登入角色／B 排程套用與跨裝置同步／C 斷線與衝突回饋／D 大資料與匯出列印），每項附「預期」並對應本系列修復編號（#32–#42），通過標準與後續合併順序。第二帳戶與 Realtime 恢復後照單操作即可完成發布門檻的實測部分。
