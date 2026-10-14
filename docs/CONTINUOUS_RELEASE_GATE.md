@@ -7,6 +7,7 @@
 - 重現：新測試 `web/tests/beforeunload-error-guard.test.mjs`（vm 切出 beforeunload 語句＋端到端真 `queueSync` 失敗→斷言 handler 警告）修復前 2 RED／2 綠。
 - 最小修正（app.js:3463-3464）：`SYNC.state==="busy"` → `SYNC.state!=="ok"`（狀態僅 busy/ok/error 三值，初值 ok，誤攔不可能）。同步更新 preview-ui.test.mjs 的源碼字串斷言至新語意。
 - 驗收：beforeunload-error-guard 4/4 綠；全套 web 816/816 綠＋build 過。staging 部署見下。 
+- staging 部署驗收（984bc5b）：push 前進 codex/excel-friendly-ui-20260930（e6ba43d→984bc5b，CI 先綠）；Render deployment 7067769279 success；bundle https://factory-scheduler-web-staging.onrender.com/assets/index-DiNB5qk8.js 內 beforeunload 壓縮形狀 `Es>0||oe.state!=="ok"` 存在，且與 remoteReloadBlocked／execution-report 擋門同形（`oe.state!=="ok"`＋「班表尚未確認儲存」文案）——三處語意一致上線。
 
 ## 2026-10-15 15-min tracking R20/R21 checkpoint：queueSync 失敗→重試保存語意鎖定（無缺陷）
 
