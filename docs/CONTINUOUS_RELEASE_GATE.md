@@ -1,5 +1,11 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R41 checkpoint：#41 修復延伸驗證——週視圖大資料 617ms（無缺陷）
+
+- 週視圖（7 日 × 全機台）在 1,980 段集中單日下：切換 617ms、返回日視圖 751ms、零錯誤——與日視圖共用 issuesOf 路徑，自動受惠於 (oid,step) 快取。
+- 殘餘成本評估：capacityIntervals 逐段（O(每人段數)）與 innerHTML 巨字串在現實尺度（≤2 千段/日）已不足為患（888ms 上限）；不再深挖。
+- 本輪無程式碼變更、無部署（staging 已是 889e882＝最新 runtime）。#41 結案。
+
 ## 2026-10-15 15-min tracking R40 checkpoint：缺陷#41 修復（20×）＋staging 部署通道故障判定（需使用者）
 
 - **#41 修復**：R39 的形狀二分補完——2,706 段分散 60 天（今日 45 段）DCL 僅 474ms ⇒ 成本全在「單日板面渲染」。真兇：issuesOf 內每段呼叫的 `readyAbs`／`materialFlowIssue` 各自 O(群組²)（每段掃該工單該工序全部段並對時間點插值）。修正：以 `(oid,step)` 為鍵做 render 期快取（misc Map，同 R39 重置語意，pushOK 路徑不快取）——同群組每段重複計算→每群組一次。
