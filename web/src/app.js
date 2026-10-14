@@ -4379,7 +4379,14 @@ Object.assign(MODAL_ACT,{
       m.saving=false;releaseDirectWrite(operation);closeModal();
       const result=await reloadFromStore({background:true});if(!owner.sameView()||UI.modal)return;
       UI.drawer='people';render();toast(result==='applied'?'已送出請假詢問，尚未成為正式請假':tx('詢問已送出；尚未讀到最新資料，請更新核對。'));
-    }catch(e){if(owner.current()){m.error=e.message;m.saving=false;renderModal();}}
+    }catch(e){
+      const dupPending=e?.code==='23505'||/leave_requests_one_pending|duplicate key|unique constraint/i.test(String(e?.message||''));
+      if(owner.current()){
+        m.error=dupPending?'這天可能已有等待中的請假詢問（剛才的送出可能已成立）；關閉視窗後系統會自動核對最新資料。':e.message;
+        m.saving=false;renderModal();
+      }
+      if(dupPending&&owner.sameSession())pendingReload=true;   // DB 已證同日 pending 存在：排一次安全補讀讓它現形
+    }
     finally{m.saving=false;button.disabled=false;releaseDirectWrite(operation);maybeReload();}
   },
   'memo-save':async button=>{
