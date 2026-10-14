@@ -1,5 +1,15 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R7 checkpoint：缺陷#28 情境同名重開重複列＋directWriteError 殘留橫幅（兩修）
+
+- 起點 9ed8431 clean 無 modifier。
+- **缺陷#28 實證（save_planning_scenario RPC 語意）**：RPC 依 **id 冪等**（同 id+同名+同載荷→回原 id），但**無名稱唯一性**——未知結果（第一發真提交後丟網路錯）→關窗→重開保存視窗同名→makeScenario 產生**新 id**→插入成功→**同名兩列**（RED：真 PGlite+真 RPC+實際 handler，rows 2!==1）。同 modal 重試本就安全（m.item 引用重用，idempotent）。
+- **最小修正（17c7d91）**：UI.scenarioUnknown session 清單（鍵=名稱 trim、值={id,sk:user@epoch}）——catch 登記原 id；同 session 同名重試沿用原 id（RPC 冪等回原列）；成功 ACK 清除；跨 session 不沿用；改名＝新鍵不沿用（既有測試「改名不默默存舊名」保持）。已知拒絕也會登記（無害：重試撞「情境代號已使用」得到清楚已知錯）。既有測試 #4 的參考相等斷言放寬為 JSON 序列化相等（ledger 重試產生結構相同新物件，行為意圖=同 id+同載荷）。
+- **directWriteError 生命週期修（同 commit）**：#27 的安全補讀套用後，殘留的「處理失敗」橫幅與新狀態（已准假）矛盾——reloadFromStore applied 路徑加 `UI.directWriteError=null`。RED（真 SQL：RPC 提交+丟回應→橫幅在→補讀 timer→approved 浮現→橫幅仍在）→修後 GREEN。清除僅在 applied（deferred/failed 不清）。
+- **回歸**：scenario 7/7、leave-pin 21/21、memo 14/14；全套 **807/807**＋build；push 9ed8431..17c7d91，CI Tests／smoke／Synthetic 全 success。**PR16 同步**：merge→**a209e17**（**808/808**＋build）push。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 停用；門檻不變。staging 仍在 09131b5（兩修未部署，累積中）。
+- 下一步：①staging 批次部署 17c7d91（含 #28＋橫幅修）＋驗收；②繼續新缺陷（候選：scenarioReadOwner 家族唯讀路徑、undo 與 direct-write 互動）。
+
 ## 2026-10-15 15-min tracking R6 checkpoint：staging 批次部署 09131b5 完成驗收＋execution ledger 覆蓋複查
 
 - 起點 34fe380 clean；核對 **37fd415 為 09131b5 祖先**（merge-base --is-ancestor OK）→ 普通 push `09131b5:codex/excel-friendly-ui-20260930`（37fd415..09131b5，non-force）。
