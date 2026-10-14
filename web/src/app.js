@@ -3534,7 +3534,7 @@ async function reloadFromStore({background=false}={}){
   try{
     const s=await activeStore.load({remember:false});
     if(!s||!accept()){pendingReload=true;return 'deferred';}
-    activeStore.acceptLoaded?.(s);S=s;normalizeState();render();return 'applied';
+    activeStore.acceptLoaded?.(s);S=s;normalizeState();UI.directWriteError=null;render();return 'applied';   // 已套用最新狀態＝事實已揭曉，殘留的失敗橫幅與新狀態矛盾，一併清除
   }catch(e){if(!sameSession()){pendingReload=true;return 'deferred';}if(background)pendingReload=true;toast(typeof e?.message==='string'&&e.message?tx(e.message):tx('無法讀取最新班表，請稍後再試。'));return 'failed';}
 }
 async function refreshCloudSnapshot(){
@@ -4603,12 +4603,22 @@ async function saveScenarioFromModal(button){
   const current=()=>STORE===store&&STORE.sb===client&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===epoch&&
     canPermissionRaw('scenarios.manage')&&UI.modal===m&&PV===preview&&S===state&&JSON.stringify(S)===json&&
     UI.date===date&&UI.factory===factory&&UI.page===page&&UI.drawer===drawer&&JSON.stringify(UI.focus)===focus;
+  const scenSession=user+'@'+epoch;
   try{m.name=$('#scenario-name').value;
-    const item=m.item&&m.item.name===m.name.trim()?m.item:makeScenario(m.name,m.base,m.candidate,{description:m.description,date:m.date});m.item=item;
+    const scenKey='scenario-unknown:'+m.name.trim();
+    const priorUnknown=UI.scenarioUnknown?.get(scenKey);
+    let item=m.item&&m.item.name===m.name.trim()?m.item:makeScenario(m.name,m.base,m.candidate,{description:m.description,date:m.date});
+    if(priorUnknown&&priorUnknown.sk===scenSession)item={...item,id:priorUnknown.id};   // 同名重試沿用未知結果的原 id：RPC 冪等，不產生重複列
+    m.item=item;
     m.error=null;m.saving=true;UI.scenarioSaving=operation;button.disabled=true;renderModal();
     await store.saveScenario(item);if(!current())return;
+    if(UI.scenarioUnknown?.get(scenKey)?.id===item.id)UI.scenarioUnknown.delete(scenKey);
     closeModal();toast(tx(store.kind==='local'?'情境已保存在這台裝置，班表沒有改變':'情境已保存，正式班表沒有改變'));
-  }catch(e){if(current()){m.error=e.message;toast(tx(e.message));}}
+  }catch(e){
+    if(current()){m.error=e.message;toast(tx(e.message));}
+    const sk2=user+'@'+(STORE.authEpoch||0);
+    if(STORE===store&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===epoch)(UI.scenarioUnknown??=new Map()).set('scenario-unknown:'+m.name.trim(),{id:m.item.id,sk:sk2});
+  }
   finally{if(UI.scenarioSaving===operation)UI.scenarioSaving=null;m.saving=false;button.disabled=false;if(current())renderModal();maybeReload();}
 }
 async function viewScenario(id){
