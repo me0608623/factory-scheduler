@@ -6,6 +6,7 @@
 - 修正：17 處機械式守門（`?.draft`／`if(!c)return`／`?.value`）；rs-position-edit 對 find 失敗補 `?? {}` 空 draft。
 - 測試：新 `web/tests/roster-ui-null-modal.test.mjs`（模組級直測 import 真 rosterUI）三案例——16 action null-modal 安靜 no-op（含 async rs-auto 用 doesNotReject）、9 action 對失蹤草稿 id 靜默、rs-auto 失蹤不觸 solver。——3/3 綠。
 - 驗收：全套 web 841/841 綠＋build 過。staging 部署驗收見下。 
+- staging 部署驗收（df19a51）：CI 先綠後前進 codex/excel-friendly-ui-20260930（dc42bf0→df19a51）；Render deployment success；cache-buster 得新 bundle index-CjfSipzt.js，守門壓縮形 `"rs-allow-day":A(T=>{const R=e.modal;if(!(R!=null&&R.draft))return;…` 與 `getElementById("rs-rate"))==null?void 0:$.value` 確認在線上（esbuild 將 ?. 降級為 null 檢查）。
 
 ## 2026-10-15 15-min tracking R28 checkpoint：缺陷#38 transfer-ui null-modal×5＋safe() 英文 TypeError toast（tf-work 未包裝＝未捕捉）
 
