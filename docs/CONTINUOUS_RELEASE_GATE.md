@@ -1,5 +1,13 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R17 checkpoint：缺陷#31 日曆／說明／加班切換族守門（#30 掃描延續）
+
+- 起點 16eace8 clean。**listener 級掃描**：列級掃全部 `UI\.modal\.<prop>` 直取（40 處），回溯所屬 handler 守門分類——多數 m-*/o-*/p-* 切換鈕只在 modal 開啟時存在（同步 render 移除按鈕，連點第二下不可達）；**可達風險**＝會關窗的 c-save/c-week/c-day 族（c-save 成功後 closeModal＋dpApplied）、help-sec（modal 內 sec 切換，防禦性）、ot-day/ot-person/ot-reset（加班設定切換族，ot-save 已修但同窗鄰鈕未守）。
+- **最小修正（e6ba43d）**：七處各加一行守門——c-save/c-week/c-day（`!UI.modal?.draft`，c-save 重現路徑＝儲存成功關窗後連點第二下）、help-sec、ot-day（`!UI.modal`）、ot-person/ot-reset（`!UI.modal?.overrides`）。全套 **810/810**＋build；CI @e6ba43d 全綠。**PR16 同步**→**8603679**（**811/811**）。
+- 掃描剩餘（mk-color/diff-run/b-*/m-emp-del/group-confirm/gw-* 等）＝按鈕生命週期不可達或已有自身驗證；記錄不再逐一守門（避免無意義 diff 膨脹）。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 停用；門檻不變。staging 未部署（累積 e6ba43d，下輪批次）。
+- 下一步：①staging 批次部署 e6ba43d；②新缺陷類探索（本掃描收斂）。
+
 ## 2026-10-15 15-min tracking R16 checkpoint：staging 批次部署 7fc989b（#30 家族）完成驗收
 
 - 起點 6202d10 clean；**d8ee0bd 為 7fc989b 祖先** OK → 普通 push `7fc989b:codex/excel-friendly-ui-20260930`（d8ee0bd..7fc989b，non-force）。
