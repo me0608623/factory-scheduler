@@ -8,6 +8,7 @@
 - 追加實測（修正 R38 的錯誤歸因）：**離開**大日（渲染小日）只要 99ms／95 次 filter；filter 總流量小→**filter 非主導成本**。大日的**暖重渲染**（sz-reset）連 990 段都超出 32 秒工具傳輸窗＝暖重渲染比啟動首渲染（4.6s@990）更貴——疑似單次互動觸發多次 render 或縮放路徑額外成本。
 - #41 保持開放。下一步（需要正式工具）：①production build＋CDP CPU profile 取熱點函式實證；②以資料形狀二分（跨日分散 vs 集中單日）分離「載入/正規化」與「渲染」成本；③懷疑面：innerHTML 巨型字串解析、單互動多次 render、dayHTML 之外的板面（一般工作板/抽屜）重複計算。
 - 環境已清理（分頁清資料關閉、dev server 停止）。
+- staging 部署狀態：d9a9bd7 已前進 codex/excel-friendly-ui-20260930（CI 先綠），但 **Render deployment 超過 10 分鐘未出現**（deployments API 仍回 c924b9c）——webhook 疑未觸發，**未驗證**；staging 線上仍為 c924b9c（#40 bundle index-Z6fMnM-j.js）。下輪複查；memo 變更效能中性，無緊急性。
 
 ## 2026-10-15 15-min tracking R38 checkpoint：缺陷#41（發現＋實測，修復排下輪）——日視圖渲染隨段數平方成長
 
