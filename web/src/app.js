@@ -3066,7 +3066,7 @@ MODALS["feature-topics"]=()=>({title:tx('功能解說'),body:
   foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button>'});
 function nextCode(){let n=S.orders.length+1;const used=new Set(S.orders.map(o=>o.code));while(used.has("W"+pad(n)))n++;return "W"+pad(n);}
 /* ===== 10. 視窗內的動作 ===== */
-function confirmStep(a,act){const m=UI.modal;if(m.confirm===act)return true;m.confirm=act;a.textContent="再按一次確認";return false;}
+function confirmStep(a,act){const m=UI.modal;if(!m)return false;if(m.confirm===act)return true;m.confirm=act;a.textContent="再按一次確認";return false;}
 function toggleIn(arr,v){const i=arr.indexOf(v);if(i>=0)arr.splice(i,1);else arr.push(v);}
 function showResult(){openModal({t:"logone",id:S.log[0].id});}
 function captureFault(m){const fs=$("#f-fs"),nt=$("#f-note");if(fs)m.fs=+fs.value;if(nt)m.note=nt.value;}
@@ -3079,9 +3079,9 @@ Object.assign(MODAL_ACT,{
   "m-emp-factory":a=>{if(!canMaster())return;const d=UI.modal.draft;d.factory=+a.dataset.v;d.skills=d.skills.filter(id=>factoryOf(mach(id))===d.factory);rerender();},
   "m-skill":a=>{if(!canMaster())return;toggleIn(UI.modal.draft.skills,a.dataset.v);rerender();},
   "m-ot-week":a=>{if(!canMaster())return;toggleIn(UI.modal.draft.otWeekdays,+a.dataset.v);UI.modal.draft.otWeekdays.sort();rerender();},
-  "m-leave":a=>{if(!canMaster())return;toggleIn(UI.modal.draft.leaves,a.dataset.v);rerender();},
+  "m-leave":a=>{if(!canMaster()||!UI.modal?.draft)return;toggleIn(UI.modal.draft.leaves,a.dataset.v);rerender();},
   "m-emp-save":()=>{
-    syncInputs();const m=UI.modal,D=m.draft;D.name=D.name.trim();
+    syncInputs();const m=UI.modal,D=m?.draft;if(!D)return;D.name=D.name.trim();
     D.factory=factoryOf(D);D.skills=D.skills.filter(id=>factoryOf(mach(id))===D.factory);
     if(!D.name){toast("請輸入姓名");return;}
     if(!Number.isInteger(D.maxMachines)||D.maxMachines<1||D.maxMachines>100){toast("同時顧機台上限請填 1–100 台");return;}
@@ -3111,6 +3111,7 @@ Object.assign(MODAL_ACT,{
     else{closeModal();delLv.length?toast("已取消請假。要把工作排回來嗎？","重新排程",runAuto):toast(tx("saved"));}
   },
   "m-emp-del":a=>{
+    if(!UI.modal)return;
     if(employeeGroups(S,UI.modal.id).length){toast('請先在「分組／部門」移除此員工的分組，再刪除員工');return;}
     if(!confirmStep(a,"m-emp-del"))return;
     const m=UI.modal,E=emp(m.id);pushUndo();
@@ -3129,7 +3130,7 @@ Object.assign(MODAL_ACT,{
   "m-fd":a=>{captureFault(UI.modal);UI.modal.fd=+a.dataset.v;rerender();},
   "m-fault":()=>{
     if(!canIncidents())return;
-    const m=UI.modal;captureFault(m);syncInputs();
+    const m=UI.modal;if(!m)return;captureFault(m);syncInputs();
     const M=mach(m.id),d=UI.date,s=m.fs;
     const e=m.fd>0?Math.min(DAY1,s+m.fd):m.fd===-1?(s<REG_END?REG_END:DAY1):DAY1;
     const note=(m.note||"").trim(),mid=M.id,fid=uid();
@@ -3165,7 +3166,7 @@ Object.assign(MODAL_ACT,{
     openPlans(mid+" 機台修好了：怎麼把它加回排程？",mid+" 機台恢復（"+mdw(F0.date)+" 故障 "+hm(F0.s)+"–"+hm(F0.e)+"）","recover",ev,STRAT_RECOVER,{event:{type:"recover",fault_id:F0.id}});
   },
   "m-mach-save":()=>{
-    syncInputs();const m=UI.modal,D=m.draft;
+    syncInputs();const m=UI.modal,D=m?.draft;if(!D)return;
     D.factory=factoryOf(D);
     D.id=String(D.id).trim().toLowerCase();D.label=D.label.trim()||D.id;
     D.proc=String(D.proc).trim();if(!D.proc||D.proc.length>80){toast('請輸入 1–80 字的設備工序名稱');return;}
@@ -3198,7 +3199,7 @@ Object.assign(MODAL_ACT,{
   "o-pri":a=>{if(!canOrders())return;UI.modal.draft.pri=+a.dataset.v;rerender();},
   "o-save":()=>{
     if(!canOrders())return;
-    syncInputs();const m=UI.modal,D=m.draft;
+    syncInputs();const m=UI.modal,D=m?.draft;if(!D)return;
     D.code=String(D.code).trim();D.qty=Math.round(+D.qty);
     if(!D.code||!(D.qty>0)||!D.due||!prod(D.pid)){toast("請填好工單號、數量、期限與產品");return;}
     const isNew=!order(D.id),snap={...D};
@@ -3248,9 +3249,9 @@ Object.assign(MODAL_ACT,{
     commit({kind:"edit",title:tx('修改產品工序'),lines:[]},"master.manage");closeModal();
     toast("工序已更新。要依新公式重新排程嗎？","重新排程",runAuto);
   },
-  "b-emp":a=>{const b=S.blocks.find(x=>x.id===UI.modal.id);if(b.emp===a.dataset.v)return;pushUndo();const from=emp(b.emp);b.emp=a.dataset.v;b.pin=true;
+  "b-emp":a=>{const b=UI.modal&&S.blocks.find(x=>x.id===UI.modal.id);if(!b||b.emp===a.dataset.v)return;pushUndo();const from=emp(b.emp);b.emp=a.dataset.v;b.pin=true;
     commit({kind:"move",title:label(b)+"：改由 "+emp(b.emp).name+" 做"+(from?"（原 "+from.name+"）":""),lines:[]});},
-  "b-mach":a=>{const b=S.blocks.find(x=>x.id===UI.modal.id);if(b.m===a.dataset.v)return;pushUndo();const from=b.m;b.m=a.dataset.v;b.pin=true;
+  "b-mach":a=>{const b=UI.modal&&S.blocks.find(x=>x.id===UI.modal.id);if(!b||b.m===a.dataset.v)return;pushUndo();const from=b.m;b.m=a.dataset.v;b.pin=true;
     commit({kind:"move",title:label(b)+"：從 "+from+" 搬到 "+b.m+" 機台",lines:[]});},
   "b-preview":()=>{
     const b=S.blocks.find(x=>x.id===UI.modal?.id);if(!b||readOnly)return;
@@ -3260,13 +3261,13 @@ Object.assign(MODAL_ACT,{
     const qty=manualQty(b.oid,b.step,e-s,b.id);
     enterManualPreview(dragPreview(b,b.m,s,{end:e,qty}));
   },
-  "b-pin":()=>{const b=S.blocks.find(x=>x.id===UI.modal.id);pushUndo();b.pin=!b.pin;commit(null);},
+  "b-pin":()=>{const b=UI.modal&&S.blocks.find(x=>x.id===UI.modal.id);if(!b)return;pushUndo();b.pin=!b.pin;commit(null);},
   "b-del":a=>{
-    const m=UI.modal;if(!m.confirmDel){m.confirmDel=true;a.textContent="再按一次確認刪除";return;}
+    const m=UI.modal;if(!m)return;if(!m.confirmDel){m.confirmDel=true;a.textContent="再按一次確認刪除";return;}
     const b=S.blocks.find(x=>x.id===m.id);pushUndo();S.blocks=S.blocks.filter(x=>x!==b);
     commit({kind:"edit",title:tx("刪除")+" "+label(b)+"（"+mdw(b.date)+" "+hm(b.s)+"）",lines:[]});closeModal();
   },
-  "b-fix":()=>{const b=S.blocks.find(x=>x.id===UI.modal.id);pushUndo();b.pin=false;const t=label(b);const lines=repair([b],"fix");
+  "b-fix":()=>{const b=UI.modal&&S.blocks.find(x=>x.id===UI.modal.id);if(!b)return;pushUndo();b.pin=false;const t=label(b);const lines=repair([b],"fix");
     commit({kind:"auto",title:tx('系統重排')+" "+t,lines});showResult();},
   "blk-open":a=>openModal({t:"blk",id:a.dataset.v}),
   "fix-all":()=>{pushUndo();const bad=S.blocks.filter(b=>b.date===UI.date&&issuesOf(b).length);bad.forEach(b=>b.pin=false);
@@ -3735,14 +3736,14 @@ Object.assign(MODAL_ACT,{
   "pd-set":a=>{if(!UI.modal)return;UI.modal.leave=a.dataset.v==="leave";rerender();},
   "pd-save":()=>{
     if(!canIncidents())return;
-    const m=UI.modal;
+    const m=UI.modal;if(!m)return;
     closeModal();
     applyPersonDay(m.id,m.d,!!m.leave);
   },
   "pm-week":a=>{if(!UI.modal?.off)return;const w=+a.dataset.v,set=UI.modal.off;set.has(w)?set.delete(w):set.add(w);rerender();},
   "pm-save":()=>{
     if(!canIncidents())return;
-    const m=UI.modal,E=emp(m.id);
+    const m=UI.modal,E=m&&emp(m.id);if(!E)return;
     const days=monthDates(UI.date).filter(Boolean).filter(d=>d>=todayStr());
     if(!days.length){toast('這個月今天之後沒有日期');return;}
     const blocked=[];
@@ -4459,10 +4460,10 @@ MODALS['staff-group']=m=>{
     (m.id?'<button class="btn danger" data-act="group-retire">'+tx('停用分組')+'</button>':'')+'<div class="spacer"></div><button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="group-save">'+tx('儲存分組')+'</button>'};
 };
 Object.assign(MODAL_ACT,{
-  'group-member':a=>{if(!canGroups())return;syncInputs();const m=UI.modal,id=a.dataset.v,i=m.members.findIndex(x=>x.employeeId===id);
+  'group-member':a=>{if(!canGroups()||!UI.modal)return;syncInputs();const m=UI.modal,id=a.dataset.v,i=m.members.findIndex(x=>x.employeeId===id);
     if(i<0)m.members.push({groupId:m.draft.id,employeeId:id,reviewStatus:'confirmed',sourceRef:null});else m.members.splice(i,1);renderModal();},
   'group-confirm':a=>{if(!canGroups())return;syncInputs();const member=UI.modal.members.find(x=>x.employeeId===a.dataset.v);if(member)member.reviewStatus='confirmed';renderModal();},
-  'group-save':()=>{if(!canGroups())return;syncInputs();const m=UI.modal,D=m.draft;D.name=D.name.trim();D.department=(D.department||'').trim()||null;D.homeFactory=D.homeFactory==='all'||D.homeFactory==null?null:Number(D.homeFactory);
+  'group-save':()=>{if(!canGroups())return;syncInputs();const m=UI.modal,D=m?.draft;if(!D)return;D.name=D.name.trim();D.department=(D.department||'').trim()||null;D.homeFactory=D.homeFactory==='all'||D.homeFactory==null?null:Number(D.homeFactory);
     if(!D.name||D.name.length>80){toast('請填寫 1–80 字的分組名稱');return;}
     if(S.groups.some(g=>g.id!==D.id&&g.name===D.name&&(g.department||null)===D.department&&(g.homeFactory??null)===D.homeFactory)){toast('相同範圍、部門已有這個分組');return;}
     pushUndo();const index=S.groups.findIndex(g=>g.id===D.id);if(index<0)S.groups.push(JSON.parse(JSON.stringify(D)));else S.groups[index]=JSON.parse(JSON.stringify(D));
