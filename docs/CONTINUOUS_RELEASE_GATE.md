@@ -1,5 +1,15 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R2 checkpoint：密文工作流端到端全通＋PR16 同步 memo 修正
+
+- 起點 9d830f6 clean 無 modifier。R1 遺留 artifact 檢查：唯一密文備份 db-backup-encrypted-38352489633（2026-10-13T05:40Z）已超 24h 新鮮度（encrypted-backup.mjs maxAgeMs=24h 強制）——先以既有 backup-drill create 流程產新備份。
+- **新鮮密文備份**：dispatch backup-drill（create=true）@9d830f6 → run **38517152733 success**，artifact **db-backup-encrypted-38517152733 / id=11871908366**（reusable call 不觸碰已停用 nightly 367614493；pg_dump 唯讀、上傳僅密文）。
+- **catalog-inventory 端到端（未驗證→已通過）**：誤 dispatch 佔位 ID run 38517494777 於「下載有效加密備份」fail-closed（意外負面測試：非法輸入潔淨拒絕、不回退明文）；正確 dispatch artifact_id=11871908366 → run **38517538962 全步驟 success**（選擇/下載/layout/真 age 解密/24h 新鮮度/拋棄式 PG17 還原/唯讀盤點/白名單報告/清理）。下載實查報告 **11872531210（942B）＝純數值**（35 員工/50 資源/7 工單…），無姓名/代號/產品/日期/SQL。
+- **permissions-drill 端到端（未驗證→已通過）**：dispatch artifact_id=11871908366 → run **38517756653 全步驟 success**，A-I 九段（角色預設矩陣/is_boss/管理介面/權限覆寫/RLS/…/worker 綁定回報）log 實查 **I 小計 PASS=17 FAIL=0、TOTAL_FAIL=0「隔離驗證全數通過」**；無 artifact 上傳、私有輸出 withheld、不印身份。
+- **PR16 安全同步**：worktree 核對 clean/無 modifier/local=tracking=remote=534e574 後普通 merge origin/codex/continuous-release-gate-20261013 → **22a6cda**（5 檔 141 insert，含 memo fix 0a64219）；全套 **803/803**＋build PASS、push 534e574..22a6cda，CI 實查 Tests／smoke／Synthetic 全 success @22a6cda。未合併正式、不冒稱發布。
+- 正式 1023／0037／Auth／角色未動；無新明文 artifact；nightly 保持停用。發布門檻不變（PR16/18 draft、真 staging 兩端驗收未過）。
+- 下一步：①memo 未知/遺失結果跨關窗重開之重複儲存（handoff 候選，先隔離實證）；②評估兩密文工作流的後續排程策略（是否需要定期 freshness——備份只在此類 dispatch 時產生）；③繼續新缺陷探索。
+
 ## 2026-10-15 15-min tracking R1 checkpoint：memo 交接修正完成驗證＋密文工作流唯讀覆核
 
 - 起點 HEAD a83b0d4（ahead 3：merge＋main 兩 docs），未提交＝HANDOFF_20MIN 指定的 memo late-ACK 交接修正（app.js 7 行＋memo-save-request.test.mjs 56 行）＋12:48 checkpoint 6 行＋未追蹤交接文件。重疊核對：app.js mtime 停 10-14 08:13、doc 12:50，無其他 modifier/deploy；20 分鐘 heartbeat 屬另一 chat（handoff 記錄），本 15 分鐘追蹤為使用者最新 /goal，重疊時仍只做唯讀核對。
