@@ -1,5 +1,15 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R6 checkpoint：staging 批次部署 09131b5 完成驗收＋execution ledger 覆蓋複查
+
+- 起點 34fe380 clean；核對 **37fd415 為 09131b5 祖先**（merge-base --is-ancestor OK）→ 普通 push `09131b5:codex/excel-friendly-ui-20260930`（37fd415..09131b5，non-force）。
+- **部署證據**：GitHub deployment **7058807779** sha=**09131b5** env=web-staging，statuses[0]=**success**；staging 根頁 HTTP 200。bundle `index-BdRv0dC4.js`（本地建置雜湊 mpMlvmsi 不同＝Render 建置環境差異，與歷史一致——37fd415 本地 78YwSAKS vs 當時線上 ocxx-Pc7 同現象；跨環境雜湊不可作身分訊號）。
+- **版本身分以 runtime 標記驗證**：下載線上 bundle（1,009,300B）grep 三個僅存在於本批程式碼的標記——`memo-unknown:`（#25）／`這天可能已有等待中的請假詢問`（#26）／`leave_requests_one_pending`（#26 偵測）——**三標記全部命中（各 1 次）**＝4 個 runtime 變更（0a64219/8f98a21/5329c48/09131b5）確已上線。
+- **瀏覽器實際操作驗收（qa-lead 既有 session）**：看板 10/14 22 段/dialog 0；備忘抽屜正常（既有測試備忘顯示、＋新增備忘鈕在）；更多→現場回報視窗開啟正常（提示文案在）後關閉返回。未按任何雲端寫入操作。
+- **execution ledger 覆蓋複查**：UnconfirmedWriteError 分類完整存在於 store（receipt 驗證/finishedAt/receiptBlock/情境保存 217/238 等）；app 端 executionRetries/pendingRequest 機制 16 處引用；07:36 checkpoint 的同頁 session ledger（71f1818）與 909d1c0 報工補讀已含 unknown 分支防護——**無新缺口**，不重做。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 停用；PR16/18 draft 門檻不變。臨時 worktree fs-37tmp 已清除。
+- 下一步：①新缺陷探索（候選：畫面凍結/連點於 direct-write in-flight 時的 UI.directWriteError 顯示生命週期；情境保存 unknown 分支的實渊覆蓋）；②PR16 視需要再同步（目前 826cacb 已含全部 4 變更）。
+
 ## 2026-10-15 15-min tracking R5 checkpoint：缺陷#27 drawer-write 未知結果補讀＋PR16 兩段同步＋staging 批次部署評估
 
 - 起點 636e158 clean 無 modifier。
