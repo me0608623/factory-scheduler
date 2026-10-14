@@ -612,7 +612,7 @@ function orderStatus(o){
   const fin=Math.max(...lb.map(bEnd)),fd=dateOfAbs(fin);
   const done=sum(lb,b=>{const r=executionOf(S,b.id);return r?.status==='done'?r.qtyDone:0;})>=o.qty;
   const r={k:done?"done":fd>o.due?"late":fin<=nowAbs()?"elapsed":"ok",fin,fd};
-  const m=globalThis.__fsRenderMemo??(globalThis.__fsRenderMemo={S:null,os:new Map(),is:new Map()});if(m.S!==S){m.S=S;m.os=new Map();m.is=new Map();}
+  const m=globalThis.__fsRenderMemo??(globalThis.__fsRenderMemo={S:null,os:new Map(),is:new Map(),misc:new Map()});if(m.S!==S){m.S=S;m.os=new Map();m.is=new Map();m.misc=new Map();}
   m.os.set(o.id,r);
   return r;
 }
@@ -645,9 +645,17 @@ function issuesOf(b,opt={}){
     if(x.m===b.m){if(opt.pushOK&&!x.pin){opt.push++;continue;}out.push(x.pin?"和固定的 "+label(x)+" 重疊":"和 "+label(x)+" 撞同一台機器");break;}}
   if(E&&capacityIntervals(b.date,E,new Set([b.id])).some(([s,e])=>s<b.e&&e>b.s))
     out.push(E.name+" 同時顧機台超過上限 "+(E.maxMachines||1)+" 台");
-  if(b.step>0){const r=readyAbs(b.oid,b.step);if(bAbs(b)<r)out.push("前站還沒完成交接批量（"+(isFinite(r)?mdw(dateOfAbs(r))+" "+hm(r%1440)+" 後才能做":"前站未排")+"）");
-    if(materialFlowIssue(S.blocks,b.oid,b.step,absOf,S.execution||[]))out.push("前站累積產量不足，後站不能先做完這些件數");}
-  if(canMemo){const m=globalThis.__fsRenderMemo??(globalThis.__fsRenderMemo={S:null,os:new Map(),is:new Map()});if(m.S!==S){m.S=S;m.os=new Map();m.is=new Map();}m.is.set(b.id,out);}
+  if(b.step>0){
+    // 這兩項只依 (oid,step) 與整體狀態——同群組的每個方塊重複計算是缺陷#41 的主成本，render 期快取
+    const memo1=globalThis.__fsRenderMemo;
+    const kk=b.oid+'|'+b.step;
+    let r,mf;
+    if(canMemo&&memo1&&memo1.S===S){r=memo1.misc.get('ra:'+kk);mf=memo1.misc.get('mf:'+kk);}
+    if(r===undefined){r=readyAbs(b.oid,b.step);if(canMemo){const m1=globalThis.__fsRenderMemo??(globalThis.__fsRenderMemo={S:null,os:new Map(),is:new Map(),misc:new Map()});if(m1.S!==S){m1.S=S;m1.os=new Map();m1.is=new Map();m1.misc=new Map();}m1.misc.set('ra:'+kk,r);}}
+    if(mf===undefined){mf=materialFlowIssue(S.blocks,b.oid,b.step,absOf,S.execution||[]);if(canMemo){const m2=globalThis.__fsRenderMemo??(globalThis.__fsRenderMemo={S:null,os:new Map(),is:new Map(),misc:new Map()});if(m2.S!==S){m2.S=S;m2.os=new Map();m2.is=new Map();m2.misc=new Map();}m2.misc.set('mf:'+kk,mf);}}
+    if(bAbs(b)<r)out.push("前站還沒完成交接批量（"+(isFinite(r)?mdw(dateOfAbs(r))+" "+hm(r%1440)+" 後才能做":"前站未排")+"）");
+    if(mf)out.push("前站累積產量不足，後站不能先做完這些件數");}
+  if(canMemo){const m=globalThis.__fsRenderMemo??(globalThis.__fsRenderMemo={S:null,os:new Map(),is:new Map(),misc:new Map()});if(m.S!==S){m.S=S;m.os=new Map();m.is=new Map();m.misc=new Map();}m.is.set(b.id,out);}
   return out;
 }
 /* ===== 6. 畫面 ===== */
