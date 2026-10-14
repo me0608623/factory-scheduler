@@ -4391,9 +4391,13 @@ Object.assign(MODAL_ACT,{
     const sameContext=()=>sameSession()&&!PV&&UI.date===date&&UI.factory===factory&&canPermission('notes.manage');
     const owns=()=>UI.modal===m&&sameContext()&&S===before&&JSON.stringify(S)===beforeJSON;
     m.memoId??=uid();m.memoCreatedAt??=new Date().toISOString();m.memoDraft={text,machineId,employeeId,pinned:!!$('#memo-pinned')?.checked};
+    const memoKey='memo-unknown:'+JSON.stringify(m.memoDraft),memoSession=user+'@'+epoch;
+    const priorUnknown=UI.memoUnknown?.get(memoKey);   // 未知結果後同內容重試：沿用原 id 讓 upsert 落同一列，避免關窗重開造成重複
+    if(priorUnknown&&priorUnknown.sk===memoSession)m.memoId=priorUnknown.id;
     m.error=null;m.saving=true;UI.memoSaving=m;button.disabled=true;renderModal();
     try{
       await activeStore.saveMemo({id:m.memoId,...m.memoDraft,author:activeStore.userName||'本機',createdAt:m.memoCreatedAt});
+      if(UI.memoUnknown?.get(memoKey)?.id===m.memoId)UI.memoUnknown.delete(memoKey);
       if(!owns()){
         if(sameSession())pendingReload=true;return;
       }
@@ -4401,7 +4405,10 @@ Object.assign(MODAL_ACT,{
       const result=await reloadFromStore({background:true});
       if(!sameContext()||UI.modal)return;
       UI.drawer='notes';render();toast(result==='applied'?'備忘已保存':tx('備忘已保存；尚未讀到最新資料，請更新核對。'));
-    }catch(e){if(owns()){m.error=e.message;m.saving=false;renderModal();}}
+    }catch(e){
+      if(owns()){m.error=e.message;m.saving=false;renderModal();}
+      (UI.memoUnknown??=new Map()).set(memoKey,{id:m.memoId,sk:memoSession});   // 結果未知（可能已提交）：登記供同 session 同內容重試沿用
+    }
     finally{m.saving=false;if(UI.memoSaving===m)UI.memoSaving=null;maybeReload();}
   }
 });
