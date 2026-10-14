@@ -1,5 +1,13 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R29 checkpoint：缺陷#39 roster-ui null-modal／失蹤草稿家族（17 處）
+
+- 探索類別：#38 延伸。`roster-ui.js` 三個子家族：①safe() 內 `ui.modal.draft`／`const m=ui.modal` 後 `m.draft`（null→英文 TypeError toast）；②`current(id)` 失蹤輪班草稿後直接 `.shifts`／`structuredClone(undefined).x`；③`document.getElementById('rs-rate').value` DOM 缺失＋rs-apply `m.t` 未守門＋rs-auto（未包 safe，自有 catch）同型。共 17 處。
+- 修正：17 處機械式守門（`?.draft`／`if(!c)return`／`?.value`）；rs-position-edit 對 find 失敗補 `?? {}` 空 draft。
+- 測試：新 `web/tests/roster-ui-null-modal.test.mjs`（模組級直測 import 真 rosterUI）三案例——16 action null-modal 安靜 no-op（含 async rs-auto 用 doesNotReject）、9 action 對失蹤草稿 id 靜默、rs-auto 失蹤不觸 solver。——3/3 綠。
+- 驗收：全套 web 841/841 綠＋build 過。staging 部署驗收見下。 
+- staging 部署驗收（df19a51）：CI 先綠後前進 codex/excel-friendly-ui-20260930（dc42bf0→df19a51）；Render deployment success；cache-buster 得新 bundle index-CjfSipzt.js，守門壓縮形 `"rs-allow-day":A(T=>{const R=e.modal;if(!(R!=null&&R.draft))return;…` 與 `getElementById("rs-rate"))==null?void 0:$.value` 確認在線上（esbuild 將 ?. 降級為 null 檢查）。
+
 ## 2026-10-15 15-min tracking R28 checkpoint：缺陷#38 transfer-ui null-modal×5＋safe() 英文 TypeError toast（tf-work 未包裝＝未捕捉）
 
 - 探索類別：#37 家族延伸至模組層。`transfer-ui.js` 的 `safe()` 把 null-modal TypeError 轉成**英文技術訊息 toast**（現場長者看到 "Cannot read properties of null (reading 'draft')"）；`tf-work` 未包 safe 更是未捕捉崩潰。清單：normalizedDraft（tf-save 用）、tf-work、tf-batch-save、tf-flow-preview、tf-flow-apply＋防禦性 `if(!o)return`（tf-flow/tf-plan 對失蹤 batch id）。
