@@ -478,7 +478,7 @@ function optLines(r){
 }
 
 /* ----- 方案比較：同一個狀況算出幾種排法，進入預覽讓老闆（或 AI）挑 ----- */
-function withState(st,fn){const keep=S;S=st;try{return fn();}finally{S=keep;}}
+function withState(st,fn){const keep=S;globalThis.__fsRenderMemo=null;S=st;try{return fn();}finally{S=keep;globalThis.__fsRenderMemo=null;}}
 function otMinutes(st){return withState(st,()=>sum(S.blocks,b=>Math.max(0,Math.min(b.e,DAY1)-Math.max(b.s,REG_END))));}
 function measure(B,A,ev){
   const bk=new Set(B.blocks.map(keyB));
@@ -597,7 +597,12 @@ function cascade(lines){
     if(!changed)break;
   }
 }
+// render 期 memo：issuesOf/orderStatus 都會掃全部 blocks，大班表（每日千段）下是平方級（缺陷#41）。
+// 單次 render／withState 區間內重用結果；render()/renderModal() 進入與 withState 進出時清空，
+// 保證就地變異（釘選、預覽 reflow）後的下一次計算是新鮮的。
 function orderStatus(o){
+  const memo=globalThis.__fsRenderMemo;
+  if(memo&&memo.S===S){const hit=memo.os.get(o.id);if(hit)return hit;}
   const p=prod(o.pid);if(!p)return {k:"none"};
   const last=p.steps.length-1;
   const bl=S.blocks.filter(b=>b.oid===o.id);
@@ -606,7 +611,10 @@ function orderStatus(o){
   if(sum(lb,b=>effectiveBlockQty(b,S.execution||[]))<o.qty)return {k:"part"};
   const fin=Math.max(...lb.map(bEnd)),fd=dateOfAbs(fin);
   const done=sum(lb,b=>{const r=executionOf(S,b.id);return r?.status==='done'?r.qtyDone:0;})>=o.qty;
-  return {k:done?"done":fd>o.due?"late":fin<=nowAbs()?"elapsed":"ok",fin,fd};
+  const r={k:done?"done":fd>o.due?"late":fin<=nowAbs()?"elapsed":"ok",fin,fd};
+  const m=globalThis.__fsRenderMemo??(globalThis.__fsRenderMemo={S:null,os:new Map(),is:new Map()});if(m.S!==S){m.S=S;m.os=new Map();m.is=new Map();}
+  m.os.set(o.id,r);
+  return r;
 }
 function lateCheck(lines){
   for(const o of S.orders){const st=orderStatus(o);
@@ -614,6 +622,8 @@ function lateCheck(lines){
 }
 // 檢查單一方塊的問題（顯示紅框）
 function issuesOf(b,opt={}){
+  const canMemo=!opt.pushOK,mem0=globalThis.__fsRenderMemo;
+  if(canMemo&&mem0&&mem0.S===S){const hit=mem0.is.get(b.id);if(hit)return hit;}
   const out=[],E=emp(b.emp),M=mach(b.m),o=order(b.oid);
   opt.push=0;
   if(!o||!M)return ["資料不完整"];
@@ -637,6 +647,7 @@ function issuesOf(b,opt={}){
     out.push(E.name+" 同時顧機台超過上限 "+(E.maxMachines||1)+" 台");
   if(b.step>0){const r=readyAbs(b.oid,b.step);if(bAbs(b)<r)out.push("前站還沒完成交接批量（"+(isFinite(r)?mdw(dateOfAbs(r))+" "+hm(r%1440)+" 後才能做":"前站未排")+"）");
     if(materialFlowIssue(S.blocks,b.oid,b.step,absOf,S.execution||[]))out.push("前站累積產量不足，後站不能先做完這些件數");}
+  if(canMemo){const m=globalThis.__fsRenderMemo??(globalThis.__fsRenderMemo={S:null,os:new Map(),is:new Map()});if(m.S!==S){m.S=S;m.os=new Map();m.is=new Map();}m.is.set(b.id,out);}
   return out;
 }
 /* ===== 6. 畫面 ===== */
@@ -664,7 +675,7 @@ const LOGIC={leave:"假",fault:"修",move:"移",auto:"排",ot:"加",edit:"改",s
 function baseHourPx(){return parseFloat(getComputedStyle(document.body).getPropertyValue("--hour"))||72;}
 function hourPx(){return baseHourPx()*(UI.view==="week"?SZ.week:SZ.day);}
 
-function render(){ I18N.lang=UI.prefs.language; ensureVisualStyles();
+function render(){ I18N.lang=UI.prefs.language; globalThis.__fsRenderMemo=null; ensureVisualStyles();
   const sc=$(".scroller"),sl=sc?sc.scrollLeft:0,sy=window.scrollY;
   document.body.classList.toggle("tv",!!UI.tv);
   document.body.classList.toggle("pvmode",!!PV);
@@ -1843,6 +1854,7 @@ function syncInputs(){
     const v=el.type==="number"?(el.value===""?0:+el.value):el.value;setPath(m.draft,el.dataset.bind,v);});
 }
 function renderModal(){
+  globalThis.__fsRenderMemo=null;
   let root=$("#modal-root");
   if(!root){root=document.createElement("div");root.id="modal-root";document.body.appendChild(root);}
   const m=UI.modal;if(!m){root.innerHTML="";return;}

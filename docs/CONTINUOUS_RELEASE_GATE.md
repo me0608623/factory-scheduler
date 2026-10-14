@@ -1,5 +1,15 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R39 checkpoint：缺陷#41 修復嘗試——render 期 memo 上線（正確性鎖定）但量測曲線不變，#41 保持開放
+
+- 已上線（app.js）：`orderStatus`／`issuesOf`（裸呼叫）的 render 期 memo——`globalThis.__fsRenderMemo` 存放、以 S 識別為鍵；`render()`／`renderModal()` 進入與 `withState()` 進出清空（就地變異／預覽 reflow 後保新鮮）；`pushOK` 路徑永不快取。內聯 globalThis 操作＝vm fixture 免改。
+- 正確性：新測試 `web/tests/render-memo-correctness.test.mjs` 四案例（pass 內一致、變異後 reset 前沿用以渲染內一致/reset 後新鮮、withState 雙向清、pushOK 不快取）；全套 **849/849 綠**＋build 過。
+- **誠實結論：量測曲線不變**（495/990/1980→836/4626/17675ms ≈ R38 基線）。教訓：issuesOf 以 block id 為鍵、每個 block 唯一＝記憶化在本路徑零重用；orderStatus 重用不足以撼動成本。
+- 追加實測（修正 R38 的錯誤歸因）：**離開**大日（渲染小日）只要 99ms／95 次 filter；filter 總流量小→**filter 非主導成本**。大日的**暖重渲染**（sz-reset）連 990 段都超出 32 秒工具傳輸窗＝暖重渲染比啟動首渲染（4.6s@990）更貴——疑似單次互動觸發多次 render 或縮放路徑額外成本。
+- #41 保持開放。下一步（需要正式工具）：①production build＋CDP CPU profile 取熱點函式實證；②以資料形狀二分（跨日分散 vs 集中單日）分離「載入/正規化」與「渲染」成本；③懷疑面：innerHTML 巨型字串解析、單互動多次 render、dayHTML 之外的板面（一般工作板/抽屜）重複計算。
+- 環境已清理（分頁清資料關閉、dev server 停止）。
+- staging 部署狀態：d9a9bd7 已前進 codex/excel-friendly-ui-20260930（CI 先綠），但 **Render deployment 超過 10 分鐘未出現**（deployments API 仍回 c924b9c）——webhook 疑未觸發，**未驗證**；staging 線上仍為 c924b9c（#40 bundle index-Z6fMnM-j.js）。下輪複查；memo 變更效能中性，無緊急性。
+
 ## 2026-10-15 15-min tracking R38 checkpoint：缺陷#41（發現＋實測，修復排下輪）——日視圖渲染隨段數平方成長
 
 - 方法：本地 dev server＋本機模式，以 localStorage 種子擴充（15 機台＝5 原始＋10 複製，blocks 覆蓋 10/15 全日）。每級先重置→重新生示範→種子→reload，取 navigation timing 的 domContentLoadedEventEnd。種子教訓：樣板須取自完整 block（缺 oid 的空殼會讓渲染崩成空板）；頁面 evaluate 只吃 template literal 形式。
