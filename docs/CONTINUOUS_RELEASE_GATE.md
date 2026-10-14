@@ -1,5 +1,16 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R5 checkpoint：缺陷#27 drawer-write 未知結果補讀＋PR16 兩段同步＋staging 批次部署評估
+
+- 起點 636e158 clean 無 modifier。
+- **PR16 同步 #26 修正**：核對 clean/remote=61609a4 → merge → **1886145**（805/805＋build）push。
+- **缺陷#27 實證（runDrawerWrite 家族：准假/駁回/釘選/取消釘選）**：RPC 真提交但回應丟失（未知結果）→catch 顯示「處理…失敗」錯誤但**永不排補讀**——DB 已 approved 而畫面停在 pending 且無任何核對機制。RED（真 PGlite＋真 RPC commit＋實際 handler）：斷言未知結果須排一次有界安全補讀且補讀後畫面浮現 approved——修前 RED。
+- **最小修正（09131b5）**：runDrawerWrite catch 加 `if(owner.sameSession())pendingReload=true`——沿用既有 maybeReload 守門（草稿/預覽/拖曳/在途保護不變），已知拒絕也僅多一次有界讀。診斷過程：初次斷言寫錯（flag 殘留）——實際 finally 的真 maybeReload 在視圖乾淨時**立即消耗 flag 並排 timer**（更即時的正確行為）；以獨立編譯探針證實修正本身有效後改斷言為「timer 已排＋補讀 1 次＋DB approved＋畫面浮現」。聚焦 20/20、全套 **805/805**＋build、CI @09131b5 全綠。
+- **PR16 同步 #27**：merge → **826cacb**（806/806＋build）push，CI Tests／smoke／Synthetic 全 success。
+- **staging 批次部署評估（記錄，本輪未部署）**：staging branch codex/excel-friendly-ui-20260930 remote=**37fd415**（dep-db7cfj7avr4c73f4sl7g 時代）。本分支累積 runtime 變更：0a64219（memo 補讀）、8f98a21（memo 防重複）、5329c48（leave 衝突友善）、09131b5（drawer 補讀）＝4 個待部署，皆有全套回歸＋CI 綠。37fd415 為 09131b5 祖先（普通 push 可達），部署路徑=推 stage branch→auto deploy→bundle/瀏覽器驗收。**未驗證**：實際部署；下輪執行（需完整部署後驗收流程）。
+- 正式 1023／0037／Auth／角色未動；無 cloud 寫入；nightly 停用；PR16/18 draft 門檻不變。
+- 下一步：①執行 staging 批次部署＋完整驗收；②繼續 direct-write 家族探索（execution confirmation ledger 的 unknown 分支已有 71f1818 防護，複查覆蓋）；③新缺陷。
+
 ## 2026-10-15 15-min tracking R4 checkpoint：缺陷#26 leave 重送撞唯一索引（友善訊息＋安全補讀）＋PR16 同步
 
 - 起點 96f81d4 clean 無 modifier。
