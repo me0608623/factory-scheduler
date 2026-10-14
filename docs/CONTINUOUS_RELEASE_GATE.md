@@ -7,6 +7,7 @@
 - 最小修正：`previewGeneral` 在 modal 記 `existed`；`gw-apply` 若 `existed&&` 當前 S 已無此 id → toast 中止不寫（新 i18n 鍵三語已補）。全新插入（existed=false）與正常移動不受影響——3/3 綠。
 - 同輪權限邊界審查（無缺陷）：`commit(entry,permission)` 中央閘＋`canPermission` PV 擋寫；undo 在 PV_BLOCK 內；blk→report-open 開 modal 未守門但 `reportWork` 提交有 `canPermission`×`canReport`（含 worker 只能報自己：`employeeId===block.emp` 且優先序正確）；`general-edit` 對失蹤 id 走新建草稿不崩潰；`b-pin`/`b-mach` 先變更後 commit 的本地分歧由 e.permission 恢復讀兜底。
 - 驗收：全套 web 824/824 綠＋build 過。staging 部署驗收見下。 
+- staging 部署驗收（e333d6f）：CI 先綠後前進 codex/excel-friendly-ui-20260930（357238d→e333d6f）；Render deployment success（per_page=1 查得，SHA=e333d6f）；bundle index-CEdbho95.js 內守門壓縮形狀 `modal.existed&&!Se(m).some(s=>s.id===t.id)){R(l("這段工作已被別人更新移除…` 存在（文案兩處＝字典＋呼叫點）。
 
 ## 2026-10-15 15-min tracking R23 checkpoint：缺陷#33 拖曳中衝突恢復→舊引用復活已刪工作
 
