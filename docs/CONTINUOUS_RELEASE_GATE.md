@@ -1,5 +1,13 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R32 checkpoint：負結果輪——qtyDraft 邊界／work-queue／manual.js 三項審查（皆無缺陷）
+
+- 審查①（reportWork 數量邊界）：`Number.isInteger`＋不倒退（`qty<(r?.qtyDone||0)`）＋不超量（`qty>b.qty`）＋空值明確要求填 0＋HTML min/max＋衝突時 delete qtyDraft 由 reconcile 重建——已有 15+ receipt 測試鎖定，無缺口。
+- 審查②（work-queue.js）：純診斷投影（無寫入）；缺工序有 fallback 列、`Math.max(0,remaining)`、`canArrange` 五條件、排序鏈完整——無缺陷。
+- 審查③（manual.js 數值換算）：`Math.floor(minutes*rate+1e-8)` epsilon 進位、batchReadyMinute 插值除法無零分母（produced 在首點必為 0 且單調）、materialFlowIssue 0.5 件容差——數值處理縝密，無缺陷。
+- 附帶：R31 的 docs 提交已同步 PR16（791e14e→6887611）。
+- 連兩輪負結果＝探索熱區收斂的訊號。下一輪改變策略：優先做**瀏覽器層 smoke**（本地 dev server＋本機模式，不需憑證）覆蓋近期修復的 null-modal 家族實際 DOM 互動，或深挖 settings 偏好 RPC 持久化路徑。
+
 ## 2026-10-15 15-min tracking R31 checkpoint：負結果輪——floor/overview/chat/wl-del 六項審查（皆無缺陷）＋PR 狀態核對
 
 - 審查①（floor.js 平面圖）：唯讀純邏輯模組（「不吃任何寫入」），全程 `||{}`/`||[]` 防禦、auto-排列有 cursor>999 保底、roundRect 為現代 Chrome 支援——無缺陷。佈局編輯器不存在（machine_layout 資料庫側，hint 明示），拖曳寫入風險封閉。
