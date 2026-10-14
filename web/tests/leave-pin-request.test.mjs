@@ -252,3 +252,28 @@ test('unknown RPC outcome for drawer resolve schedules one safe reread so the co
     assert.equal(f.ctx.S.leaveRequests.find(r=>r.id===leave).status,'approved','reread surfaces the committed approval');
   }finally{await db.close();}
 });
+
+test('applied reread clears the stale drawer error banner once fresh state shows',async()=>{
+  const db=await makeDb();try{
+    const actor='44444444-4444-4444-8444-444444444444',leave='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    await db.query("insert into auth.users(id,email) values($1,'synthetic-banner@invalid')",[actor]);
+    await db.query("update profiles set role='boss' where user_id=$1",[actor]);
+    const employee=(await db.query("select id from employees where name='張三'")).rows[0].id,date=(await db.query('select (current_date+5)::text date')).rows[0].date;
+    await db.query("insert into leave_requests(id,employee_id,date,note,status,created_by) values($1,$2,$3,'Synthetic','pending',$4)",[leave,employee,date,actor]);
+    const fake=new FakeSupabase(db,{});fake.uid=actor;
+    const reader=new SupabaseStore(fake);await reader.init();const state=await reader.load();
+    const sdk=createClient('https://synthetic.invalid','sb_publishable_synthetic',{accessToken:async()=> 'synthetic',global:{fetch:async(url,options)=>{
+      const result=await fake.rpc('resolve_leave_request',JSON.parse(options.body));
+      assert.equal(result.error,null);throw new TypeError('Failed to fetch');
+    }}});
+    const store=new SupabaseStore(sdk);store.session={user:{id:actor},access_token:'synthetic'};
+    const f=fixture('resolve');f.ctx.S=state;f.ctx.STORE=store;f.button.dataset.id=leave;
+    const h=reconciliation(f);store.load=async options=>{h.reads.push('read');return reader.load({remember:false});};
+    await f.run(f.button);
+    assert.ok(f.ctx.UI.directWriteError,'error banner set after unknown outcome');
+    assert.ok(h.timers.length>=1,'safe reread queued');await h.timers.shift()();
+    assert.equal(h.reads.length,1);
+    assert.equal(f.ctx.S.leaveRequests.find(r=>r.id===leave).status,'approved','reread surfaced committed approval');
+    assert.ok(!f.ctx.UI.directWriteError,'applied reread must clear the stale failure banner that contradicts fresh state');
+  }finally{await db.close();}
+});

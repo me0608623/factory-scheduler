@@ -36,7 +36,7 @@ test('scenario saves remain available in stable preview without changing schedul
 });
 test('same-name retry reuses payload and id; explicitly edited name is not silently saved under old name',async()=>{
   const f=fixture();f.ctx.STORE.saveScenario=async item=>{f.writes.push(item);throw new Error('SYNTHETIC_REJECTION');};
-  await f.start();const first=f.writes[0];await f.start();assert.equal(f.writes[1],first);
+  await f.start();const first=f.writes[0];await f.start();assert.equal(JSON.stringify(f.writes[1]),JSON.stringify(first));
   f.input.value='Renamed synthetic comparison';await f.start();assert.equal(f.writes[2].name,f.input.value);assert.notEqual(f.writes[2].id,first.id);assert.equal(f.ctx.UI.modal,f.m);
 });
 test('own save error is inline, preserves name, and releases controls without automatically retrying',async()=>{
@@ -47,4 +47,33 @@ test('actual LocalStore saves comparison only and provides device-local success 
   const previous=globalThis.localStorage,data=new Map();globalThis.localStorage={getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,v)};
   try{const f=fixture();f.ctx.STORE=new LocalStore();const before=JSON.stringify(f.ctx.S);await f.start();const items=await f.ctx.STORE.listScenarios();assert.equal(items.length,1);assert.equal((await f.ctx.STORE.getScenario(items[0].id)).name,f.input.value);assert.equal(JSON.stringify(f.ctx.S),before);assert.match(f.events.at(-1),/這台裝置/);}
   finally{if(previous===undefined)delete globalThis.localStorage;else globalThis.localStorage=previous;}
+});
+
+test('real SQL unknown scenario outcome then close-reopen same name saves one row, not a duplicate',async()=>{
+  const {makeDb,FakeSupabase}=await import('./fake-supabase.mjs');const {SupabaseStore}=await import('../src/store/supabase.js');const {createClient}=await import('@supabase/supabase-js');
+  const db=await makeDb();try{
+    const actor='44444444-4444-4444-8444-444444444444';
+    await db.query("insert into auth.users(id,email) values($1,'synthetic-scen@invalid')",[actor]);
+    await db.query("update profiles set role='boss' where user_id=$1",[actor]);
+    const fake=new FakeSupabase(db,{});fake.uid=actor;
+    const reader=new SupabaseStore(fake);await reader.init();
+    let failFirst=true;
+    const sdk=createClient('https://synthetic.invalid','sb_publishable_synthetic',{accessToken:async()=> 'synthetic',global:{fetch:async(url,options)=>{
+      const result=await fake.rpc('save_planning_scenario',JSON.parse(options.body));
+      assert.equal(result.error,null);
+      if(failFirst){failFirst=false;throw new TypeError('Failed to fetch');}
+      return new Response(JSON.stringify(result.data),{status:200,headers:{'content-type':'application/json'}});
+    }}});
+    const store=new SupabaseStore(sdk);store.session={user:{id:actor},access_token:'synthetic'};
+    const f=fixture();f.ctx.STORE=store;
+    await f.start();                                        // #1 RPC commits, response lost
+    assert.ok(f.m.error,'first save surfaced its error');
+    f.ctx.closeModal();
+    f.ctx.UI.modal={t:'scenario-save',base:f.ctx.S,candidate:f.ctx.S};   // user reopens a fresh save dialog, same name
+    const m2=f.ctx.UI.modal;const save2=()=>f.ctx.saveScenarioFromModal({disabled:false});
+    await save2();                                          // #2 succeeds
+    assert.equal(m2.error,null);
+    const rows=(await db.query("select count(*)::int n from planning_scenarios where created_by=$1 and name='Synthetic comparison'",[actor])).rows[0].n;
+    assert.equal(rows,1,'same-name reopen must reuse the unknown row, not create a duplicate');
+  }finally{await db.close();}
 });
