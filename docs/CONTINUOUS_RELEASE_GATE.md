@@ -1,5 +1,14 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R31 checkpoint：負結果輪——floor/overview/chat/wl-del 六項審查（皆無缺陷）＋PR 狀態核對
+
+- 審查①（floor.js 平面圖）：唯讀純邏輯模組（「不吃任何寫入」），全程 `||{}`/`||[]` 防禦、auto-排列有 cursor>999 保底、roundRect 為現代 Chrome 支援——無缺陷。佈局編輯器不存在（machine_layout 資料庫側，hint 明示），拖曳寫入風險封閉。
+- 審查②（overview.js 分析）：全可選鏈＋Number()||0＋planned 三元防除零——無缺陷。
+- 審查③（chat-ui/chat-ledgers/chat-context）：播報按鈕 dataset 狀態機對稱（on/off/stopSpeak）；ledgers 為唯讀投影、capacity 有 null 分支不推估——無缺陷。
+- 審查④（wl-del/tbl-del）：wl-del＝rush-del 同構（permission＋confirmRow 兩段＋filter no-op 安全）；tbl-del 有 `m?.t` 守門＋confirmDel 兩段＋idx>=0＋commit 中央權限閘——無缺陷。
+- 發布門檻核對：PR #18（head＝codex/continuous-release-gate-20261013＝本分支）與 PR #16 均 draft 不變；main CI 綠 @11ff07d。
+- 本輪無程式碼變更、無部署。下一輪：新區域（work-queue 排隊視圖、general-work 的權限交叉、或 execution modal 的 qtyDraft 邊界）。
+
 ## 2026-10-15 15-min tracking R30 checkpoint：負結果輪——safe() 家族掃描收尾＋四個候選審查（皆無缺陷）
 
 - **safe() 同型掃描收尾**：除 app.js／transfer-ui／roster-ui 外，其餘模組（chat-ui/settings/overview/worklog/win/groups/manual/overtime）grep 無任何 `ui.modal` 解參考——#37/#38/#39 家族全面關閉。
