@@ -1,5 +1,11 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-15 15-min tracking R42 checkpoint：匯出 Excel 下載流程雙層驗證（產物＋瀏覽器）——無缺陷
+
+- 產物層：新測試 `web/tests/excel-export-artifact.test.mjs`——scheduleXlsx 位元組為有效 zip（PK 魔數）且含 xl/worksheets、sharedStrings、workbook entries。內容正確性由既有 excel.test.mjs 的 buildScheduleWorkbook 往返覆蓋（分工明確，不重複）。教訓：xlsx 匯出的 zip local header 可能走 data descriptor（csize=0），位元組級解壓驗證過度工程——名稱掃描＋魔數即足以鎖產物層。
+- 瀏覽器層（本地 dev＋本機模式）：攔 `URL.createObjectURL` → 點「下載彩色排程 Excel」→ 實際產出 **10,369 位元組**、MIME `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` 的 blob、零錯誤。
+- 全套 web 850/850 綠。純測試變更——staging 維持 889e882 不重複部署。
+
 ## 2026-10-15 15-min tracking R41 checkpoint：#41 修復延伸驗證——週視圖大資料 617ms（無缺陷）
 
 - 週視圖（7 日 × 全機台）在 1,980 段集中單日下：切換 617ms、返回日視圖 751ms、零錯誤——與日視圖共用 issuesOf 路徑，自動受惠於 (oid,step) 快取。
