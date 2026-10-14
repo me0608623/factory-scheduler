@@ -1,5 +1,17 @@
 # 持續缺陷探索與發布驗收
 
+> **狀態總覽（R45 起常態更新；輪段詳細證據往下）**
+> - **本系列修復**：#32–#42 共 11 件（離線靜默丟失×2、衝突復活×2、undo 覆蓋遠端、null-modal 家族×3 大類 38 處、realtime 輪詢備援、日視圖平方級效能 20×、列印彈出封鎖崩潰）。測試 web 430→853。
+> - **staging**：線上 889e882（bundle index-BYOY76_0.js，含 #32–#41）。**#42 未部署**——Render 部署通道對 fe574fb 起持續靜默（push 不觸發），需使用者檢查 Render dashboard 或補 RENDER_STAGING_WEB_DEPLOY_HOOK secret 手動觸發。
+> - **PR16/18 均 draft**：#18 head＝本分支（自動跟隨）、#16＝test-mode 分支（每輪同步；最新 853/853 綠）。
+> - **待使用者（合併前必做）**：①Render staging 部署通道檢查＋hook secret；②staging Realtime 平台 ticket（WS 500）；③第二帳戶（同意信未回覆不得再寄）；④正式 VITE_TEST_* 三值；⑤全部通過後：真實跨帳戶/手機桌面同步、斷線衝突回饋驗收 → 才合併 PR → 才部署正式。
+
+## 2026-10-15 15-min tracking R45 checkpoint：負結果輪（analytics 審查）＋頂部常態狀態總覽塊設立
+
+- 審查（無缺陷）：analyticsPageHTML＝唯讀防禦性儀表板（除法有 0 值防護、orderStatus 迴圈受惠 render memo、月區間過濾線性）。
+- 新增：文件頂部「狀態總覽」常態塊（修復清單、staging/PR 現況、使用者待辦五項）——44 輪後的一站式入口，之後每輪更新。
+- 部署通道：本輪複查仍 889e882（持續靜默），狀態已反映於總覽塊。無程式碼變更。
+
 ## 2026-10-15 15-min tracking R44 checkpoint：負結果輪（TV／排程比對）＋部署通道持續靜默→列使用者檢查項
 
 - 審查（無缺陷）：TV／大螢幕＝body class 切換＋聊天 enabled() 閘（無計時器無複雜狀態）；排程比對 computeScheduleDiff＝純集合運算（Set O(n)、render 端 `o?o.code:\"\"` null 防護）；win.js 浮動視窗已於 R37 審過。
