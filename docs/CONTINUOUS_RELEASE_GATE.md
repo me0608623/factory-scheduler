@@ -13,6 +13,7 @@
 - **#53**：`saveScenario` 讀 SCENARIOS 拋例外時 catch 吞成空陣列——**用空清單覆寫＝丟全部已存情境**。修法：讀取失敗改 throw 友善訊息（不儲存不覆寫），解析失敗仍走原本防護路徑。
 - 併入：普通 merge×2；local-reset 4/4＋scenario-read-failure 1/1（共 5 案例：失敗重置可重試、壞索引不刪、部分失敗不動無關鍵、真 handler 不 reload 可重試、讀取失敗不覆寫且重試保留雙情境）、全套 web **882/882**＋build 過。staging 部署待後續。
 - 待授權批次：PR19-27 九件。
+- staging 部署驗收：CI 綠→前進 stage 分支（d5651c6→2a1e43d）→web-staging deployment **success**。PR16 分支同步。
 
 ## 2026-10-15 R82（20min）他人修復併入：#51 反饋清單過時回應覆寫（cffd22e/PR25）
 
