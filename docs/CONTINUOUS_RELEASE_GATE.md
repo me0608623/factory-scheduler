@@ -11,7 +11,8 @@
 
 - 發現：他人分支 fix-excel-print-layout-20261015（9fbb888，基於 main，已開 PR29）。缺陷：`grid.properties.pageSetup=...`——ExcelJS 的 pageSetup 在 worksheet 根層（`grid.pageSetup`），寫到 `properties` 下＝序列化時**整段列印設定遺失**（開啟檔案非橫向、非一頁式）。修法：`Object.assign(grid.pageSetup,...)`。
 - 併入：普通 merge；新測試做 **XLSX 往返**（寫出→重新載入→斷言 orientation/fitToPage/fitToWidth/fitToHeight＋內容格）1/1、全套 web **885/885**＋build 過。與 R77/R80 的位元組級下載證據互補——本修復讓列印設定真正存進檔案。
-- staging 部署待後續。待授權批次：PR19-29 十一件。
+- staging 部署驗收：CI 綠→前進 stage 分支（116ec1e→0e934c8）→web-staging deployment **success**。PR16 分支同步。
+- 待授權批次：PR19-29 十一件。
 
 ## 2026-10-15 R87（20min）R86 待查項排除：三連點重現＝恰一個 200——預覽套用連點 PASS（結案）
 
