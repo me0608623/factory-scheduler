@@ -2,9 +2,16 @@
 
 > **狀態總覽（常態更新；輪段詳細證據往下）**
 > - **正式站**：runtime `e0e6f65`（PR16/PR18 已合併；web bundle index-CV39COdK.js、solver dep-db864um89）。`?mode=test` 三個 VITE_TEST 值已設定、只連隔離 fk 專案＋staging solver（隔離核對 PASS）。**正式站待修**：#45 rs-create 迴歸（正式「輪班表→新增」會失敗）。
-> - **staging（領先正式）**：runtime `0e934c8+`——含 #43 solver 冷啟動有界重試、#45–#55 共 11 件協同修復（rs-create、sticky 面板、切換成本、標記隔離、存檔並發、LINE/反饋/重置/情境誠實回報、日期排序、xlsx 列印設定）、render.yaml AI 旗標防漂移（sync:false，未部署生效）。web **885/885**、solver **177/177**。
+> - **staging（領先正式）**：runtime `4f4470a`——含 #43 solver 冷啟動有界重試、#45–#56 共 12 件協同修復（rs-create、sticky 面板、切換成本、標記隔離、存檔並發、LINE/反饋/重置/情境誠實回報、日期排序、xlsx 列印設定、排隊交接完成量）、render.yaml AI 旗標防漂移（sync:false，未部署生效）。web **887/887**、solver **177/177**。staging 實證：#43/#45/#46/#48/#50/#55＋#42 列印封鎖 toast＋#54 前門防禦；單元鎖定：#47/#49/#51–#53/#56。
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
+
+## 2026-10-15 R100（20min）系列百輪小結：30 輪 20min 追蹤——12 件協同修復上線、7 項修復 staging 實證、瓶頸全在使用者側
+
+- **20min 系列（R71–R100）累計**：我方修復 #43（solver 冷啟動有界重試）＋render.yaml 防漂移；併入他人修復 12 件（#45–#56，PR19–30 全部普通 merge、全數上 staging、web 430→887）；優先項①②③完成、④大部分完成（連點/匯出/下載解析/列印提示皆有實證）、⑤持續阻擋（Realtime R91 實證仍 500、第二帳戶未建立）。
+- **實證分層**：staging 級＝#43/#45/#46/#48/#50/#55＋#42＋#54 前門；單元級＝#47/#49/#51–#53/#56；匯出面三層（zip/CSV 內容/列印設定往返）。遺留合成資料：A07（基準保留）、TEST-r94-rscreate 輪班草稿、一筆本機黃標——皆已標識。
+- **不變瓶頸（全在使用者側）**：①批次合併 PR19–30＋部署正式（R90 計畫＋E 節驗收單）；②Realtime ticket；③第二帳戶/真手機驗收（A–D 節腳本）。
+- 本輪無程式碼變更、無部署。
 
 ## 2026-10-15 R99（20min）#54 瀏覽器層探針：UI 表單擋不可能日期（前門防禦）＋空日期雙向墊底——測試列已清理
 
