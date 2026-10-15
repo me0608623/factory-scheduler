@@ -6,6 +6,12 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R112（20min）他人修復併入：#58 浮動視窗幾何驗證不全（y/h 可 NaN 入畫）（d0de20a/PR32）
+
+- 發現：他人分支 fix-window-geometry-20261015（d0de20a，基於 main，已開 PR32）。缺陷：win.js `load()` 只驗 x/w 有限——y 或 h 為 NaN/字串的壞資料會通過，paint 時 `clampRect` 算出 NaN 座標＝視窗不可見/不可拖。修法：四欄全驗（x/y/w/h 皆有限＋w>0＋h>0），壞值回預設。
+- 註：我在 R37 曾審過 win.js 並記「壞資料回預設」——當時聚焦 load 的 try/catch 與 x/w 檢查，未抓出 y/h 未驗＝審查遺漏，他人補上。單元測試補三案例（壞幾何畫前回退、有效幾何重開＋reflow 存活、復原後可拖/取消/重開）。
+- 併入：普通 merge；win-storage **3/3**、全套 web **891/891**＋build 過。staging 部署待後續。待授權批次：PR19-32 十四件。
+
 ## 2026-10-16 R111（20min）狀態保持輪（全線不變）
 
 - 例行核對：worktree 乾淨同步 a1cdd8c；main CI 綠 @e0e6f65；staging＝a7264c9；PR19-31 十三件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
