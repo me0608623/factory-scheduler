@@ -4025,7 +4025,7 @@ function printDaySchedule(){
       rows+='<tr>'+machTd+
         '<td>'+(E?'<b>'+esc(E.name)+'</b>':'—')+'</td>'+
         '<td>'+hm(b.s)+'–'+hm(b.e)+(b.pin?' ◆':'')+'</td>'+
-        '<td>'+(o?esc(o.code)+' '+(prod(o.pid)?.name||''):'')+' '+stepName(b)+'</td>'+
+        '<td>'+(o?esc(o.code)+' '+esc(prod(o.pid)?.name||''):'')+' '+esc(stepName(b))+'</td>'+
         '<td>'+b.qty+'</td><td></td></tr>';
     }
   }
