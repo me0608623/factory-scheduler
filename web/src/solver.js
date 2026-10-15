@@ -19,26 +19,36 @@ export const SOLVER = {
     return post(jwt?'/roster/plans/db':'/roster/plans',request,jwt?{Authorization:'Bearer '+jwt}:{});
   },
 
-  async check({timeoutMs=RUNTIME.mode==='test'?45000:3000,signal}={}) {
+  async check({timeoutMs=RUNTIME.mode==='test'?45000:3000,signal,retries}={}) {
     const epoch=++this.healthEpoch;
     timeoutMs=Number.isFinite(timeoutMs)&&timeoutMs>0?Math.min(timeoutMs,45000):3000;
+    // staging solver 免費版冷啟動實測 >60s（2026-10-15）：單次 45s 必失敗。測試模式做有界重試
+    // （預設 2 次、間隔 3 秒，涵蓋 ~140s 喚醒窗）；正式/本機維持單次。 epoch 守門：較新的 check 一律蓋掉舊輪結果。
+    const maxAttempts=1+(Number.isInteger(retries)&&retries>=0?retries:(RUNTIME.mode==='test'?2:0));
     if(RUNTIME.error){this.up=false;return false;}
-    try {
-      const j = await fetchWithTimeout(BASE + "/health", {signal}, timeoutMs, r=>{
-        if(!r.ok)throw new Error('Health check failed');
-        return r.json();
-      });
-      if(epoch!==this.healthEpoch||signal?.aborted)return false;
-      this.up = j?.ok===true;
-      this.version = typeof j?.ortools==='string'?j.ortools:"";
-      this.capabilities = Array.isArray(j?.capabilities)?j.capabilities:[];
-    } catch {
-      if(epoch!==this.healthEpoch||signal?.aborted)return false;
-      this.up = false;
-      this.capabilities = [];
-      this.version = "";
+    for(let attempt=0;;attempt++){
+      try {
+        const j = await fetchWithTimeout(BASE + "/health", {signal}, timeoutMs, r=>{
+          if(!r.ok)throw new Error('Health check failed');
+          return r.json();
+        });
+        if(epoch!==this.healthEpoch||signal?.aborted)return false;
+        this.up = j?.ok===true;
+        this.version = typeof j?.ortools==='string'?j.ortools:"";
+        this.capabilities = Array.isArray(j?.capabilities)?j.capabilities:[];
+        return this.up;
+      } catch {
+        if(epoch!==this.healthEpoch||signal?.aborted)return false;
+        if(attempt+1>=maxAttempts){
+          this.up = false;
+          this.capabilities = [];
+          this.version = "";
+          return false;
+        }
+        await new Promise(r=>setTimeout(r,3000));
+        if(epoch!==this.healthEpoch||signal?.aborted)return false;
+      }
     }
-    return this.up;
   },
 
   // 本機模式：把整份快照送過去算；hints = 「再給條件重排」的限制（沒有就不傳）
