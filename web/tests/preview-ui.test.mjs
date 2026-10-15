@@ -85,8 +85,8 @@ test('preview-nav.js：純模組——只重用純數量函式，不碰 DOM／�
   assert.equal(nav.includes('document.'), false, '不得碰 DOM');
   assert.equal(nav.includes('localStorage'), false, '不得碰儲存');
 });
-test('同步中關閉分頁有 beforeunload 提示（防靜默丟失在途寫入）', () => {
-  assert.match(app, /addEventListener\("beforeunload"[\s\S]*?syncPending>0\|\|SYNC\.state==="busy"/, '守門需涵蓋在途同步');
+test('同步中或同步失敗關閉分頁有 beforeunload 提示（防靜默丟失在途或未存寫入）', () => {
+  assert.match(app, /addEventListener\("beforeunload"[\s\S]*?syncPending>0\|\|SYNC\.state!=="ok"/, '守門需涵蓋在途與失敗（未確認儲存）同步');
 });
 test('加班日渲染不崩潰：dayHTML 必須用 di.otEnd（裸 otEnd 會 ReferenceError）', () => {
   assert.match(app, /return \{type,hol,ot,win,w,open,special,otEnd\};/, 'dayInfo 需回傳 otEnd');
@@ -175,8 +175,8 @@ test('缺陷#21 棘輪：筆刷範圍套用必須 await commit（同步佇列）
   const brushBlock = app.indexOf('const applyBrush=');
   assert.ok(brushBlock > 0, 'applyBrush 存在');
   const seg = app.slice(brushBlock, brushBlock + 4000);
-  const commitIdx = seg.indexOf('await commit({kind:"leave"');
-  const reloadIdx = seg.indexOf('await reloadFromStore()');
-  assert.ok(commitIdx > 0, '筆刷套用的 commit 必須被 await');
+  const commitIdx = seg.indexOf('const saving=commit({kind:"leave"');
+  const reloadIdx = seg.indexOf('await reloadFromStore({background:true})');
+  assert.ok(commitIdx > 0 && seg.indexOf('saved=await saving') > commitIdx, '筆刷套用的 commit 必須被 await');
   assert.ok(reloadIdx > commitIdx, 'reloadFromStore 必須在 commit 同步完成之後');
 });

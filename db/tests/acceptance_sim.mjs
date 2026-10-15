@@ -17,6 +17,7 @@ import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {safeSnapshotDebug,anonymizeSolverRequest} from '../../tools/sim-debug.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const solverDir = path.resolve(root, "solver");
@@ -106,22 +107,22 @@ process.on("uncaughtException", (e) => {
 
 // ---------- solver（runner 上執行；失敗即整案失敗） ----------
 function solve(request) {
+  const safeRequest=anonymizeSolverRequest(request);
   if (process.env.SIM_DEBUG) {
-    const snap = request.snapshot || {};
-    console.error('[req] keys=' + Object.keys(request).join(',') + ' event=' + JSON.stringify(request.event).slice(0, 200));
-    console.error('[req] snapKeys=' + Object.keys(snap).join(','));
-    console.error('[req] now=' + JSON.stringify(request.now) + ' limit=' + request.time_limit);
-    for (const k of Object.keys(snap)) { const v = snap[k]; console.error('[req] ' + k + '=' + (Array.isArray(v) ? v.length : JSON.stringify(v).slice(0, 120))); }
-    console.error('[req] machines4=' + JSON.stringify((snap.machines || []).filter(m => ['f1e','f1b'].includes(m.id))));
-    console.error('[req] picked=' + JSON.stringify((snap.employees || []).filter(e => [E01,E02,E03].includes(e.id))).slice(0, 700));
+    console.error('[req] '+JSON.stringify({mode:safeRequest.mode||'plans',event:safeRequest.event?.type,
+      now:safeRequest.now,limit:safeRequest.time_limit,snapshot:safeSnapshotDebug(safeRequest.snapshot||{})}));
   }
-  try { fs.writeFileSync("/tmp/sim-last-request.json", JSON.stringify(request)); } catch {}
   const child = spawnSync("uv", ["run", "--frozen", "python", "-m", "scripts.plan_stdio"], {
-    cwd: solverDir, input: JSON.stringify(request), encoding: "utf8", timeout: 120000, maxBuffer: 32 * 1024 * 1024,
+    cwd: solverDir, input: JSON.stringify(safeRequest), encoding: "utf8", timeout: 120000, maxBuffer: 32 * 1024 * 1024,
   });
-  if (child.error || child.status !== 0) throw new Error(`solver 失敗：${clean(child.error?.message || child.stderr?.slice(-400) || "exit " + child.status)}`);
-  const out = JSON.parse(child.stdout);
-  if (process.env.SIM_DEBUG) console.error('[res] ' + JSON.stringify(out).slice(0, 800));
+  // stderr and spawn error messages may include private request fields. Public
+  // diagnostics keep only a bounded exit/error code; structural summaries above
+  // remain available without publishing restored personnel or source metadata.
+  if (child.error || child.status !== 0) throw new Error(`solver 失敗（exit ${child.status ?? 'none'}${child.error ? ', 啟動或逾時錯誤' : ''}）；私密診斷未公開`);
+  let out;
+  try{out=JSON.parse(child.stdout);}catch{throw new Error('solver 回傳格式錯誤；私密內容未公開');}
+  if (process.env.SIM_DEBUG) console.error('[res] '+JSON.stringify({issues:out.issues?.length,
+    options:out.options?.map(o=>({id:o.id,status:o.status,applicable:o.applicable,blocks:o.blocks?.length}))}));
   return out;
 }
 
@@ -149,9 +150,12 @@ const lastBlockAbs = async (code) => {
 
 // 套用方案：插入 plan_previews 並以老闆身分 apply_plan（同一連線、同一交易）
 const j = (v) => JSON.stringify(v).replace(/'/g, "''");
-async function applyOption(plan, event, optionId, title, kind = "order") {
-  const pv = await s.one(`INSERT INTO plan_previews (kind,title,event,base_version,options)
+async function insertPreview(plan, event, title, kind = "order") {
+  return s.one(`INSERT INTO plan_previews (kind,title,event,base_version,options)
     VALUES ('${kind}','${title}','${j(event)}'::jsonb,${await stateVersion()},'${j(plan.options)}'::jsonb) RETURNING id`);
+}
+async function applyOption(plan, event, optionId, title, kind = "order") {
+  const pv = await insertPreview(plan,event,title,kind);
   return s.one(`SELECT apply_plan('${pv}','${optionId}')`);
 }
 
@@ -237,21 +241,7 @@ console.log(`基準完成：${setup.length} 項；員工 F1×2（TEST-E01/E02）
 // 既有資料占用快照（INFEASIBLE 排查用）：sim 走「新單插入」而 app 走「全單重排」，占用差異是線索
 if (process.env.SIM_DEBUG) {
   const snapDump = JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`));
-  const cnt = (a) => Array.isArray(a) ? a.length : a;
-  console.error('[snap] blocks=' + cnt(snapDump.blocks) + ' employees=' + cnt(snapDump.employees) +
-    ' machines=' + cnt(snapDump.machines) + ' orders=' + cnt(snapDump.orders) +
-    ' execution=' + cnt(snapDump.work_execution || snapDump.execution) +
-    ' workWindows=' + cnt(snapDump.work_windows) + ' faults=' + (snapDump.machines || []).reduce((n, m) => n + cnt(m.faults), 0));
-  const mine = (snapDump.machines || []).filter(m => ['f1e','f1b','f2k','f2ac'].includes(m.id));
-  console.error('[snap] testMachines=' + JSON.stringify(mine.map(m => ({ id: m.id, procs: cnt(m.faults), rev: m.review_status }))));
-  console.error('[snap] week=' + JSON.stringify(snapDump.calendar ? snapDump.calendar.week : null) + ' over=' + JSON.stringify(snapDump.calendar ? Object.keys(snapDump.calendar.over || {}) : null));
-  console.error('[snap] ot=' + JSON.stringify(snapDump.overtime || snapDump.dayOT || null).slice(0, 200));
-  console.error('[snap] blocksOnTestMachines=' + (snapDump.blocks || []).filter(b => ['f1e','f1b','f2k','f2ac'].includes(b.m || b.machine)).length);
-  console.error('[snap] firstEmp=' + JSON.stringify((snapDump.employees || [])[0]));
-  console.error('[snap] wa=' + cnt(snapDump.work_assignments) + ' tf=' + cnt(snapDump.transfer_orders) + ' rosters=' + cnt(snapDump.staff_rosters) + ' wc=' + cnt(snapDump.work_contents));
-  console.error('[snap] pickedEmps=' + JSON.stringify((snapDump.employees || []).filter(e => [E01,E02,E03].includes(e.id)).map(e => ({ f: e.factory, skills: e.skills, leaves: e.leaves, noOT: e.no_overtime, otw: e.overtime_weekdays, rev: e.review_status }))));
-  console.error('[snap] testMachFactories=' + JSON.stringify(mine.map(m => ({ id: m.id, factory: m.factory, products: cnt(m.products) }))));
-  console.error('[snap] testProducts=' + JSON.stringify((snapDump.products || []).filter(pr => String(pr.id).startsWith('11111111')).map(pr => ({ id: String(pr.id).slice(-4), steps: (pr.steps || []).map(st => ({ proc: st.proc, factory: st.factory, rate: st.rate, batch: st.batch })) }))));
+  console.error('[snap] safeSummary=' + JSON.stringify(safeSnapshotDebug(snapDump,[E01,E02,E03])));
 }
 
 // ---------- 案例執行 ----------
@@ -272,11 +262,12 @@ async function runCase(id, fn) {
 }
 
 await runCase("C1 正常單廠", async (out) => {
-  const plan = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: orderEvent("TEST-O1", P2, 120, 14), now, time_limit: 3 });
+  const ev = orderEvent("TEST-O1", P2, 120, 14);
+  const plan = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: ev, now, time_limit: 3 });
   console.error(`[選項] 共${(plan.options||[]).length}個：${(plan.options||[]).map(o=>o.id+(o.applicable?"+":"-")+(o.solver_method==="keep"?"k":"")).join("")}`);
   const opt = plan.options.find((o) => o.applicable && o.solver_method !== "keep");
   if (!opt) { noOpt(plan, out); return "FAIL"; }
-  await applyOption(plan, orderEvent("TEST-O1", P2, 120, 14), opt.id, "TEST-O1");
+  await applyOption(plan, ev, opt.id, "TEST-O1");
   const blocks = JSON.parse(await orderBlocks("TEST-O1"));
   if (await stationQty("TEST-O1", 0) !== 120) out.push("裁切站件數≠120");
   if (await stationQty("TEST-O1", 1) !== 120) out.push("焊接站件數≠120");
@@ -350,18 +341,46 @@ await runCase("C4 機台故障（兩階段・故障適應實際區段）", async
   return out.length ? "FAIL" : "PASS";
 });
 
-await runCase("C5 交期不足（新單逾期降級）", async (out) => {
-  // 9-26 產品決策（ef89d07）：新工單會逾期時方案降級為不可套用（applicable 只看硬規則，
-  // 逾期屬軟性目標但對「新單承諾」是明確勸退訊號）。本案例驗證降級行為＋診斷標示。
+await runCase("C5 交期不足（求解軟限制＋新單逾期套用閘門）", async (out) => {
   const ev = orderEvent("TEST-O5", P2, 1200, 1);
-  const plan = solve({ snapshot: JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`)), event: ev, now, time_limit: 3 });
+  const snapshot = JSON.parse(await s.one(`SELECT schedule_snapshot('${D(-7)}','${D(40)}')`));
+  const plan = solve({ snapshot, event: ev, now, time_limit: 3 });
   console.error(`[選項] 共${(plan.options||[]).length}個：${(plan.options||[]).map(o=>o.id+(o.applicable?"+":"-")+(o.solver_method==="keep"?"k":"")).join("")}`);
-  if (!(plan.options || []).length) { noOpt(plan, out, "連方案都沒有（回歸：全案 INFEASIBLE）"); return "FAIL"; }
-  const nonKeep = plan.options.filter((o) => o.solver_method !== "keep");
-  if (nonKeep.some((o) => o.applicable)) out.push("逾期新單仍有可套用方案——與 ef89d07 降級決策矛盾");
+  // Solver lateness is soft, but since 2026-09-26 the product deliberately
+  // rejects inserting a newly late order (test_edges.py locks that contract).
+  // Verify both layers instead of weakening the application gate to pass QA.
+  const opt = plan.options.find((o) => ['OPTIMAL','FEASIBLE'].includes(o.status) && o.solver_method !== "keep");
+  if (!opt) { noOpt(plan, out, "軟交期仍應產出完整可行解"); return "FAIL"; }
+  if (plan.options.some(o => o.applicable)) out.push("必然逾期的新單不應有可直接套用方案");
   const summary = [JSON.stringify(plan.options.map((o) => o.diagnostics || [])), JSON.stringify(plan.summary || plan.options.map((o) => o.lines || []))].join(" ");
-  if (!/超過期限/.test(summary)) out.push("降級方案未標示逾期原因（超過期限）");
+  if (!/超過期限/.test(summary)) out.push("方案資訊未標示逾期（超過期限）");
   if (!/可以加班|調整期限/.test(summary)) out.push("未提供可行建議（加班／調整期限）");
+  // Plan options serialize blocks for the DB RPC, not the solver Snapshot.
+  const blocks=opt.blocks.filter(b=>b.order_id===ev.order.id);
+  for (const step of [0,1]) if(blocks.filter(b=>b.step_seq===step).reduce((n,b)=>n+b.qty,0)!==1200) out.push(`站 ${step} 件數≠1200`);
+  const solverBlocks=opt.blocks.map(b=>({id:b.id,order:b.order_id,step:b.step_seq,machine:b.machine_id,
+    employee:b.employee_id,date:b.date,start:b.start_min,end:b.end_min,qty:b.qty,pinned:b.pinned}));
+  const issues=solve({mode:'check',snapshot:{...snapshot,orders:[...snapshot.orders,ev.order],blocks:solverBlocks},now}).issues;
+  if(issues.length)out.push('逾期方案獨立驗證未過：'+clean(JSON.stringify(issues)).slice(0,300));
+  const end = blocks.length?Math.max(...blocks.map(b=>dayIdx(b.date)*1440+b.end_min)):-1;
+  if (end <= dayIdx(D(1)) * 1440 + 1020) out.push("完工未超過交期（與逾期診斷矛盾）");
+  const version=await stateVersion();
+  await s.one('SAVEPOINT reject_late_order');
+  const pv=await insertPreview(plan,ev,'TEST-O5 rejected');
+  // Catch the expected DB rejection inside a subtransaction. An uncaught SQL
+  // error aborts the outer transaction and also prevents Session's SELECT
+  // sentinel from running, turning a normal negative test into a 180s timeout.
+  const rejected=(await s.one(`DO $$ BEGIN
+    BEGIN
+      PERFORM apply_plan('${pv}','${opt.id}');
+    EXCEPTION WHEN SQLSTATE 'P0001' THEN
+      IF position('不能套用' in SQLERRM)=0 THEN RAISE; END IF;
+      PERFORM set_config('sim.late_order_rejected','true',true);
+    END;
+  END $$; SELECT coalesce(current_setting('sim.late_order_rejected',true),'false')`))==='true';
+  await s.one('ROLLBACK TO SAVEPOINT reject_late_order');
+  if(!rejected)out.push('資料庫未以不能套用拒絕逾期新單');
+  if(await stateVersion()!==version||(await orderBlocks('TEST-O5'))!=='[]')out.push('拒絕逾期新單後資料／版本改變');
   return out.length ? "FAIL" : "PASS";
 });
 

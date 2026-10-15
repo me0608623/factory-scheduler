@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { makeDb, FakeSupabase } from "./fake-supabase.mjs";
 import { SupabaseStore } from "../src/store/supabase.js";
 import { toSnapshot, fromSnapshot, applyOption } from "../src/convert.js";
+import { requestQuery } from './request-query.mjs';
 
 const BOSS = "11111111-1111-4111-8111-111111111111";
 const LEAD = "22222222-2222-4222-8222-222222222222";
@@ -141,7 +142,10 @@ test("老闆設定 2 廠人員、機台與工序後可存回快照", async () =>
 });
 
 test("讀取、只寫有變的列、紀錄", async () => {
-  const { store, count } = await setup();
+  const { db,store, count } = await setup();
+  // Snapshot defaults to DB today - 7 through today + 90. Keep windowed
+  // leaves/faults/overtime in that range instead of expiring at host midnight.
+  const fixtureDay=(await db.query('select current_date::text as date')).rows[0].date;
   const boss = await store("boss@x");
   const S = await boss.load();
   assert.equal(S.employees.length, 5);
@@ -160,9 +164,9 @@ test("讀取、只寫有變的列、紀錄", async () => {
   const before = await count("select count(*)::int n from audit_log");
   S.employees[0].name = "張三豐";
   S.employees[0].maxMachines = 2;
-  S.employees[1].leaves.push(dayISO(1));
-  S.machines.find((m) => m.id === "c").faults.push({ id: crypto.randomUUID(), date: dayISO(1), s: 480, e: 600, note: "馬達", fixed: false, orig: [S.blocks[1]] });
-  S.dayOT[dayISO(1)] = true;
+  S.employees[1].leaves.push(fixtureDay);
+  S.machines.find((m) => m.id === "c").faults.push({ id: crypto.randomUUID(), date: fixtureDay, s: 480, e: 600, note: "馬達", fixed: false, orig: [S.blocks[1]] });
+  S.dayOT[fixtureDay] = true;
   await boss.sync(S, { kind: "leave", title: "李四 10/6 請假", lines: [] });
   const after = await count("select count(*)::int n from audit_log");
   assert.equal(after - before, 4, "只有 4 列真的改變（員工、請假、故障、加班日）");
@@ -182,7 +186,7 @@ test("讀取、只寫有變的列、紀錄", async () => {
   const f = S2.machines.find((m) => m.id === "c").faults[0];
   assert.equal(f.note, "馬達");
   assert.equal(f.orig.length, 1);
-  assert.equal(S2.dayOT[dayISO(1)], 1200, "寫入側把 true 持久化為 1200；ot_ends 修復後忠實帶回（消費端 true 與 1200 語意等價）");
+  assert.equal(S2.dayOT[fixtureDay], 1200, "寫入側把 true 持久化為 1200；ot_ends 修復後忠實帶回（消費端 true 與 1200 語意等價）");
   assert.equal(S2.log[0].title, "李四 10/6 請假");
   assert.equal(S2.log[1].sum, "排了兩段");
   assert.deepEqual(toSnapshot(S2).blocks.length, 2);
@@ -230,13 +234,14 @@ test("權限：電視帳號寫不進去、組長不能改基本資料", async ()
 });
 
 test("每週加班設定僅老闆可改，單日臨時意願組長可改", async () => {
-  const { store, count } = await setup();
+  const { db,store, count } = await setup();
+  const fixtureDay=(await db.query('select current_date::text as date')).rows[0].date;
   const lead = await store("lead@x");
   const L = await lead.load();
-  L.employees.find(e => e.id === E1).otOverrides[dayISO(1)] = false;
+  L.employees.find(e => e.id === E1).otOverrides[fixtureDay] = false;
   await lead.sync(L, { kind: "ot", title: "張三今天不加班" });
-  assert.equal(await count("select count(*)::int n from employee_overtime_days where employee_id=$1 and date='" + dayISO(1) + "' and not available", [E1]), 1);
-  assert.equal((await lead.load()).employees.find(e => e.id === E1).otOverrides[dayISO(1)], false);
+  assert.equal(await count("select count(*)::int n from employee_overtime_days where employee_id=$1 and date=$2 and not available", [E1,fixtureDay]), 1);
+  assert.equal((await lead.load()).employees.find(e => e.id === E1).otOverrides[fixtureDay], false);
 
   const boss = await store("boss@x");
   const B = await boss.load();
@@ -272,6 +277,20 @@ test("套用排程服務的方案（apply_plan）", async () => {
   await assert.rejects(lead.applyPlan(pv, "A"), /已經套用過/);
 });
 
+test('apply_plan committed with lost UUID receipt is unconfirmed until a real read, without resubmit',async()=>{
+  const {db,store,count}=await setup(),lead=await store('lead@x');
+  await lead.load();const baseline=lead.base;
+  const opt={id:'A',name:'少動',lines:[],blocks:[{order_id:A01,step_seq:0,machine_id:'a',employee_id:E1,date:'2026-10-05',start_min:480,end_min:540,qty:120}],effects:{}};
+  const pv=(await db.query("insert into plan_previews (kind,title,event,base_version,options) values ('auto','回條測試','{}',0,$1) returning id",[JSON.stringify([opt])])).rows[0].id;
+  const rpc=lead.sb.rpc.bind(lead.sb);let applyCalls=0;
+  lead.sb.rpc=(fn,args)=>requestQuery(async()=>{const r=await rpc(fn,args);if(fn==='apply_plan'){applyCalls++;assert.equal(r.error,null);return {...r,data:null};}return r;});
+  await assert.rejects(lead.applyPlan(pv,'A'),e=>e.unconfirmed===true);
+  assert.equal(lead.version,0);assert.equal(lead.base,baseline);
+  const loaded=await lead.load();assert.equal(loaded.version,1);assert.equal(loaded.blocks.length,1);
+  assert.equal(applyCalls,1);assert.equal(await count('select count(*)::int n from change_sets'),1);
+  assert.equal((await db.query('select applied_option from plan_previews where id=$1',[pv])).rows[0].applied_option,'A');
+});
+
 test("套用方案時排程已被別人更新 → 整份拒絕（版本衝突不留半套）", async () => {
   const { db, store, count } = await setup();
   const lead = await store("lead@x"), boss = await store("boss@x");
@@ -298,7 +317,7 @@ test('儲存失敗（服務無回應）不留部分寫入，重新讀取仍是�
   S.blocks.push(blk());
   // 模擬網路層故障：rpc 直接丟例外（非衝突、非權限）
   const orig = lead.sb.rpc.bind(lead.sb);
-  lead.sb.rpc = async () => { throw new Error('network down'); };
+  lead.sb.rpc = () => requestQuery(() => { throw new Error('network down'); });
   await assert.rejects(lead.sync(S, { kind: 'move', title: '組長的調整' }), /network down/);
   lead.sb.rpc = orig;
   assert.equal(await count('select count(*)::int n from schedule_blocks'), 0, '資料庫沒有任何新方塊');
@@ -320,6 +339,18 @@ test('套用後立即復原（同使用者）不被自己的版本鎖擋住', as
   assert.equal(await count('select count(*)::int n from schedule_blocks'), 0, '復原後方塊移除');
   const fresh = await boss.load();
   assert.equal(fresh.version, 2, '版本正常推進，未被 40001 擋下');
+});
+
+test('speculative remote load does not advance write baseline until accepted',async()=>{
+  const {db,store}=await setup(),lead=await store('lead@x');
+  await lead.load();
+  const baseline=JSON.stringify({version:lead.version,base:lead.base,blocks:lead.baseBlocks,protected:lead.protectedBase,transfer:lead.transferBase});
+  await db.query('update schedule_state set version=version+1');
+  const remote=await lead.load({remember:false});
+  assert.equal(remote.version,1);
+  assert.equal(JSON.stringify({version:lead.version,base:lead.base,blocks:lead.baseBlocks,protected:lead.protectedBase,transfer:lead.transferBase}),baseline,'discarded read must not update optimistic-lock or diff baseline');
+  lead.acceptLoaded(remote);assert.equal(lead.version,1);
+  const ordinary=await lead.load();assert.equal(ordinary.version,lead.version,'normal foreground reads still remember by default');
 });
 
 test("格式轉換：畫面 → 快照 → 畫面", () => {

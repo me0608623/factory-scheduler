@@ -5,22 +5,124 @@ name: 備份還原演練
 on:
   schedule:
     - cron: "0 18 1 * *"  # 每月 1 日 18:00 UTC
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      create:
+        description: '建立及加解密完整 DB 備份（不冒稱完整 DB 還原）'
+        type: boolean
+        default: false
+      full:
+        description: '在隔離 Supabase Postgres 真正還原完整 DB（不使用 Auth stub）'
+        type: boolean
+        default: false
+      artifact_id:
+        description: '完整加密备份的 artifact ID（full=true 時必填）'
+        type: string
+        required: false
 
 jobs:
+  encrypted-backup:
+    if: github.event_name == 'workflow_dispatch' && inputs.create
+    uses: ./.github/workflows/nightly-backup.yml
+    secrets: inherit
+  full-restore:
+    if: github.event_name == 'workflow_dispatch' && inputs.full && !inputs.create
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 下載指定加密備份並驗證真正解密
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BACKUP_ARTIFACT_ID: ${{ inputs.artifact_id }}
+          BACKUP_AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
+          BACKUP_ENCRYPTED_FILE: ${{ runner.temp }}/encrypted/database.tar.age
+          BACKUP_IDENTITY_FILE: ${{ runner.temp }}/backup-identity
+          BACKUP_RESTORE_DIR: ${{ runner.temp }}/full-recovery
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$BACKUP_ARTIFACT_ID" && test -n "$BACKUP_AGE_IDENTITY"
+          sudo apt-get update -qq && sudo apt-get install -y age
+          node tools/backup-artifact.mjs
+          unzip -q backup.zip -d "$RUNNER_TEMP/encrypted"
+          printf '%s\n' "$BACKUP_AGE_IDENTITY" > "$BACKUP_IDENTITY_FILE"
+          node tools/encrypted-backup.mjs unpack
+          node tools/restore-roles.mjs "$BACKUP_RESTORE_DIR/roles.sql" "$BACKUP_RESTORE_DIR/roles-restore.sql"
+          node -e 'const i=JSON.parse(require("fs").readFileSync(process.env.BACKUP_RESTORE_DIR+"/inventory.json")); if(i.storageObjects!==0) {console.error("External Storage objects require encrypted object backup before release");process.exit(1)}'
+      - name: 真正還原完整 Auth、資料及 ACL（無 stub、任何錯誤即拒絕）
+        run: |
+          set -euo pipefail
+          # Version pinned to the official self-hosted docker-compose image.
+          docker run -d --name full-recovery-pg -e POSTGRES_PASSWORD=recovery-local-only -v "$RUNNER_TEMP/full-recovery:/backup:ro" -v "$PWD/tools:/tools:ro" supabase/postgres:17.6.1.136 > /dev/null
+          READY=0
+          for i in $(seq 1 60); do
+            if docker exec full-recovery-pg pg_isready -U supabase_admin >/dev/null 2>&1; then READY=1; break; fi
+            sleep 2
+          done
+          test "$READY" = 1 || { echo 'Isolated PostgreSQL not ready'; exit 1; }
+          docker exec full-recovery-pg psql -U supabase_admin -d postgres -X --single-transaction -v ON_ERROR_STOP=1 -f /backup/roles-restore.sql > "$RUNNER_TEMP/roles-recovery.log" 2>&1 || { echo 'Roles restore failed; sensitive diagnostics withheld'; exit 1; }
+          docker exec full-recovery-pg pg_restore -U supabase_admin -d postgres --single-transaction --clean --if-exists --no-owner --exit-on-error /backup/full.dump > "$RUNNER_TEMP/full-recovery.log" 2>&1 || { echo 'Full database restore failed; sensitive diagnostics withheld'; exit 1; }
+          docker exec full-recovery-pg psql -U supabase_admin -d postgres -X -v ON_ERROR_STOP=1 -t -A -f /tools/recovery-proof.sql > "$RUNNER_TEMP/full-recovery-proof.json"
+          node -e 'const p=JSON.parse(require("fs").readFileSync(process.env.RUNNER_TEMP+"/full-recovery-proof.json"));if(p.auth_users<1||p.employees<10||p.machines<1||p.profiles_without_auth!==0||p.public_rls<1)process.exit(1);console.log("Full database restore checks passed (no personal data logged)")'
+      - name: 隔離完整副本套用0037，交易內驗證所有應用資料不變
+        env:
+          MIGRATION: 0037_permission_whitelist_complete.sql
+          GUARDED_MIGRATION_FILE: ${{ runner.temp }}/full-recovery/guarded-0037.sql
+        run: |
+          node tools/migration-guard.mjs
+          docker exec full-recovery-pg psql -U supabase_admin -d postgres -X --single-transaction -v ON_ERROR_STOP=1 -q -f /backup/guarded-0037.sql > "$RUNNER_TEMP/migration-rehearsal.log" 2>&1 || { echo 'Guarded 0037 rehearsal failed; no release proof issued'; exit 1; }
+          echo '0037 full-copy rehearsal passed with rows/roles/RLS/sequences unchanged'
+      - name: 產生無個資的還原證據（綁定artifact、密文SHA、版本與0037）
+        env:
+          BACKUP_ENCRYPTED_FILE: ${{ runner.temp }}/encrypted/database.tar.age
+          RECOVERY_RECEIPT_FILE: ${{ runner.temp }}/recovery-receipt.json
+        run: node tools/recovery-receipt.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: full-recovery-proof-${{ github.run_id }}
+          path: ${{ runner.temp }}/recovery-receipt.json
+          retention-days: 7
+          if-no-files-found: error
+      - name: 清除解密及完整還原暫存（不發布明文）
+        if: always()
+        run: |
+          docker rm -f full-recovery-pg >/dev/null 2>&1 || true
+          rm -rf -- "$RUNNER_TEMP/full-recovery" "$RUNNER_TEMP/encrypted"
+          rm -f -- "$RUNNER_TEMP/backup-identity" "$RUNNER_TEMP/roles-recovery.log" "$RUNNER_TEMP/full-recovery.log" "$RUNNER_TEMP/full-recovery-proof.json" "$RUNNER_TEMP/migration-rehearsal.log" "$RUNNER_TEMP/recovery-receipt.json"
   drill:
+    if: github.event_name != 'workflow_dispatch' || (!inputs.create && !inputs.full)
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - name: 下載最新備份
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ARTIFACTS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts?per_page=100" | \
-            jq -r '.artifacts[] | select(.name | startswith("db-backup-")) | select(.name | startswith("db-backup-encrypted-") | not) | .id' | head -1)
-          if [ -z "$ARTIFACTS" ]; then echo "No backup artifact found"; exit 1; fi
-          curl -s -L -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/artifacts/$ARTIFACTS/zip" -o backup.zip
+          node tools/backup-artifact.mjs
           unzip -o backup.zip -d restored/
-          echo "Backup downloaded: $(ls -lh restored/)"
+          echo "Backup downloaded; private payload is not printed"
+
+      - name: 解密新格式（本演練仍僅驗 public 副本，不證明完整 Auth 還原）
+        env:
+          BACKUP_AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
+          BACKUP_ENCRYPTED_FILE: restored/database.tar.age
+          BACKUP_IDENTITY_FILE: ${{ runner.temp }}/backup-identity
+          BACKUP_RESTORE_DIR: ${{ runner.temp }}/db-drill-decrypted
+        run: |
+          if [ -f "$BACKUP_ENCRYPTED_FILE" ]; then
+            umask 077
+            sudo apt-get update -qq && sudo apt-get install -y age
+            printf '%s\n' "$BACKUP_AGE_IDENTITY" > "$BACKUP_IDENTITY_FILE"
+            node tools/encrypted-backup.mjs unpack
+            cp "$BACKUP_RESTORE_DIR/public.dump" restored/public.dump
+          fi
 
       - name: 驗證備份完整性（PG17 Docker 容器跑 pg_restore --list）
         run: |
@@ -170,6 +272,12 @@ jobs:
             docker rm -f drill-pg; exit 1
           fi
           echo ""
-          echo "✓✓✓ Backup restore drill FULLY PASSED ✓✓✓"
+          echo "✓ Public-schema application restore passed; NOT full Auth/project recovery proof"
           docker rm -f drill-pg
           docker network rm drill-net 2>/dev/null || true
+
+      - name: 清除解密暫存
+        if: always()
+        run: |
+          rm -rf -- "$RUNNER_TEMP/db-drill-decrypted" "$GITHUB_WORKSPACE/restored"
+          rm -f -- "$RUNNER_TEMP/backup-identity"

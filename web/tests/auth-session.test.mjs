@@ -11,7 +11,7 @@ test('排程查詢使用自動更新後的登入憑證；登出後不再提供�
       getSession:async()=>({data:{session:initial}}),
       onAuthStateChange:callback=>{callbacks.push(callback);return {data:{subscription:{unsubscribe(){}}}};},
     },
-    from:()=>({select(){return this;},eq(){return this;},async maybeSingle(){return {data:{role:'lead',display_name:'合成測試'}};}}),
+    from:()=>({select(){return this;},eq(){return this;},async maybeSingle(){return {data:{role:'lead',display_name:'合成測試'}};},then(resolve,reject){return Promise.resolve({data:[],error:null}).then(resolve,reject);}}),
   };
   const store=new SupabaseStore(client);await store.init();await store.init();
   assert.equal(callbacks.length,1,'重複初始化不得重複監聽');
@@ -37,4 +37,12 @@ test('排程查詢使用自動更新後的登入憑證；登出後不再提供�
   // A later token event must not resurrect a signed-out identity/role.
   callbacks[0]('TOKEN_REFRESHED',refreshed);
   assert.equal(store.jwt(),null);assert.equal(store.role,null);
+});
+test('a SIGNED_IN event for another identity invalidates the old session and permission cache',async()=>{
+  let callback;const store=new SupabaseStore({auth:{onAuthStateChange:fn=>{callback=fn;return {data:{subscription:{}}};}}});
+  store.session={user:{id:'TEST-A'},access_token:'synthetic-A'};store.role='boss';store.permissions={'schedule.manage':true};
+  store._watchAuthSession();callback('SIGNED_IN',{user:{id:'TEST-A'},access_token:'synthetic-A2'});
+  assert.equal(store.session.user.id,'TEST-A');
+  callback('SIGNED_IN',{user:{id:'TEST-B'},access_token:'synthetic-B'});
+  assert.equal(store.session,null);assert.equal(store.role,null);assert.deepEqual(store.permissions,{});assert.ok(store.authEpoch>0);
 });

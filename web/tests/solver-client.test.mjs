@@ -74,3 +74,35 @@ test('check()：health 回 ok:false（服務活著但自評不健康）→ up=fa
   assert.equal(await SOLVER.check(), false);
   assert.equal(SOLVER.up, false);
 });
+
+test('check accepts bounded user-initiated timeout and an external abort signal',async()=>{
+  const ctl=new AbortController();
+  responder=(_,opt)=>new Promise((resolve,reject)=>opt.signal.addEventListener('abort',()=>reject(new Error('abort')),{once:true}));
+  const p=SOLVER.check({timeoutMs:45000,signal:ctl.signal});ctl.abort();
+  assert.equal(await Promise.race([p,new Promise(resolve=>setTimeout(()=>resolve('still pending'),80))]),false);assert.equal(calls[0][1].signal.aborted,true);
+});
+test('health timeout covers response body, not only arrival of response headers',async()=>{
+  responder=(_,opt)=>({ok:true,json:()=>new Promise((resolve,reject)=>opt.signal.addEventListener('abort',()=>reject(new Error('body timeout')),{once:true}))});
+  const p=SOLVER.check({timeoutMs:15});
+  assert.equal(await Promise.race([p,new Promise(resolve=>setTimeout(()=>resolve('still pending'),80))]),false);
+});
+test('an older health failure cannot overwrite a newer successful health check',async()=>{
+  let failOld;responder=()=>new Promise((resolve,reject)=>{failOld=reject;});const old=SOLVER.check();
+  responder=()=>new Response(JSON.stringify({ok:true,ortools:'new',capabilities:['work_assignments_v1']}));
+  assert.equal(await SOLVER.check(),true);failOld(new Error('old timeout'));await old;
+  assert.equal(SOLVER.up,true);assert.equal(SOLVER.version,'new');assert.deepEqual(SOLVER.capabilities,['work_assignments_v1']);
+});
+test('HTTP failure is not healthy even if a body contains ok:true',async()=>{
+  responder=()=>new Response(JSON.stringify({ok:true}),{status:503});assert.equal(await SOLVER.check(),false);
+});
+test('health timeout overrides are bounded and already-aborted checks send no request',async()=>{
+  const realSetTimeout=globalThis.setTimeout,deadlines=[];
+  globalThis.setTimeout=(fn,ms,...args)=>{deadlines.push(ms);return realSetTimeout(fn,ms,...args);};
+  try{
+    responder=()=>new Response(JSON.stringify({ok:true}));
+    await SOLVER.check({timeoutMs:Infinity});await SOLVER.check({timeoutMs:999999});
+    assert.deepEqual(deadlines,[3000,45000]);
+    const ctl=new AbortController();ctl.abort();const before=calls.length;
+    assert.equal(await SOLVER.check({signal:ctl.signal}),false);assert.equal(calls.length,before);
+  }finally{globalThis.setTimeout=realSetTimeout;}
+});

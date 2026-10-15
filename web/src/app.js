@@ -11,14 +11,18 @@ import { acceptManualPreview, placementConflicts } from "./manual-apply.js";
 import { employeeGroups, groupedEmployees, memberStatus } from "./groups.js";
 import { resourceLoad } from "./resource-load.js";
 import { workQueue } from './work-queue.js';
-import { makeScenario, scenarioStale, validateScenario, scenarioKey } from './scenarios.js';
+import { makeScenario, scenarioStale, validateScenario, scenarioKey, scenarioCreatedDate } from './scenarios.js';
 import { reflowAllWindows } from './win.js';
 import { applySort, sortTh, sortBar, TF_SORT, RUSH_SORT, WL_SORT } from './table-sort.js';
 import { markOf, setMark, markRowAttrs, markBtns, MARK_COLORS, changeMarkColor } from './table-marks.js';
 import { schedZoomState, loadSchedZoom, setZoom, setWheelZoom, SZOOM_STEP, captureZoomAnchor, anchorScroll, rafApply } from './szoom.js';
 import { executionOf, canReport, assertExecutionProtected } from './execution.js';
+import { ExecutionRetries } from './execution-retries.js';
 import { workCatalog,assignments,occupiedWork,assignmentIssues,validateGeneralWork } from './general-work.js';
 import { newNav, navPush, navBack, opKey, suggestList, impactList, dueList, opDetail, dueDetail, boardTarget } from './preview-nav.js';
+import { capturePreviewContext, restorePreviewContext } from './preview-context.js';
+import { syncStatusView } from './cloud-status.js';
+import { initScheduleLocator, locateSchedule } from './board-locate.js';
 import { RUNTIME, TEST_AVAILABLE, modeUrl, authReturnUrl } from './runtime-config.js';
 import { legacyFieldMap } from './legacy-field-map.js';
 import {transferOrders,materialWarning,transferPlanWarnings,batchOf,validateTransfers,transferSummary} from './transfers.js';
@@ -40,6 +44,7 @@ const COLORS=["#FFE14D","#4CDB6E","#F58CF0","#4FE3EE","#FFA64D","#AFC0FF","#FF9A
 const PROCS=["裁切","沖壓","焊接","組裝","包裝"];
 const processNames=()=>[...new Set([...S.machines.map(m=>m.proc),...S.products.flatMap(p=>p.steps.map(s=>s.proc)),...workCatalog(S).map(w=>w.name)])].filter(Boolean);
 const DAY0=480, LUNCH_S=720, LUNCH_E=780, REG_END=1020, DAY1=1200, HORIZON=60;
+const executionRetries=new ExecutionRetries();
 // 台灣國定假日（依行政院人事行政總處公告，請每年核對）
 const HOLI={"2026-01-01":"元旦","2026-02-16":"春節","2026-02-17":"春節","2026-02-18":"春節","2026-02-19":"春節","2026-02-20":"春節",
 "2026-02-27":"和平紀念日補假","2026-02-28":"和平紀念日","2026-04-03":"兒童節補假","2026-04-04":"兒童節","2026-04-05":"清明節","2026-04-06":"清明節補假",
@@ -168,19 +173,25 @@ function makeDemo(){
 /* ===== 4. 變更與復原（實際寫入由資料層 STORE 負責，見第 12 節） ===== */
 function pushUndo(){undoStack.push(JSON.stringify(S));if(undoStack.length>40)undoStack.shift();}
 function commit(entry,permission="schedule.manage"){
+  if(!canPermission(permission))return Promise.resolve(false);
+  const store=STORE,writer=store?.session?.user?.id,epoch=store?.authEpoch;
   if(entry){entry.id=uid();entry.t=Date.now();S.log.unshift(entry);if(S.log.length>200)S.log.length=200;}
   render();
-  // LINE 通知：排程相關事件推播（不阻塞主流程、失敗不影響操作）
-  if(entry&&STORE&&STORE.kind==="supabase"&&entry.kind!=="edit"&&SOLVER?.url){
-    const nm={ot:"schedule_change",leave:"leave_request",fault:"fault",order:"rush_order",auto:"schedule_change",move:"schedule_change",recover:"fault"};
-    const ev=nm[entry.kind];
-    if(ev)sendLineNotify(SOLVER.url,STORE.jwt(),ev,entry.title||"排程有變更").catch(()=>{});
-  }
-  return canPermission(permission)?queueSync(entry):Promise.resolve(false);
+  return queueSync(entry).then(saved=>{
+    // Never notify about an unconfirmed/failed write, or reuse a new account's JWT.
+    if(saved&&STORE===store&&store?.session?.user?.id===writer&&store?.authEpoch===epoch&&entry&&store.kind==="supabase"&&entry.kind!=="edit"&&SOLVER?.url){
+      const nm={ot:"schedule_change",leave:"leave_request",fault:"fault",order:"rush_order",auto:"schedule_change",move:"schedule_change",recover:"fault"};
+      const ev=nm[entry.kind];
+      try{if(ev)sendLineNotify(SOLVER.url,store.jwt(),ev,entry.title||"排程有變更").catch(()=>{});}catch{}
+    }
+    return saved;
+  });
 }
-function undo(){
+async function undo(){
   if(!undoStack.length){toast("沒有可以復原的動作");return;}
-  S=JSON.parse(undoStack.pop());commit({kind:"edit",title:tx('復原上一步'),lines:[]});toast("已復原上一步");
+  S=JSON.parse(undoStack.pop());
+  const saved=await commit({kind:"edit",title:tx('復原上一步'),lines:[]});
+  if(saved)toast("已復原上一步");
 }
 /* ===== 5. 排程引擎 ===== */
 // 某人達到同時顧機台上限的時段；每段工作對應一台機台。
@@ -467,7 +478,7 @@ function optLines(r){
 }
 
 /* ----- 方案比較：同一個狀況算出幾種排法，進入預覽讓老闆（或 AI）挑 ----- */
-function withState(st,fn){const keep=S;S=st;try{return fn();}finally{S=keep;}}
+function withState(st,fn){const keep=S;globalThis.__fsRenderMemo=null;S=st;try{return fn();}finally{S=keep;globalThis.__fsRenderMemo=null;}}
 function otMinutes(st){return withState(st,()=>sum(S.blocks,b=>Math.max(0,Math.min(b.e,DAY1)-Math.max(b.s,REG_END))));}
 function measure(B,A,ev){
   const bk=new Set(B.blocks.map(keyB));
@@ -586,7 +597,12 @@ function cascade(lines){
     if(!changed)break;
   }
 }
+// render 期 memo：issuesOf/orderStatus 都會掃全部 blocks，大班表（每日千段）下是平方級（缺陷#41）。
+// 單次 render／withState 區間內重用結果；render()/renderModal() 進入與 withState 進出時清空，
+// 保證就地變異（釘選、預覽 reflow）後的下一次計算是新鮮的。
 function orderStatus(o){
+  const memo=globalThis.__fsRenderMemo;
+  if(memo&&memo.S===S){const hit=memo.os.get(o.id);if(hit)return hit;}
   const p=prod(o.pid);if(!p)return {k:"none"};
   const last=p.steps.length-1;
   const bl=S.blocks.filter(b=>b.oid===o.id);
@@ -595,7 +611,10 @@ function orderStatus(o){
   if(sum(lb,b=>effectiveBlockQty(b,S.execution||[]))<o.qty)return {k:"part"};
   const fin=Math.max(...lb.map(bEnd)),fd=dateOfAbs(fin);
   const done=sum(lb,b=>{const r=executionOf(S,b.id);return r?.status==='done'?r.qtyDone:0;})>=o.qty;
-  return {k:done?"done":fd>o.due?"late":fin<=nowAbs()?"elapsed":"ok",fin,fd};
+  const r={k:done?"done":fd>o.due?"late":fin<=nowAbs()?"elapsed":"ok",fin,fd};
+  const m=globalThis.__fsRenderMemo??(globalThis.__fsRenderMemo={S:null,os:new Map(),is:new Map(),misc:new Map()});if(m.S!==S){m.S=S;m.os=new Map();m.is=new Map();m.misc=new Map();}
+  m.os.set(o.id,r);
+  return r;
 }
 function lateCheck(lines){
   for(const o of S.orders){const st=orderStatus(o);
@@ -603,6 +622,8 @@ function lateCheck(lines){
 }
 // 檢查單一方塊的問題（顯示紅框）
 function issuesOf(b,opt={}){
+  const canMemo=!opt.pushOK,mem0=globalThis.__fsRenderMemo;
+  if(canMemo&&mem0&&mem0.S===S){const hit=mem0.is.get(b.id);if(hit)return hit;}
   const out=[],E=emp(b.emp),M=mach(b.m),o=order(b.oid);
   opt.push=0;
   if(!o||!M)return ["資料不完整"];
@@ -624,8 +645,17 @@ function issuesOf(b,opt={}){
     if(x.m===b.m){if(opt.pushOK&&!x.pin){opt.push++;continue;}out.push(x.pin?"和固定的 "+label(x)+" 重疊":"和 "+label(x)+" 撞同一台機器");break;}}
   if(E&&capacityIntervals(b.date,E,new Set([b.id])).some(([s,e])=>s<b.e&&e>b.s))
     out.push(E.name+" 同時顧機台超過上限 "+(E.maxMachines||1)+" 台");
-  if(b.step>0){const r=readyAbs(b.oid,b.step);if(bAbs(b)<r)out.push("前站還沒完成交接批量（"+(isFinite(r)?mdw(dateOfAbs(r))+" "+hm(r%1440)+" 後才能做":"前站未排")+"）");
-    if(materialFlowIssue(S.blocks,b.oid,b.step,absOf,S.execution||[]))out.push("前站累積產量不足，後站不能先做完這些件數");}
+  if(b.step>0){
+    // 這兩項只依 (oid,step) 與整體狀態——同群組的每個方塊重複計算是缺陷#41 的主成本，render 期快取
+    const memo1=globalThis.__fsRenderMemo;
+    const kk=b.oid+'|'+b.step;
+    let r,mf;
+    if(canMemo&&memo1&&memo1.S===S){r=memo1.misc.get('ra:'+kk);mf=memo1.misc.get('mf:'+kk);}
+    if(r===undefined){r=readyAbs(b.oid,b.step);if(canMemo){const m1=globalThis.__fsRenderMemo??(globalThis.__fsRenderMemo={S:null,os:new Map(),is:new Map(),misc:new Map()});if(m1.S!==S){m1.S=S;m1.os=new Map();m1.is=new Map();m1.misc=new Map();}m1.misc.set('ra:'+kk,r);}}
+    if(mf===undefined){mf=materialFlowIssue(S.blocks,b.oid,b.step,absOf,S.execution||[]);if(canMemo){const m2=globalThis.__fsRenderMemo??(globalThis.__fsRenderMemo={S:null,os:new Map(),is:new Map(),misc:new Map()});if(m2.S!==S){m2.S=S;m2.os=new Map();m2.is=new Map();m2.misc=new Map();}m2.misc.set('mf:'+kk,mf);}}
+    if(bAbs(b)<r)out.push("前站還沒完成交接批量（"+(isFinite(r)?mdw(dateOfAbs(r))+" "+hm(r%1440)+" 後才能做":"前站未排")+"）");
+    if(mf)out.push("前站累積產量不足，後站不能先做完這些件數");}
+  if(canMemo){const m=globalThis.__fsRenderMemo??(globalThis.__fsRenderMemo={S:null,os:new Map(),is:new Map(),misc:new Map()});if(m.S!==S){m.S=S;m.os=new Map();m.is=new Map();m.misc=new Map();}m.is.set(b.id,out);}
   return out;
 }
 /* ===== 6. 畫面 ===== */
@@ -653,7 +683,7 @@ const LOGIC={leave:"假",fault:"修",move:"移",auto:"排",ot:"加",edit:"改",s
 function baseHourPx(){return parseFloat(getComputedStyle(document.body).getPropertyValue("--hour"))||72;}
 function hourPx(){return baseHourPx()*(UI.view==="week"?SZ.week:SZ.day);}
 
-function render(){ I18N.lang=UI.prefs.language; ensureVisualStyles();
+function render(){ I18N.lang=UI.prefs.language; globalThis.__fsRenderMemo=null; ensureVisualStyles();
   const sc=$(".scroller"),sl=sc?sc.scrollLeft:0,sy=window.scrollY;
   document.body.classList.toggle("tv",!!UI.tv);
   document.body.classList.toggle("pvmode",!!PV);
@@ -683,6 +713,7 @@ function render(){ I18N.lang=UI.prefs.language; ensureVisualStyles();
   $("#app").innerHTML=html;
   const sc2=$(".scroller");if(sc2)sc2.scrollLeft=sl;
   window.scrollTo(0,sy);
+  initScheduleLocator(document.querySelector('.board.szoom'));
   if(UI.page==='floor')initFloor();
   if(UI.page==='visual-demo')initVisualDemo();
   initFloatWins();
@@ -790,7 +821,6 @@ function appNavHTML(){
   const item=(page,label)=>'<button class="app-nav-item nav-'+page+'" data-act="drawer" data-v="'+page+'" aria-pressed="'+(UI.drawer===page)+'" title="'+esc(label)+'"><b>'+NAV_IC[page]+'</b><span>'+label+'</span></button>';
   const account=STORE&&STORE.kind==='supabase'?(STORE.userName||STORE.session?.user?.email||tx('帳號')):tx('本機模式');
   const role=roleName(STORE?.role);
-  const sync=SYNC.state==='busy'?tx('同步中'):SYNC.state==='error'?tx('同步失敗'):STORE?.kind==='supabase'?tx('雲端已同步'):tx('存在這台電腦');
   return '<nav class="app-nav" aria-label="'+tx('主要功能')+'">'+
     
     '<div class="side-brand"><span class="brand-mark"><span></span></span><span><b>產線排程</b><small>'+tx('工廠工作台')+'</small></span><button class="nav-collapse" data-act="nav-toggle" aria-label="'+(UI.navCollapsed?tx('展開導覽'):tx('收合導覽'))+'" title="'+(UI.navCollapsed?tx('展開導覽'):tx('收合導覽'))+'">'+(UI.navCollapsed?'›':'‹')+'</button></div>'+
@@ -800,7 +830,7 @@ function appNavHTML(){
     '<span class="side-section">'+tx('現場回報')+'</span>'+item('people',tx('people'))+item('output',tx('output'))+item('worklog',tx('worklog'))+item('notes',tx('notes'))+
     '<span class="side-section">'+tx('設定')+'</span>'+item('more',tx('more'))+
     '<button class="app-nav-item nav-feature-tour" data-act="feature-tour" title="'+tx('功能解說')+'" aria-label="'+tx('功能解說')+'"><b>'+NAV_IC.help+'</b><span>'+tx('功能解說')+'</span></button>'+
-    '<div class="side-footer"><button class="side-health '+SYNC.state+'" data-act="sync"><i></i><span><b>'+tx('系統連線')+'</b><small>'+esc(sync)+'</small></span></button></div></nav>';
+    '<div class="side-footer">'+sideHealthHTML()+'</div></nav>';
 }
 function isoWeek(ds){const d=parseD(ds);d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));const y=new Date(Date.UTC(d.getUTCFullYear(),0,1));return Math.ceil(((d-y)/864e5+1)/7);}
 function bannerHTML(){
@@ -881,9 +911,9 @@ function peopleDrawerHTML(){
   let selected=emp(UI.focus?.type==='employee'?UI.focus.id:null);if(!selected||!people.some(e=>e.id===selected.id))selected=absent[0]||people[0]||null;
   const pending=(S.leaveRequests||[]).filter(x=>x.status==='pending'&&people.some(e=>e.id===x.employeeId)).sort((a,b)=>a.date.localeCompare(b.date));
   const weekdays='一二三四五六日'.split('').map(x=>'<span>'+x+'</span>').join('');
-  const days=selected?monthDates(UI.date).map(d=>d?'<button class="calendar-day '+leaveState(S,selected.id,d)+'" data-act="person-day" data-id="'+esc(selected.id)+'" data-d="'+d+'"><b>'+Number(d.slice(-2))+'</b><i></i></button>':'<span class="calendar-day blank"></span>').join(''):'';
-  const requests=pending.map(r=>'<article class="leave-request"><b>'+esc(emp(r.employeeId)?.name||'未設定人員')+'詢問 '+mdw(r.date)+' 請假</b><p>'+esc(r.note||'未填說明')+'</p><small>'+tx('核准前不列入正式請假，也不會觸發重排。')+'</small>'+(canIncidents()?'<div><button class="approve" data-act="leave-resolve" data-id="'+r.id+'" data-v="approved">'+tx('准假')+'</button><button class="deny" data-act="leave-resolve" data-id="'+r.id+'" data-v="rejected">'+tx('駁回')+'</button></div>':'')+'</article>').join('');
-  return '<section class="absence-box"><b>'+tx('今日缺席 {n} 人',{n:absent.length})+'</b><span>'+esc(absent.map(x=>x.name).join('、')||tx('無'))+'</span></section>'+
+  const days=selected?monthDates(UI.date).map(d=>d?'<button class="calendar-day '+leaveState(S,selected.id,d)+'"'+(UI.leaveBrushSaving?' disabled':'')+' data-act="person-day" data-id="'+esc(selected.id)+'" data-d="'+d+'"><b>'+Number(d.slice(-2))+'</b><i></i></button>':'<span class="calendar-day blank"></span>').join(''):'';
+  const requests=pending.map(r=>'<article class="leave-request"><b>'+esc(emp(r.employeeId)?.name||'未設定人員')+'詢問 '+mdw(r.date)+' 請假</b><p>'+esc(r.note||'未填說明')+'</p><small>'+tx('核准前不列入正式請假，也不會觸發重排。')+'</small>'+(canIncidents()?'<div><button class="approve" data-act="leave-resolve" data-direct-write-control'+(UI.directSaving?' disabled':'')+' data-id="'+r.id+'" data-v="approved">'+tx('准假')+'</button><button class="deny" data-act="leave-resolve" data-direct-write-control'+(UI.directSaving?' disabled':'')+' data-id="'+r.id+'" data-v="rejected">'+tx('駁回')+'</button></div>':'')+'</article>').join('');
+  return directWriteStatus('people')+(UI.leaveBrushSaving?'<div class="drawer-hint" role="status">'+tx('正在儲存排班狀態，請稍候。')+'</div>':'')+(UI.leaveBrushError?'<div class="issues" role="alert"><div class="issue">'+esc(UI.leaveBrushError)+'</div></div>':'')+'<section class="absence-box"><b>'+tx('今日缺席 {n} 人',{n:absent.length})+'</b><span>'+esc(absent.map(x=>x.name).join('、')||tx('無'))+'</span></section>'+
     '<div class="people-pills">'+people.map(e=>'<button data-act="focus-person" data-id="'+e.id+'" aria-pressed="'+(selected?.id===e.id)+'">'+esc(e.name)+'</button>').join('')+'</div>'+
     '<div class="traffic-legend"><span><i class="green"></i>'+tx('在班')+'</span><span><i class="red"></i>'+tx('請假')+'</span><span><i class="yellow"></i>'+tx('uncertain')+'</span><span><i class="gray"></i>'+tx('待確認')+'</span></div>'+
     (selected?'<section class="people-calendar"><header><b>'+esc(selected.name)+'</b><span>'+UI.date.slice(0,7).replace('-',' 年 ')+' 月</span>'+(canIncidents()?'<button class="btn" data-act="person-month" data-id="'+esc(selected.id)+'">'+tx('整月設定')+'</button>':'')+'</header><div class="calendar-week">'+weekdays+'</div><div class="calendar-grid">'+days+'</div>'+(canIncidents()?'<div class="toggles cal-brush">'+'<button class="tg brush-leave'+(UI.leaveBrush==="leave"?" on":"")+'" data-act="cal-brush" data-v="leave" aria-pressed="'+(UI.leaveBrush==="leave")+'">'+tx('leave')+'</button><button class="tg brush-work'+(UI.leaveBrush==="work"?" on":"")+'" data-act="cal-brush" data-v="work" aria-pressed="'+(UI.leaveBrush==="work")+'">'+tx('work')+'</button><button class="tg brush-uncertain'+(UI.leaveBrush==="uncertain"?" on":"")+'" data-act="cal-brush" data-v="uncertain" aria-pressed="'+(UI.leaveBrush==="uncertain")+'">'+tx('uncertain')+'</button>'+'</div><div class="drawer-hint">'+(UI.leaveBrush?('已選「'+(UI.leaveBrush==="leave"?"休假":UI.leaveBrush==="uncertain"?"未確定":"上班")+'」：連點日期或框選範圍套用'):'先選「上班」「休假」「未確定」，再點日期套用')+'</div>':'')+'</section>':'<div class="drawer-empty">'+tx('此廠尚未設定人員')+'</div>')+
@@ -900,7 +930,7 @@ function outputDrawerHTML(){
 function memoLabel(m){const E=emp(m.employeeId),M=mach(m.machineId);return [m.author||STORE.userName||'未署名',M&&M.label,E&&E.name].filter(Boolean).join('・');}
 function notesDrawerHTML(){
   const memos=visibleMemos(S,factoryOf,UI.factory);
-  return '<div class="memo-grid">'+memos.map(m=>'<article class="memo-card'+(m.pinned?' pinned':'')+'" data-act="focus-memo" data-id="'+m.id+'"><button class="memo-pin" data-act="memo-pin" data-id="'+m.id+'" aria-label="'+(m.pinned?tx('取消釘選'):tx('釘選'))+'">'+(m.pinned?'●':'○')+'</button><b>'+esc(memoLabel(m))+'</b><p>'+esc(m.text)+'</p><small>'+esc((m.createdAt||'').slice(0,16).replace('T',' '))+'</small></article>').join('')+'</div>'+(!memos.length?'<div class="drawer-empty">'+tx('目前沒有備忘')+'</div>':'')+(canPermission('notes.manage')?'<button class="drawer-primary" data-act="memo-new">'+tx('＋新增備忘')+'</button>':'');
+  return directWriteStatus('notes')+'<div class="memo-grid">'+memos.map(m=>'<article class="memo-card'+(m.pinned?' pinned':'')+'" data-act="focus-memo" data-id="'+m.id+'"><button class="memo-pin" data-act="memo-pin" data-direct-write-control'+(UI.directSaving||UI.memoSaving||!canPermission('notes.manage')?' disabled':'')+' data-id="'+m.id+'" aria-label="'+(m.pinned?tx('取消釘選'):tx('釘選'))+'">'+(m.pinned?'●':'○')+'</button><b>'+esc(memoLabel(m))+'</b><p>'+esc(m.text)+'</p><small>'+esc((m.createdAt||'').slice(0,16).replace('T',' '))+'</small></article>').join('')+'</div>'+(!memos.length?'<div class="drawer-empty">'+tx('目前沒有備忘')+'</div>':'')+(canPermission('notes.manage')?'<button class="drawer-primary" data-act="memo-new">'+tx('＋新增備忘')+'</button>':'');
 }
 
 function settingChoices(key,items){
@@ -1018,6 +1048,7 @@ function dayHTML(ctx={}){
     (leave.length?'<span class="tag bad" style="font-size:15px;padding:4px 10px">請假：'+esc(leave.map(e=>e.name).join("、"))+'</span>':"")+
     (nBad?'<button class="btn danger" data-act="issues">'+nBad+' 個問題</button>':(blocks.length?'<span class="tag ok" style="font-size:15px;padding:4px 10px">'+tx('沒有衝突')+'</span>':""))+
     '<div class="spacer"></div><div class="legend"><span><i style="background:var(--lunch)"></i>'+tx('午休')+'</span><span><i style="background:var(--ot)"></i>'+tx('加班')+'</span><span><i style="background:var(--bad-bg);border-color:var(--bad)"></i>'+tx('故障')+'</span><span>'+tx('顏色 = 員工')+'</span><span>'+tx('上班日／加班開關目前兩廠共用')+'</span>'+(readOnly||S.setupPending?"":"<span>"+tx('拖動方塊可改時段，拉底邊可改工作長度')+"</span>")+'</div>'+(readOnly||ctx.pv||S.setupPending?"":'<button class="btn primary" data-act="manual-add">'+tx('＋手動排班')+'</button>')+otBtn+'</div>'+
+    (!ctx.pv&&blocks.length?'<div class="board-locate" hidden><span>'+tx('{n} 段排班在其他機台',{n:blocks.length})+'</span><button class="btn" data-act="board-locate">'+tx('查看排班')+'</button></div>':'')+
     (ms.length?'<div class="scroller"><div class="grid" style="grid-template-columns:64px repeat('+ms.length+',minmax('+zw+'px,1fr))">'+
     '<div class="corner"></div>'+heads+'<div class="times">'+times+'</div>'+cols+'</div></div>':
     '<div class="empty factory-empty">'+tx('此廠尚未設定機台與員工；「歷史排程」是獨立的唯讀原表，不會自動變成正式排程。')+'</div>')+
@@ -1258,6 +1289,8 @@ document.addEventListener("pointerup",()=>{
   if(!drag)return;const d=drag;
   if(!d.started){drag=null;openModal({t:"blk",id:d.b.id});return;}
   endDrag();drag=null;
+  // 衝突恢復補讀可能在拖曳中替換 S：遠端已刪除這段工作時，不得用拖曳的舊引用把它復活
+  if(!S.blocks.some(x=>x.id===d.b.id)){toast(tx('班表剛被別人更新，你拖的這段工作已不在最新班表，未套用；請確認最新班表後再操作。'));return;}
   if(d.mode==="resize"){
     if(d.target&&d.target.e!==d.b.e)enterManualPreview(dragPreview(d.b,d.b.m,d.b.s,{end:d.target.e,qty:d.target.qty}));
     return;
@@ -1311,6 +1344,7 @@ document.addEventListener("click",e=>{
   if(act.startsWith('b-')&&executionOf(S,UI.modal?.id)){toast('已有現場回報，不能修改這段排程');return;}
   const step=UI.view==="week"?7:1;
   switch(act){
+    case "board-locate":locateSchedule(a.closest('.board.szoom'));break;
     case "prev":UI.date=addDays(UI.date,-step);render();break;
     case "next":UI.date=addDays(UI.date,step);render();break;
     case "today":UI.date=todayStr();UI.view='day';UI.drawer=null;UI.page=null;UI.focus=null;render();break;
@@ -1340,12 +1374,21 @@ document.addEventListener("click",e=>{
     case "focus-person":UI.focus={type:'employee',id};render();break;
     case "person-day":{
       if(!canIncidents()){toast('設定需要「故障與請假」權限；員工可從下方「＋新增詢問」提出');break;}
+      if(UI.leaveBrushSaving){toast(tx('正在儲存排班狀態，請稍候。'));break;}
       if(UI.leaveBrush){
         const eid=a.dataset.id,dd=a.dataset.d;
+        const brush=UI.leaveBrush,activeStore=STORE,before=S,writer=STORE.session?.user?.id,epoch=STORE.authEpoch;
+        const drawer=UI.drawer,modal=UI.modal,date=UI.date,preview=PV;
+        const sameOwner=()=>STORE===activeStore&&activeStore.session?.user?.id===writer&&activeStore.authEpoch===epoch;
+        const sameView=()=>UI.drawer===drawer&&UI.modal===modal&&UI.date===date&&PV===preview;
+        const current=()=>sameOwner()&&S===before&&canIncidents();
+        const persistRequest=async action=>{
+          const expected=JSON.stringify(S);await action();
+          if(!current()||JSON.stringify(S)!==expected){const error=new Error('stale brush');error.staleBrush=true;throw error;}
+        };
         // 統一筆刷：work/leave/uncertain 互相覆蓋，同狀態再點=取消回上班
         const applyBrush=async(eid,d)=>{
           const E=emp(eid);if(!E)return 0;
-          const brush=UI.leaveBrush;
           const isInLeave=E.leaves.includes(d);
           const pend=(S.leaveRequests||[]).find(x=>x.employeeId===eid&&x.date===d&&x.status==="pending");
           const isUnc=!!pend;
@@ -1354,22 +1397,22 @@ document.addEventListener("click",e=>{
           const wantWork=brush==="work";
           // 已在目標狀態 → toggle off（回上班）
           if((wantLeave&&isInLeave&&!isUnc)||(wantUnc&&isUnc&&!isInLeave)||(wantWork&&!isInLeave&&!isUnc)){
+            if(pend&&activeStore.kind==="supabase")await persistRequest(()=>activeStore.resolveLeaveRequest(pend.id,"rejected"));
             if(isInLeave)E.leaves=E.leaves.filter(x=>x!==d);
             if(pend)pend.status="rejected";
-            if(pend&&STORE.kind==="supabase"){try{await STORE.resolveLeaveRequest(pend.id,"rejected");}catch(e){}}
             return -1;
           }
           let changed=false;
-          if(isInLeave&&!wantLeave){E.leaves=E.leaves.filter(x=>x!==d);changed=true;}
-          if(pend&&!wantUnc){pend.status="rejected";changed=true;
-            if(STORE.kind==="supabase"){try{await STORE.resolveLeaveRequest(pend.id,"rejected");}catch(e){}}
-          }
-          if(wantLeave&&!isInLeave){E.leaves.push(d);changed=true;}
+          if(pend&&!wantUnc&&activeStore.kind==="supabase")await persistRequest(()=>activeStore.resolveLeaveRequest(pend.id,"rejected"));
+          let req=null;
           if(wantUnc&&!pend){
-            const req={id:uid(),employeeId:eid,date:d,note:"未確定",status:"pending"};
-            (S.leaveRequests||=[]).push(req);changed=true;
-            if(STORE.kind==="supabase"){try{await STORE.createLeaveRequest(req);}catch(e){toast("沒存到："+e.message);return 0;}}
+            req={id:uid(),employeeId:eid,date:d,note:"未確定",status:"pending"};
+            if(activeStore.kind==="supabase")await persistRequest(()=>activeStore.createLeaveRequest(req));
           }
+          if(isInLeave&&!wantLeave){E.leaves=E.leaves.filter(x=>x!==d);changed=true;}
+          if(pend&&!wantUnc){pend.status="rejected";changed=true;}
+          if(wantLeave&&!isInLeave){E.leaves.push(d);changed=true;}
+          if(req){(S.leaveRequests||=[]).push(req);changed=true;}
           return changed?1:0;
         };
         // 範圍框選
@@ -1382,25 +1425,36 @@ document.addEventListener("click",e=>{
         const st=UI.brushStart.d;UI.brushStart=null;
         const [lo,hi]=st<=dd?[st,dd]:[dd,st];
         const E=emp(eid);
-        const brushName={leave:"休假",work:"上班",uncertain:"未確定"}[UI.leaveBrush]||UI.leaveBrush;
+        const brushName={leave:"休假",work:"上班",uncertain:"未確定"}[brush]||brush;
+        const operation={};UI.leaveBrushOperation=operation;UI.leaveBrushSaving=operation;UI.leaveBrushError='';render();
         (async()=>{
           try{
             let cnt=0;
             pushUndo();   // 快照必須在 applyBrush 變更 S 之前——否則「復原上一步」還原的已是套用後的狀態（無效復原）
             for(let x=lo;x<=hi&&cnt<62;x=addDays(x,1)){
-              if(UI.leaveBrush==="leave"&&S.blocks.some(b=>b.emp===eid&&b.date===x&&futureOf(b)))continue;
+              if(!current())return;
+              if(brush==="leave"&&S.blocks.some(b=>b.emp===eid&&b.date===x&&futureOf(b)))continue;
               const r=await applyBrush(eid,x);if(r!==0)cnt++;
             }
-            await commit({kind:"leave",title:E.name+" "+brushName+" "+md(lo)+"～"+md(hi)+"（"+cnt+" 天）",lines:[]},"incidents.manage");   // 缺陷#21：同步寫入完成前 reload 會用舊資料蓋掉記憶體，之後任何操作再存就丟資料
-            await reloadFromStore();
-            UI.drawer="people";
+            if(!current())return;
+            const saving=commit({kind:"leave",title:E.name+" "+brushName+" "+md(lo)+"～"+md(hi)+"（"+cnt+" 天）",lines:[]},"incidents.manage");
+            const expected=JSON.stringify(S),saved=await saving;
+            if(!current()||!sameView()||JSON.stringify(S)!==expected)return;
+            if(!saved){UI.leaveBrushError=tx('排班狀態尚未確認儲存；請按上方儲存狀態重試。');return;}
+            // Release our edit guard only after acknowledgment; the read itself
+            // must still refuse newer drafts, previews and in-flight writes.
+            if(UI.leaveBrushSaving===operation)UI.leaveBrushSaving=null;
+            const loaded=await reloadFromStore({background:true});
+            if(UI.leaveBrushOperation!==operation||!sameOwner()||!sameView()||!canIncidents())return;
+            if(loaded!=='applied'){UI.leaveBrushError=tx('已儲存')+'；'+tx('無法讀取最新班表，請稍後再試。');return;}
             toast("已套用"+brushName+" "+md(lo)+"～"+md(hi)+"（"+cnt+" 天）");
-          }catch(e){toast("沒存到："+e.message);}
+          }catch(e){if(!e.staleBrush&&sameOwner()&&sameView()){UI.leaveBrushError=tx('排班狀態未全部完成；部分日期可能已儲存，請更新班表核對。');toast("沒存到："+e.message);}}
+          finally{if(UI.leaveBrushSaving===operation)UI.leaveBrushSaving=null;if(UI.leaveBrushOperation===operation)UI.leaveBrushOperation=null;if(sameOwner()&&sameView())render();maybeReload();}
         })();
         break;
       }
       openModal({t:'person-day',id,d:a.dataset.d});break;}
-    case "cal-brush":{if(!canIncidents())break;const v=a.dataset.v;UI.leaveBrush=UI.leaveBrush===v?null:v;UI.brushStart=null;render();if(UI.leaveBrush){const nm={leave:"休假",work:"上班",uncertain:"未確定"};toast("已選「"+(nm[UI.leaveBrush]||UI.leaveBrush)+"」：連點日期套用，或點第一天再點最後一天框選範圍。再按一次結束。");}break;}
+    case "cal-brush":{if(!canIncidents())break;if(UI.leaveBrushSaving){toast(tx('正在儲存排班狀態，請稍候。'));break;}const v=a.dataset.v;UI.leaveBrush=UI.leaveBrush===v?null:v;UI.brushStart=null;UI.leaveBrushError='';render();if(UI.leaveBrush){const nm={leave:"休假",work:"上班",uncertain:"未確定"};toast("已選「"+(nm[UI.leaveBrush]||UI.leaveBrush)+"」：連點日期套用，或點第一天再點最後一天框選範圍。再按一次結束。");}break;}
 case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "focus-machine":UI.focus={type:'machine',id};render();break;
     case "focus-memo":{const memo=(S.memos||[]).find(x=>x.id===id);UI.focus=memo?.machineId?{type:'machine',id:memo.machineId}:memo?.employeeId?{type:'employee',id:memo.employeeId}:null;render();break;}
@@ -1415,7 +1469,10 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "factory":{const v=a.dataset.v==="all"?"all":Number(a.dataset.v);setFactory(v);render();if(v==="all")openModal({t:'transfer-board'});break;}
     case "groups":openModal({t:'groups'});break;
     case "tour":{closeModal();UI.drawer=null;render();setTimeout(()=>startTour(TOUR_STEPS,{tx}),350);break;}
-    case "logout":(async a=>{if(STORE.kind!=="supabase"){toast(tx('本機模式沒有登入帳號'));return;}closeModal();
+    case "logout":(async a=>{if(STORE.kind!=="supabase"){toast(tx('本機模式沒有登入帳號'));return;}
+      // 與 beforeunload 同風險：未確認儲存的變更只在本機，登出即丟失
+      if(syncPending>0||SYNC.state!=="ok"||executionRetries.has(STORE)||STORE.hasPendingConfirmations?.()){toast(tx('有變更尚未確認儲存；請先按上方儲存狀態重試，確認後再登出。'));return;}
+      closeModal();
       try{await STORE.logout();toast("已登出");}catch(e){toast("登出失敗："+e.message);}
       showLogin();})();break;
     case "access":{if(STORE.role!=='boss'){toast("只有老闆可以管理權限");break;}openModal({t:'access-accounts',loading:true,accounts:[]});(async()=>{try{const accounts=await STORE.listAccessAccounts();if(UI.modal?.t==='access-accounts'){UI.modal.loading=false;UI.modal.accounts=accounts;renderModal();}}catch(e){toast(e.message);closeModal();}})();break;}
@@ -1550,33 +1607,8 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case 'execution':openModal({t:'execution'});break;
     case 'report-open':openModal({t:'execution-report',id});break;
     case 'report-work':reportWork(a);break;
-    case 'exec-confirm':{
-      if(!canPermission('execution.manage')){toast('只有老闆或組長可以確認完工');break;}
-      const r=(S.execution||[]).find(x=>x.blockId===a.dataset.id);
-      if(!r||r.status!=='done'){toast(tx('這項工作還未報完工'));break;}
-      a.disabled=true;
-      // 只有伺服器確認成功才改畫面；失敗一律保持待確認，避免 ERP 匯出讀到沒存住的狀態
-      STORE.confirmExecution(a.dataset.id,true).then(async()=>{
-        await reloadFromStore();toast('已確認完工（已存到資料庫）');
-      }).catch(e=>{
-        a.disabled=false;
-        const pendingDb=DB_MIGRATION_PENDING.test(e.message||'');
-        toast(pendingDb?'沒存到：資料庫尚未更新（缺 0035），確認狀態保持待確認':'沒存到：'+e.message);
-      });
-      break;}
-    case 'exec-unconfirm':{
-      if(!canPermission('execution.manage'))break;
-      const r=(S.execution||[]).find(x=>x.blockId===a.dataset.id);
-      if(!r)break;
-      a.disabled=true;
-      STORE.confirmExecution(a.dataset.id,false).then(async()=>{
-        await reloadFromStore();toast('已取消確認，回報仍保留');
-      }).catch(e=>{
-        a.disabled=false;
-        const pendingDb=DB_MIGRATION_PENDING.test(e.message||'');
-        toast(pendingDb?'沒存到：資料庫尚未更新（缺 0035），維持原確認狀態':'沒存到：'+e.message);
-      });
-      break;}
+    case 'exec-confirm':changeExecutionConfirmation(a,true);break;
+    case 'exec-unconfirm':changeExecutionConfirmation(a,false);break;
     case "group-edit":openModal({t:'staff-group',id});break;
     case "group-new":if(canGroups())openModal({t:'staff-group'});break;
     case "goto":zoomWheel.cancel();applyPinch.cancel();pinch0=null;pinchActive=false;UI.wkFit=false;UI.date=a.dataset.d;UI.view="day";render();window.scrollTo(0,0);break;
@@ -1606,7 +1638,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "feedback-send":{const h=async a=>{if(STORE.kind==="local"){toast("本機示範模式無法送出反饋；請改用下面的 Email 連結");return;}const msg=$("#fb-msg")?.value.trim()||"",cat=$("#fb-cat")?.value||"other";if(!msg){toast("請寫一些內容");return;}a.disabled=true;try{const {error}=await STORE.sb.from("feedback").insert({author_name:STORE.userName||"未命名",category:cat,message:msg,page_url:location.href,user_id:STORE.session?.user?.id});if(error)throw error;closeModal();toast("感謝！意見已送出，我們會盡快處理。"+(STORE.role==="boss"?" 到「更多功能→查看反饋」看全部。":""));}catch(e){a.disabled=false;toast(e.message);}};h(a);break;};
     case "feedback-list":{if(STORE.role!=="boss"){toast("只有老闆可以查看全部反饋");break;}if(STORE.kind==="local"){toast("查看反饋需要雲端模式；本機示範資料沒有反饋紀錄");break;}openModal({t:"feedback-list",loading:true,items:[]});(async()=>{try{const {data}=await STORE.sb.rpc("list_feedback",{p_limit:50});if(UI.modal?.t==="feedback-list"){UI.modal.loading=false;UI.modal.items=data||[];renderModal();}}catch(e){toast(e.message);closeModal();}})();break;}
     case "undo":undo();break;
-    case "sync":if(SYNC.state==="error")queueSync(null);else toast(STORE.kind==="local"?tx('資料存在這台電腦的瀏覽器'):tx('已和雲端資料庫同步'));break;
+    case "sync":return refreshCloudSnapshot();
     case "account":openModal({t:"account"});break;
     case "export":openModal({t:"export"});break;
     case "erp-export":{
@@ -1719,7 +1751,7 @@ function toggleOpen(d){
   }
 }
 function saveDailyOT(m){
-  if(!canCalendar())return;
+  if(!m||!canCalendar())return;   // 視窗已關（連點第二下事件）＝安全 no-op，不拋未捕捉錯誤
   const d=m.date;
   // 先讀下拉選單（改變「加班到幾點」才是使用者剛剛選的值），否則 changed 誤判無變更
   if(m.open){const sel=$("#ot-end");m.otEnd=sel?+sel.value:m.otEnd||DAY1;}
@@ -1770,6 +1802,11 @@ function modalFocusFromToken(root,token){
   return [...root.querySelectorAll("[data-"+token.kind+"]")].find(el=>el.dataset[token.kind]===token.value)||null;
 }
 function openModal(m){
+  if(UI.modal!==m)cancelPlanCalculation();
+  if(m.t==='execution-report'){
+    const pending=executionRetries.get(STORE,m.id);
+    if(pending)m={...m,...pending,error:tx(UI.executionSaving?'回報處理中；關閉視窗不會取消已送出的回報。':'尚未確認儲存這筆回報；請按「重試上一筆回報」，不要另送新的一筆。')};
+  }
   if(!UI.modal){
     const active=document.activeElement;
     modalReturnFocus=active instanceof HTMLElement&&active!==document.body?active:null;
@@ -1777,31 +1814,46 @@ function openModal(m){
   UI.modal=m;renderModal();
 }
 function closeModal(){
+  // An import already writing cannot be cancelled by Escape, the overlay or X.
+  if(UI.modal?.t==='import-preview'&&UI.modal.saving)return;
+  cancelPlanCalculation();
   UI.modal=null;const r=$("#modal-root");if(r)r.innerHTML="";maybeReload();
   const target=modalReturnFocus;modalReturnFocus=null;
   requestAnimationFrame(()=>{if(target?.isConnected&&!target.matches?.(":disabled"))target.focus();});
 }
+function ownsLegacyRequest(request,store,user,epoch){
+  return UI.modal===request&&STORE===store&&store?.session?.user?.id===user&&store?.authEpoch===epoch&&canArchive();
+}
 async function openLegacyHistory(preferredId){
-  openModal({t:"legacy-history",loading:true});
+  if(!canArchive())return;
+  const store=STORE,user=store?.session?.user?.id,epoch=store?.authEpoch;
+  const m={t:"legacy-history",loading:true,historyId:preferredId};openModal(m);
+  const current=()=>ownsLegacyRequest(m,store,user,epoch);
   try{
-    const archives=await STORE.listLegacyArchives();
+    const archives=await store.listLegacyArchives();
+    if(!current())return;
     const archive=archives.find(a=>a.id===preferredId)||archives[0]||null;
-    const legacy=archive?await STORE.getLegacyArchive(archive.id):null;
-    if(UI.modal?.t!=="legacy-history")return;
-    UI.modal={t:"legacy-history",archives,archive,legacy,date:legacy?.selectedDate||legacy?.dates.at(-1)||"",factory:"全部",section:"day"};
+    const legacy=archive?await store.getLegacyArchive(archive.id):null;
+    if(!current())return;
+    if(archive&&!Array.isArray(legacy?.dates))throw new Error(tx('找不到歷史排程內容，請重新讀取。'));
+    Object.assign(m,{loading:false,error:'',archives,archive,legacy,date:legacy?.selectedDate||legacy?.dates.at(-1)||"",factory:"全部",section:"day"});
     renderModal();
-  }catch(e){if(UI.modal?.t==="legacy-history"){UI.modal={t:"legacy-history",error:e.message};renderModal();}}
+  }catch(e){if(current()){m.loading=false;m.error=tx(e.message);renderModal();}}
 }
 async function changeLegacyHistorySource(id){
-  const m=UI.modal;if(m?.t!=="legacy-history")return;
-  m.loading=true;renderModal();
+  const m=UI.modal;if(m?.t!=="legacy-history"||!Array.isArray(m.archives)||!canArchive())return;
+  const store=STORE,user=store?.session?.user?.id,epoch=store?.authEpoch,request={};
+  m.historyRequest=request;m.historyId=id;m.loading=true;m.error='';renderModal();
+  const current=()=>ownsLegacyRequest(m,store,user,epoch)&&m.historyRequest===request;
   try{
     const archive=m.archives.find(a=>a.id===id);
-    const legacy=archive?await STORE.getLegacyArchive(archive.id):null;
-    if(UI.modal!==m)return;
+    if(!archive)throw new Error(tx('找不到歷史排程內容，請重新讀取。'));
+    const legacy=await store.getLegacyArchive(archive.id);
+    if(!current())return;
+    if(!Array.isArray(legacy?.dates))throw new Error(tx('找不到歷史排程內容，請重新讀取。'));
     Object.assign(m,{loading:false,archive,legacy,date:legacy?.selectedDate||legacy?.dates.at(-1)||"",factory:"全部",section:"day"});
-  }catch(e){m.loading=false;m.error=e.message;}
-  if(UI.modal===m)renderModal();
+  }catch(e){if(current()){m.loading=false;m.error=tx(e.message);}}
+  if(current())renderModal();
 }
 function setPath(o,path,v){const k=path.split(".");let t=o;for(let i=0;i<k.length-1;i++){const key=isNaN(k[i])?k[i]:+k[i];t[key] ||= isNaN(k[i+1])?{}:[];t=t[key];}t[k[k.length-1]]=v;}
 function syncInputs(){
@@ -1810,6 +1862,7 @@ function syncInputs(){
     const v=el.type==="number"?(el.value===""?0:+el.value):el.value;setPath(m.draft,el.dataset.bind,v);});
 }
 function renderModal(){
+  globalThis.__fsRenderMemo=null;
   let root=$("#modal-root");
   if(!root){root=document.createElement("div");root.id="modal-root";document.body.appendChild(root);}
   const m=UI.modal;if(!m){root.innerHTML="";return;}
@@ -1817,7 +1870,12 @@ function renderModal(){
   const c=f(m);if(!c){closeModal();return;}
   const keep=root.querySelector(".overlay"),focusToken=keep&&root.contains(document.activeElement)?modalFocusToken(document.activeElement):null;
   const st=keep?keep.scrollTop:0;
-  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close" aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
+  const importBusy=m.t==='import-preview'&&m.saving;
+  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!(m.viewLoading||m.t==='scenario-list'&&m.loading||m.confirmBusy||m.planBusy||importBusy||m.t==='legacy-preview'&&m.saving||['memo-edit','leave-request','scenario-save'].includes(m.t)&&m.saving||m.t==='execution-report'&&m.busy||m.t==='legacy-history'&&m.loading)+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close"'+(importBusy?' disabled':'')+' aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
+  if(importBusy)root.querySelectorAll('input,select,textarea,button').forEach(el=>el.disabled=true);
+  if(['memo-edit','leave-request'].includes(m.t)&&m.saving)root.querySelectorAll('input,select,textarea').forEach(el=>el.disabled=true);
+  if(m.t==='execution-report'&&m.busy)root.querySelectorAll('input,select,textarea,button:not([data-act="close"])').forEach(el=>el.disabled=true);
+  if(m.viewLoading||m.confirmBusy||m.planBusy||m.t==='scenario-save'&&m.saving)root.querySelectorAll('input,select,textarea,button:not([data-act="close"])').forEach(el=>el.disabled=true);
   const ov=$("#ov");ov.scrollTop=st;
   const cb=$("#cbx"),modal=ov.querySelector(".modal");
   const restore=modalFocusFromToken(modal,focusToken);
@@ -2116,8 +2174,8 @@ export(){
   const warning=hasGeneral?'<div class="issues"><div class="issue">'+tx('匯入範本尚未包含獨立工作內容與一般工作排班，不能覆蓋已建立的資料。歷史排程仍可獨立匯入。')+'</div></div>':hasGroups?'<div class="issues"><div class="issue">'+tx('目前匯入範本未包含分組與組員對照，不能覆蓋已建立分組的正式名冊。歷史排程仍可獨立匯入。')+'</div></div>':hasSecondFactory?'<div class="issues"><div class="issue">'+tx('目前匯入範本沒有廠別欄，系統已有 2 廠資料。為避免整批覆蓋，這次不能確認匯入。')+'</div></div>':
     !m.errors.length?'<div class="issues"><div class="issue">'+tx('確認後將以 Excel 內容取代現有員工、機台、產品工序與工單，並清空現有 {n} 段排程；上班日設定保留。匯入後再按「自動排程」建立新班表。',{n:S.blocks.length})+'</div></div>':'';
   return {title:tx(m.errors.length?'Excel 匯入 · 請修正檔案':'Excel 匯入 · 確認取代資料'),
-    body:'<div class="hint">'+tx('檔案：')+esc(m.filename)+'</div>'+summary+problems+warning,
-    foot:'<button class="btn" data-act="close">'+tx('取消')+'</button>'+(m.errors.length||hasSecondFactory||hasGroups||hasGeneral?'':'<button class="btn primary" data-act="x-import-confirm">'+tx('確認匯入並清空舊排程')+'</button>')};
+    body:'<div class="hint">'+tx('檔案：')+esc(m.filename)+'</div>'+summary+problems+(m.importCandidate?'':warning)+(m.saving?'<div class="hint" role="status">'+tx('正在儲存匯入資料，請稍候；此時無法取消。')+'</div>':'')+(m.importError?'<div class="issues" role="alert"><div class="issue">'+esc(m.importError)+'</div></div>':''),
+    foot:'<button class="btn" data-act="close"'+(m.saving?' disabled':'')+'>'+tx(m.importCandidate?'關閉':'取消')+'</button>'+(m.errors.length||!m.data||hasSecondFactory||hasGroups||hasGeneral||(m.importCandidate&&!m.importRetryable)?'':'<button class="btn primary" data-act="x-import-confirm"'+(m.saving?' disabled':'')+'>'+tx(m.saving?'儲存中…':m.importCandidate?'重試儲存':'確認匯入並清空舊排程')+'</button>')};
 },
 "legacy-preview"(m){
   const legacy=m.legacy,day=legacy.days[m.date]||{"1廠":[],"2廠":[],overtime:{}};
@@ -2126,12 +2184,13 @@ export(){
     '<div class="hint">檔案：'+esc(m.filename)+'。這是舊表的原始格位與文字，不會變成目前的時間方塊。</div>'+datePicker+
     legacyFactoryHTML(day,'1廠')+legacyFactoryHTML(day,'2廠')+
     '<div class="hint">'+tx('存為歷史資料後，可從上方「歷史排程」按日期查看；現有示範排程不變。')+'</div>'+
+    (m.saving?'<div class="hint" role="status">'+tx('歷史資料儲存中；關閉視窗不會取消已送出的儲存。')+'</div>':'')+
     (m.error?'<div class="issues"><div class="issue">'+esc(m.error)+'</div></div>':''),
-    foot:'<button class="btn" data-act="close">'+tx('取消')+'</button>'+(canArchive()&&legacy.dates.length?'<button class="btn primary" data-act="legacy-save"'+(m.saving?' disabled':'')+'>'+(m.saving?'儲存中…':'存為歷史排程')+'</button>':'')};
+    foot:'<button class="btn" data-act="close">'+tx(m.saving?'關閉':'取消')+'</button>'+(canArchive()&&legacy.dates.length?'<button class="btn primary" data-act="legacy-save"'+(m.saving?' disabled':'')+'>'+(m.saving?tx('儲存中…'):tx('存為歷史排程'))+'</button>':'')};
 },
 "legacy-history"(m){
   if(m.loading)return {title:tx('歷史排程'),body:'<div class="hint">'+tx('正在讀取…')+'</div>'};
-  if(m.error)return {title:tx('歷史排程'),body:'<div class="issues"><div class="issue">'+esc(m.error)+'</div></div>'};
+  if(m.error)return {title:tx('歷史排程'),body:'<div class="issues" role="alert"><div class="issue">'+esc(m.error)+'</div></div>',foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button><button class="btn primary" data-act="history-retry">'+tx('重試讀取')+'</button>'};
   if(!m.archive)return {title:tx('歷史排程'),body:'<div class="hint">'+tx('尚未存入舊版排程。請到 Excel 選擇含「1廠」「2廠」的檔案。')+'</div>',foot:'<button class="btn" data-act="export">'+tx('選擇 Excel')+'</button>'};
   const legacy=m.legacy,day=legacy?.days[m.date],names=m.archives;
   const source=names.length>1?'<div class="field"><span class="lab">'+tx('來源檔案')+'</span><select id="history-source" aria-label="'+tx('來源檔案')+'">'+names.map(x=>'<option value="'+esc(x.id)+'"'+(x.id===m.archive.id?' selected':'')+'>'+esc(x.source_name)+'</option>').join('')+'</select></div>':'';
@@ -2178,14 +2237,14 @@ Object.assign(MODAL_ACT,{
     await applyManualPreview(P,{
       accepting(){m.applying=true;renderModal();},
       close(e){closeModal();render();if(e)toast(e.message);},
-      fail(){render();closeModal();toast('未確認儲存，畫面已回復；請查看右上角同步狀態');},
+      fail(pending){render();closeModal();toast(tx(pending?'調整尚未確認儲存；內容已保留，請按上方儲存狀態重試。':'排程未套用，請重新預覽。'));},
       done(moved,P){closeModal();dpApplied(moved,P);}
     });
   },
-  "c-week":a=>{if(!canCalendar())return;const w=+a.dataset.v,D=UI.modal.draft;D.week[w]=!D.week[w];rerender();},
-  "c-day":a=>{if(!canCalendar())return;const d=a.dataset.v,D=UI.modal.draft;const def=!!D.week[parseD(d).getUTCDay()];const cur=D.over[d]?D.over[d]==="work":def;const nv=!cur;if(nv===def)delete D.over[d];else D.over[d]=nv?"work":"off";rerender();},
+  "c-week":a=>{if(!canCalendar()||!UI.modal?.draft)return;const w=+a.dataset.v,D=UI.modal.draft;D.week[w]=!D.week[w];rerender();},
+  "c-day":a=>{if(!canCalendar()||!UI.modal?.draft)return;const d=a.dataset.v,D=UI.modal.draft;const def=!!D.week[parseD(d).getUTCDay()];const cur=D.over[d]?D.over[d]==="work":def;const nv=!cur;if(nv===def)delete D.over[d];else D.over[d]=nv?"work":"off";rerender();},
   "c-save":()=>{
-    if(!canCalendar())return;
+    if(!canCalendar()||!UI.modal?.draft)return;
     const D=UI.modal.draft,openD=d=>{const o=D.over[d];return o?o==="work":!!D.week[parseD(d).getUTCDay()];};
     if(readOnly&&S.blocks.some(b=>futureOf(b)&&!openD(b.date))){toast("新設定會移動既有工作；還需要「調整與自動排程」權限");return;}
     const bad=closeDaysPlanBad({week:[...UI.modal.draft.week],over:{...UI.modal.draft.over}});
@@ -2213,6 +2272,7 @@ async function applyManualPreview(P,ui){
     validateGeneralWork(next,{today:todayStr(),baseAssignments:assignments(S)});
   }
   catch(e){ui.close(e);return;}
+  const activeStore=STORE,user=STORE.session?.user?.id,authEpoch=STORE.authEpoch||0;
   // canPermission 在 PV 模式一律 false（與自動排程 pvApply 相同：先離開預覽再寫入）
   ui.accepting();
   pushUndo();S=next;
@@ -2220,10 +2280,14 @@ async function applyManualPreview(P,ui){
     ...P.unpinned.map(x=>({k:"info",t:x.label+"：解除固定後順延"})),...P.lines];
   const shifted=P.ops.filter(x=>![...x.prev,...x.next].some(b=>b.id===P.oldId)).length;
   const saved=await commit({kind:"move",title:(P.isNew?"手動排入 ":"手動調整 ")+P.movedLabel+(shifted?"，連帶調整 "+shifted+" 道工序":""),lines});
+  if(STORE!==activeStore||STORE.session?.user?.id!==user||(STORE.authEpoch||0)!==authEpoch||S!==next)return;
   if(!saved){
+    // queueSync retries the current S. Rolling it back here silently retries the old board.
+    // A conflict/permission recovery has already replaced S and returned above.
+    if(SYNC.state==='error'){ui.fail(true);return;}
     undoStack.pop();
-    if(S===next){S=JSON.parse(P.base);render();}
-    ui.fail();return;
+    S=JSON.parse(P.base);render();
+    ui.fail(false);return;
   }
   ui.done(moved,P);
 }
@@ -2244,11 +2308,12 @@ async function pvApplyManual(){
   await applyManualPreview(P,{
     accepting(){exitManualPreview(false);toast("套用中…");},
     close(e){exitManualPreview(false);if(e)toast(e.message);},
-    fail(){render();toast('未確認儲存，畫面已回復；請查看右上角同步狀態');},
+    fail(pending){render();toast(tx(pending?'調整尚未確認儲存；內容已保留，請按上方儲存狀態重試。':'排程未套用，請重新預覽。'));},
     done:dpApplied
   });
 }
 function enterManualPreview(P){
+  const returnContext=capturePreviewContext(UI);
   closeModal();
   UI.modal=null;UI.drawer=null;UI.focus=null;UI.editCell=null;UI.confirmRow=null;
   const B=P.B||JSON.parse(P.base);
@@ -2258,7 +2323,7 @@ function enterManualPreview(P){
   catch(e){o.applicable=false;o.diagnostics.push(e.message);}
   PV={title:P.problems.length?"手動排班預覽 · 需要處理":"手動排班預覽",kind:"manual",P,B,opts:[o],cur:"manual",
     mode:"cmp",tab:"gantt",note:"",ai:null,ev:{},faultsNew:[],savedScenario:false,sheetCollapsed:false,
-    nav:newNav(),hist:0,applying:false};
+    nav:newNav(),hist:0,applying:false,returnContext};
   if(P.move)UI.date=P.move.date;
   UI.view="day";
   try{history.pushState({pv:1},"",location.href);PV.hist=1;}catch{}
@@ -2270,7 +2335,10 @@ function enterManualPreview(P){
 function exitManualPreview(notify=true,byPop=false){
   if(!PV||PV.kind!=="manual")return;
   const h=(!byPop&&PV.hist>0)?PV.hist:0;
-  PV=null;UI.focus=null;render();
+  const returnContext=PV.returnContext;
+  PV=null;UI.focus=null;
+  if(notify||byPop)restorePreviewContext(UI,returnContext,setFactory);
+  render();
   if(h){try{history.go(-h);}catch{}}
   if(notify){toast("已取消，排程沒有改變");maybeReload();}
 }
@@ -2352,8 +2420,8 @@ function manualStripHTML(o){
   return '<section class="pv pv-manual" aria-label="'+tx('手動排班預覽')+'">'+
    '<div class="pv-h"><span class="pv-badge">'+(bad?'需要處理':'預覽中')+'</span>'+
    '<div class="pv-t"><b>'+esc(P.movedLabel)+'</b><small>'+esc(P.source)+' → '+esc(P.target)+(P.newQty!==undefined?tx('；預計 {n} 件',{n:P.newQty}):'')+(P.remaining?tx('；此站還有 {n} 件未排',{n:P.remaining}):'')+tx('。還沒套用，正式排程不會變。')+'</small></div><div class="spacer"></div>'+
-   (PV.applying?'<button class="btn primary" disabled>'+tx('正在儲存，請稍候…')+'</button>':
-   '<button class="btn" data-act="pv-cancel">'+tx('取消')+'</button><button class="btn primary" data-act="pv-apply"'+(bad?' disabled':'')+'>'+tx('確認套用')+'</button>')+'</div>'+
+   '<div class="pv-strip-actions">'+(PV.applying?'<button class="btn primary" disabled>'+tx('正在儲存，請稍候…')+'</button>':
+   '<button class="btn" data-act="pv-cancel">'+tx('取消')+'</button><button class="btn primary" data-act="pv-apply"'+(bad?' disabled':'')+'>'+tx('確認套用')+'</button>')+'</div></div>'+
    '<div class="pv-row"><div class="seg" role="group" aria-label="'+tx('預覽圖與下方排程表顯示')+'"><button data-act="pv-mode" data-v="cmp" aria-pressed="'+(PV.mode==="cmp")+'">'+tx('對照')+'</button><button data-act="pv-mode" data-v="new" aria-pressed="'+(PV.mode==="new")+'">'+tx('調整後')+'</button><button data-act="pv-mode" data-v="orig" aria-pressed="'+(PV.mode==="orig")+'">'+tx('原本')+'</button></div>'+
    '<span class="hint">'+(PV.mode==="cmp"?"灰虛線＝原本位置，亮框＝調整後；點方塊或右側列表可看單項變化":PV.mode==="new"?"只看調整後的位置":"只看原本；紅框＝會被移走的工作")+'</span><div class="spacer"></div>'+
    '<div class="pv-dates"><span class="hint">'+tx('影響的日期')+'</span>'+(dates.map(ds=>'<button class="pv-date" data-act="pv-date" data-v="'+ds+'" aria-pressed="'+(ds===UI.date)+'"><b class="num">'+md(ds)+'</b><small>'+WD[parseD(ds).getUTCDay()]+' · '+d.dates[ds]+' 處</small></button>').join("")||'<span class="hint">'+tx('無')+'</span>')+'</div></div>'+
@@ -2456,12 +2524,21 @@ function dpBodyHTML(){
   const pins=!P.problems.length&&P.unpinned.length?'<div class="issues">'+P.unpinned.map(x=>'<div class="issue">'+esc(x.label)+' 已固定（釘）。確認後會解除固定並移動它；取消則保持原樣。</div>').join("")+'</div>':'';
   return sugSec+impSec+dueSec+pins;
 }
+// Keep mobile actions outside the scrolling sheet body, even when collapsed.
+// The existing guarded handlers remain the only way to apply or cancel.
+function pvDrawerActionsHTML(o){
+  const manual=PV.kind==="manual",bad=manual?!o.applicable:o.applicable===false;
+  return '<div class="pv-drawer-actions">'+(PV.applying?
+    '<button class="btn primary" disabled>'+tx('正在儲存，請稍候…')+'</button>':
+    '<button class="btn" data-act="pv-cancel">'+tx('取消')+'</button>'+
+    (PV.savedScenario?'':'<button class="btn primary" data-act="pv-apply"'+(bad?' disabled':'')+'>'+tx(manual?'確認套用':'用這套')+'</button>'))+'</div>';
+}
 function manualDrawerHTML(o){
   const P=PV.P,nav=PV.nav;
   return '<aside class="pv-drawer pv-manual-drawer'+(PV.sheetCollapsed?' collapsed':'')+'" aria-label="'+tx('手動排班預覽')+'">'+
    '<div class="pv-drawer-h">'+(nav.stack.length?'<button class="btn dp-back" data-act="dp-back">← '+tx('返回上一步')+'</button>':'')+
    '<h3>'+esc(dpTitle(nav,P))+'</h3><button class="iconbtn" data-act="pv-sheet" aria-label="'+(PV.sheetCollapsed?tx('展開'):tx('收合'))+'">'+(PV.sheetCollapsed?'▴':'▾')+'</button></div>'+
-   '<div class="pv-drawer-b"><div class="dp-mobile-summary">'+esc(P.movedLabel)+'：'+esc(P.source)+' → '+esc(P.target)+'</div>'+dpBodyHTML()+'</div></aside>';
+   '<div class="pv-drawer-b"><div class="dp-mobile-summary">'+esc(P.movedLabel)+'：'+esc(P.source)+' → '+esc(P.target)+'</div>'+dpBodyHTML()+'</div>'+pvDrawerActionsHTML(o)+'</aside>';
 }
 function diffOf(o){
   if(o.diff)return o.diff;
@@ -2604,7 +2681,7 @@ function pvPanelHTML(o){
   const strip='<section class="pv" aria-label="'+tx('預覽')+'">'+
    '<div class="pv-h"><span class="pv-badge">'+(PV.savedScenario?'保存情境':'預覽中')+'</span><div class="pv-t"><b>'+esc(PV.title)+'</b><small>'+(PV.savedScenario?'只讀比較；正式班表與現場進度不會變更。':'還沒套用，排程不會變。左邊甘特表＝選中的那套；差異色塊＝綠新增／黃搬動／虛線會移走。　計算：'+planEngineLabel(o.solverMethod,PV.engine))+'</small></div><div class="spacer"></div>'+
    (canPermissionRaw('scenarios.manage')&&!PV.savedScenario?'<button class="btn" data-act="scenario-save">'+tx('保存試排情境')+'</button>':'')+
-   '<button class="btn" data-act="pv-cancel">'+(PV.savedScenario?'結束查看':'取消')+'</button><button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+tx('用這套')+'</button></div>'+
+   '<div class="pv-strip-actions">'+(PV.applying?'<button class="btn primary" disabled>'+tx('正在儲存，請稍候…')+'</button>':'<button class="btn" data-act="pv-cancel">'+(PV.savedScenario?'結束查看':'取消')+'</button>'+(PV.savedScenario?'':'<button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+tx('用這套')+'</button>'))+'</div></div>'+
    '<div class="pv-row"><div class="seg" role="group" aria-label="'+tx('預覽圖與下方排程表顯示')+'"><button data-act="pv-mode" data-v="cmp" aria-pressed="'+(PV.mode==="cmp")+'">'+tx('對照')+'</button><button data-act="pv-mode" data-v="new" aria-pressed="'+(PV.mode==="new")+'">'+tx('調整後')+'</button><button data-act="pv-mode" data-v="orig" aria-pressed="'+(PV.mode==="orig")+'">'+tx('原本')+'</button></div>'+
    '<span class="hint">'+(PV.mode==="cmp"?"灰虛線＝原本位置，彩色＝調整後（綠新增、黃搬動）":PV.mode==="new"?"只看調整後：綠框＝新增的工作，黃框＝搬動的工作":"只看原本；紅虛線＝會被移走的工作")+'</span><div class="spacer"></div>'+
    '<div class="pv-dates"><span class="hint">'+tx('影響的日期')+'</span>'+(dates.map(ds=>'<button class="pv-date" data-act="pv-date" data-v="'+ds+'" aria-pressed="'+(ds===UI.date)+'"><b class="num">'+md(ds)+'</b><small>'+WD[parseD(ds).getUTCDay()]+' · '+d.dates[ds]+' 處</small></button>').join("")||'<span class="hint">'+tx('無')+'</span>')+'</div></div>'+
@@ -2618,19 +2695,52 @@ function pvPanelHTML(o){
    '<div class="pv-tabs">'+sub.map(([k,t])=>'<button class="tg" data-act="pv-tab" data-v="'+k+'" aria-pressed="'+(PV.tab===k)+'">'+t+'</button>').join("")+'</div>'+body+
    (PV.savedScenario?'<div class="hint">保存時的說明：'+esc(o.desc||'—')+'</div>':ai+'<div class="field"><label for="pv-note">'+tx('備註（會寫進紀錄）')+'</label><input class="inp" id="pv-note" value="'+esc(PV.note)+'" placeholder="'+tx('例：馬達燒掉，廠商下午來修')+'" autocomplete="off"></div>')+
    (PV.savedScenario?'':rerunHTML())+
-   '</div></aside>';
+   '</div>'+pvDrawerActionsHTML(o)+'</aside>';
   return strip+drawer;
 }
-function openPlans(title,logTitle,kind,applyEvent,strategies,extra={}){
-  if(S.setupPending){toast("原檔名冊與工作資料尚待確認，暫不開放排程");return;}
-  if(extra.event&&STORE.kind==="supabase"&&!STORE.can("schedule.manage")&&SOLVER.up===false){toast("這項授權需要 OR-Tools 服務在線才能安全調整既有排程");return;}
-  if(extra.event&&SOLVER.up!==false)return openPlansSolver(title,logTitle,kind,applyEvent,strategies,extra);
-  return openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra);
+let planCalculationJob=null;
+function cancelPlanCalculation(){
+  planCalculationJob?.healthAbort?.abort();
+  if(planCalculationJob?.modal)planCalculationJob.modal.planBusy=false;
+  planCalculationJob=null;
 }
-async function openPlansSolver(title,logTitle,kind,applyEvent,strategies,extra){
+function endPlanCalculation(job,renderCurrent=true){
+  if(planCalculationJob!==job)return;
+  cancelPlanCalculation();
+  if(renderCurrent&&job.modal&&UI.modal===job.modal)renderModal();
+}
+function planCalculationReady(job){
+  if(planCalculationJob!==job)return false;
+  const sameOwner=UI.modal===job.modal&&PV===job.preview&&STORE===job.store&&STORE.session?.user?.id===job.user&&STORE.authEpoch===job.epoch;
+  if(sameOwner&&S===job.state&&STORE.version===job.version&&JSON.stringify(S)===job.base)return true;
+  endPlanCalculation(job,sameOwner);
+  if(sameOwner)toast(tx('排程資料已改變，請重新計算。'));
+  return false;
+}
+async function openPlans(title,logTitle,kind,applyEvent,strategies,extra={}){
+  if(S.setupPending){toast("原檔名冊與工作資料尚待確認，暫不開放排程");return;}
+  if(planCalculationJob&&planCalculationReady(planCalculationJob))return;
+  const job={modal:UI.modal,preview:PV,store:STORE,user:STORE.session?.user?.id,epoch:STORE.authEpoch,version:STORE.version,state:S,base:JSON.stringify(S)};
+  planCalculationJob=job;
+  if(job.modal){job.modal.planBusy=true;renderModal();}
+  try{
+    if(extra.event&&STORE.kind==='supabase'&&SOLVER.up===false){
+      toast(tx('正在重新連線排程服務，最多等待 45 秒；可取消。'));
+      job.healthAbort=new AbortController();
+      await SOLVER.check({timeoutMs:45000,signal:job.healthAbort.signal});
+      job.healthAbort=null;
+      if(!planCalculationReady(job))return;
+    }
+    if(extra.event&&STORE.kind==="supabase"&&!STORE.can("schedule.manage")&&SOLVER.up===false){toast("這項授權需要 OR-Tools 服務在線才能安全調整既有排程");return;}
+    if(extra.event&&SOLVER.up!==false)return await openPlansSolver(title,logTitle,kind,applyEvent,strategies,extra,job);
+    return await openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra,job);
+  }catch(e){if(planCalculationReady(job))toast(tx('排程計算失敗，請重試。'));}
+  finally{endPlanCalculation(job);}
+}
+async function openPlansSolver(title,logTitle,kind,applyEvent,strategies,extra,job){
   if(assignments(S).length&&!SOLVER.capabilities.includes('work_assignments_v1')){
     toast('OR-Tools 服務尚未支援一般工作占用，改用瀏覽器備援');
-    return openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra);
+    return openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra,job);
   }
   const timeLimit=planTimeLimit(S);
   toast(timeLimit>3?"資料量較大，OR-Tools 計算可能需要數十秒…":"OR-Tools 計算中，請稍候…");
@@ -2639,34 +2749,41 @@ async function openPlansSolver(title,logTitle,kind,applyEvent,strategies,extra){
   try{
     plan=STORE.kind==="supabase"?await SOLVER.plansDb(extra.event,now,STORE.jwt(),timeLimit):await SOLVER.plans(toSnapshot(S,HOLI),extra.event,now,timeLimit);
   }catch(e){
+    if(!planCalculationReady(job))return;
     if(e.status&&e.status<500){toast(e.message);return;}
     if(STORE.kind==="supabase"&&!STORE.can("schedule.manage")){toast("OR-Tools 服務暫時無法使用；你的權限不包含瀏覽器內的完整重排");return;}
     toast("排程服務沒有回應，改用瀏覽器內的演算法");
-    return openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra);
+    return openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra,job);
   }
+  if(!planCalculationReady(job))return;
   if(!plan.options||!plan.options.length){toast("算不出可行的排法，請手動處理");return;}
-  const B=JSON.parse(JSON.stringify(S)),ev={date:plan.date,oid:extra.event.order?extra.event.order.id:undefined};
+  const B=JSON.parse(job.base),ev={date:plan.date,oid:extra.event.order?extra.event.order.id:undefined};
   const opts=plan.options.map(o=>{const A=applyOption(B,o);return {id:o.id,name:o.name,desc:o.desc,lines:o.lines||[],mt:measure(B,A,ev),score:o.score,best:!!o.recommended,applicable:o.applicable!==false,diagnostics:o.diagnostics||[],state:JSON.stringify(A),A,sec:o.solve_seconds,solverMethod:o.solver_method,previewId:plan.preview_id||null};});
   const fi=plan.options[0].effects&&plan.options[0].effects.faults_insert;
   enterPreview({title,logTitle,kind,base:JSON.stringify(B),B,opts,ev,extra:{...extra,fid:fi&&fi[0]?fi[0].id:extra.fid,previewId:plan.preview_id||null,engine:"OR-Tools"}});
 }
-function openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra={}){
+function openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra={},job){
+  if(STORE.kind==='supabase'&&!STORE.can('schedule.manage')){
+    toast("OR-Tools 服務暫時無法使用；你的權限不包含瀏覽器內的完整重排");return;
+  }
   toast("正在計算幾種排法…");
-  setTimeout(()=>{
+  return new Promise((resolve,reject)=>setTimeout(()=>{try{
+    if(!planCalculationReady(job))return;
     const r=buildPlans(applyEvent,strategies,kind);
     if(!r.opts.length){toast("算不出可行的排法，請手動處理");return;}
     for(const o of r.opts)o.A=JSON.parse(o.state);
     const {aff,...ev}=r.ev;
     enterPreview({title,logTitle,kind,base:r.base,B:JSON.parse(r.base),opts:r.opts,ev,extra:{...extra,engine:"瀏覽器"}});
-  },30);
+  }catch(e){reject(e);}finally{resolve();}},30));
 }
 function enterPreview({title,logTitle,kind,base,B,opts,ev,extra}){
+  const returnContext=PV?.returnContext||capturePreviewContext(UI);
   for(const o of opts){try{assertExecutionProtected(B,o.A);validateGeneralWork(o.A,{today:todayStr(),baseAssignments:assignments(B)});}catch(e){o.applicable=false;o.diagnostics=[...(o.diagnostics||[]),e.message];}}
   {
     const best=opts.find(o=>o.best)||opts[0];
     const fk=f=>[f.date,f.s,f.e].join("|"),faultsNew=[];
     for(const M of best.A.machines){const bm=B.machines.find(x=>x.id===M.id);const have=new Set((bm?bm.faults:[]).map(fk));for(const f of M.faults)if(!have.has(fk(f)))faultsNew.push({m:M.id,...f});}
-    PV={title,logTitle,kind,base,B,opts,cur:best.id,mode:"cmp",tab:"gantt",ai:null,note:"",ev,faultsNew,sheetCollapsed:false,rerun:{noLate:false,keepPeople:false,ot:false,pinMach:false,order:"",machine:"",text:"",busy:false},...extra};
+    PV={title,logTitle,kind,base,B,opts,cur:best.id,mode:"cmp",tab:"gantt",ai:null,note:"",ev,faultsNew,sheetCollapsed:false,rerun:{noLate:false,keepPeople:false,ot:false,pinMach:false,order:"",machine:"",text:"",busy:false},...extra,returnContext};
     closeModal();
     const dates=Object.keys(diffOf(best).dates).sort();
     UI.date=dates.find(x=>x>=todayStr())||dates[0]||ev.date||UI.date;UI.view="day";
@@ -2698,40 +2815,65 @@ async function askAI(){
   if(PV===P)render();
 }
 async function pvApply(){
+  if(!PV||PV.applying||PV.savedScenario)return;
   const o=pvOpt();if(!o)return;
   if(o.applicable===false){toast('這個方案尚無法套用，請查看原因與建議');return;}
   try{assertExecutionProtected(S,o.A);}catch(e){toast(e.message);return;}
   const P=PV,noteEl=$("#pv-note");if(noteEl)P.note=noteEl.value.trim();
   if(P.previewId&&STORE.applyPlan){
-    toast("套用中…");
-    try{await STORE.applyPlan(o.previewId||P.previewId,o.id,P.note,P.ai&&P.ai.pick?{pick:P.ai.pick,reason:P.ai.reason}:null);}
-    catch(e){toast(e.message);if(e.conflict){PV=null;await reloadFromStore();}return;}
-    pushUndo();PV=null;lastLocalWrite=Date.now();await reloadFromStore();showResult();return;
+    const store=STORE,user=store.session?.user?.id,epoch=store.authEpoch,state=S,version=store.version,base=JSON.stringify(S);
+    const sameSession=()=>STORE===store&&store.session?.user?.id===user&&store.authEpoch===epoch;
+    const current=()=>sameSession()&&PV===P&&S===state&&JSON.stringify(S)===base&&store.version===version;
+    P.applying=true;render();toast("套用中…");
+    try{
+      await store.applyPlan(o.previewId||P.previewId,o.id,P.note,P.ai&&P.ai.pick?{pick:P.ai.pick,reason:P.ai.reason}:null);
+      if(!current())return;
+      pushUndo();PV=null;lastLocalWrite=Date.now();
+      const result=await reloadFromStore();
+      if(result==='applied'&&sameSession()&&!PV)showResult();
+      else pendingReload=true;
+    }catch(e){
+      if(!current())return;
+      // Missing receipt may mean committed: reconcile instead of allowing a
+      // blind resubmit or a Cancel that falsely claims nothing changed.
+      if(e.conflict||e.unconfirmed){PV=null;pendingReload=true;await reloadFromStore();}
+      if(sameSession())toast(tx(e.message));
+    }finally{P.applying=false;if(PV===P)render();}
+    return;
   }
+  const permission=["fault","leave","recover"].includes(P.kind)?"incidents.manage":P.kind==="order"?"orders.manage":"schedule.manage";
+  if(!canPermissionRaw(permission)){toast(tx('目前沒有修改排程的權限'));return;}
+  if(JSON.stringify(S)!==P.base){toast(tx('排程已更新，請重新計算方案'));return;}
   const sumTxt=withState(o.A,()=>pvSummary(o));
   const people=withState(o.A,()=>peopleOf(o).map(p=>({name:p.name,items:p.items.map(x=>(x.t==="in"?"新增 ":"拿掉 ")+itemTxt(x.b))})));
   const shifts=o.mt.shifts.map(s=>({code:s.code,b:s.b,a:s.a}));
+  const store=STORE,user=store.session?.user?.id,epoch=store.authEpoch;
   pushUndo();S=JSON.parse(o.state);
+  const next=S,sameOwner=()=>STORE===store&&store.session?.user?.id===user&&store.authEpoch===epoch&&S===next&&!PV;
   if(P.kind==="fault"&&P.fid){
     const now=nowAbs();
     for(const M of S.machines)for(const f of M.faults)if(f.id===P.fid)
       f.orig=diffOf(o).gone.filter(b=>bEnd(b)>now).map(({oid,step,date,s,e,m,emp,qty})=>({oid,step,date,s,e,m,emp,qty}));
   }
   PV=null;
-  commit({kind:P.kind==="recover"?"fault":P.kind,title:P.logTitle+"：採用「"+o.name+"」",lines:o.lines,sum:sumTxt,shifts,people,
+  const saving=commit({kind:P.kind==="recover"?"fault":P.kind,title:P.logTitle+"：採用「"+o.name+"」",lines:o.lines,sum:sumTxt,shifts,people,
     ai:P.ai&&P.ai.pick?{pick:P.ai.pick,reason:P.ai.reason}:null,note:P.note,
     alts:P.opts.map(x=>"「"+x.name+"」：延誤 "+x.mt.lateCodes.length+"、異動 "+x.mt.moved+"、影響他天 "+x.mt.otherDays+"、加班 "+x.mt.otH+" 小時"+(x===o?"（採用）":""))},
-    ["fault","leave","recover"].includes(P.kind)?"incidents.manage":P.kind==="order"?"orders.manage":"schedule.manage");
-  showResult();
+    permission);
+  const expected=JSON.stringify(next);
+  const saved=await saving;
+  // Failure feedback and retry belong to queueSync. Keep its unsaved candidate
+  // rather than opening a success modal or discarding the snapshot to retry.
+  if(saved&&sameOwner()&&JSON.stringify(S)===expected)showResult();
 }
 Object.assign(MODAL_ACT,{
-  "pv-pick":a=>{PV.cur=a.dataset.v;const d=diffOf(pvOpt());if(!d.dates[UI.date]){const ds=Object.keys(d.dates).sort();if(ds.length)UI.date=ds.find(x=>x>=todayStr())||ds[0];}render();},
+  "pv-pick":a=>{if(!PV||PV.applying)return;PV.cur=a.dataset.v;const d=diffOf(pvOpt());if(!d.dates[UI.date]){const ds=Object.keys(d.dates).sort();if(ds.length)UI.date=ds.find(x=>x>=todayStr())||ds[0];}render();},
   "pv-mode":a=>{PV.mode=a.dataset.v;render();document.querySelector('[data-act="pv-mode"][data-v="'+CSS.escape(PV.mode)+'"]')?.focus({preventScroll:true});},
   "pv-tab":a=>{PV.tab=a.dataset.v;render();},
   "pv-date":a=>{UI.date=a.dataset.v;UI.view="day";render();},
   "pv-ai":()=>askAI(),
   "pv-apply":()=>{if(PV&&PV.kind==="manual")return pvApplyManual();pvApply();},
-  "pv-cancel":()=>{if(PV&&PV.kind==="manual")return exitManualPreview(true);PV=null;render();toast("已取消，排程沒有改變");maybeReload();},
+  "pv-cancel":()=>{if(PV?.applying)return;if(PV&&PV.kind==="manual")return exitManualPreview(true);restorePreviewContext(UI,PV?.returnContext,setFactory);PV=null;render();toast("已取消，排程沒有改變");maybeReload();},
   // ----- 手動預覽互動導航（只動 PV.nav／UI，不碰正式排程） -----
   "dp-nav":a=>{
     if(!PV||PV.kind!=="manual")return;
@@ -2841,14 +2983,14 @@ MODALS.leaveq=m=>{
     foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="lq-go" '+(E.leaves.includes(m.date)?"disabled":"")+'>'+tx('看調整方案')+'</button>'};
 };
 Object.assign(MODAL_ACT,{
-  "inc-step":a=>{UI.modal.step=a.dataset.v;renderModal();},
-  "inc-back":()=>{UI.modal.step=null;renderModal();},
+  "inc-step":a=>{if(!UI.modal)return;UI.modal.step=a.dataset.v;renderModal();},
+  "inc-back":()=>{if(!UI.modal)return;UI.modal.step=null;renderModal();},
   "inc-mach":a=>openModal({t:"mach",id:a.dataset.v,fromInc:true}),
   "inc-emp":a=>openModal({t:"leaveq",id:a.dataset.v}),
   "inc-rush":()=>{if(canOrders())openModal({t:"ord",id:null,pri:0});else toast("目前沒有新增急單的權限");},
-  "lq-date":a=>{UI.modal.date=a.dataset.v;renderModal();},
+  "lq-date":a=>{if(!UI.modal)return;UI.modal.date=a.dataset.v;renderModal();},
   "lq-go":()=>{
-    if(!canIncidents())return;
+    if(!canIncidents()||UI.modal?.t!=="leaveq")return;
     const eid=UI.modal.id,d=UI.modal.date,E=emp(eid);
     const n=S.blocks.filter(b=>b.emp===eid&&b.date===d&&futureOf(b)).length;
     if(!n){pushUndo();E.leaves.push(d);commit({kind:"leave",title:E.name+" "+md(d)+" 請假（當天沒有排工作）",lines:[]},"incidents.manage");closeModal();toast("已登記，當天沒有他的工作");return;}
@@ -2934,7 +3076,7 @@ MODALS.help=m=>{
     '<div class="help-sec"><h4 style="margin:0;font-size:21px;font-weight:900">'+esc(title)+'</h4><ol>'+steps.map(s=>'<li>'+tx(s)+'</li>').join("")+'</ol>'+(tip?'<div class="tip">'+tx(tip)+'</div>':"")+'</div>',
     foot:(m.sec>0?'<button class="btn" data-act="help-sec" data-v="'+(m.sec-1)+'">‹ '+tx('上一步')+'</button>':"")+'<div class="spacer"></div>'+(m.sec<HELP.length-1?'<button class="btn primary" data-act="help-sec" data-v="'+(m.sec+1)+'">'+tx('下一步')+' ›</button>':'<button class="btn primary" data-act="close">'+tx('完成')+'</button>')};
 };
-MODAL_ACT["help-sec"]=a=>{UI.modal.sec=+a.dataset.v;const ov=$("#ov");renderModal();if(ov)$("#ov").scrollTop=0;};
+MODAL_ACT["help-sec"]=a=>{if(!UI.modal)return;UI.modal.sec=+a.dataset.v;const ov=$("#ov");renderModal();if(ov)$("#ov").scrollTop=0;};
 // 功能解說：主題選擇 → 逐步導覽（左側導覽列獨立入口，不動新手導覽）
 MODALS["row-mark"]=m=>({title:tx('標記／填色'),body:
   '<div class="mk-swatches">'+MARK_COLORS.map(c=>'<button class="mk-swatch sw-'+c.k+(m.draft.c===c.k?" on":"")+'" data-act="mk-color" data-v="'+c.k+'" aria-pressed="'+(m.draft.c===c.k)+'" title="'+tx(c.label)+'">'+tx(c.label)+'</button>').join("")+'</div>'+
@@ -2949,22 +3091,22 @@ MODALS["feature-topics"]=()=>({title:tx('功能解說'),body:
   foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button>'});
 function nextCode(){let n=S.orders.length+1;const used=new Set(S.orders.map(o=>o.code));while(used.has("W"+pad(n)))n++;return "W"+pad(n);}
 /* ===== 10. 視窗內的動作 ===== */
-function confirmStep(a,act){const m=UI.modal;if(m.confirm===act)return true;m.confirm=act;a.textContent="再按一次確認";return false;}
+function confirmStep(a,act){const m=UI.modal;if(!m)return false;if(m.confirm===act)return true;m.confirm=act;a.textContent="再按一次確認";return false;}
 function toggleIn(arr,v){const i=arr.indexOf(v);if(i>=0)arr.splice(i,1);else arr.push(v);}
 function showResult(){openModal({t:"logone",id:S.log[0].id});}
 function captureFault(m){const fs=$("#f-fs"),nt=$("#f-note");if(fs)m.fs=+fs.value;if(nt)m.note=nt.value;}
 Object.assign(MODAL_ACT,{
-  "ot-day":a=>{if(!canCalendar())return;UI.modal.open=a.dataset.v==="1";rerender();},
-  "ot-person":a=>{if(!canCalendar())return;const selected=a.dataset.v==="1";UI.modal.overrides[a.dataset.id]=selected===overtimeDefault(emp(a.dataset.id),UI.modal.date)?null:selected;rerender();},
-  "ot-reset":a=>{if(!canCalendar())return;UI.modal.overrides[a.dataset.id]=null;rerender();},
+  "ot-day":a=>{if(!canCalendar()||!UI.modal)return;UI.modal.open=a.dataset.v==="1";rerender();},
+  "ot-person":a=>{if(!canCalendar()||!UI.modal?.overrides)return;const selected=a.dataset.v==="1";UI.modal.overrides[a.dataset.id]=selected===overtimeDefault(emp(a.dataset.id),UI.modal.date)?null:selected;rerender();},
+  "ot-reset":a=>{if(!canCalendar()||!UI.modal?.overrides)return;UI.modal.overrides[a.dataset.id]=null;rerender();},
   "ot-save":()=>saveDailyOT(UI.modal),
   "m-color":a=>{if(!canMaster())return;UI.modal.draft.color=+a.dataset.v;rerender();},
   "m-emp-factory":a=>{if(!canMaster())return;const d=UI.modal.draft;d.factory=+a.dataset.v;d.skills=d.skills.filter(id=>factoryOf(mach(id))===d.factory);rerender();},
   "m-skill":a=>{if(!canMaster())return;toggleIn(UI.modal.draft.skills,a.dataset.v);rerender();},
   "m-ot-week":a=>{if(!canMaster())return;toggleIn(UI.modal.draft.otWeekdays,+a.dataset.v);UI.modal.draft.otWeekdays.sort();rerender();},
-  "m-leave":a=>{if(!canMaster())return;toggleIn(UI.modal.draft.leaves,a.dataset.v);rerender();},
+  "m-leave":a=>{if(!canMaster()||!UI.modal?.draft)return;toggleIn(UI.modal.draft.leaves,a.dataset.v);rerender();},
   "m-emp-save":()=>{
-    syncInputs();const m=UI.modal,D=m.draft;D.name=D.name.trim();
+    syncInputs();const m=UI.modal,D=m?.draft;if(!D)return;D.name=D.name.trim();
     D.factory=factoryOf(D);D.skills=D.skills.filter(id=>factoryOf(mach(id))===D.factory);
     if(!D.name){toast("請輸入姓名");return;}
     if(!Number.isInteger(D.maxMachines)||D.maxMachines<1||D.maxMachines>100){toast("同時顧機台上限請填 1–100 台");return;}
@@ -2994,6 +3136,7 @@ Object.assign(MODAL_ACT,{
     else{closeModal();delLv.length?toast("已取消請假。要把工作排回來嗎？","重新排程",runAuto):toast(tx("saved"));}
   },
   "m-emp-del":a=>{
+    if(!UI.modal)return;
     if(employeeGroups(S,UI.modal.id).length){toast('請先在「分組／部門」移除此員工的分組，再刪除員工');return;}
     if(!confirmStep(a,"m-emp-del"))return;
     const m=UI.modal,E=emp(m.id);pushUndo();
@@ -3006,13 +3149,13 @@ Object.assign(MODAL_ACT,{
     commit({kind:"edit",title:tx('刪除員工')+" "+E.name,lines},"master.manage");
     lines.length?showResult():closeModal();
   },
-  "m-proc":a=>{UI.modal.draft.proc=a.dataset.v;rerender();},
+  "m-proc":a=>{if(!UI.modal?.draft)return;UI.modal.draft.proc=a.dataset.v;rerender();},
   "m-mach-factory":a=>{if(!canMaster())return;UI.modal.draft.factory=+a.dataset.v;rerender();},
   "m-prod":a=>{if(!canMaster())return;toggleIn(UI.modal.draft.products,a.dataset.v);rerender();},
   "m-fd":a=>{captureFault(UI.modal);UI.modal.fd=+a.dataset.v;rerender();},
   "m-fault":()=>{
     if(!canIncidents())return;
-    const m=UI.modal;captureFault(m);syncInputs();
+    const m=UI.modal;if(!m)return;captureFault(m);syncInputs();
     const M=mach(m.id),d=UI.date,s=m.fs;
     const e=m.fd>0?Math.min(DAY1,s+m.fd):m.fd===-1?(s<REG_END?REG_END:DAY1):DAY1;
     const note=(m.note||"").trim(),mid=M.id,fid=uid();
@@ -3048,7 +3191,7 @@ Object.assign(MODAL_ACT,{
     openPlans(mid+" 機台修好了：怎麼把它加回排程？",mid+" 機台恢復（"+mdw(F0.date)+" 故障 "+hm(F0.s)+"–"+hm(F0.e)+"）","recover",ev,STRAT_RECOVER,{event:{type:"recover",fault_id:F0.id}});
   },
   "m-mach-save":()=>{
-    syncInputs();const m=UI.modal,D=m.draft;
+    syncInputs();const m=UI.modal,D=m?.draft;if(!D)return;
     D.factory=factoryOf(D);
     D.id=String(D.id).trim().toLowerCase();D.label=D.label.trim()||D.id;
     D.proc=String(D.proc).trim();if(!D.proc||D.proc.length>80){toast('請輸入 1–80 字的設備工序名稱');return;}
@@ -3081,7 +3224,7 @@ Object.assign(MODAL_ACT,{
   "o-pri":a=>{if(!canOrders())return;UI.modal.draft.pri=+a.dataset.v;rerender();},
   "o-save":()=>{
     if(!canOrders())return;
-    syncInputs();const m=UI.modal,D=m.draft;
+    syncInputs();const m=UI.modal,D=m?.draft;if(!D)return;
     D.code=String(D.code).trim();D.qty=Math.round(+D.qty);
     if(!D.code||!(D.qty>0)||!D.due||!prod(D.pid)){toast("請填好工單號、數量、期限與產品");return;}
     const isNew=!order(D.id),snap={...D};
@@ -3131,9 +3274,9 @@ Object.assign(MODAL_ACT,{
     commit({kind:"edit",title:tx('修改產品工序'),lines:[]},"master.manage");closeModal();
     toast("工序已更新。要依新公式重新排程嗎？","重新排程",runAuto);
   },
-  "b-emp":a=>{const b=S.blocks.find(x=>x.id===UI.modal.id);if(b.emp===a.dataset.v)return;pushUndo();const from=emp(b.emp);b.emp=a.dataset.v;b.pin=true;
+  "b-emp":a=>{const b=UI.modal&&S.blocks.find(x=>x.id===UI.modal.id);if(!b||b.emp===a.dataset.v)return;pushUndo();const from=emp(b.emp);b.emp=a.dataset.v;b.pin=true;
     commit({kind:"move",title:label(b)+"：改由 "+emp(b.emp).name+" 做"+(from?"（原 "+from.name+"）":""),lines:[]});},
-  "b-mach":a=>{const b=S.blocks.find(x=>x.id===UI.modal.id);if(b.m===a.dataset.v)return;pushUndo();const from=b.m;b.m=a.dataset.v;b.pin=true;
+  "b-mach":a=>{const b=UI.modal&&S.blocks.find(x=>x.id===UI.modal.id);if(!b||b.m===a.dataset.v)return;pushUndo();const from=b.m;b.m=a.dataset.v;b.pin=true;
     commit({kind:"move",title:label(b)+"：從 "+from+" 搬到 "+b.m+" 機台",lines:[]});},
   "b-preview":()=>{
     const b=S.blocks.find(x=>x.id===UI.modal?.id);if(!b||readOnly)return;
@@ -3143,13 +3286,13 @@ Object.assign(MODAL_ACT,{
     const qty=manualQty(b.oid,b.step,e-s,b.id);
     enterManualPreview(dragPreview(b,b.m,s,{end:e,qty}));
   },
-  "b-pin":()=>{const b=S.blocks.find(x=>x.id===UI.modal.id);pushUndo();b.pin=!b.pin;commit(null);},
+  "b-pin":()=>{const b=UI.modal&&S.blocks.find(x=>x.id===UI.modal.id);if(!b)return;pushUndo();b.pin=!b.pin;commit(null);},
   "b-del":a=>{
-    const m=UI.modal;if(!m.confirmDel){m.confirmDel=true;a.textContent="再按一次確認刪除";return;}
+    const m=UI.modal;if(!m)return;if(!m.confirmDel){m.confirmDel=true;a.textContent="再按一次確認刪除";return;}
     const b=S.blocks.find(x=>x.id===m.id);pushUndo();S.blocks=S.blocks.filter(x=>x!==b);
     commit({kind:"edit",title:tx("刪除")+" "+label(b)+"（"+mdw(b.date)+" "+hm(b.s)+"）",lines:[]});closeModal();
   },
-  "b-fix":()=>{const b=S.blocks.find(x=>x.id===UI.modal.id);pushUndo();b.pin=false;const t=label(b);const lines=repair([b],"fix");
+  "b-fix":()=>{const b=UI.modal&&S.blocks.find(x=>x.id===UI.modal.id);if(!b)return;pushUndo();b.pin=false;const t=label(b);const lines=repair([b],"fix");
     commit({kind:"auto",title:tx('系統重排')+" "+t,lines});showResult();},
   "blk-open":a=>openModal({t:"blk",id:a.dataset.v}),
   "fix-all":()=>{pushUndo();const bad=S.blocks.filter(b=>b.date===UI.date&&issuesOf(b).length);bad.forEach(b=>b.pin=false);
@@ -3171,27 +3314,54 @@ Object.assign(MODAL_ACT,{
     document.body.appendChild(a);a.click();a.remove();
   },
   "x-import":()=>$("#xlsx-import")?.click(),
-  "x-import-confirm":()=>{
-    const m=UI.modal;if(!m||m.t!=="import-preview"||m.errors.length||!canMaster())return;
+  "x-import-confirm":async()=>{
+    const m=UI.modal;if(!m||m.t!=="import-preview"||m.saving||m.loading||m.errors.length||!m.data||!canMaster())return;
+    if(!['employees','machines','products','orders'].every(k=>Array.isArray(m.data[k])))return;
+    const store=STORE,writer=store?.session?.user?.id,epoch=store?.authEpoch;
+    const owner=()=>STORE===store&&store?.session?.user?.id===writer&&store?.authEpoch===epoch;
+    const retry=!!m.importCandidate;
+    if(retry&&(!m.importRetryable||m.importOwner.store!==store||m.importOwner.writer!==writer||m.importOwner.epoch!==epoch||S!==m.importCandidate||JSON.stringify(S)!==m.importExpected)){
+      m.importRetryable=false;m.importError=tx('排程已更新，請重新選擇 Excel 檔案預覽');renderModal();return;
+    }
     if(workCatalog(S).length||assignments(S).length||transferOrders(S).length){toast(tx('匯入範本不含一般工作／跨廠加工資料，不能覆蓋目前名冊'));return;}
     if((S.groups||[]).length){toast(tx('目前匯入範本不含分組，不能覆蓋已有分組的正式名冊'));return;}
     if(S.employees.some(e=>factoryOf(e)===2)||S.machines.some(x=>factoryOf(x)===2)||S.products.some(p=>p.steps.some(s=>factoryOf(s)===2))){
       toast(tx('目前範本沒有廠別欄，不能覆蓋已設定的 2 廠資料'));return;}
-    if(JSON.stringify(S)!==m.base){closeModal();toast(tx('排程已更新，請重新選擇 Excel 檔案預覽'));return;}
-    if(readOnly&&S.blocks.length){toast(tx('匯入會清空既有排程；還需要「調整與自動排程」權限'));return;}
-    pushUndo();S={...S,...m.data,blocks:[],demo:false};
-    commit({kind:"edit",title:tx('Excel 匯出／匯入')+"："+S.employees.length+" 位員工、"+S.machines.length+" 台機台、"+S.products.length+" 種產品、"+S.orders.length+" 張工單",lines:[{k:"info",t:"已清空原排程，請重新執行自動排程"}]},"master.manage");
-    closeModal();toast(tx('Excel 匯入完成。請建立新排程'),tx('自動排程'),runAuto);
+    if(!retry&&JSON.stringify(S)!==m.base){closeModal();toast(tx('排程已更新，請重新選擇 Excel 檔案預覽'));return;}
+    if(readOnly&&(retry?m.importNeedsSchedule:S.blocks.length)){toast(tx('匯入會清空既有排程；還需要「調整與自動排程」權限'));return;}
+    if(!retry){
+      m.importNeedsSchedule=S.blocks.length>0;m.importOwner={store,writer,epoch};
+      pushUndo();S={...S,...m.data,blocks:[],demo:false};m.importCandidate=S;
+    }
+    m.saving=true;m.importError='';m.importRetryable=true;renderModal();
+    let saved=false;
+    try{
+      const writing=commit(retry?null:{kind:"edit",title:tx('Excel 匯出／匯入')+"："+S.employees.length+" 位員工、"+S.machines.length+" 台機台、"+S.products.length+" 種產品、"+S.orders.length+" 張工單",lines:[{k:"info",t:"已清空原排程，請重新執行自動排程"}]},"master.manage");
+      // commit adds its log synchronously; compare against that exact candidate.
+      m.importExpected=JSON.stringify(S);saved=await writing;
+    }catch{saved=false;}
+    m.saving=false;
+    if(UI.modal!==m||!owner())return;
+    m.importRetryable=S===m.importCandidate&&JSON.stringify(S)===m.importExpected;
+    if(saved&&m.importRetryable){closeModal();toast(tx('Excel 匯入完成。請建立新排程'),tx('自動排程'),runAuto);return;}
+    m.importError=tx(m.importRetryable?'匯入尚未確認儲存；資料仍保留，請重試儲存。':'排程已更新，請重新選擇 Excel 檔案預覽');renderModal();
   },
   "legacy-save":async()=>{
     const m=UI.modal;if(m?.t!=="legacy-preview"||m.saving||!canArchive())return;
+    const store=STORE,user=store?.session?.user?.id,epoch=store?.authEpoch;
+    const current=()=>ownsLegacyRequest(m,store,user,epoch);
     m.saving=true;m.error="";renderModal();
     try{
-      const saved=await STORE.saveLegacyArchive({sourceName:m.filename,sourceSha256:m.sourceSha256,legacy:m.legacy});
+      const saved=await store.saveLegacyArchive({sourceName:m.filename,sourceSha256:m.sourceSha256,legacy:m.legacy});
+      if(!current())return;
+      if(!saved?.id)throw new Error(tx('歷史排程儲存結果待確認，請重新開啟歷史排程核對。'));
+      m.saving=false;
       toast(tx('歷史排程已存入；目前排程沒有變動'));
       await openLegacyHistory(saved.id);
-    }catch(e){if(UI.modal===m){m.saving=false;m.error=e.message;renderModal();}}
+    }catch(e){if(current()){m.error=tx(e.message);m.saving=false;renderModal();}}
+    finally{m.saving=false;}
   },
+  "history-retry":()=>{if(UI.modal?.t==='legacy-history')return openLegacyHistory(UI.modal.historyId||UI.modal.archive?.id);},
   "history-factory":a=>{if(UI.modal?.t==="legacy-history"){UI.modal.factory=a.dataset.v;renderModal();}},
   "history-section":a=>{if(UI.modal?.t==="legacy-history"){UI.modal.section=a.dataset.v;renderModal();}}
 });
@@ -3211,18 +3381,22 @@ document.addEventListener("change",async e=>{
     openModal({t:"import-preview",filename:file.name,base,errors:[tx('請選擇小於 5 MB 的 .xlsx 檔案')],data:null});return;
   }
   openModal({t:"import-preview",filename:file.name,base,loading:true,errors:[],data:null});   // 首次載入 excel 模組可能數秒，先給回饋
+  const request=UI.modal,store=STORE,userId=store?.session?.user?.id??null,authEpoch=store?.authEpoch??0;
+  const ownsImport=()=>STORE===store&&(store?.session?.user?.id??null)===userId&&(store?.authEpoch??0)===authEpoch&&canArchive();
   try{
     const {readImportXlsx}=await import("./excel.js");
+    if(UI.modal!==request||!ownsImport()||!UI.modal.loading)return;
     const bytes=await file.arrayBuffer(),result=await readImportXlsx(bytes,file.name);
-    if(UI.modal?.t!=="import-preview"||!UI.modal.loading)return;   // 使用者已關窗或另開操作，結果作廢
+    if(UI.modal!==request||!ownsImport()||!UI.modal.loading)return;   // 只接受原登入的同一次匯入
     if(result.legacy){
       const digest=await crypto.subtle.digest("SHA-256",bytes);
+      if(UI.modal!==request||!ownsImport()||!UI.modal.loading)return;
       const sourceSha256=[...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,"0")).join("");
       openModal({t:"legacy-preview",filename:file.name,sourceSha256,legacy:result.legacy,date:result.legacy.selectedDate});
     }else if(canMaster())openModal({t:"import-preview",filename:file.name,base,...result});
     else openModal({t:"import-preview",filename:file.name,base,errors:[tx('只有老闆可以匯入員工、機台、產品工序和工單。舊版排程可由組長存成歷史資料。')],data:null});
   }catch(err){
-    if(UI.modal?.t!=="import-preview"||!UI.modal.loading)return;
+    if(UI.modal!==request||!ownsImport()||!UI.modal.loading)return;
     openModal({t:"import-preview",filename:file.name,base,errors:[tx('無法讀取 Excel：')+err.message],data:null});
   }
 });
@@ -3269,8 +3443,8 @@ async function downloadCSV(){
 let SAMPLE=null,toastT=null;          // AI 助理下一階段改由伺服器提供
 let STORE=null;                        // LocalStore 或 SupabaseStore（main.js 決定）
 let scheduleChat=null;
-const SYNC={state:"ok",msg:""};
-let lastLocalWrite=0,pendingReload=false,reloadTimer=null;
+const SYNC={state:"ok",msg:"",realtime:null};
+let lastLocalWrite=0,pendingReload=false,reloadTimer=null,remoteLoading=false;
 // 職位只提供預設值；正式可寫範圍由老闆逐項授權，畫面與資料庫使用同一組權限鍵。
 function canPermissionRaw(key){return !STORE||STORE.kind==='local'||(STORE.can?STORE.can(key):effectivePermission(STORE.role,STORE.permissions,key));}
 function canPermission(key){return !PV&&canPermissionRaw(key);}
@@ -3306,29 +3480,62 @@ function saveFile(name,blob){
 // ---------- 同步狀態 ----------
 function syncChipHTML(){
   if(!STORE)return "";
-  const txt=SYNC.state==="busy"?tx('同步中')+"…":SYNC.state==="error"?tx('同步失敗，按這裡重試'):STORE.kind==="local"?tx('已存在這台電腦'):tx('已同步');
-  return '<button class="btn sync-chip '+SYNC.state+'" id="syncchip" data-act="sync" title="'+esc(SYNC.msg||"")+'">'+IC.save+'<span class="lbl">'+txt+'</span></button>';
+  const v=syncStatusView(STORE.kind,SYNC.state,SYNC.realtime);
+  const hint=STORE.kind==='supabase'&&SYNC.state==='ok'&&SYNC.realtime!=='SUBSCRIBED'?'<small>'+tx('按此更新班表')+'</small>':'';
+  return '<button class="btn sync-chip '+v.tone+'" id="syncchip" data-act="sync" title="'+esc(SYNC.msg||"")+'">'+IC.save+'<span class="lbl">'+tx(v.text)+(SYNC.state==='busy'?'…':'')+(v.detail?'<small>'+tx(v.detail)+'</small>':'')+hint+'</span></button>';
 }
-function updateSyncChip(){const el=$("#syncchip");if(el)el.outerHTML=syncChipHTML();}
-let syncChain=Promise.resolve(),syncPending=0;
-// 同步進行中關閉分頁＝靜默丟失變更：離開前提示（僅在真的有寫入在途時）
-addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state==="busy"){e.preventDefault();e.returnValue="";}});
+function sideHealthHTML(){
+  const v=syncStatusView(STORE?.kind||'local',SYNC.state,SYNC.realtime);
+  const hint=STORE?.kind==='supabase'&&SYNC.state==='ok'&&SYNC.realtime!=='SUBSCRIBED'?'<small>'+tx('按此更新班表')+'</small>':'';
+  return '<button class="side-health '+v.tone+'" data-act="sync"><i></i><span><b>'+tx('系統連線')+'</b><small>'+esc(tx(v.detail||v.text))+'</small>'+hint+'</span></button>';
+}
+function updateSyncChip(){const el=$("#syncchip");if(el)el.outerHTML=syncChipHTML();const side=$(".side-health");if(side)side.outerHTML=sideHealthHTML();}
+let syncChain=Promise.resolve(),syncPending=0,syncEpoch=0,lastSyncState='ok';
+// 同步中或上次同步失敗（本機變更尚未確認存進雲端）關閉分頁＝靜默丟失變更：離開前提示
+addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state!=="ok"||UI.leaveBrushSaving||UI.memoSaving||UI.directSaving||UI.executionSaving||UI.scenarioSaving||executionRetries.has(STORE)||STORE.hasPendingConfirmations?.()){e.preventDefault();e.returnValue="";}});
 function queueSync(entry){
-  const snapshot=structuredClone(S);
+  if(STORE.kind==='supabase'&&!STORE.session?.user?.id){changedWriteSession();return Promise.resolve(false);}
+  const snapshot=structuredClone(S),epoch=syncEpoch,activeStore=STORE,writer=STORE.session?.user?.id,authEpoch=STORE.authEpoch||0;
+  const current=()=>STORE===activeStore&&STORE.session?.user?.id===writer&&(STORE.authEpoch||0)===authEpoch;
   syncPending++;SYNC.state="busy";updateSyncChip();
   const task=syncChain.then(async()=>{
-    try{await STORE.sync(snapshot,entry);SYNC.state="ok";SYNC.msg="";lastLocalWrite=Date.now();return true;}
+    try{
+      if(!current())return false;
+      // Never rebase older queued snapshots onto a recovered remote baseline.
+      if(epoch!==syncEpoch){SYNC.state=lastSyncState;return false;}
+      await activeStore.sync(snapshot,entry);
+      if(!current())return false;
+      SYNC.state=lastSyncState="ok";SYNC.msg="";lastLocalWrite=Date.now();return true;
+    }
     catch(e){
-      SYNC.state="error";SYNC.msg=e.message;
-      if(e.conflict){toast("別人剛更新過排程，已載入最新版本，請再做一次你的調整");await reloadFromStore();SYNC.state="ok";}
-      else if(e.permission){toast(e.message+"，已還原");await reloadFromStore();SYNC.state="ok";}
-      else toast("沒存到："+e.message,"重試",()=>queueSync(null));
+      if(!current())return false;
+      SYNC.state=lastSyncState="error";SYNC.msg=e.message;
+      if(e.conflict||e.permission){
+        // Invalidate jobs captured before and during the recovery read.
+        syncEpoch++;let result='failed';
+        try{result=await reloadFromStore();}catch{result='failed';}finally{syncEpoch++;}
+        if(!current())return false;
+        if(result==='applied'){
+          SYNC.state=lastSyncState='ok';SYNC.msg='';
+          toast(e.conflict?"別人剛更新過排程，已載入最新版本，請再做一次你的調整":e.message+"，已還原");
+        }else{SYNC.msg=tx('無法載入最新版本，尚未確認儲存；請重試。');toast(SYNC.msg,"重試",()=>queueSync(null));}
+      }
+      else toast(e.unconfirmed?tx(e.message):"沒存到："+e.message,"重試",()=>queueSync(null));
       return false;
     }
-    finally{syncPending--;if(syncPending>0)SYNC.state="busy";updateSyncChip();}
+    finally{
+      syncPending--;
+      if(current()){if(syncPending>0)SYNC.state="busy";updateSyncChip();}
+      else if(STORE===activeStore&&!STORE.session?.user?.id)changedWriteSession();
+      if(syncPending===0&&SYNC.state==='ok')maybeReload();
+    }
   });
   syncChain=task.then(()=>undefined);
   return task;
+}
+function changedWriteSession(){
+  const message=tx('登入狀態已變更，請重新整理後確認帳號。'),notify=SYNC.msg!==message;
+  SYNC.state=lastSyncState='error';SYNC.msg=message;updateSyncChip();if(notify)toast(message);
 }
 
 // ---------- 別人改了 → 重新讀取 ----------
@@ -3349,29 +3556,84 @@ function normalizeState(){
   for(const p of S.products)for(const st of p.steps)st.factory=factoryOf(st);
   if(S.holidays)Object.assign(HOLI,S.holidays);
 }
-async function reloadFromStore(){
-  try{const s=await STORE.load();if(s){S=s;normalizeState();}render();}
-  catch(e){toast(e.message);}
+async function reloadFromStore({background=false}={}){
+  const activeStore=STORE,before=S,beforeJSON=background?JSON.stringify(S):null;
+  const version=STORE.version,savedAt=lastLocalWrite,user=STORE.session?.user?.id,authEpoch=STORE.authEpoch||0;
+  const sameSession=()=>STORE===activeStore&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===authEpoch;
+  const accept=()=>sameSession()&&(!background||(!remoteReloadBlocked()&&S===before&&JSON.stringify(S)===beforeJSON&&STORE.version===version&&lastLocalWrite===savedAt));
+  if(!accept()){pendingReload=true;return 'deferred';}
+  try{
+    const s=await activeStore.load({remember:false});
+    if(!s||!accept()){pendingReload=true;return 'deferred';}
+    // 已套用最新狀態＝事實已揭曉，殘留的失敗橫幅與新狀態矛盾，一併清除。
+    // undoStack 是舊基準的快照：若這次補讀動了 sync 所屬內容（別人的排程變更），
+    // 事後按「復原」會把同事變更寫回舊狀態且版本閘擋不住（diff 以 base 為準、版本是當前版）→ 清棧。
+    // 只動 execution／已回報 block（含 pin，回報流程 RPC 管理、sync 有 assertExecutionProtected 擋復原）
+    // 或 log 的補讀＝自己的延遲 ACK 回讀，undo 自己的編輯仍合法且安全 → 不清。
+    const reported=new Set((s.execution||[]).map(r=>r.blockId));
+    const syncOwned=({blocks,execution:_e,executionEvents:_ee,log:_l,version:_v,...rest})=>({...rest,blocks:(blocks||[]).filter(b=>!reported.has(b.id))});
+    const baselineMoved=JSON.stringify(syncOwned(s))!==JSON.stringify(syncOwned(S));
+    activeStore.acceptLoaded?.(s);S=s;normalizeState();UI.directWriteError=null;if(baselineMoved)undoStack.length=0;render();return 'applied';
+  }catch(e){if(!sameSession()){pendingReload=true;return 'deferred';}if(background)pendingReload=true;toast(typeof e?.message==='string'&&e.message?tx(e.message):tx('無法讀取最新班表，請稍後再試。'));return 'failed';}
+}
+async function refreshCloudSnapshot(){
+  if(SYNC.state==='error')return queueSync(null);
+  if(STORE.kind==='local'){toast(tx('資料存在這台電腦的瀏覽器'));return;}
+  if(SYNC.state==='busy'){toast(tx('同步中'));return;}
+  if(SYNC.realtime==='SUBSCRIBED'){toast(tx('資料已儲存；即時通道已連線，不代表另一裝置已完成更新。'));return;}
+  if(remoteReloadBlocked()){toast(tx('請先完成或取消目前操作，再更新班表。'));return;}
+  if(remoteLoading){toast(tx('正在讀取最新班表…'));return;}
+  // A manual read uses the same speculative load and before/after guards as
+  // stream reconciliation. It must never advance the write baseline early.
+  clearTimeout(reloadTimer);pendingReload=false;remoteLoading=true;
+  let result='failed';toast(tx('正在讀取最新班表…'));
+  try{
+    result=await reloadFromStore({background:true});
+    if(result==='applied')toast(tx('已讀取最新班表；即時連線狀態請看上方提示。'));
+    else if(result==='deferred')toast(tx('已保留目前操作；完成或取消後再更新班表。'));
+  }finally{remoteLoading=false;if(result!=='failed')maybeReload();}
+}
+function remoteReloadBlocked(){return !!(PV||drag||generalDrag||UI.modal||UI.editCell||UI.confirmRow||UI.leaveBrushSaving||UI.memoSaving||UI.directSaving||UI.executionSaving||UI.scenarioSaving||UI.drawer==='settings'||syncPending>0||SYNC.state!=='ok');}
+let realtimePoll=null;
+function onRealtimeStatus(status){
+  const previous=SYNC.realtime;SYNC.realtime=status;updateSyncChip();
+  // The stream cannot replay every missed database event. Also reconcile the
+  // initial snapshot/join gap; repeated SUBSCRIBED callbacks are not new joins.
+  if(status==='SUBSCRIBED'&&previous!=='SUBSCRIBED')onRemoteChange('reconcile');
+  // 平台 Realtime 故障（CHANNEL_ERROR/TIMED_OUT/CLOSED）期間的有界安全補讀：
+  // 定時走 onRemoteChange('reconcile')＝既有守門路徑（remoteReloadBlocked／S 未變 accept），
+  // 不覆蓋草稿、預覽或在途寫入；恢復訂閱或登入狀態消失即停。
+  if(STORE.kind==='supabase'&&['CHANNEL_ERROR','TIMED_OUT','CLOSED'].includes(status)&&!realtimePoll){
+    realtimePoll=setInterval(()=>{
+      if(STORE.kind!=='supabase'||!STORE.session?.user?.id||SYNC.realtime==='SUBSCRIBED'){clearInterval(realtimePoll);realtimePoll=null;return;}
+      onRemoteChange('reconcile');
+    },60000);
+  }else if(status==='SUBSCRIBED'&&realtimePoll){clearInterval(realtimePoll);realtimePoll=null;}
 }
 function onRemoteChange(source){
   if(source==="account_permissions"){
     readOnly=STORE.kind==="supabase"&&!STORE.can("schedule.manage");
     closeModal();render();toast("老闆已更新你的功能權限");return;
   }
-  if(PV||drag||generalDrag||UI.modal||SYNC.state==="busy"){pendingReload=true;return;}
+  if(remoteReloadBlocked()||remoteLoading){pendingReload=true;return;}
   clearTimeout(reloadTimer);
   reloadTimer=setTimeout(async()=>{
+    if(remoteReloadBlocked()||remoteLoading){pendingReload=true;return;}
+    remoteLoading=true;let result='failed';
+    try{
     const mine=Date.now()-lastLocalWrite<4000;
-    await reloadFromStore();
+    result=await reloadFromStore({background:true});
+    if(result!=='applied')return;
     const l=S.log[0];
-    if(!mine&&notificationEnabled(UI.prefs,source)){
+    if(source!=='reconcile'&&!mine&&notificationEnabled(UI.prefs,source)){
       const recent=l&&Date.now()-l.t<120000,title=recent?'有新的變更：'+l.title:source==='leave_requests'||source==='leaves'?'請假資料有更新':source==='schedule_memos'?'現場備忘有更新':'排程資料有更新';
       if(recent)toast(title,"看細節",()=>openModal({t:"logone",id:l.id}));else toast(title);
       showDeviceNotification(title);
     }
+    }finally{remoteLoading=false;if(result!=='failed')maybeReload();}
   },600);
 }
-function maybeReload(){if(pendingReload&&!PV&&!UI.modal&&!drag&&!generalDrag){pendingReload=false;onRemoteChange();}}
+function maybeReload(){if(pendingReload&&!remoteReloadBlocked()&&!remoteLoading){pendingReload=false;onRemoteChange('reconcile');}}
 
 // ---------- 帳號與連線 ----------
 MODALS.account=()=>({title:tx('帳號與連線'),
@@ -3471,12 +3733,14 @@ MODALS['feedback']=()=>({title:tx('意見反饋'),body:
 MODALS['feedback-list']=m=>m.loading?{title:tx('查看反饋'),body:'<div class="hint">'+tx('讀取中…')+'</div>'}:{title:tx('查看反饋')+'（最近 50 筆）',body:
   (m.items||[]).map(x=>'<div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0"><b>'+esc(x.author)+'</b> <span class="tag">'+esc(FEEDBACK_CATS.find(c=>c[0]===x.category)?.[1]||x.category)+'</span> <span class="tag '+(x.status==='resolved'?'ok':x.status==='read'?'mute':'warn')+'">'+(x.status==='new'?'新':x.status==='read'?'已讀':'已解決')+'</span><p style="margin:6px 0">'+esc(x.message)+'</p><small style="color:var(--muted)">'+esc((x.createdAt||'').replace('T',' ').slice(0,16))+(x.pageUrl?' · '+esc(x.pageUrl.replace(location.origin,'')):'')+'</small></div>').join('')||'<div class="hint">'+tx('還沒有反饋。')+'</div>',
   foot:'<button class="btn primary" data-act="close">'+tx('關閉')+'</button>'};
-MODALS['leave-request']=m=>({title:tx('新增請假詢問'),body:
+MODALS['leave-request']=m=>{const d=m.leaveDraft||{date:m.date||UI.date,note:m.note||''};return {title:tx('新增請假詢問'),body:
   '<div class="hint">詢問送出後不會立刻成為正式請假，也不會觸發自動重排；必須由有「故障與請假」權限的人准假。</div>'+
-  '<div class="field"><label for="leave-request-employee">'+tx('人員')+'</label><select class="inp" id="leave-request-employee">'+shownEmployees().map(e=>'<option value="'+e.id+'">'+esc(e.name)+'</option>').join('')+'</select></div>'+
-  '<div class="field"><label for="leave-request-date">'+tx('日期')+'</label><input class="inp" id="leave-request-date" type="date" value="'+esc(m.date||UI.date)+'"></div>'+
-  '<div class="field"><label for="leave-request-note">'+tx('一句說明')+'</label><input class="inp" id="leave-request-note" maxlength="140" value="'+esc(m.note||'')+'"></div>',
-  foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="leave-request-save">'+tx('送出詢問')+'</button>'});
+  (m.saving?'<div class="hint" role="status">'+tx('詢問送出中；關閉視窗不會取消已送出的請求。')+'</div>':'')+
+  (m.error?'<div class="hint error" role="alert">'+esc(m.error)+'</div>':'')+
+  '<div class="field"><label for="leave-request-employee">'+tx('人員')+'</label><select class="inp" id="leave-request-employee">'+shownEmployees().map(e=>'<option value="'+esc(e.id)+'"'+(d.employeeId===e.id?' selected':'')+'>'+esc(e.name)+'</option>').join('')+'</select></div>'+
+  '<div class="field"><label for="leave-request-date">'+tx('日期')+'</label><input class="inp" id="leave-request-date" type="date" value="'+esc(d.date)+'"></div>'+
+  '<div class="field"><label for="leave-request-note">'+tx('一句說明')+'</label><input class="inp" id="leave-request-note" maxlength="140" value="'+esc(d.note)+'"></div>',
+  foot:'<button class="btn" data-act="close">'+tx(m.saving?'關閉':'取消')+'</button><button class="btn primary" data-act="leave-request-save"'+(m.saving?' disabled':'')+'>'+tx(m.saving?'送出中…':'送出詢問')+'</button>'};};
 /* ---------- 員工月曆：單日休假／上班、整月每週固定班 ---------- */
 MODALS['person-day']=m=>{
   const E=emp(m.id);if(!E)return null;
@@ -3504,17 +3768,17 @@ MODALS['person-month']=m=>{
     foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="pm-save">'+tx('套用到這個月')+'</button>'};
 };
 Object.assign(MODAL_ACT,{
-  "pd-set":a=>{UI.modal.leave=a.dataset.v==="leave";rerender();},
+  "pd-set":a=>{if(!UI.modal)return;UI.modal.leave=a.dataset.v==="leave";rerender();},
   "pd-save":()=>{
     if(!canIncidents())return;
-    const m=UI.modal;
+    const m=UI.modal;if(!m)return;
     closeModal();
     applyPersonDay(m.id,m.d,!!m.leave);
   },
-  "pm-week":a=>{const w=+a.dataset.v,set=UI.modal.off;set.has(w)?set.delete(w):set.add(w);rerender();},
+  "pm-week":a=>{if(!UI.modal?.off)return;const w=+a.dataset.v,set=UI.modal.off;set.has(w)?set.delete(w):set.add(w);rerender();},
   "pm-save":()=>{
     if(!canIncidents())return;
-    const m=UI.modal,E=emp(m.id);
+    const m=UI.modal,E=m&&emp(m.id);if(!E)return;
     const days=monthDates(UI.date).filter(Boolean).filter(d=>d>=todayStr());
     if(!days.length){toast('這個月今天之後沒有日期');return;}
     const blocked=[];
@@ -3792,6 +4056,7 @@ function printDaySchedule(){
   '<scr'+'ipt>window.print()</scr'+'ipt></body></html>';
 
   const w=window.open('','_blank','width=900,height=700');
+  if(!w){toast(tx('瀏覽器封鎖了列印視窗；請在網址列允許彈出視窗後再按一次列印。'));return;}
   w.document.write(html);
   w.document.close();
 }
@@ -4095,29 +4360,117 @@ function workLogPageHTML(){
   return pageShell(tx('工作紀錄'),"",filterBar+table,ro,"wl-addrow");
 }
 
-MODALS['memo-edit']=m=>({title:tx('新增備忘'),body:
+MODALS['memo-edit']=m=>{const d=m.memoDraft||{text:m.text||''};return {title:tx('新增備忘'),body:
   '<div class="hint">'+tx('備忘只提醒現場，不會直接修改排程。')+'</div>'+
-  '<div class="row2"><div class="field"><label for="memo-machine">'+tx('機台（可不選）')+'</label><select class="inp" id="memo-machine"><option value="">'+tx('不指定')+'</option>'+shownMachines().map(x=>'<option value="'+x.id+'">'+esc(x.id+' '+x.label)+'</option>').join('')+'</select></div>'+
-  '<div class="field"><label for="memo-employee">'+tx('人員（可不選）')+'</label><select class="inp" id="memo-employee"><option value="">'+tx('不指定')+'</option>'+shownEmployees().map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join('')+'</select></div></div>'+
-  '<div class="field"><label for="memo-text">'+tx('一句話')+'</label><input class="inp" id="memo-text" maxlength="140" value="'+esc(m.text||'')+'"></div>'+
-  '<label class="permission-row"><input id="memo-pinned" type="checkbox"><span><b>'+tx('釘選')+'</b><small>'+tx('固定顯示在其他備忘前面')+'</small></span></label>',
-  foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="memo-save">'+tx('儲存備忘')+'</button>'});
+  (m.saving?'<div class="hint" role="status">'+tx('備忘儲存中；關閉視窗不會取消已送出的儲存。')+'</div>':'')+
+  (m.error?'<div class="hint error" role="alert">'+esc(m.error)+'</div>':'')+
+  '<div class="row2"><div class="field"><label for="memo-machine">'+tx('機台（可不選）')+'</label><select class="inp" id="memo-machine"><option value="">'+tx('不指定')+'</option>'+shownMachines().map(x=>'<option value="'+x.id+'"'+(d.machineId===x.id?' selected':'')+'>'+esc(x.id+' '+x.label)+'</option>').join('')+'</select></div>'+
+  '<div class="field"><label for="memo-employee">'+tx('人員（可不選）')+'</label><select class="inp" id="memo-employee"><option value="">'+tx('不指定')+'</option>'+shownEmployees().map(x=>'<option value="'+x.id+'"'+(d.employeeId===x.id?' selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select></div></div>'+
+  '<div class="field"><label for="memo-text">'+tx('一句話')+'</label><input class="inp" id="memo-text" maxlength="140" value="'+esc(d.text||'')+'"></div>'+
+  '<label class="permission-row"><input id="memo-pinned" type="checkbox"'+(d.pinned?' checked':'')+'><span><b>'+tx('釘選')+'</b><small>'+tx('固定顯示在其他備忘前面')+'</small></span></label>',
+  foot:'<button class="btn" data-act="close">'+tx(m.saving?'關閉':'取消')+'</button><button class="btn primary" data-act="memo-save"'+(m.saving?' disabled':'')+'>'+tx(m.saving?'儲存中…':'儲存備忘')+'</button>'};};
 
+function directWriteStatus(drawer){
+  return (UI.directSaving?.drawer===drawer?'<div class="drawer-hint" data-direct-write-status role="status">'+tx('操作儲存中，請稍候。')+'</div>':'')+
+    (UI.directWriteError?.drawer===drawer?'<div class="hint error" role="alert">'+esc(UI.directWriteError.text)+'</div>':'');
+}
+function releaseDirectWrite(operation){
+  if(UI.directSaving!==operation)return;UI.directSaving=null;
+  // Update only request controls, never rerender a newer draft to clear a stale spinner.
+  if(typeof document!=='undefined'){
+    document.querySelectorAll('[data-direct-write-control]').forEach(b=>{b.disabled=b.dataset.act==='memo-pin'?!canPermission('notes.manage')||!!UI.memoSaving:!canIncidents()||!!UI.leaveBrushSaving;});
+    document.querySelectorAll('[data-direct-write-status]').forEach(b=>b.remove());
+  }
+}
+function directWriteOwner(permission){
+  const store=STORE,client=store.sb,user=store.session?.user?.id,epoch=store.authEpoch||0,state=S,json=JSON.stringify(S),modal=UI.modal,
+    date=UI.date,factory=UI.factory,page=UI.page,drawer=UI.drawer,focus=JSON.stringify(UI.focus);
+  const sameSession=()=>STORE===store&&STORE.sb===client&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===epoch;
+  const sameView=()=>sameSession()&&permission()&&!PV&&
+    UI.date===date&&UI.factory===factory&&UI.page===page&&UI.drawer===drawer&&JSON.stringify(UI.focus)===focus;
+  return {store,sameSession,sameView,current:()=>sameView()&&UI.modal===modal&&S===state&&JSON.stringify(S)===json};
+}
+async function runDrawerWrite(button,permission,write,success){
+  if(!permission()||UI.directSaving||UI.memoSaving||UI.leaveBrushSaving||UI.modal||PV)return;
+  const owner=directWriteOwner(permission),operation={drawer:UI.drawer};UI.directSaving=operation;UI.directWriteError=null;button.disabled=true;render();
+  try{
+    await write(owner.store);
+    if(!owner.current()){
+      if(owner.sameSession())pendingReload=true;return;
+    }
+    releaseDirectWrite(operation);
+    const result=await reloadFromStore({background:true});if(!owner.sameView()||UI.modal)return;
+    render();toast(result==='applied'?success:tx('操作已保存；尚未讀到最新資料，請更新核對。'));
+  }catch(e){
+    if(owner.current()){UI.directWriteError={drawer:operation.drawer,text:e.message};releaseDirectWrite(operation);render();toast(e.message);}
+    if(owner.sameSession())pendingReload=true;   // 結果未知（可能已提交）：排一次安全補讀讓已提交狀態現形，maybeReload 守門不覆蓋草稿
+  }
+  finally{button.disabled=false;releaseDirectWrite(operation);maybeReload();}
+}
 async function resolveLeaveRequest(button){
-  if(!canIncidents())return;button.disabled=true;
-  try{await STORE.resolveLeaveRequest(button.dataset.id,button.dataset.v);UI.drawer='people';await reloadFromStore();toast(button.dataset.v==='approved'?'已准假並寫入正式請假':'已駁回，班表不變');}
-  catch(e){button.disabled=false;toast(e.message);}
+  const id=button.dataset.id,status=button.dataset.v;
+  if(!['approved','rejected'].includes(status)||!(S.leaveRequests||[]).some(r=>r.id===id&&r.status==='pending'))return;
+  await runDrawerWrite(button,()=>canIncidents(),store=>store.resolveLeaveRequest(id,status),status==='approved'?'已准假並寫入正式請假':'已駁回，班表不變');
 }
 async function toggleMemoPin(button){
-  if(!canPermission('notes.manage'))return;const memo=(S.memos||[]).find(x=>x.id===button.dataset.id);if(!memo)return;button.disabled=true;
-  try{await STORE.saveMemo({...memo,pinned:!memo.pinned});UI.drawer='notes';await reloadFromStore();toast(memo.pinned?'已取消釘選':'已釘選備忘');}
-  catch(e){button.disabled=false;toast(e.message);}
+  const memo=(S.memos||[]).find(x=>x.id===button.dataset.id);if(!memo)return;
+  await runDrawerWrite(button,()=>canPermission('notes.manage'),store=>store.saveMemo({...memo,pinned:!memo.pinned}),memo.pinned?'已取消釘選':'已釘選備忘');
 }
 Object.assign(MODAL_ACT,{
-  'leave-request-save':async button=>{if(!canIncidents())return;const employeeId=$('#leave-request-employee')?.value,date=$('#leave-request-date')?.value,note=$('#leave-request-note')?.value.trim();if(!employeeId||!date){toast('請選擇人員與日期');return;}button.disabled=true;try{await STORE.createLeaveRequest({id:uid(),employeeId,date,note,status:'pending'});
-  if(STORE.kind==='supabase'&&SOLVER?.url){const en=emp(employeeId);sendLineNotify(SOLVER.url,STORE.jwt(),'leave_request','請假待批：'+(en?en.name:'有人')+' '+md(date)).catch(()=>{});}
-  closeModal();await reloadFromStore();UI.drawer='people';render();toast('已送出請假詢問，尚未成為正式請假');}catch(e){button.disabled=false;toast(e.message);}},
-  'memo-save':async button=>{if(!canPermission('notes.manage'))return;const text=$('#memo-text')?.value.trim(),machineId=$('#memo-machine')?.value||null,employeeId=$('#memo-employee')?.value||null;if(!text){toast('請填寫一句備忘');return;}if(!machineId&&!employeeId){toast('請至少指定一台機台或一位人員');return;}button.disabled=true;try{await STORE.saveMemo({id:uid(),text,machineId,employeeId,pinned:!!$('#memo-pinned')?.checked,author:STORE.userName||'本機',createdAt:new Date().toISOString()});closeModal();await reloadFromStore();UI.drawer='notes';render();toast('備忘已保存');}catch(e){button.disabled=false;toast(e.message);}}
+  'leave-request-save':async button=>{
+    const m=UI.modal;if(m?.t!=='leave-request'||m.saving||UI.directSaving||UI.memoSaving||UI.leaveBrushSaving||!canIncidents()||PV)return;
+    const employeeId=$('#leave-request-employee')?.value,date=$('#leave-request-date')?.value,note=$('#leave-request-note')?.value.trim()||'';
+    if(!employeeId||!date){toast('請選擇人員與日期');return;}
+    const owner=directWriteOwner(()=>canIncidents()),url=SOLVER?.url,token=owner.store.kind==='supabase'?owner.store.jwt():null,en=emp(employeeId);
+    const operation={drawer:UI.drawer};m.leaveDraft={employeeId,date,note};m.error=null;m.saving=true;UI.directSaving=operation;button.disabled=true;renderModal();
+    try{
+      await owner.store.createLeaveRequest({id:uid(),employeeId,date,note,status:'pending'});
+      if(!owner.current()){
+        if(owner.sameSession())pendingReload=true;return;
+      }
+      if(url&&token)sendLineNotify(url,token,'leave_request','請假待批：'+(en?en.name:'有人')+' '+md(date)).catch(()=>{});
+      m.saving=false;releaseDirectWrite(operation);closeModal();
+      const result=await reloadFromStore({background:true});if(!owner.sameView()||UI.modal)return;
+      UI.drawer='people';render();toast(result==='applied'?'已送出請假詢問，尚未成為正式請假':tx('詢問已送出；尚未讀到最新資料，請更新核對。'));
+    }catch(e){
+      const dupPending=e?.code==='23505'||/leave_requests_one_pending|duplicate key|unique constraint/i.test(String(e?.message||''));
+      if(owner.current()){
+        m.error=dupPending?'這天可能已有等待中的請假詢問（剛才的送出可能已成立）；關閉視窗後系統會自動核對最新資料。':e.message;
+        m.saving=false;renderModal();
+      }
+      if(dupPending&&owner.sameSession())pendingReload=true;   // DB 已證同日 pending 存在：排一次安全補讀讓它現形
+    }
+    finally{m.saving=false;button.disabled=false;releaseDirectWrite(operation);maybeReload();}
+  },
+  'memo-save':async button=>{
+    const m=UI.modal;if(m?.t!=='memo-edit'||m.saving||UI.memoSaving||UI.directSaving||!canPermission('notes.manage'))return;
+    const text=$('#memo-text')?.value.trim(),machineId=$('#memo-machine')?.value||null,employeeId=$('#memo-employee')?.value||null;
+    if(!text){toast('請填寫一句備忘');return;}if(!machineId&&!employeeId){toast('請至少指定一台機台或一位人員');return;}
+    const activeStore=STORE,client=STORE.sb,user=STORE.session?.user?.id,epoch=STORE.authEpoch||0,before=S,beforeJSON=JSON.stringify(S),date=UI.date,factory=UI.factory;
+    const sameSession=()=>STORE===activeStore&&STORE.sb===client&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===epoch;
+    const sameContext=()=>sameSession()&&!PV&&UI.date===date&&UI.factory===factory&&canPermission('notes.manage');
+    const owns=()=>UI.modal===m&&sameContext()&&S===before&&JSON.stringify(S)===beforeJSON;
+    m.memoId??=uid();m.memoCreatedAt??=new Date().toISOString();m.memoDraft={text,machineId,employeeId,pinned:!!$('#memo-pinned')?.checked};
+    const memoKey='memo-unknown:'+JSON.stringify(m.memoDraft),memoSession=user+'@'+epoch;
+    const priorUnknown=UI.memoUnknown?.get(memoKey);   // 未知結果後同內容重試：沿用原 id 讓 upsert 落同一列，避免關窗重開造成重複
+    if(priorUnknown&&priorUnknown.sk===memoSession)m.memoId=priorUnknown.id;
+    m.error=null;m.saving=true;UI.memoSaving=m;button.disabled=true;renderModal();
+    try{
+      await activeStore.saveMemo({id:m.memoId,...m.memoDraft,author:activeStore.userName||'本機',createdAt:m.memoCreatedAt});
+      if(UI.memoUnknown?.get(memoKey)?.id===m.memoId)UI.memoUnknown.delete(memoKey);
+      if(!owns()){
+        if(sameSession())pendingReload=true;return;
+      }
+      m.saving=false;if(UI.memoSaving===m)UI.memoSaving=null;closeModal();
+      const result=await reloadFromStore({background:true});
+      if(!sameContext()||UI.modal)return;
+      UI.drawer='notes';render();toast(result==='applied'?'備忘已保存':tx('備忘已保存；尚未讀到最新資料，請更新核對。'));
+    }catch(e){
+      if(owns()){m.error=e.message;m.saving=false;renderModal();}
+      (UI.memoUnknown??=new Map()).set(memoKey,{id:m.memoId,sk:memoSession});   // 結果未知（可能已提交）：登記供同 session 同內容重試沿用
+    }
+    finally{m.saving=false;if(UI.memoSaving===m)UI.memoSaving=null;maybeReload();}
+  }
 });
 
 // ---------- 分組：一人可多組，部門與廠別不是技能限制 ----------
@@ -4143,10 +4496,10 @@ MODALS['staff-group']=m=>{
     (m.id?'<button class="btn danger" data-act="group-retire">'+tx('停用分組')+'</button>':'')+'<div class="spacer"></div><button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="group-save">'+tx('儲存分組')+'</button>'};
 };
 Object.assign(MODAL_ACT,{
-  'group-member':a=>{if(!canGroups())return;syncInputs();const m=UI.modal,id=a.dataset.v,i=m.members.findIndex(x=>x.employeeId===id);
+  'group-member':a=>{if(!canGroups()||!UI.modal)return;syncInputs();const m=UI.modal,id=a.dataset.v,i=m.members.findIndex(x=>x.employeeId===id);
     if(i<0)m.members.push({groupId:m.draft.id,employeeId:id,reviewStatus:'confirmed',sourceRef:null});else m.members.splice(i,1);renderModal();},
   'group-confirm':a=>{if(!canGroups())return;syncInputs();const member=UI.modal.members.find(x=>x.employeeId===a.dataset.v);if(member)member.reviewStatus='confirmed';renderModal();},
-  'group-save':()=>{if(!canGroups())return;syncInputs();const m=UI.modal,D=m.draft;D.name=D.name.trim();D.department=(D.department||'').trim()||null;D.homeFactory=D.homeFactory==='all'||D.homeFactory==null?null:Number(D.homeFactory);
+  'group-save':()=>{if(!canGroups())return;syncInputs();const m=UI.modal,D=m?.draft;if(!D)return;D.name=D.name.trim();D.department=(D.department||'').trim()||null;D.homeFactory=D.homeFactory==='all'||D.homeFactory==null?null:Number(D.homeFactory);
     if(!D.name||D.name.length>80){toast('請填寫 1–80 字的分組名稱');return;}
     if(S.groups.some(g=>g.id!==D.id&&g.name===D.name&&(g.department||null)===D.department&&(g.homeFactory??null)===D.homeFactory)){toast('相同範圍、部門已有這個分組');return;}
     pushUndo();const index=S.groups.findIndex(g=>g.id===D.id);if(index<0)S.groups.push(JSON.parse(JSON.stringify(D)));else S.groups[index]=JSON.parse(JSON.stringify(D));
@@ -4240,38 +4593,101 @@ MODALS['work-queue']=()=>{
       (r.canArrange&&!readOnly?'<button class="btn" data-act="queue-arrange" data-id="'+esc(r.oid)+'" data-step="'+r.step+'">'+tx('安排此工序')+'</button>':'')+'</article>').join('')+
       (!rows.length?'<div class="okbox">'+tx('此範圍目前没有未排量或已回報短少。這不等於工作已實際完成。')+'</div>':''),foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button>'};
 };
+function scenarioReadOwner(m){
+  const store=STORE,client=store.sb,user=store.session?.user?.id,epoch=store.authEpoch||0,state=S,json=JSON.stringify(S),preview=PV,
+    date=UI.date,factory=UI.factory,page=UI.page,drawer=UI.drawer,focus=JSON.stringify(UI.focus);
+  return {store,current:()=>STORE===store&&STORE.sb===client&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===epoch&&
+    canPermissionRaw('scenarios.manage')&&UI.modal===m&&PV===preview&&S===state&&JSON.stringify(S)===json&&
+    UI.date===date&&UI.factory===factory&&UI.page===page&&UI.drawer===drawer&&JSON.stringify(UI.focus)===focus};
+}
 async function openScenarioList(){
-  if(!canPermissionRaw('scenarios.manage'))return;openModal({t:'scenario-list',loading:true});const m=UI.modal;
-  try{m.items=await STORE.listScenarios();}catch(e){m.error=e.message;}m.loading=false;if(UI.modal===m)renderModal();
+  if(!canPermissionRaw('scenarios.manage'))return;openModal({t:'scenario-list',loading:true});const m=UI.modal,owner=scenarioReadOwner(m);
+  try{const items=await owner.store.listScenarios();if(!owner.current())return;m.items=items;}
+  catch(e){if(!owner.current())return;m.error=tx(e.message);}
+  if(owner.current()){m.loading=false;renderModal();}
+}
+async function changeExecutionConfirmation(button,confirmed){
+  if(!canPermission('execution.manage')||S.setupPending||PV||UI.executionSaving||UI.directSaving||UI.memoSaving||UI.leaveBrushSaving)return;
+  const r=(S.execution||[]).find(x=>x.blockId===button.dataset.id);if(!r||r.status!=='done')return;
+  if(SYNC.state==='error'){toast(tx('班表尚未確認儲存，請先核對班表儲存狀態，再回報進度。'));return;}
+  const owner=directWriteOwner(()=>!S.setupPending&&canPermission('execution.manage')),m=UI.modal,id=button.dataset.id,operation={};
+  UI.executionSaving=operation;button.disabled=true;if(m){m.confirmBusy=true;m.confirmError=null;renderModal();}
+  const release=()=>{if(UI.executionSaving===operation)UI.executionSaving=null;if(m)m.confirmBusy=false;};
+  try{
+    await syncChain;if(!owner.current())return;
+    if(SYNC.state!=='ok'){if(m)m.confirmError=tx('班表尚未確認儲存，請先核對班表儲存狀態，再回報進度。');return;}
+    await owner.store.confirmExecution(id,confirmed);
+    if(!owner.current()){
+      // A conclusive write still needs reconciliation after its view closes.
+      // Existing background guards defer the read until drafts/preview finish.
+      if(owner.sameSession())pendingReload=true;return;
+    }
+    if(m)closeModal();release();
+    const result=await reloadFromStore({background:true});if(!owner.sameView()||UI.modal)return;
+    if(result==='applied'&&m?.t==='execution'){UI.modal=m;renderModal();}
+    toast(result==='applied'?tx(confirmed?(owner.store.kind==='local'?'已確認完工（已存在這台裝置）':'已確認完工（已存到資料庫）'):'已取消確認，回報仍保留'):tx('操作已保存；尚未讀到最新資料，請更新核對。'));
+  }catch(e){
+    if(!owner.current())return;
+    const pendingDb=DB_MIGRATION_PENDING.test(e.message||'');
+    const message=e.unconfirmed?tx(e.message):pendingDb?
+      (confirmed?'沒存到：資料庫尚未更新（缺 0035），確認狀態保持待確認':'沒存到：資料庫尚未更新（缺 0035），維持原確認狀態'):'沒存到：'+e.message;
+    if(m)m.confirmError=message;toast(message);
+  }finally{release();button.disabled=false;if(owner.sameView()&&UI.modal===m&&m)renderModal();maybeReload();}
 }
 MODALS['scenario-list']=m=>({title:tx('保存的試排情境'),body:
   '<div class="hint">'+tx('情境與正式班表分開保存，只供原本／調整後對照，不提供直接套用。雲端只列出此帳號保存的情境，最多 20 份。')+'</div>'+
-  (m.loading?'<div class="hint">'+tx('讀取中…')+'</div>':m.error?'<div class="issue">'+esc(m.error)+'</div>':
-    (m.items||[]).map(s=>'<button class="btn" style="width:100%;height:auto;min-height:48px;margin:8px 0" data-act="scenario-view" data-id="'+esc(s.id)+'">'+esc(s.name)+' · '+esc(s.created_at.slice(0,10))+'</button>').join('')||'<div class="hint">'+tx('還沒有保存的情境。')+'</div>'),
+  (m.viewLoading?'<div class="hint" role="status">'+tx('正在讀取情境，可取消。')+'</div>':'')+
+  (m.viewError?'<div class="issue" role="alert">'+esc(tx(m.viewError))+'</div>':'')+
+  (m.loading?'<div class="hint" role="status">'+tx('讀取中…')+'</div>':m.error?'<div class="issue" role="alert">'+esc(m.error)+'</div>':
+    (m.items||[]).map(s=>{const date=scenarioCreatedDate(s.created_at);return '<button class="btn" style="width:100%;height:auto;min-height:48px;margin:8px 0;white-space:normal;overflow-wrap:anywhere;text-align:left" data-act="scenario-view" data-id="'+esc(s.id)+'">'+esc(s.name)+(date?' · '+esc(date):'')+'</button>';}).join('')||'<div class="hint">'+tx('還沒有保存的情境。')+'</div>'),
   foot:'<button class="btn" data-act="scenario-save">'+tx('保存目前排程')+'</button><button class="btn" data-act="close">'+tx('關閉')+'</button>'});
 MODALS['scenario-save']=m=>({title:tx('保存試排情境'),body:'<div class="hint">只保存比較資料，不套用、不寫入正式班表。之後排程、名冊、技能或現場進度改變，會提示這份情境與現況不同。</div>'+
+  (m.saving?'<div class="hint" role="status">'+tx('正在保存情境；關閉視窗不會取消已送出的保存。')+'</div>':'')+
+  (m.error?'<div class="issue" role="alert">'+esc(tx(m.error))+'</div>':'')+
   '<div class="field"><label for="scenario-name">'+tx('情境名稱')+'</label><input class="inp" id="scenario-name" maxlength="80" value="'+esc(m.name||'')+'"></div>',
   foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="scenario-confirm">'+tx('確認保存情境')+'</button>'});
 async function saveScenarioFromModal(button){
-  if(!canPermissionRaw('scenarios.manage'))return;const m=UI.modal;if(m.t!=='scenario-save')return;
-  try{m.name=$('#scenario-name').value;const item=m.item||makeScenario(m.name,m.base,m.candidate,{description:m.description,date:m.date});m.item=item;
-    button.disabled=true;await STORE.saveScenario(item);closeModal();toast('情境已保存，正式班表沒有改變');}
-  catch(e){button.disabled=false;toast(e.message);}
+  const m=UI.modal;if(!canPermissionRaw('scenarios.manage')||m?.t!=='scenario-save'||m.saving||UI.scenarioSaving)return;
+  const store=STORE,client=store.sb,user=store.session?.user?.id,epoch=store.authEpoch||0,state=S,json=JSON.stringify(S),preview=PV,
+    date=UI.date,factory=UI.factory,page=UI.page,drawer=UI.drawer,focus=JSON.stringify(UI.focus),operation={};
+  const current=()=>STORE===store&&STORE.sb===client&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===epoch&&
+    canPermissionRaw('scenarios.manage')&&UI.modal===m&&PV===preview&&S===state&&JSON.stringify(S)===json&&
+    UI.date===date&&UI.factory===factory&&UI.page===page&&UI.drawer===drawer&&JSON.stringify(UI.focus)===focus;
+  const scenSession=user+'@'+epoch;
+  try{m.name=$('#scenario-name').value;
+    const scenKey='scenario-unknown:'+m.name.trim();
+    const priorUnknown=UI.scenarioUnknown?.get(scenKey);
+    let item=m.item&&m.item.name===m.name.trim()?m.item:makeScenario(m.name,m.base,m.candidate,{description:m.description,date:m.date});
+    if(priorUnknown&&priorUnknown.sk===scenSession)item={...item,id:priorUnknown.id};   // 同名重試沿用未知結果的原 id：RPC 冪等，不產生重複列
+    m.item=item;
+    m.error=null;m.saving=true;UI.scenarioSaving=operation;button.disabled=true;renderModal();
+    await store.saveScenario(item);if(!current())return;
+    if(UI.scenarioUnknown?.get(scenKey)?.id===item.id)UI.scenarioUnknown.delete(scenKey);
+    closeModal();toast(tx(store.kind==='local'?'情境已保存在這台裝置，班表沒有改變':'情境已保存，正式班表沒有改變'));
+  }catch(e){
+    if(current()){m.error=e.message;toast(tx(e.message));}
+    const sk2=user+'@'+(STORE.authEpoch||0);
+    if(STORE===store&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===epoch)(UI.scenarioUnknown??=new Map()).set('scenario-unknown:'+m.name.trim(),{id:m.item.id,sk:sk2});
+  }
+  finally{if(UI.scenarioSaving===operation)UI.scenarioSaving=null;m.saving=false;button.disabled=false;if(current())renderModal();maybeReload();}
 }
 async function viewScenario(id){
-  if(!canPermissionRaw('scenarios.manage'))return;
+  const m=UI.modal;if(!canPermissionRaw('scenarios.manage')||m?.t!=='scenario-list'||m.loading||m.viewLoading)return;
+  const owner=scenarioReadOwner(m);m.viewLoading=true;m.viewError=null;renderModal();
   try{
-    const item=await STORE.getScenario(id);if(!item)throw new Error('找不到情境');validateScenario(item.payload);
+    const item=await owner.store.getScenario(id);if(!owner.current())return;
+    if(!item||item.id!==id)throw new Error('找不到情境');validateScenario(item.payload);
     const stale=scenarioStale(item,S),B=item.payload.base,A=item.payload.candidate,ev={date:item.payload.date||UI.date};
     const opts=[{id:'S',name:item.name,desc:item.payload.description||'保存的情境',A,state:JSON.stringify(A),
       lines:[],mt:measure(B,A,ev),applicable:false,diagnostics:[stale?'此情境的基準與現況不同；僅供查看，不可覆蓋目前班表':'保存的情境僅供比較，不可直接套用'],best:false}];
     enterPreview({title:tx('保存試排情境')+'：'+item.name,logTitle:item.name,kind:'edit',base:JSON.stringify(B),B,opts,ev,
       extra:{savedScenario:true,engine:'歷史試排資料'}});
-  }catch(e){toast(e.message);}
+  }catch(e){if(owner.current()){m.viewError=e.message;toast(tx(e.message));}}
+  finally{m.viewLoading=false;if(owner.current())renderModal();}
 }
 const reportingRole=()=>STORE.kind==='local'||canPermission('execution.manage')?'boss':STORE.role;
 const reportStatus=r=>!r?tx('尚未開始'):r.status==='done'?tx('已回報完成'):tx('進行中');
-MODALS.execution=()=>{
+MODALS.execution=m=>{
   const worker=reportingRole()==='worker';
   const blocks=S.blocks.filter(b=>b.date===UI.date&&inFactory(mach(b.m),UI.factory)&&(!worker||b.emp===STORE.employeeId)).sort((a,b)=>a.s-b.s);
   const ticket=(b,caption)=>{if(!b)return '<article class="worker-ticket empty"><span>'+caption+'</span><b>'+tx('沒有排定工作')+'</b></article>';
@@ -4282,11 +4698,16 @@ MODALS.execution=()=>{
   const managerBody=!worker?blocks.map(b=>{const r=executionOf(S,b.id);return '<article class="load-row"><b>'+esc((order(b.oid)?.code||'?')+' · '+stepName(b))+'</b>'+
       '<div class="hint">'+tx('{who} · {what} · 原定 {s}–{e} · {q} 件',{who:emp(b.emp)?.name||tx('未指定'),what:mach(b.m)?.label||b.m,s:hm(b.s),e:hm(b.e),q:b.qty})+'</div>'+
       '<div class="hint">'+reportStatus(r)+(r?' · 累計 '+r.qtyDone+' 件 · 差異 '+(r.qtyDone-b.qty)+' 件':'')+'</div>'+
-      (canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending?'<button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">'+tx('查看／回報進度')+'</button>':'')+'</article>';}).join(''):'';
+      (canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending?'<button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">'+tx('查看／回報進度')+'</button>':'')+
+      (r?.status==='done'?'<div class="hint">'+tx(r.confirmed?'已確認完工':'完工待確認')+'</div>'+(!S.setupPending&&canPermission('execution.manage')?
+        (STORE.hasPendingConfirmation?.(b.id)?'<div class="issue" role="alert">'+tx('完工確認結果待核對，請更新班表查看；不要重複送出。')+'</div>':
+          '<button class="btn" data-act="'+(r.confirmed?'exec-unconfirm':'exec-confirm')+'" data-id="'+esc(b.id)+'">'+tx(r.confirmed?'取消確認':'確認完工')+'</button>'):''):'')+'</article>';}).join(''):'';
   return {title:tx('現場回報')+' · '+mdw(UI.date),body:
     '<div class="hint">'+tx('開始、做了幾件、完工都另外保存實際事實。完工少做的件數會回到未排工作，下一次重排會補足；不會悄悄改掉原定產能。')+'</div>'+
     (worker&&!STORE.employeeId?'<div class="issue">'+tx('帳號尚未綁定員工，請由管理員綁定後使用。')+'</div>':'')+
     (S.setupPending?'<div class="issue">'+tx('來源名冊與工時待確認，不能回報。')+'</div>':'')+
+    (m?.confirmBusy?'<div class="hint" role="status">'+tx('正在更新完工確認；關閉視窗不會取消已送出的確認。')+'</div>':'')+
+    (m?.confirmError?'<div class="issue" role="alert">'+esc(m.confirmError)+'</div>':'')+
     workerBody+managerBody+
     (!blocks.length?'<div class="hint">'+tx('這個日期與範圍沒有可回報的排班；待確認的原表文字不是正式工作方塊。')+'</div>':''),
     foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button>'};
@@ -4298,30 +4719,63 @@ MODALS['execution-report']=m=>{
   return {title:tx('回報')+' '+(order(b.oid)?.code||'?')+' · '+stepName(b),body:
     '<dl class="kv"><dt>'+tx('原定')+'</dt><dd>'+mdw(b.date)+' '+hm(b.s)+'–'+hm(b.e)+' · '+b.qty+' 件</dd><dt>'+tx('狀態')+'</dt><dd>'+reportStatus(r)+'</dd><dt>'+tx('實際開始')+'</dt><dd>'+esc(actual(r?.startedAt))+'</dd><dt>'+tx('實際完成')+'</dt><dd>'+esc(actual(r?.finishedAt))+'</dd></dl>'+
     '<div class="hint">'+(r?'已鎖定排程，不可拖曳、改量、解除固定或刪除。':'按開始後會鎖定此段工作。')+' 件數填累計，不是這次增加量；完成會記錄實際時間，不用原定結束時間代替。</div>'+
-    (r&&r.status!=='done'?'<div class="field"><label for="execution-qty">'+tx('累計已做件數')+'</label><input class="inp" id="execution-qty" type="number" min="'+r.qtyDone+'" max="'+b.qty+'" step="1" value="'+r.qtyDone+'"></div>':'')+
+    (m.busy?'<div class="hint" role="status">'+tx('回報處理中；關閉視窗不會取消已送出的回報。')+'</div>':'')+
+    (m.error?'<div class="issue" role="alert">'+esc(m.error)+'</div>':'')+
+    (r&&r.status!=='done'?'<div class="field"><label for="execution-qty">'+tx('累計已做件數')+'</label><input class="inp" id="execution-qty" type="number" min="'+r.qtyDone+'" max="'+b.qty+'" step="1" value="'+esc(m.qtyDraft??r.qtyDone)+'"></div>':'')+
     (r?.status==='done'?'<div class="hint">已完成 '+r.qtyDone+' 件；相對原定差異 '+(r.qtyDone-b.qty)+' 件。此版不提供修改已完成回報。</div>':''),
-    foot:'<div class="work-report-actions">'+(allowed&&r?.status!=='done'?
+    foot:'<div class="work-report-actions">'+(allowed&&(m.pendingRequest||r?.status!=='done')?
       (m.pendingRequest?'<button class="btn danger" data-act="report-work" data-v="retry">'+tx('重試上一筆回報')+'</button>':
         '<button class="btn primary" data-act="report-work" data-v="start" '+(r?'disabled':'')+'>'+tx('開工')+'</button>'+
         '<button class="btn" data-act="report-work" data-v="quantity" '+(!r?'disabled':'')+'>'+tx('做了幾件')+'</button>'+
         '<button class="btn success" data-act="report-work" data-v="finish" '+(!r?'disabled':'')+'>'+tx('完工')+'</button>'):'')+'<button class="btn" data-act="close">'+tx('關閉')+'</button></div>'};
 };
 async function reportWork(button){
-  const m=UI.modal;if(m?.t!=='execution-report'||m.busy||PV)return;
+  const m=UI.modal;if(m?.t!=='execution-report'||m.busy||UI.executionSaving||UI.directSaving||UI.memoSaving||UI.leaveBrushSaving||S.setupPending||PV)return;
   const b=S.blocks.find(b=>b.id===m.id);if(!b||!canReport(reportingRole(),STORE.employeeId,b))return;
+  if(SYNC.state==='error'){
+    m.qtyDraft??=$('#execution-qty')?.value;m.error=tx('班表尚未確認儲存，請先核對班表儲存狀態，再回報進度。');renderModal();return;
+  }
+  const previous=m.reportOwner;
+  if(previous&&(STORE!==previous.store||STORE.sb!==previous.client||STORE.session?.user?.id!==previous.user||(STORE.authEpoch||0)!==previous.epoch)){
+    m.error=tx('登入狀態已變更，請重新整理後確認帳號。');renderModal();return;
+  }
+  const owner=directWriteOwner(()=>!S.setupPending&&canReport(reportingRole(),STORE.employeeId,b)),hadPending=!!m.pendingRequest;
   const action=button.dataset.v,r=executionOf(S,b.id),qty=action==='start'?0:Number($('#execution-qty')?.value);
   if(!m.pendingRequest&&action!=='start'&&!$('#execution-qty')?.value.trim()){toast('請填入累計已做件數；沒有產出請明確填 0');return;}
   if(!m.pendingRequest&&(!Number.isInteger(qty)||qty<(r?.qtyDone||0)||qty>b.qty)){toast('累計件數不可倒退或超過原定件數');return;}
   m.pendingRequest ||= {id:uid(),blockId:b.id,action,qtyDone:qty,expectedRevision:r?.revision||0};
-  m.busy=true;button.disabled=true;
-  try{await syncChain;await STORE.reportExecution(m.pendingRequest);await reloadFromStore();m.pendingRequest=null;undoStack=[];toast(tx('進度已保存'));}
-  catch(e){
-    const confirmed=e.rejected||e.conflict;
-    toast(confirmed?e.message:'沒存到：網路或伺服器沒有確認這筆回報，請按「重試上一筆回報」');
-    if(e.rejected)m.pendingRequest=null;
-    if(e.conflict){m.pendingRequest=null;await reloadFromStore();}
+  m.reportOwner ||= {store:owner.store,client:owner.store.sb,user:owner.store.session?.user?.id,epoch:owner.store.authEpoch||0};
+  m.qtyDraft=m.pendingRequest.qtyDone;m.error=null;m.busy=true;button.disabled=true;
+  const request=m.pendingRequest,operation={};UI.executionSaving=operation;let dispatched=false;renderModal();
+  const release=()=>{if(UI.executionSaving===operation)UI.executionSaving=null;};
+  const reconcile=async success=>{
+    m.busy=false;closeModal();release();
+    const result=await reloadFromStore({background:true});if(!owner.sameView()||UI.modal)return;
+    if(result==='applied'){UI.modal=m;renderModal();}
+    toast(result==='applied'?success:tx('回報已處理；尚未讀到最新資料，請更新核對。'));
+  };
+  try{
+    await syncChain;if(!owner.current())return;
+    if(SYNC.state!=='ok'){m.error=tx('班表尚未確認儲存，請先核對班表儲存狀態，再回報進度。');return;}
+    executionRetries.remember(owner.store,request);dispatched=true;await owner.store.reportExecution(request);executionRetries.clear(owner.store,request);
+    if(!owner.current()){
+      // Keep a conclusive report fresh without touching a newer draft or actor.
+      if(owner.sameSession())pendingReload=true;return;
+    }
+    m.pendingRequest=null;m.reportOwner=null;delete m.qtyDraft;undoStack=[];
+    await reconcile(tx('進度已保存'));
   }
-  finally{m.busy=false;if(UI.modal===m)renderModal();}
+  catch(e){
+    if(e.rejected||e.conflict)executionRetries.clear(owner.store,request);
+    if(!owner.current())return;
+    m.error=e.rejected||e.conflict?e.message:tx('尚未確認儲存這筆回報；請按「重試上一筆回報」，不要另送新的一筆。');
+    if(e.rejected||e.conflict){m.pendingRequest=null;m.reportOwner=null;}
+    if(e.conflict){delete m.qtyDraft;await reconcile(e.message);}
+  }
+  finally{
+    if(!dispatched&&!hadPending){m.pendingRequest=null;m.reportOwner=null;}
+    m.busy=false;button.disabled=false;release();if(owner.sameView()&&UI.modal===m)renderModal();maybeReload();
+  }
 }
 
 // ---------- 工作內容、設備／工位、一般工作排班 ----------
@@ -4389,7 +4843,7 @@ MODALS['general-edit']=m=>{
 };
 function previewGeneral(D){
   const issues=assignmentIssues(S,D,dayInfo(D.date).win,{today:todayStr(),nowMin:nowMin()});
-  openModal({t:'general-preview',draft:structuredClone(D),issues});
+  openModal({t:'general-preview',draft:structuredClone(D),existed:assignments(S).some(a=>a.id===D.id),issues});
 }
 MODALS['general-preview']=m=>({title:tx('一般工作排班預覽'),body:
   '<dl class="kv"><dt>'+tx('工作內容')+'</dt><dd>'+esc(workName(m.draft))+'</dd><dt>'+tx('執行員工')+'</dt><dd>'+esc(emp(m.draft.emp)?.name||'未指定')+'</dd><dt>'+tx('設備／工位')+'</dt><dd>'+esc(mach(m.draft.resourceId)?.label||'不需機台')+'</dd><dt>'+tx('時段')+'</dt><dd>'+esc(m.draft.date)+' '+hm(m.draft.s)+'–'+hm(m.draft.e)+'（'+(m.draft.e-m.draft.s)+' 分）</dd></dl>'+
@@ -4409,6 +4863,8 @@ MODALS['general-remove']=m=>({title:tx('移除工作預覽'),body:'<div class="h
 MODAL_ACT['gw-remove']=()=>{if(PV||readOnly||S.setupPending||UI.modal?.t!=='general-remove')return;const a=assignments(S).find(a=>a.id===UI.modal.id);if(!a||absOf(a.date,a.s)<nowAbs())return;pushUndo();S.workAssignments=assignments(S).filter(x=>x.id!==a.id);closeModal();commit({kind:'edit',title:tx('移除一般工作')+' '+workName(a),lines:[]});};
 MODAL_ACT['gw-apply']=()=>{
   if(PV||readOnly||S.setupPending||UI.modal?.t!=='general-preview')return;const D=UI.modal.draft;
+  // 預覽開著時，較早的佇列寫入衝突恢復會前景替換 S：遠端已刪除這段工作時不得用它復活
+  if(UI.modal.existed&&!assignments(S).some(a=>a.id===D.id)){toast(tx('這段工作已被別人更新移除，未套用；請確認最新班表後再操作。'));return;}
   const issues=assignmentIssues(S,D,dayInfo(D.date).win,{today:todayStr(),nowMin:nowMin()});if(issues.length){toast(issues.join('；'));return;}
   pushUndo();S.workAssignments=assignments(S).filter(a=>a.id!==D.id).concat(D);closeModal();commit({kind:'edit',title:tx('安排')+' '+workName(D)+' · '+emp(D.emp).name,lines:[]});
 };
@@ -4470,7 +4926,7 @@ async function start(){
   if(r.needLogin){showLogin();return;}
   readOnly=STORE.kind==="supabase"&&!STORE.can("schedule.manage");
   let s=null;
-  try{s=await STORE.load();}catch(e){toast(e.message);}
+  try{s=await STORE.load();}catch(e){if(STORE.kind==='supabase')throw e;toast(e.message);}
   const madeDemo=!(s&&(STORE.kind==="supabase"||s.employees.length));
   if(madeDemo)makeDemo();else S=s;
   normalizeState();
@@ -4482,7 +4938,7 @@ async function start(){
   render();
   if(UI.page)flashReturnRow();
   if(!tourDone()&&!UI.tv&&!UI.page)setTimeout(()=>startTour(TOUR_STEPS,{tx}),600);
-  STORE.subscribe(onRemoteChange);
+  STORE.subscribe(onRemoteChange,onRealtimeStatus);
   scheduleChat?.destroy();scheduleChat=installScheduleChat({snapshot:()=>({...toSnapshot(S,HOLI),work_execution:structuredClone(S.execution||[])}),view:()=>({date:UI.date,factory:UI.factory}),store:()=>STORE,enabled:()=>!UI.tv&&canPermission('schedule.manage'),stamp:()=>scenarioKey(S)+'|'+UI.date+'|'+UI.factory});
   SOLVER.check().then(up=>{updateSyncChip();scheduleChat?.refresh();if(up)toast("已連上 OR-Tools 排程服務");});
   setInterval(()=>{if(!drag&&!generalDrag&&!UI.modal&&!PV&&UI.view==="day"&&UI.date===todayStr())render();},60000);

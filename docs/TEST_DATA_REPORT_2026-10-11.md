@@ -15,7 +15,7 @@
 | `me0608623+test-worker@gmail.com` | worker | ✅ 可登入、唯讀排程 |
 | `me0608623+test-viewer@gmail.com` | viewer | ✅ 可登入、唯讀排程 |
 
-密碼由使用者保管（不寫入本報告）。boss 由 API 註冊建立；worker/viewer 因 Supabase 郵件速率限制（429）改由 Dashboard 手動建立，均已透過「重設密碼」設定完成並驗證登入。三帳號 `setup_pending` 保留（僅供測試，不解除）。
+前一輪紀錄稱密碼由使用者保管，**2026-10-12使用者更正：密碼是另一agent設定，使用者並不知道**。本次未找到可用的安全憑證交接，不能假設使用者可登入；需要使用者授權寄重設信後，由使用者自行設定新密碼（不在聊天或Git記錄密碼）。以下帳號建立方式與登入測試是歷史紀錄，不代表本次已重新驗證：boss 由 API 註冊建立；worker/viewer 因 Supabase 郵件速率限制（429）改由 Dashboard 手動建立。`setup_pending`本次測試環境續作已核對為false，正式環境限制不變。
 
 ## 種子資料
 

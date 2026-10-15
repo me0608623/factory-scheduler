@@ -4,24 +4,28 @@ import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {acceptManualPreview} from '../src/manual-apply.js';
 import * as nav from '../src/preview-nav.js';
+import * as previewContext from '../src/preview-context.js';
+import {SupabaseStore} from '../src/store/supabase.js';
+import {createClient} from '@supabase/supabase-js';
+import {makeDb,FakeSupabase} from './fake-supabase.mjs';
 
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8').replace(/\r\n/g,'\n');
 const manual=source.slice(source.indexOf('async function applyManualPreview('),source.indexOf('\nfunction diffOf('));
 function harness(){
-  const events={},log=[],timers=[];
+  const events={},log=[],timers=[],preferences={factory:null};
   const before={blocks:[{id:'b1',oid:'o1',step:0,date:'2026-10-12',m:'a',s:480,e:540}],log:[]};
   const after=structuredClone(before);after.blocks[0].s=540;after.blocks[0].e=600;
   const P={base:JSON.stringify(before),B:before,after,move:{...after.blocks[0]},oldId:'b1',ops:[],problems:[],unpinned:[],lines:[],movedLabel:'A01',source:'old',target:'new'};
-  const ctx={...nav,acceptManualPreview,S:before,UI:{date:'2026-10-12',view:'day',modal:null},PV:{kind:'manual',P,opts:[{id:'manual',applicable:true}],cur:'manual',nav:nav.newNav()},
-    pvOpt:()=>ctx.PV?.opts[0],readOnly:false,undoStack:[],pushUndo:()=>ctx.undoStack.push(JSON.stringify(ctx.S)),
+  const ctx={...nav,...previewContext,acceptManualPreview,S:before,UI:{date:'2026-10-12',view:'day',modal:null},PV:{kind:'manual',P,opts:[{id:'manual',applicable:true}],cur:'manual',nav:nav.newNav()},
+    STORE:{kind:'local'},SYNC:{state:'ok'},pvOpt:()=>ctx.PV?.opts[0],readOnly:false,undoStack:[],pushUndo:()=>ctx.undoStack.push(JSON.stringify(ctx.S)),
     assertExecutionProtected:()=>{},validateGeneralWork:()=>{},assignments:()=>[],todayStr:()=> '2026-10-11',
     commit:async()=>{log.push('commit');return true;},render:()=>log.push('render'),renderModal:()=>{},closeModal:()=>{},
     toast:msg=>log.push(msg),maybeReload:()=>{},document:{addEventListener:(t,f)=>events[t]=f,querySelector:()=>null,activeElement:null},
     window:{scrollY:0,scrollTo:()=>{}},history:{go:()=>{}},addEventListener:()=>{},setTimeout:fn=>timers.push(fn),
     CSS:{escape:x=>x},mdw:x=>x,hm:x=>x,MODAL_ACT:{},PV_BLOCK:new Set(),$:()=>null,
-    tx:x=>x,esc:x=>x,fmtDelta:x=>x,recentManualMove:null};
+    tx:x=>x,esc:x=>x,fmtDelta:x=>x,recentManualMove:null,setFactory:f=>{ctx.UI.factory=f;preferences.factory=String(f);}};
   vm.createContext(ctx);vm.runInContext(manual,ctx);
-  return {ctx,P,log,timers,events};
+  return {ctx,P,log,timers,events,preferences};
 }
 test('selected new view has no original ghosts; cmp keeps them',()=>{
   const h=harness(),b=h.ctx.S.blocks[0],a=h.P.after.blocks[0];
@@ -57,6 +61,65 @@ test('successful apply persists once and completes callback; failed save restore
     assert.equal(h.ctx.S.blocks[0].s,saved?540:480);
     assert.equal(h.ctx.undoStack.length,saved?1:0);
   }
+});
+
+test('unconfirmed manual apply preserves the candidate and undo for explicit retry',async()=>{
+  const h=harness();h.ctx.commit=async()=>{h.ctx.SYNC.state='error';return false;};
+  await h.ctx.applyManualPreview(h.P,{accepting(){h.ctx.PV=null;},fail:pending=>h.log.push(['failed',pending]),done:()=>h.log.push('done')});
+  assert.equal(h.ctx.S.blocks[0].s,540);assert.equal(h.ctx.undoStack.length,1);
+  assert.deepEqual(h.log.filter(x=>Array.isArray(x)),[['failed',true]]);assert.ok(!h.log.includes('done'));
+});
+
+test('manual failure cannot overwrite recovered remote state or pop its new undo history',async()=>{
+  const h=harness(),remote={blocks:[{id:'remote',s:700}],log:[]};
+  h.ctx.commit=async()=>{h.ctx.S=remote;h.ctx.undoStack=['remote-history'];return false;};
+  await h.ctx.applyManualPreview(h.P,{accepting(){h.ctx.PV=null;},fail:()=>h.log.push('failed'),done:()=>h.log.push('done')});
+  assert.equal(h.ctx.S,remote);assert.deepEqual(h.ctx.undoStack,['remote-history']);
+  assert.ok(!h.log.includes('failed')&&!h.log.includes('done'));
+});
+
+test('manual late result never changes state or UI for another store or auth lifetime',async()=>{
+  for(const change of ['store','user','epoch'])for(const saved of [true,false]){
+    const h=harness();h.ctx.STORE={kind:'supabase',session:{user:{id:'A'}},authEpoch:1};
+    h.ctx.commit=async()=>{h.ctx.SYNC.state='error';if(change==='store')h.ctx.STORE={...h.ctx.STORE};
+      if(change==='user')h.ctx.STORE.session={user:{id:'B'}};if(change==='epoch')h.ctx.STORE.authEpoch++;return saved;};
+    await h.ctx.applyManualPreview(h.P,{accepting(){h.ctx.PV=null;},fail:()=>h.log.push('failed'),done:()=>h.log.push('done')});
+    assert.equal(h.ctx.S,h.P.after);assert.ok(!h.log.includes('failed')&&!h.log.includes('done'),change+' '+saved);
+  }
+});
+
+test('actual SDK SQL manual apply retries the retained candidate once after an offline failure',async()=>{
+  const db=await makeDb();try{
+    const actor='44444444-4444-4444-8444-444444444444';
+    await db.query("insert into auth.users(id,email) values($1,'synthetic-manual@invalid')",[actor]);
+    await db.query("update profiles set role='boss' where user_id=$1",[actor]);
+    const fake=new FakeSupabase(db,{});fake.uid=actor;
+    const reader=new SupabaseStore(fake);await reader.init();const before=await reader.load();
+    const date=new Date(Date.now()+86400000).toISOString().slice(0,10);
+    before.blocks=[{id:'55555555-5555-4555-8555-555555555555',oid:'00000000-0000-4000-8000-0000000000b1',step:0,m:'a',emp:'00000000-0000-4000-8000-0000000000e1',date,s:480,e:540,qty:120,pin:false}];
+    await reader.sync(before,{kind:'move',title:'Synthetic baseline'});
+    const base=await reader.load(),after=structuredClone(base);after.blocks[0].s=540;after.blocks[0].e=600;
+    let offline=true,dispatches=0,sqlWrites=0;
+    const sdk=createClient('https://synthetic.invalid','sb_publishable_synthetic',{accessToken:async()=> 'synthetic',global:{fetch:async(url,options)=>{
+      assert.equal(new URL(url).pathname,'/rest/v1/rpc/save_blocks');dispatches++;
+      if(offline)throw new TypeError('Failed to fetch');
+      const result=await fake.rpc('save_blocks',JSON.parse(options.body));assert.equal(result.error,null);sqlWrites++;
+      return new Response(JSON.stringify(result.data),{status:200,headers:{'content-type':'application/json'}});
+    }}});
+    const store=new SupabaseStore(sdk);store.session={user:{id:actor},access_token:'synthetic'};store.acceptLoaded(base);
+    const h=harness();h.ctx.STORE=store;h.ctx.S=base;h.ctx.SOLVER=null;
+    h.P.base=JSON.stringify(base);h.P.after=after;h.P.move={...after.blocks[0]};h.P.oldId=after.blocks[0].id;
+    Object.assign(h.ctx,{structuredClone,uid:()=> '66666666-6666-4666-8666-666666666666',canPermission:()=>true,
+      syncEpoch:0,syncPending:0,syncChain:Promise.resolve(),lastSyncState:'ok',lastLocalWrite:0,updateSyncChip:()=>{}});
+    const syncAt=source.indexOf('function queueSync(entry){'),commitAt=source.indexOf('function commit(');
+    vm.runInContext(source.slice(syncAt,source.indexOf('// ---------- 別人改了',syncAt))+source.slice(commitAt,source.indexOf('\nasync function undo(',commitAt)),h.ctx);
+    await h.ctx.applyManualPreview(h.P,{accepting(){h.ctx.PV=null;},fail:()=>h.log.push('failed'),done:()=>h.log.push('done')});
+    assert.equal(h.ctx.SYNC.state,'error');assert.equal(sqlWrites,0);assert.equal(h.ctx.S.blocks[0].s,540,'candidate remains visible for retry');
+    offline=false;assert.equal(await h.ctx.queueSync(null),true);
+    const fresh=await reader.load();assert.equal(fresh.blocks[0].s,540);assert.equal(fresh.blocks[0].e,600);
+    assert.equal(fresh.version,base.version+1);assert.equal(sqlWrites,1);assert.equal(dispatches,2);
+    assert.equal(h.ctx.SYNC.state,'ok');assert.ok(!h.log.includes('done'),'failed original attempt never announces success');
+  }finally{await db.close();}
 });
 test('stale proposal or unresolved issue never calls accepting or commit',async()=>{
   for(const condition of ['stale','problem']){
@@ -120,4 +183,30 @@ test('Escape at root cancels without writes; modal Escape is not hijacked by nav
 test('missing finish dates are unknown, never displayed as unchanged',()=>{
   const h=harness();h.ctx.dpDueRow=()=>'';h.ctx.dueDetail=()=>({qty:10,code:'A01',due:'2026-10-12',finish:null,finishB:null,affectedOps:[],stepRows:[]});
   const html=h.ctx.dpDueDetailHTML(h.P,'o1');assert.match(html,/完成日期尚無法比較/);assert.doesNotMatch(html,/完成日期不變/);
+});
+test('real generic cancel handler restores day/factory/week after viewing another impact date',()=>{
+  const h=harness();h.ctx.UI.factory=2;h.ctx.UI.view='week';
+  h.ctx.PV.kind='auto';h.ctx.PV.returnContext=previewContext.capturePreviewContext(h.ctx.UI);
+  h.ctx.UI.date='2026-10-14';h.ctx.UI.factory=1;h.ctx.UI.view='day';
+  h.ctx.setFactory(1);
+  const start=source.indexOf('  "pv-cancel":'),end=source.indexOf('\n  // -----',start);
+  vm.runInContext('Object.assign(MODAL_ACT,{'+source.slice(start,end)+'});',h.ctx);
+  const before=JSON.stringify(h.ctx.S);
+  h.ctx.MODAL_ACT['pv-cancel']();
+  assert.equal(h.ctx.PV,null);assert.equal(h.ctx.UI.date,'2026-10-12');
+  assert.equal(h.ctx.UI.factory,2);assert.equal(h.ctx.UI.view,'week');
+  assert.equal(h.preferences.factory,'2');
+  assert.equal(JSON.stringify(h.ctx.S),before);assert.ok(!h.log.includes('commit'));
+});
+test('real manual preview enter/exit restores context on cancel, not while accepting apply',()=>{
+  for(const cancel of [true,false]){
+    const h=harness();h.ctx.UI.factory=2;h.ctx.UI.view='week';h.P.move.date='2026-10-14';
+    const before=JSON.stringify(h.ctx.S);
+    h.ctx.enterManualPreview(h.P);h.ctx.setFactory(1);
+    h.ctx.exitManualPreview(cancel);
+    assert.equal(h.ctx.UI.date,cancel?'2026-10-12':'2026-10-14');
+    assert.equal(h.ctx.UI.factory,cancel?2:1);assert.equal(h.ctx.UI.view,cancel?'week':'day');
+    assert.equal(h.preferences.factory,cancel?'2':'1');
+    assert.equal(JSON.stringify(h.ctx.S),before);assert.ok(!h.log.includes('commit'));
+  }
 });

@@ -1,31 +1,79 @@
-# 每日資料庫備份：台灣時間每天 02:00 用 pg_dump 備份，保留 30 天
-# 需要在 GitHub 的 Settings → Secrets 設定 SUPABASE_DB_URL
-# （用 Supabase 的「Session pooler」連線字串，GitHub 主機沒有 IPv6，不能用 Direct connection）
 name: 每日資料庫備份
-
 on:
   schedule:
-    - cron: "0 18 * * *"   # UTC 18:00 = 台灣時間 02:00
-    - cron: "0 22 * * *"   # 備援時段（台灣 06:00）：主時段被 GitHub 延遲/吞掉時確保當天仍有備份
-  workflow_dispatch: {}      # 也可以手動按一次
-
+    - cron: '0 18 * * *'
+    - cron: '0 22 * * *'
+  workflow_dispatch: {}
+  workflow_call:
+    secrets:
+      SUPABASE_DB_URL:
+        required: true
+      BACKUP_AGE_RECIPIENT:
+        required: true
+      BACKUP_AGE_IDENTITY:
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: encrypted-production-backup
+  cancel-in-progress: false
 jobs:
   backup:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - name: 備份 public schema（排程、工單、稽核紀錄）
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 安裝加密工具並執行真實加解密防護測試
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y age
+          node --test tools/encrypted-backup.test.mjs
+      - name: 完整資料庫與角色唯讀備份（明文只在暫存 runner）
         env:
           DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+          BACKUP_PROJECT_REF: kjnnguekhshkhgycmryl
+          BACKUP_SOURCE_DIR: ${{ runner.temp }}/db-private
+          BACKUP_OUT_DIR: ${{ runner.temp }}/db-ciphertext
         run: |
-          mkdir -p backup
-          docker run --rm -e DATABASE_URL -v "$PWD/backup:/backup" postgres:17 \
-            sh -c 'pg_dump "$DATABASE_URL" --schema=public --no-owner --no-privileges --format=custom \
-                   --file=/backup/factory-$(date -u +%Y%m%d-%H%M).dump'
-          ls -lh backup
-
-      - name: 上傳備份檔（保留 30 天）
+          set -euo pipefail
+          umask 077
+          test -n "$BACKUP_AGE_RECIPIENT" || { echo 'Encryption recipient missing; refusing backup'; exit 1; }
+          node -e 'const u=new URL(process.env.DATABASE_URL); if(u.username!=="postgres.kjnnguekhshkhgycmryl" && u.hostname!=="db.kjnnguekhshkhgycmryl.supabase.co") process.exit(1)'
+          mkdir "$BACKUP_SOURCE_DIR"
+          # Never print dump stderr or SQL: they can contain identifying data.
+          docker run --rm -e DATABASE_URL -v "$BACKUP_SOURCE_DIR:/backup" -v "$PWD/tools:/tools:ro" postgres:17 sh -ec '
+            pg_dump "$DATABASE_URL" --no-owner --format=custom --file=/backup/full.dump 2>/backup/dump.err
+            pg_dump "$DATABASE_URL" --schema=public --no-owner --no-privileges --format=custom --file=/backup/public.dump 2>/backup/public.err
+            pg_dumpall --database="$DATABASE_URL" --roles-only --no-role-passwords --file=/backup/roles.sql 2>/backup/roles.err
+            psql "$DATABASE_URL" -X -v ON_ERROR_STOP=1 -t -A -f /tools/backup-inventory.sql > /backup/inventory.json 2>/backup/inventory.err
+          ' || { echo 'Database backup failed; private diagnostic withheld'; exit 1; }
+          rm "$BACKUP_SOURCE_DIR/"*.err
+          node tools/encrypted-backup.mjs pack
+      - name: 真正解密同份備份並核對內部檔案雜湊（不是完整 DB 還原）
+        env:
+          BACKUP_AGE_IDENTITY: ${{ secrets.BACKUP_AGE_IDENTITY }}
+          BACKUP_ENCRYPTED_FILE: ${{ runner.temp }}/db-ciphertext/database.tar.age
+          BACKUP_IDENTITY_FILE: ${{ runner.temp }}/backup-identity
+          BACKUP_RESTORE_DIR: ${{ runner.temp }}/db-decrypted-check
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$BACKUP_AGE_IDENTITY" || { echo 'Decryption identity missing'; exit 1; }
+          printf '%s\n' "$BACKUP_AGE_IDENTITY" > "$BACKUP_IDENTITY_FILE"
+          node tools/encrypted-backup.mjs unpack
+      - name: 上傳密文（不包含 dump、SQL、金鑰或明文 manifest）
         uses: actions/upload-artifact@v4
         with:
-          name: db-backup-${{ github.run_id }}
-          path: backup/
+          name: db-backup-encrypted-${{ github.run_id }}
+          path: ${{ runner.temp }}/db-ciphertext/database.tar.age
+          if-no-files-found: error
           retention-days: 30
+      - name: 清除 runner 暫存明文
+        if: always()
+        run: |
+          rm -rf -- "$RUNNER_TEMP/db-private" "$RUNNER_TEMP/db-ciphertext" "$RUNNER_TEMP/db-decrypted-check"
+          rm -f -- "$RUNNER_TEMP/backup-identity"
