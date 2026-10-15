@@ -7,6 +7,12 @@
 > - **staging**：`fb7e002 / index-qs4RQdPX.js`，保留 R69 真雲端離線重試修正。測試 solver 本輪一次 20 秒健康請求逾時，未據此宣稱整站功能全過。真跨帳戶/真手機、Realtime 恢復、完整衝突/匯出驗收仍未完成。
 > - **追蹤交接**：本輪查得舊 `automation`（10 分）與 `20`（20 分）均 PAUSED，未擅自啟用或重複建立。新 agent 使用 `HANDOFF_RELEASE_20MIN_2026-10-15.md` 的 prompt 接續；每輪做實際缺陷/驗收，不回到只有健康檢查。正式1023/角色/setup_pending/0037紅線不變。
 
+## 2026-10-15 R88（20min）他人修復併入：#55 匯出 Excel 列印版面設定寫錯屬性（9fbb888/PR29）
+
+- 發現：他人分支 fix-excel-print-layout-20261015（9fbb888，基於 main，已開 PR29）。缺陷：`grid.properties.pageSetup=...`——ExcelJS 的 pageSetup 在 worksheet 根層（`grid.pageSetup`），寫到 `properties` 下＝序列化時**整段列印設定遺失**（開啟檔案非橫向、非一頁式）。修法：`Object.assign(grid.pageSetup,...)`。
+- 併入：普通 merge；新測試做 **XLSX 往返**（寫出→重新載入→斷言 orientation/fitToPage/fitToWidth/fitToHeight＋內容格）1/1、全套 web **885/885**＋build 過。與 R77/R80 的位元組級下載證據互補——本修復讓列印設定真正存進檔案。
+- staging 部署待後續。待授權批次：PR19-29 十一件。
+
 ## 2026-10-15 R87（20min）R86 待查項排除：三連點重現＝恰一個 200——預覽套用連點 PASS（結案）
 
 - **重現實驗**（staging、A07、狀態碼級計數器）：blk 視窗改 10:30–11:20 → 預覽 → **同步三連點** pv-apply → save_blocks 恰 **[200] 一個**、一個 toast、面板關閉、位置正確。R86 的 2-POST 觀察**不重現**——判定為一次性雜訊（R86 計數器為 URL 字串匹配、可能抓到套用流程外的第二個寫入如先前操作殘留；且最終狀態一直正確）。
