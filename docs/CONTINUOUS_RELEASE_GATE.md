@@ -7,6 +7,12 @@
 > - **staging**：`fb7e002 / index-qs4RQdPX.js`，保留 R69 真雲端離線重試修正。測試 solver 本輪一次 20 秒健康請求逾時，未據此宣稱整站功能全過。真跨帳戶/真手機、Realtime 恢復、完整衝突/匯出驗收仍未完成。
 > - **追蹤交接**：本輪查得舊 `automation`（10 分）與 `20`（20 分）均 PAUSED，未擅自啟用或重複建立。新 agent 使用 `HANDOFF_RELEASE_20MIN_2026-10-15.md` 的 prompt 接續；每輪做實際缺陷/驗收，不回到只有健康檢查。正式1023/角色/setup_pending/0037紅線不變。
 
+## 2026-10-15 R79（20min）他人修復併入：#49 本機歷史存檔並發丟索引項（eba4610/PR23）
+
+- 發現：他人分支 fix-local-archive-concurrency-20261015（eba4610，基於 main，已開 PR23）。缺陷：`saveLegacyArchive` 原本「先 await list 再寫索引」＝讀改寫分離——同分頁兩次並發存檔都拿到舊索引，後寫覆蓋前寫＝**丟一筆索引項**（payload 留存但清單看不到）。修法：讀改寫改同步一段（同 tick 讀 index→寫 archive→寫 index）、重複 id 冪等、索引寫失敗只在已寫 payload 時回滾（wroteArchive 旗標）、壞索引不覆蓋不刪既有資料。
+- 併入：普通 merge；local-archive-concurrency **4/4**（並發雙存保留兩項、重複冪等、失敗回滾僅新 payload、壞索引不破壞）、全套 web **871/871**＋build 過。staging 部署待後續。
+- 待授權批次：PR19/20/21/22/23 五件。
+
 ## 2026-10-15 R78（20min）他人修復併入：#48 表格標記跨雲端帳戶隔離（e9b306a/PR22）
 
 - 發現：他人分支 fix-account-table-marks-20261015（e9b306a，基於 main）＋已開 PR22。缺陷：table-marks（人工填色/標註）原以單一 localStorage 鍵儲存＝**跨雲端帳戶共享**（A 帳號在裝置上的標記會洩給同裝置切換後的 B 帳號；同一台裝置不同 Supabase 專案也共享）。修法：`configureTableMarks(()=>STORE)`＋context 依 (project,user) 組鍵 `KEY:account:[...]`、authEpoch 入 owner；本機模式沿用舊鍵（不遷移不宣稱）；setMark 帶 owner 防跨身分殘留 modal 寫入；row-mark modal 在 renderModal 以 markOwner 守門關窗。
