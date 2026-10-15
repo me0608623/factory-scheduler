@@ -18,7 +18,7 @@ export function clampRect(x, y, w, h, vw, vh) {
 function load(key, defaults) {
   try {
     const raw = JSON.parse(localStorage.getItem(key) || "null");
-    if (raw && Number.isFinite(raw.x) && Number.isFinite(raw.w) && raw.w > 0) return raw;
+    if (raw && ['x', 'y', 'w', 'h'].every(k => Number.isFinite(raw[k])) && raw.w > 0 && raw.h > 0) return raw;
   } catch (e) { /* 忽略壞資料 */ }
   return { ...defaults };
 }
