@@ -6,6 +6,11 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-15 R92+R93（20min）狀態總覽塊更新＋#46 staging 瀏覽器實證
+
+- **R92**：狀態總覽塊（文件頂部）全面刷新——正式 e0e6f65／待修 #45、staging 0e934c8＋（#43＋#45–#55＋render.yaml 防漂移）、待使用者三項（批次授權／Realtime ticket／真手機跨帳戶）、web 885/885＋solver 177/177。
+- **R93（#46 實證）**：staging 真實分頁 850×900（static 表頭範圍）：表頭 position=static；滾動 600px 前後＋resize 重算，`--hdr-h` 三次皆 **0px**（表頭滾出 viewport bottom=-331）＝修復生效——靜態表頭不再撐開 sticky 操作面板（修復前會用 ≈269px 撐開）。零寫入、分頁已清理。
+
 ## 2026-10-15 R91（20min）Realtime 平台檢查：**仍未恢復**（帶金鑰 WS 500 重現）——ticket 續待
 
 - 探測（隔離 fk 專案）：REST `/rest/v1/` 無金鑰＝401（正常防護）；realtime WS **無金鑰**＝401「No API key found」（合理）；但從 staging 公開 bundle 取出 publishable key（公開設計、非密鑰）後 **WS 帶金鑰＝HTTP 500**——與歷史故障簽名完全相同（WS 帶金鑰 500/REST 200）。正式專案 WS 同樣 401-without-key 形狀（未帶正式金鑰測，不需）。
