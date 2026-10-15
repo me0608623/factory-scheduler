@@ -11,6 +11,7 @@
 - 發現：他人分支 fix-queue-handoff-quantity-20261015（72af57f，基於 main，已開 PR30）。缺陷：work-queue 交接批量診斷的前站量用 `b.qty`（計畫量）——前站其實只完成 20/100 時仍顯示「可安排」；與 #22 的口徑原則（完成認現場回報）不一致。修法：`effectiveBlockQty`（完成以 qtyDone 計、未完成保留計畫產能）。附加價值：補排替代段可滿足交接、batch=0 語意鎖定。
 - 併入：普通 merge；queue-handoff-quantity **2/2**（完成量診斷＋不可變性、未完成保留產能＋補排滿足＋batch 語意）、全套 web **887/887**＋build 過。staging 部署待後續。
 - 待授權批次：PR19-30 十二件。
+- staging 部署驗收：CI 綠→前進 stage 分支（0e934c8→4f4470a）→web-staging deployment **success**。PR16 分支同步。
 
 ## 2026-10-15 R96（20min）#50 staging 實證：LINE 設定被 RLS 拒絕時表單保留＋真實訊息（拒絕不再假成功）
 
