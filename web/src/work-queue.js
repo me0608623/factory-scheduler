@@ -30,7 +30,7 @@ export function workQueue(S, today, factory='all') {
       else if(!confirmed.length)reasons.push('人員或機台資格待確認');
       if(!Number.isFinite(st.rate)||st.rate<=0)reasons.push('工序速率未設定或不正確');
       if(step>0) {
-        const previous=S.blocks.filter(b=>b.oid===o.id&&b.step===step-1).reduce((n,b)=>n+b.qty,0);
+        const previous=S.blocks.filter(b=>b.oid===o.id&&b.step===step-1).reduce((n,b)=>n+effectiveBlockQty(b,S.execution||[]),0);
         if(previous<Math.min(o.qty,st.batch>0?st.batch:o.qty))reasons.push('前站尚未排足交接批量');
       }
       if(planned>o.qty)reasons.push('已排數量超過工單，需要核對');
