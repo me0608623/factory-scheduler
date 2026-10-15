@@ -12,7 +12,7 @@
 - **發現**：fetch 見新分支 origin/codex/fix-roster-create-20261015（d13ffee，基於 main 3c1e88f）修 rs-create 的 `p is not defined`＋新增 roster-create.test.mjs。對照本分支重現：`api.actions['rs-create']()` 實拋 ReferenceError（safe() 轉英文 toast）。
 - **根源（誠實歸因）**：R29 修 null-modal 家族時，把 `const d=ui.modal.draft,p=newRoster(...)` 改為 `const d=ui.modal?.draft;if(!d)return;`——逗號宣告的 `p` 失去 `const`，嚴格模式 ES module 下指定未宣告變數＝ReferenceError。經 PR16（e0e6f65）**已進正式站**＝「輪班表→新增」在正式會失敗（英文 toast「p is not defined」）。staging 同樣中獎。
 - **修復**：普通 merge d13ffee（保留他人提交；一行修＋2 測試：成功建立草稿並開表、無 draft 時安靜 no-op）。合併後 roster-create 2/2、全套 **863/863**＋build 過。
-- **部署**：staging 部署待本輪後續（runtime 變更）。**正式修復需要新的授權**（合 main＋部署正式）——依交接「未來正式發布按新人類授權」，不自行部署正式；已在使用者通知中明列請求。
+- **staging 部署驗收**：CI 先綠→前進部署分支（2c16dc6→5adf859）→deployment **success**；PR16 分支同步 5adf859（863/863）。正式仍帶此迴歸，待使用者授權修復。**正式修復需要新的授權**（合 main＋部署正式）——依交接「未來正式發布按新人類授權」，不自行部署正式；已在使用者通知中明列請求。
 
 ## 2026-10-15 R72（20min）優先項② Blueprint AI 旗標漂移——render.yaml 改 sync:false（防漂移，未部署）
 
