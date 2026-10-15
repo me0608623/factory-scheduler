@@ -7,6 +7,13 @@
 > - **staging**：`fb7e002 / index-qs4RQdPX.js`，保留 R69 真雲端離線重試修正。測試 solver 本輪一次 20 秒健康請求逾時，未據此宣稱整站功能全過。真跨帳戶/真手機、Realtime 恢復、完整衝突/匯出驗收仍未完成。
 > - **追蹤交接**：本輪查得舊 `automation`（10 分）與 `20`（20 分）均 PAUSED，未擅自啟用或重複建立。新 agent 使用 `HANDOFF_RELEASE_20MIN_2026-10-15.md` 的 prompt 接續；每輪做實際缺陷/驗收，不回到只有健康檢查。正式1023/角色/setup_pending/0037紅線不變。
 
+## 2026-10-15 R78（20min）他人修復併入：#48 表格標記跨雲端帳戶隔離（e9b306a/PR22）
+
+- 發現：他人分支 fix-account-table-marks-20261015（e9b306a，基於 main）＋已開 PR22。缺陷：table-marks（人工填色/標註）原以單一 localStorage 鍵儲存＝**跨雲端帳戶共享**（A 帳號在裝置上的標記會洩給同裝置切換後的 B 帳號；同一台裝置不同 Supabase 專案也共享）。修法：`configureTableMarks(()=>STORE)`＋context 依 (project,user) 組鍵 `KEY:account:[...]`、authEpoch 入 owner；本機模式沿用舊鍵（不遷移不宣稱）；setMark 帶 owner 防跨身分殘留 modal 寫入；row-mark modal 在 renderModal 以 markOwner 守門關窗。
+- 審查意見：設計與本系列 #26/#28 的 unknown-ledger／owner 語意一致；不動業務欄位；登出（kind 仍 supabase 無 user）→ key null＝不讀不寫（fail-closed）。
+- 併入：普通 merge；table-marks-account 2/2、全套 web **867/867**＋build 過。staging 部署待後續。
+- 待授權批次：PR19/20/21/22 四件。
+
 ## 2026-10-15 R77（20min）優先項④ PASS（部分）：Excel 實際下載位元組級解析＋#42 列印封鎖提示真實瀏覽器證據
 
 - **xlsx 下載（staging 實測，位元組級）**：攔 `URL.createObjectURL` → 點「下載彩色排程 Excel」→ 實際 blob 11,264 bytes、MIME xlsx；**抓回位元組解析**：zip magic PK、entries 含 sheet1/sheet2/sharedStrings/workbook.xml＝有效 xlsx（與 excel-export-artifact.test.mjs 同判準，但這是 staging 真實 bundle 的瀏覽器證據）。兩次下載一致。
