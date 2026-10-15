@@ -10,7 +10,9 @@
 
 - 發現：他人分支 fix-window-geometry-20261015（d0de20a，基於 main，已開 PR32）。缺陷：win.js `load()` 只驗 x/w 有限——y 或 h 為 NaN/字串的壞資料會通過，paint 時 `clampRect` 算出 NaN 座標＝視窗不可見/不可拖。修法：四欄全驗（x/y/w/h 皆有限＋w>0＋h>0），壞值回預設。
 - 註：我在 R37 曾審過 win.js 並記「壞資料回預設」——當時聚焦 load 的 try/catch 與 x/w 檢查，未抓出 y/h 未驗＝審查遺漏，他人補上。單元測試補三案例（壞幾何畫前回退、有效幾何重開＋reflow 存活、復原後可拖/取消/重開）。
-- 併入：普通 merge；win-storage **3/3**、全套 web **891/891**＋build 過。staging 部署待後續。待授權批次：PR19-32 十四件。
+- 併入：普通 merge；win-storage **3/3**、全套 web **891/891**＋build 過。
+- staging 部署驗收：CI 綠→前進 stage 分支（a7264c9→ff1c422）→deployment **success**。PR16 分支同步。
+- 待授權批次：PR19-32 十四件。
 
 ## 2026-10-16 R111（20min）狀態保持輪（全線不變）
 
