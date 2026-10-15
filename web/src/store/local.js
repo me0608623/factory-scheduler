@@ -146,11 +146,16 @@ export class LocalStore {
 
   async reset() {
     try {
-      for (const item of await this.listLegacyArchives()) localStorage.removeItem(archiveKey(item.id));
+      // A failed read is not an empty index: validate before deleting any key.
+      const index = JSON.parse(localStorage.getItem(ARCHIVE_INDEX) || "[]");
+      if (!Array.isArray(index) || index.some(item => !item || typeof item.id !== 'string')) throw new Error('Invalid archive index');
+      for (const item of index) localStorage.removeItem(archiveKey(item.id));
       localStorage.removeItem(ARCHIVE_INDEX);
       localStorage.removeItem(KEY);
       localStorage.removeItem(SCENARIOS);
       localStorage.removeItem(PROFILE_KEY);
-    } catch {}
+    } catch {
+      throw new Error('本機資料未完整清除，請確認瀏覽器儲存狀態後重試。');
+    }
   }
 }
