@@ -12,6 +12,7 @@
 - 發現：他人分支 fix-feedback-request-owner-20261015（cffd22e，基於 main，已開 PR25）。缺陷：`feedback-list` 的 RPC 回應只檢查 `UI.modal?.t==="feedback-list"`——舊請求的回應可覆寫**重開後的新清單**（同型 modal 無個別身分）；且不看 returned error、不看帳戶/角色變更。修法：捕獲 store/client/user/epoch/role 五元組＋modal 物件身分，`current()` 全比對（與本系列 directWriteOwner 同構）；returned error 進 throw；過時成功/失敗都靜默丟棄。
 - 併入：普通 merge；feedback-request **4/4**（舊成功不覆寫重開清單、取消後失敗不關別的視窗、returned error 顯示可重試、身分變更後忽略）、全套 web **877/877**＋build 過。staging 部署待後續。
 - 待授權批次：PR19-25 七件。
+- staging 部署驗收：CI 綠→前進 stage 分支（cbd5fdd→d5651c6）→web-staging deployment **success**。PR16 分支同步。
 
 ## 2026-10-15 R81（20min）他人修復併入：#50 LINE 設定寫入被拒仍報成功（7ca3b6a/PR24）
 
