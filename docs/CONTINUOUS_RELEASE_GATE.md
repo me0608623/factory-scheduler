@@ -7,6 +7,13 @@
 > - **staging**：`fb7e002 / index-qs4RQdPX.js`，保留 R69 真雲端離線重試修正。測試 solver 本輪一次 20 秒健康請求逾時，未據此宣稱整站功能全過。真跨帳戶/真手機、Realtime 恢復、完整衝突/匯出驗收仍未完成。
 > - **追蹤交接**：本輪查得舊 `automation`（10 分）與 `20`（20 分）均 PAUSED，未擅自啟用或重複建立。新 agent 使用 `HANDOFF_RELEASE_20MIN_2026-10-15.md` 的 prompt 接續；每輪做實際缺陷/驗收，不回到只有健康檢查。正式1023/角色/setup_pending/0037紅線不變。
 
+## 2026-10-15 R73（20min）迴歸披露：#45 rs-create ReferenceError——本系列 R29 引入、已進正式；他人分支 d13ffee 修復已併入
+
+- **發現**：fetch 見新分支 origin/codex/fix-roster-create-20261015（d13ffee，基於 main 3c1e88f）修 rs-create 的 `p is not defined`＋新增 roster-create.test.mjs。對照本分支重現：`api.actions['rs-create']()` 實拋 ReferenceError（safe() 轉英文 toast）。
+- **根源（誠實歸因）**：R29 修 null-modal 家族時，把 `const d=ui.modal.draft,p=newRoster(...)` 改為 `const d=ui.modal?.draft;if(!d)return;`——逗號宣告的 `p` 失去 `const`，嚴格模式 ES module 下指定未宣告變數＝ReferenceError。經 PR16（e0e6f65）**已進正式站**＝「輪班表→新增」在正式會失敗（英文 toast「p is not defined」）。staging 同樣中獎。
+- **修復**：普通 merge d13ffee（保留他人提交；一行修＋2 測試：成功建立草稿並開表、無 draft 時安靜 no-op）。合併後 roster-create 2/2、全套 **863/863**＋build 過。
+- **部署**：staging 部署待本輪後續（runtime 變更）。**正式修復需要新的授權**（合 main＋部署正式）——依交接「未來正式發布按新人類授權」，不自行部署正式；已在使用者通知中明列請求。
+
 ## 2026-10-15 R72（20min）優先項② Blueprint AI 旗標漂移——render.yaml 改 sync:false（防漂移，未部署）
 
 - **漂移源確認**：render.yaml 明文 `AI_SCHEDULE_DATA_APPROVED="false"`、`SCHEDULE_CHAT_AI_ENABLED="false"`——每次 Blueprint 同步（main 變更即觸發）都會蓋掉 dashboard 值。R70 的 true→false 蓋掉正源於此。
