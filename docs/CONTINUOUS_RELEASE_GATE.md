@@ -2,10 +2,26 @@
 
 > **狀態總覽（R45 起常態更新；輪段詳細證據往下）**
 > - **本系列修復**：#32–#42 共 11 件（離線靜默丟失×2、衝突復活×2、undo 覆蓋遠端、null-modal 家族×3 大類 38 處、realtime 輪詢備援、日視圖平方級效能 20×、列印彈出封鎖崩潰）。測試 web 430→853。
-> - **staging**：線上 41d4f88（bundle index-DxKb0Nzr.js，**#32–#42 全部上線**）。備忘：本次 build 耗 ~40 分鐘（此前 2-3 分）——Render 建置偶發慢，非斷線；push 觸發正常。
-> - **R69 更新優先於上條歷史版本**：staging 已為 **fb7e002 / index-qs4RQdPX.js**，新增手動套用離線重試修正並真雲端回驗；原#32–#42保留。合併/正式部署門檻仍未全過。
-> - **PR16/18 均 draft**：#18 head＝本分支（自動跟隨）、#16＝test-mode 分支（每輪同步；最新 853/853 綠）。
-> - **發布閘門而非全部待使用者**：agent 持續實測可用 session、拖曳/取消/套用、輪詢備援、離線/衝突與回歸；真不同身份/角色、真手機桌面與 Realtime 恢復、正式 VITE_TEST_* 隔離設定仍需實證。hook secret 只是可選備援；帳號/寄信依最新直接人類授權，不沿用舊「未同意」當現況。全部過才合併/正式部署，維持1023/角色/0037紅線。
+> - **R70 正式發布**：使用者明確同意先核對隔離、跳過其餘未完成驗收後合併部署；不是所有功能驗收 PASS。PR16 已合併 `e0e6f65`，PR18 已合併 `3c1e88f`（後者只增文件）。正式 web/solver runtime 均為 `e0e6f65`，web bundle `index-CV39COdK.js`；main Tests **857/857 web、57/57 tools、174 solver PASS**。
+> - **環境隔離 PASS**：正式三個原始 VITE 值逐值不變；新增三個 VITE_TEST 值並保存回讀一致，僅指向 `fkefarcwadvyqqjcjxvp` 與 staging solver。正式網站 `?mode=test` 實見隔離登入提示、正式/測試入口雙向切換正常；本輪未登入或寫入正式資料，未遷移。
+> - **staging**：`fb7e002 / index-qs4RQdPX.js`，保留 R69 真雲端離線重試修正。測試 solver 本輪一次 20 秒健康請求逾時，未據此宣稱整站功能全過。真跨帳戶/真手機、Realtime 恢復、完整衝突/匯出驗收仍未完成。
+> - **追蹤交接**：本輪查得舊 `automation`（10 分）與 `20`（20 分）均 PAUSED，未擅自啟用或重複建立。新 agent 使用 `HANDOFF_RELEASE_20MIN_2026-10-15.md` 的 prompt 接續；每輪做實際缺陷/驗收，不回到只有健康檢查。正式1023/角色/setup_pending/0037紅線不變。
+
+## 2026-10-15 R70 使用者授權略過剩餘功能門檻，隔離核對後合併正式
+
+- **直接人類授權**：「同意，先核對環境隔離，其他未完成驗收先跳過，直接合併部署正式，1023資料不要動，也不要額外遷移。結束後再給我prompt交給另一位agent接續20min cron job開發及優化作業」。僅本次發布豁免尚未完成的功能門檻，不豁免隔離、正式資料/權限/schema/費用邊界；未驗項目不改寫 PASS，不當未來任意正式部署的永久授權。
+- **起點/所有權**：固定 worktree 原 HEAD `a54658d` 乾淨、remote 一致，無另一 modifier/deploy process；PR16 head `38aab7c`、PR18 head `a54658d` 均 MERGEABLE、head CI 全綠。未切換共享 checkout；合併後在自己分支 FF 至 `origin/main=3c1e88f`，保留 main 他人文件與 PR16 差異，沒有 reset/force push。
+- **正式前端三值比對**：Render 只列原 `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`、`VITE_SOLVER_URL`。URL 分別為正式 `kjnnguekhshkhgycmryl`、正式 solver；金鑰僅檢查 JWT role=anon/ref=正式 project，不公開內容。新增 `VITE_TEST_SUPABASE_URL=https://fkefarcwadvyqqjcjxvp.supabase.co`、`VITE_TEST_SOLVER_URL=https://factory-scheduler-solver-staging.onrender.com`、測試專案既有 publishable key（非 service-role/secret）；選 **Save only**，reload 後逐值與原三值、新三值比對完全一致。讀取遮罩空欄位不當成值被清掉；先實際揭露已授權的公開欄位再比對。沒有取用 solver service-role/ZAI 密鑰。
+- **solver 隔離**：正式 SUPABASE_URL=kjn、staging=fk；兩者 `SOLVER_DISABLE_SNAPSHOT_API=1`。正式 CORS 只正式網站；staging CORS 含 staging 與正式網站（供正式網址的 test mode），未改 CORS 或權限。正式前端 test mode 有固定 project/solver、獨立 auth storage、缺值 fail-closed，無正式回退；未修改這套防護。
+- **合併**：PR16 於 **05:15:06Z** 普通 merge `e0e6f65065f3479b72587d014b719cbd0d7156c9`；PR18 於 **05:15:36Z** 普通 merge `3c1e88f13f4cf6df633ede2af2a6198c9212edb8`。兩 main merge 間僅 `docs/CONTINUOUS_RELEASE_GATE.md` 7 insert/1 delete，web/solver 完全相同，不要求為 PR18 文件重部署。
+- **main CI**：`e0e6f65` Tests **38685786845** frontend/database/solver 全 success；實際 logs 為 web **857/857**、tools **57/57**、solver **174 passed**、build PASS（856→857 是 PR16 另有測試，不改寫舊來源數字）。smoke **38685788139**、synthetic-only **38685786851** success。PR18 是 doc-only，沒有冒稱同 SHA 重跑全套 CI。
+- **自動部署與去重**：Render 已接到 main new_commit；取消 GitHub 備援部署 run **38685786820**，其 gate cancelled、兩個 hook steps 確認 skipped，避免重複 hook。未觸發 migration/backup/seed/permissions workflow，nightly **367614493** 仍 disabled_manually。
+- **正式 web**：`dep-db862odbedkc739r04f0`，**05:15:44.785242Z live e0e6f65**。實際 public HTML 為 **index-CV39COdK.js**，bundle 含各自正式/測試 URL、正式 anon role/ref 與一個測試 publishable key，無 `sb_secret_`。實際瀏覽器 `?mode=test` 顯「測試模式 · 不影響正式資料」與帳號不共用提示，點回正式看到正常登入與進入測試模式入口，再點回 test 正常。本輪這個 origin 兩種模式都未登入；不能稱已完成正式網址的登入後拖曳。Network 無資料庫寫入，沒有把設定/HTTP/徽章冒稱同步驗收。
+- **正式 solver**：先 new_commit `dep-db862odbedkc739r0480` live，平台又自動 blueprint_sync `dep-db862onk3jis73f1a6pg` 於 **05:16:23.966403Z live e0e6f65**。部署後核對發現既有 Blueprint 將部署前 `AI_SCHEDULE_DATA_APPROVED=true`、`SCHEDULE_CHAT_AI_ENABLED=true` 覆蓋成 render.yaml 的 false。為保留既有功能，**僅恢復這兩個部署前值 true**，Save and deploy（不 rebuild），`dep-db864um89jmc73cc8umg` **05:20:09.571330Z live e0e6f65**。沒有改 DB URL/金鑰/角色，沒有發送 AI 請求。下輪應修 Blueprint 與既有環境值漂移的最小配置策略，避免未來同步再覆蓋，不自行新增資料外傳同意。
+- **只讀/拒絕路徑**：正式 `/health` 回 ok=true/database=true/OR-Tools 9.15.6755；帶正式 Origin 的 CORS 正確。對 `/solve` 只送空 synthetic body，實回 **403 正式環境不開放快照計算端點**，防護仍在，未計算或寫入正式資料。測試 solver 健康請求本輪有無界 fetch 中止與後續 **20秒 TimeoutError**，未重部署/放寬防護來求過；應在後續隔離驗收查明，不影響已完成的正式發布狀態，也不能當測試功能 PASS。
+- **錯誤與證據**：web/solver app error logs 各查 **05:16:24–05:18:24Z** 及恢復 AI flags 後 **05:20:10–05:22:10Z** 均為0/hasMore=false；只代表這些觀察窗，不保證長期健康。首次跨區域一起查被平台400拒絕，改逐服務才取得有效結果，不當首次已通過。05:22Z後再次正式health為200/ok/database/CORS正確、`schedule_chat_ai_v1`能力已恢復（沒有實際AI請求）。`outputs/production-test-env-masked-20261015.jpg`、`outputs/production-isolated-test-entry-20261015.jpg` 留本機，不上傳身份/請求快照；正式原頁籤未操作，staging QA session 頁籤保留。
+- **邊界與未驗證**：本輪沒有任何正式 Supabase Auth/資料表/RPC 寫入、setup_pending/角色/個人授權/0037 操作；沒有新增資源/費用/加密備份或刪舊 artifact/log。未重新匯入12/8/20/103或demo。R69 的同帳戶跨頁面輪詢、真正套用/失敗重試證據仍有效，但不補成不同帳戶、真手機或 Realtime 恢復。既有 A07 測試段保留10/16 09:30–10:20、150件、tst05、手動固定。
+- **下一步**：交給新 agent 的 prompt 見 `HANDOFF_RELEASE_20MIN_2026-10-15.md`；先接續真隔離測試、solver逾時/Blueprint漂移，再做草稿保護、衝突、Excel/列印、權限與其他有價值缺陷。兩個既有 Codex heartbeat 現 PAUSED；本輪只交 prompt，沒有自作另一個計時器或 Render cron。歷史 HANDOFF_20MIN 的「未提交 memo」與 PR draft 狀態已過時。
 
 ## 2026-10-15 R69 實際驗收與手動套用離線重試缺陷
 
