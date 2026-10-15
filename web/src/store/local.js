@@ -105,16 +105,21 @@ export class LocalStore {
   }
 
   async saveLegacyArchive({ sourceName, sourceSha256, legacy }) {
-    const existing = (await this.listLegacyArchives()).find(a => a.id === sourceSha256);
-    if (existing) return existing;
     const dates = legacy.dates;
     const item = { id: sourceSha256, source_name: sourceName, source_sha256: sourceSha256,
       date_from: dates[0], date_to: dates.at(-1), imported_at: new Date().toISOString() };
+    let wroteArchive = false;
     try {
+      // Keep this read/modify/write synchronous: concurrent calls in this tab
+      // must not capture the same old index before either publishes its entry.
+      const index = JSON.parse(localStorage.getItem(ARCHIVE_INDEX) || "[]");
+      const existing = index.find(a => a.id === sourceSha256);
+      if (existing) return existing;
       localStorage.setItem(archiveKey(item.id), JSON.stringify(legacy));
-      localStorage.setItem(ARCHIVE_INDEX, JSON.stringify([item, ...await this.listLegacyArchives()]));
+      wroteArchive = true;
+      localStorage.setItem(ARCHIVE_INDEX, JSON.stringify([item, ...index]));
     } catch {
-      try { localStorage.removeItem(archiveKey(item.id)); } catch {}   // 索引寫不進就回滾，不留孤兒資料佔空間
+      if (wroteArchive) try { localStorage.removeItem(archiveKey(item.id)); } catch {}   // 索引寫不進就回滾，不留孤兒資料佔空間
       throw new Error("瀏覽器儲存空間不足，歷史排程未存入");
     }
     return item;
