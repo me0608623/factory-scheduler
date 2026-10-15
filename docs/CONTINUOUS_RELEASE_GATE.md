@@ -12,6 +12,7 @@
 - 發現：他人分支 fix-sticky-header-offset-20261015（070b25a，基於 main）＋已開 PR20。缺陷：`updateHeaderVar` 一律以表頭 `bottom` 設 `--hdr-h`——表頭是 static（會滾走）時，sticky 操作面板仍保留上方保留空間＝滾動後面板偏移。修法：僅 sticky/fixed 表頭才取 bottom，否則 0（Math.max 防負值）。附 2 測試（801-900px 靜態表頭滾動/重繪後不偏移；sticky/fixed 保留 bottom）。
 - 併入：普通 merge（保留他人提交）；header-offset 2/2、全套 **865/865**＋build 過。staging 部署待本輪後續。
 - PR19（#45 正式修復）仍 OPEN/MERGEABLE/CI 綠——**待使用者授權**（R73 起）；PR20 同屬待授權批次。
+- staging 部署驗收：CI 先綠→前進部署分支（5adf859→c6a87a1）→deployment **success**；PR16 分支同步 c6a87a1（865/865）。
 
 ## 2026-10-15 R74（20min）優先項③ PASS：隔離排班桌面/手機可見性＋日期/廠別切換（staging 實測，零寫入）
 
