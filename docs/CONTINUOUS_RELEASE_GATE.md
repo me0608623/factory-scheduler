@@ -6,6 +6,10 @@
 > - **PR16/18 均 draft**：#18 head＝本分支（自動跟隨）、#16＝test-mode 分支（每輪同步；最新 853/853 綠）。
 > - **待使用者（合併前必做）**：①Render staging 部署通道檢查＋hook secret；②staging Realtime 平台 ticket（WS 500）；③第二帳戶（同意信未回覆不得再寄）；④正式 VITE_TEST_* 三值；⑤全部通過後：真實跨帳戶/手機桌面同步、斷線衝突回饋驗收 → 才合併 PR → 才部署正式。
 
+## 2026-10-15 15-min tracking R56 checkpoint：健康檢查輪（全線不變）
+
+- worktree 乾淨同步 3e17b53；main CI 綠 @11ff07d；staging 線上 41d4f88（bundle index-DxKb0Nzr.js，#32–#42 全上線）健康可達；PR16/18 draft 不變。無新工作面。
+
 ## 2026-10-15 15-min tracking R55 checkpoint：狀態保持輪（探索面已收斂）
 
 - 例行核對：worktree 乾淨同步 99fd2af；main CI 綠 @11ff07d；PR16/18 均 draft 不變；staging＝41d4f88（#32–#42 全上線）。
