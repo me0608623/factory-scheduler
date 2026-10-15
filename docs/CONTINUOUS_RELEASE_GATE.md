@@ -12,6 +12,7 @@
 - 發現：他人分支 fix-invalid-date-sort-20261015（fc766b8，基於 main，已開 PR28）。缺陷：`dateVal` 只做正則形狀匹配——「2026-02-30」「2026-13-01」等**不可能日期被當有效值參與排序**（排在中間而非按約定墊底）。修法：閏年感知的月日上限驗證（含 1900/2000 世紀閏年規則），無效一律 null＝兩方向墊底。
 - 併入：普通 merge；date-sort-calendar **2/2**（8 種不可能日期＋閏年規則、雙向墊底不動行）、全套 web **884/884**＋build 過。staging 部署待後續。
 - 待授權批次：PR19-28 十件。
+- staging 部署驗收：CI 綠→前進 stage 分支（2a1e43d→116ec1e）→web-staging deployment **success**。PR16 分支同步。
 
 ## 2026-10-15 R84（20min）優先項④補項 PASS：接收端同步鈕連點＝恰一次補讀（staging 實測）
 
