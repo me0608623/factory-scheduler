@@ -6,6 +6,12 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R106（20min）他人修復併入：#57 solver POST 逾時在表頭後失效＝回應本體可無限掛住（dd17dd8/PR31）
+
+- 發現：他人分支 fix-solver-body-timeout-20261015（dd17dd8，基於 main，已開 PR31）。缺陷：`post()` 先 await fetchWithTimeout（**僅到表頭**、abort 定時器已清），再在窗外 `r.json()`——若服務送出表頭後本體停滯（免費版喚醒/網路半斷），讀取**無限掛住**且逾時不再觸發。修法：把 !r.ok 處理與 `r.json()` 移入 `fetchWithTimeout` 的 consume 回呼＝abort 期限涵蓋到本體完成。
+- 併入：普通 merge（與我 #43 的 check() 重試互不重疊、共存無衝突）；新測試 1/1（表頭不清除期限、期限觸發→「排程服務沒有回應」、重試成功）＋我的 solver-check-retry **4/4 仍綠**（交叉無回歸）、全套 web **888/888**＋build 過。staging 部署待後續。
+- 待授權批次：PR19-31 十三件。
+
 ## 2026-10-16 R105（20min）狀態保持輪（全線不變）
 
 - 例行核對：worktree 乾淨同步 7cd7577；main CI 綠 @e0e6f65；staging＝4f4470a；PR19-30 十二件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
