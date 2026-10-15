@@ -7,6 +7,12 @@
 > - **staging**：`fb7e002 / index-qs4RQdPX.js`，保留 R69 真雲端離線重試修正。測試 solver 本輪一次 20 秒健康請求逾時，未據此宣稱整站功能全過。真跨帳戶/真手機、Realtime 恢復、完整衝突/匯出驗收仍未完成。
 > - **追蹤交接**：本輪查得舊 `automation`（10 分）與 `20`（20 分）均 PAUSED，未擅自啟用或重複建立。新 agent 使用 `HANDOFF_RELEASE_20MIN_2026-10-15.md` 的 prompt 接續；每輪做實際缺陷/驗收，不回到只有健康檢查。正式1023/角色/setup_pending/0037紅線不變。
 
+## 2026-10-15 R81（20min）他人修復併入：#50 LINE 設定寫入被拒仍報成功（7ca3b6a/PR24）
+
+- 發現：他人分支 fix-line-settings-save-error-20261015（7ca3b6a，基於 main，已開 PR24）。缺陷：`ln-save` 對 supabase upsert 只看 throw、不看 **returned error**（RLS 拒絕／約束失敗走 error 欄位）→ 寫入被拒仍關窗＋「已儲存」成功 toast＝靜默失敗。修法：解構 `{error}`、`if(error)throw error` 進既有 catch（保留表單＋真實訊息＋可重試）。
+- 併入：普通 merge；line-settings-save **2/2**（returned-error 與 thrown 兩路都保留表單不謊報）、全套 web **873/873**＋build 過。staging 部署待後續。
+- 待授權批次：PR19-24 六件。
+
 ## 2026-10-15 R80（20min）優先項④補項 PASS：CSV 下載內容級解析（R77 未驗項收尾）
 
 - 修正 R77 的 locator 失誤（按鈕文字含巢狀 span 導致名稱不匹配）——改用 `[data-act="x-dl"]` 直取：staging 實測點「下載全部明細 CSV」→ blob 8,346 bytes、`text/csv;charset=utf-8`；**抓回內容解析**：表頭 12 欄（日期/星期/開始/結束/機台/員工/工單/產品/工序/數量/固定/問題）、資料 103 列＋表頭＝104 行、首列 2026-09-30 張三 B05 裁切 90 件＝與隔離庫 103 段基準吻合。
