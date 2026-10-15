@@ -3,6 +3,7 @@
 > **狀態總覽（R45 起常態更新；輪段詳細證據往下）**
 > - **本系列修復**：#32–#42 共 11 件（離線靜默丟失×2、衝突復活×2、undo 覆蓋遠端、null-modal 家族×3 大類 38 處、realtime 輪詢備援、日視圖平方級效能 20×、列印彈出封鎖崩潰）。測試 web 430→853。
 > - **staging**：線上 41d4f88（bundle index-DxKb0Nzr.js，**#32–#42 全部上線**）。備忘：本次 build 耗 ~40 分鐘（此前 2-3 分）——Render 建置偶發慢，非斷線；push 觸發正常。
+> - **R69 更新優先於上條歷史版本**：staging 已為 **fb7e002 / index-qs4RQdPX.js**，新增手動套用離線重試修正並真雲端回驗；原#32–#42保留。合併/正式部署門檻仍未全過。
 > - **PR16/18 均 draft**：#18 head＝本分支（自動跟隨）、#16＝test-mode 分支（每輪同步；最新 853/853 綠）。
 > - **發布閘門而非全部待使用者**：agent 持續實測可用 session、拖曳/取消/套用、輪詢備援、離線/衝突與回歸；真不同身份/角色、真手機桌面與 Realtime 恢復、正式 VITE_TEST_* 隔離設定仍需實證。hook secret 只是可選備援；帳號/寄信依最新直接人類授權，不沿用舊「未同意」當現況。全部過才合併/正式部署，維持1023/角色/0037紅線。
 
@@ -16,7 +17,12 @@
 - **FAIL 真離線後重試**：同一合成A07預覽09:30–10:20，僅staging tab網路離線模擬後確認，明示同步失敗卻把畫面回復09:20–10:10。登出有正確阻擋訊息、session保留。恢復網路按重試一次，變綠卻沒有save_blocks POST，仍舊時段；不當PASS。網路模擬已解除，未報工/刪除/重匯/改權限；目前測試段保留09:20–10:10、150件、手動固定。其餘8段不變，不硬還原整份快照。
 - **原因與最小修正**：applyManualPreview失敗時無條件pop undo並回灌P.base，queueSync(null)重試取得已回復的S，Store diff為0即回成功。現在同owner且仍是本次candidate、SYNC.error才保留S/undo供既有明確重試；已換store/user/authEpoch或S被衝突恢復/新狀態替換則不動新狀態/undo/舊UI。非error拒絕仍回復。兩個失敗入口改誠實保留/未套用文案並補en/vi/th；沒有改Store/RPC/migration/自動重送/版型/44px。
 - **有效RED與回歸**：4項新增actual handler/queueSync與1條其中真migrated PGlite SQL＋actual Supabase SDK測，修前4FAIL（候選回復、遠端undo被pop、舊身份callback、SDK/SQL重試丟候選），修後聚焦82/82 PASS；完整本機 **856/856 PASS、0skip**，build index-VfwFrtRg.js PASS，既有chunk warning。Impeccable harden保留既有UI；首次detector cwd路徑錯誤只報cannot access不是通過，修正target後[]。不把856誤寫成歷史853+4，依實際runner結果。
-- **待續**：本修正尚未推CI/更新staging，不能把上面舊bundle的FAIL稱已線上修復；先來源CI、PR16安全同步、既有staging web更新後重跑09:30離線/重試/獨立回讀。再接續真衝突、草稿保護、匯出/列印與既有角色唯讀驗收。第二身份/真機/Realtime/正式VITE_TEST門檻未全過，PR16/18維持draft、不合main/正式、不啟nightly、不新增費用。下輪不再只做HTTP健康輪。
+- **來源/PR16 CI與部署**：修正 **fb7e002b1032d6890b431dd22dba6e873f6245a5** 的Tests38676407706/38676412882、smoke38676407674/38676412839、synthetic38676412829全success，CI實測web856/856、tools57/57、build通過。PR16先clean/無modifier、local/remote c5f5a8f一致，補fetch確認remote-tracking後普通merge **38aab7c7cbbb6ca266b2a9d2dcf3ec8c2064b159**，20/20 focused通過、原4檔104insert/2delete殘餘差異保留後non-force push；Tests38676673626/38676677612、smoke38676673643/38676677643、synthetic38676677605現全success。沒有upstream設定時先如實記未設定再fetch核對，不冒稱起初tracking已一致。
+- source全CI通過、stage remote精確41d4f88且ancestor、solver零diff後，non-force FF既有stage branch至fb7e002。Render auto new_commit **dep-db84hus9v7es73bhe9mg**於 **03:31:36.881064Z live fb7e002**，29秒build，沒有重複手動deploy/新資源/solver更新。普通root reload實見 **index-qs4RQdPX.js**；stage smoke38676679755及Tests38676679803現已全success。
+- **新版真雲端離線/重試 PASS**：同一A07合成段09:20–10:10預覽09:30–10:20，staging tab離線後明示「內容已保留」且畫面保持新時段；獨立接收頁面重新載入+選10/16，仍顯舊時段1/新時段0，證明失敗時雲端未變。恢復網路按重試一次，Network只見隔離save_blocks POST **1次/200**、無truncation，sender恢復已儲存；receiver再次真reload回讀 **新時段1/舊時段0**，9段中非目標8段DOM id/label/style逐項不變，150件/50分鐘/tst05不變。這不是mock或只看HTTP；未新增/刪除/重匯/報工/改帳號。現在該測試段保留 **10/16 09:30–10:20/手動固定**供使用者續測，未強制回灌舊快照。手機證據`outputs/staging-acceptance-retry-fixed-mobile-20261015.jpg`只留本機。
+- **其他實測**：同帳戶receiver無草稿/抽屜時手動更新1次schedule_snapshot/200、0寫入、目標仍一致，另記手動PASS而非Realtime。原先手動讀取在途時開抽屜未用來冒稱完成。週視圖顯示10/12–18實際資源排班，點tst05/10/16鑽回該日，目標仍一致；未匯入資料。組長身分/可用操作與缺少權限管理入口只算UI觀察，後端不同角色拒絕未驗。匯出視窗已開但尚未下載解析，列印未做，不標PASS。
+- Render app error **03:31:37–03:33:37Z**窗0/hasMorefalse，只是部署後兩分鐘彙總，不保證長期健康；離線模擬的瀏覽器Failed fetch屬預期，不混入平台健康。網路/viewport模擬均已解除，兩個staging QA頁籤保留，正式既有頁籤未操作。
+- **接續具體項目**：真跨帳戶/角色與真手機仍缺第二個已登入身份，不以同帳戶頁籤通過充數；Realtime仍中斷，不以備援成功放行。接著做接收端草稿保護/取消後補讀、下載實際Excel解析與列印預覽取消；真雲端衝突要先處理既有平台40001重試風險，不用無界衝突探測壓真庫。正式VITE_TEST_*仍待安全核對，PR16/18維持draft、不合main/正式、不啟nightly、不新增費用。下輪不再只做HTTP健康輪。
 
 ## 2026-10-15 15-min tracking R68 checkpoint：健康檢查輪（全線不變）
 
