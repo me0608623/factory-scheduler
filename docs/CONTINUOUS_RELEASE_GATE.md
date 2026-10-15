@@ -6,6 +6,13 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-15 R96（20min）#50 staging 實證：LINE 設定被 RLS 拒絕時表單保留＋真實訊息（拒絕不再假成功）
+
+- 方法（真實 staging、既有 session）：頁內 攔 `line_notify_settings` 寫入並模擬 **403 RLS 拒絕**（returned error 形狀）→ 開 LINE 通知設定 → 儲存。
+- 結果：**表單保留**（modal 仍開、標題不變）、toast 顯示真實訊息「new row violates row-level security policy」、**無「已儲存」假成功**、儲存鈕重新可用（可重試）、零錯誤。修復前此情境＝關窗＋「已儲存」成功 toast。
+- 註：mock 在頁內 攔截、請求未達伺服器＝**零實際寫入**；分頁已清理。#50 有單元測試＋本 staging 實證。
+- 待授權批次不變（PR19-29）。
+
 ## 2026-10-15 R95（20min）#48 staging 實證：表格標記以 (project,user) 隔離鍵落localStorage
 
 - 流程（真實 staging、既有 session）：欠缺品項頁 → 點一列「標記／填色」→ 選黃 → 儲存 → localStorage 出現鍵 **`fsched-table-marks-v1:account:["https://fkefarcwadvyqqjcjxvp.supabase.co","05a27bab-…"]`**＝(專案,使用者) 隔離鍵（修復前＝裸 `fsched-table-marks-v1` 跨帳戶共享）。標記前無任何 marks 鍵（乾淨起始）；零錯誤零 toast。
