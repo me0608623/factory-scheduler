@@ -13,6 +13,7 @@
 - 併入：普通 merge（保留他人提交）。本機驗證：`uv run --frozen python -m pytest`：新增 test_pruned_objective **3/3**、全套 solver **177 passed**（2:15）；web **865/865**。
 - **部署注意**：此為 solver runtime 變更——staging solver（factory-scheduler-solver-staging）與正式 solver 均由 Render 端分支/設定觸發；本輪僅推送 release-gate 分支與 CI，**不部署任何 solver**（未變服務不重複部署；正式待授權）。staging solver 是否隨 stage 分支 auto-deploy 由 Render 設定決定，本輪查 deployments 清單佐證。
 - 待授權批次更新：PR19（#45）＋PR20（#46）＋PR21（#47）皆就緒。
+- staging 部署驗收（補）：CI 綠後前進 stage 分支（c6a87a1→00803ea）——**兩個 staging 服務各自收到部署**（此分支 auto-deploy web＋solver，2c16dc6 起可證）：solver-staging dep 7086433467 **success**，部署後 /health 三連 200（0.63/0.27/0.23s，ok/database/capabilities 正常，熱啟動驗證 #43 重試語意受惠）。web-staging 未重複部署（Render 差異偵測略過 web——本 push 對 web 無 diff）。正式 solver 未動。
 
 ## 2026-10-15 R75（20min）他人修復併入：#46 sticky 操作面板被靜態表頭撐開偏移（070b25a/PR20）
 
