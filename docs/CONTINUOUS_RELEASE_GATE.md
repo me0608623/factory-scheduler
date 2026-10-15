@@ -7,6 +7,12 @@
 > - **staging**：`fb7e002 / index-qs4RQdPX.js`，保留 R69 真雲端離線重試修正。測試 solver 本輪一次 20 秒健康請求逾時，未據此宣稱整站功能全過。真跨帳戶/真手機、Realtime 恢復、完整衝突/匯出驗收仍未完成。
 > - **追蹤交接**：本輪查得舊 `automation`（10 分）與 `20`（20 分）均 PAUSED，未擅自啟用或重複建立。新 agent 使用 `HANDOFF_RELEASE_20MIN_2026-10-15.md` 的 prompt 接續；每輪做實際缺陷/驗收，不回到只有健康檢查。正式1023/角色/setup_pending/0037紅線不變。
 
+## 2026-10-15 R75（20min）他人修復併入：#46 sticky 操作面板被靜態表頭撐開偏移（070b25a/PR20）
+
+- 發現：他人分支 fix-sticky-header-offset-20261015（070b25a，基於 main）＋已開 PR20。缺陷：`updateHeaderVar` 一律以表頭 `bottom` 設 `--hdr-h`——表頭是 static（會滾走）時，sticky 操作面板仍保留上方保留空間＝滾動後面板偏移。修法：僅 sticky/fixed 表頭才取 bottom，否則 0（Math.max 防負值）。附 2 測試（801-900px 靜態表頭滾動/重繪後不偏移；sticky/fixed 保留 bottom）。
+- 併入：普通 merge（保留他人提交）；header-offset 2/2、全套 **865/865**＋build 過。staging 部署待本輪後續。
+- PR19（#45 正式修復）仍 OPEN/MERGEABLE/CI 綠——**待使用者授權**（R73 起）；PR20 同屬待授權批次。
+
 ## 2026-10-15 R74（20min）優先項③ PASS：隔離排班桌面/手機可見性＋日期/廠別切換（staging 實測，零寫入）
 
 - **PR19 現況**：他人修復分支已開 PR19（d13ffee）——MERGEABLE、10 項 CI 全 SUCCESS；正式修復路徑就緒，仍待使用者授權（R73 已請求）。
