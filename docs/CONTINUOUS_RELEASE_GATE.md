@@ -13,7 +13,7 @@
 - **缺陷#43（優先項①）**：staging solver 免費版冷啟動實測（curl 三連，2026-10-15）：第 1 次 60 秒無回應（喚醒中）、第 2 次 200/4.35s、第 3 次 200/0.33s。舊版 `SOLVER.check` 單次逾時（test 模式 45s）在冷啟動期間必失敗，且該 session 不再自動重試（啟動檢查失敗即 up=false）。R70 觀察到的「20 秒 TimeoutError」同源。
 - **最小修正（web/src/solver.js check()）**：有界重試——`retries` 參數（預設 test 模式 2、正式/本機 0）、每次失敗間隔 3 秒、epoch 守門不變（較新 check 蓋掉舊輪，含每次重試再驗）。單次逾時上限仍 45s（未放寬）；涵蓋冷啟動窗 ~140s。未動 post() 120s、未重部署 solver、未改 CORS/防護。
 - **重現/鎖定**：新測試 `web/tests/solver-check-retry.test.mjs` 四案例——2 失敗後成功（3 次呼叫、~6s 間隔）、重試耗盡恰 retries+1 次、非 test 預設單次、舊輪被新輪蓋掉（epoch）。修復前：成功路徑缺 return 導致無限循環（自抓自修，先 RED 後 GREEN）；全套 web **861/861**＋build 過。
-- 部署：runtime 變更（web）→ staging 部署＋bundle 驗證待本輪後續步驟。
+- staging 部署驗收：CI 先綠（branch run 全 success）→ 前進 codex/excel-friendly-ui-20260930（fb7e002→2c16dc6）→ deployment **success**；cache-buster 得新 bundle index-CNXlfaBe.js，內含壓縮形狀 `const i=1+(Number.isInteger(n)&&n>=0?n:He.mode==="test"?2:0)` 與 `/health` 重試迴圈＝#43 上線。
 
 ## 2026-10-15 R70 使用者授權略過剩餘功能門檻，隔離核對後合併正式
 
