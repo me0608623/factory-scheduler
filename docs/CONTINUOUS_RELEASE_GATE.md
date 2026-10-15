@@ -11,6 +11,7 @@
 - 發現：他人分支 fix-print-labels-20261015（28662a7，基於 main，已開 PR33）。缺陷：`printDaySchedule` 的工單格 `esc(o.code)` 有跳脫，但 `prod(o.pid)?.name` 與 `stepName(b)` **未跳脫**——產品/工序名含 `<` 時可注入 HTML 到列印文件（資料來自工單主檔＝老闆輸入，屬防禦縱深缺口）。修法：兩處補 `esc()`。
 - 併入：普通 merge；print-labels **2/2**（`<img onerror>` 名稱以純文字渲染；封鎖後重試重印完整文件）＋我的 print-popup-guard 仍綠（同檔共存）、全套 web **893/893**＋build 過。staging 部署待後續。
 - 待授權批次：PR19-33 十五件。
+- staging 部署驗收：CI 綠→前進 stage 分支（ff1c422→89164bf）→deployment **success**。PR16 分支同步。
 
 ## 2026-10-16 R117（20min）狀態保持輪（全線不變）
 
