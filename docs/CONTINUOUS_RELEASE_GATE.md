@@ -6,6 +6,12 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-15 R95（20min）#48 staging 實證：表格標記以 (project,user) 隔離鍵落localStorage
+
+- 流程（真實 staging、既有 session）：欠缺品項頁 → 點一列「標記／填色」→ 選黃 → 儲存 → localStorage 出現鍵 **`fsched-table-marks-v1:account:["https://fkefarcwadvyqqjcjxvp.supabase.co","05a27bab-…"]`**＝(專案,使用者) 隔離鍵（修復前＝裸 `fsched-table-marks-v1` 跨帳戶共享）。標記前無任何 marks 鍵（乾淨起始）；零錯誤零 toast。
+- 遺留：隔離專案裝置 localStorage 多一筆 rush 列黃標（本機偏好、不進資料庫；可由使用者在此裝置清除）。#47/#49–#54 仍由單元測試鎖定。
+- 待授權批次不變（PR19-29）。
+
 ## 2026-10-15 R94（20min）#45 staging 端到端 PASS：輪班草稿建立→持久化→獨立回讀（迴歸修復實證）
 
 - 流程（真實 staging、既有 session）：更多→輪班表→「＋建立週期草稿」→名稱改 **TEST-r94-rscreate**→「建立草稿」→ **save_staff_rosters POST 200 恰一次**、視窗切到「TEST-r94-rscreate · 固定班 · 草稿」工作表、**零 TypeError/toast**（正式站未修前此步拋 `p is not defined`）。reload 後重進輪班表清單＝**TEST-r94-rscreate 存在**（獨立回讀持久化確認）。
