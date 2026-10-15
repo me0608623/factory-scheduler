@@ -7,6 +7,14 @@
 > - **staging**：`fb7e002 / index-qs4RQdPX.js`，保留 R69 真雲端離線重試修正。測試 solver 本輪一次 20 秒健康請求逾時，未據此宣稱整站功能全過。真跨帳戶/真手機、Realtime 恢復、完整衝突/匯出驗收仍未完成。
 > - **追蹤交接**：本輪查得舊 `automation`（10 分）與 `20`（20 分）均 PAUSED，未擅自啟用或重複建立。新 agent 使用 `HANDOFF_RELEASE_20MIN_2026-10-15.md` 的 prompt 接續；每輪做實際缺陷/驗收，不回到只有健康檢查。正式1023/角色/setup_pending/0037紅線不變。
 
+## 2026-10-15 R72（20min）優先項② Blueprint AI 旗標漂移——render.yaml 改 sync:false（防漂移，未部署）
+
+- **漂移源確認**：render.yaml 明文 `AI_SCHEDULE_DATA_APPROVED="false"`、`SCHEDULE_CHAT_AI_ENABLED="false"`——每次 Blueprint 同步（main 變更即觸發）都會蓋掉 dashboard 值。R70 的 true→false 蓋掉正源於此。
+- **正式現況核實**：solver /health 仍含 `schedule_chat_ai_v1`＝兩旗標仍 true（R70 恢復後未被再蓋；release-gate 分支推送不觸 main、無新 blueprint sync）。
+- **安全性論證（修前查證）**：solver/main.py:68、chat.py:193/195 皆嚴格 `=='true'`——環境變數缺失/空＝停用。故 `sync:false` 在兩情境都安全：①正常同步＝保留 dashboard 值（防漂移）；②服務從 Blueprint 重建＝缺失即停用（fail-closed，不暗含資料外傳同意）。
+- **最小修正**：render.yaml 兩旗標 `value:"false"` → `sync:false`（同檔既有密鑰與 VITE_TEST_* 預留欄位的既有慣例），附註解說明。結構自檢（每個 key 區塊仍三選一）＋web 861/861 未受影響。
+- **部署狀態**：僅 commit 到 release-gate 分支——**不觸 main、不觸發 Blueprint 同步、不部署**（未經新的人類授權不合 main/不改正式）。下次經授權合 main 時，此修正自動生效於其後的 Blueprint 同步。正式兩旗標維持 dashboard 的 true。
+
 ## 2026-10-15 R71（20min 系列首輪）20分鐘追蹤已建立＋缺陷#43 solver 冷啟動健康檢查有界重試
 
 - **排程建立**：舊排程清單為空（15min 已停）；唯一新 automation-8cd66164「每20分鐘：正式發布後持續追蹤」ACTIVE、首次觸發約 20 分後、recurring=true——回報實際建立結果非僅 prompt。

@@ -19,10 +19,13 @@ services:
         sync: false
       - key: SOLVER_DISABLE_SNAPSHOT_API
         value: "1"
+      # 這兩個 AI 旗標由 Render dashboard 管理（sync:false）：Blueprint 同步不得用檔案值蓋掉
+      # 既有設定（2026-10-15 曾把正式 true 蓋成 false）。程式碼為嚴格 'true' 判斷——
+      # 服務重建時缺失＝停用（fail-closed），不暗含資料外傳同意。
       - key: AI_SCHEDULE_DATA_APPROVED
-        value: "false"
+        sync: false
       - key: SCHEDULE_CHAT_AI_ENABLED
-        value: "false"
+        sync: false
       - key: SCHEDULE_CHAT_PROVIDER
         value: zai_coding
       - key: SCHEDULE_CHAT_MODEL
