@@ -7,6 +7,12 @@
 > - **staging**：`fb7e002 / index-qs4RQdPX.js`，保留 R69 真雲端離線重試修正。測試 solver 本輪一次 20 秒健康請求逾時，未據此宣稱整站功能全過。真跨帳戶/真手機、Realtime 恢復、完整衝突/匯出驗收仍未完成。
 > - **追蹤交接**：本輪查得舊 `automation`（10 分）與 `20`（20 分）均 PAUSED，未擅自啟用或重複建立。新 agent 使用 `HANDOFF_RELEASE_20MIN_2026-10-15.md` 的 prompt 接續；每輪做實際缺陷/驗收，不回到只有健康檢查。正式1023/角色/setup_pending/0037紅線不變。
 
+## 2026-10-15 R89（20min）#55 staging 實證：下載檔案的列印設定在往返後完整保留（landscape/fitToPage/1/1）
+
+- 驗證方式：staging 瀏覽器實際點「下載彩色排程 Excel」→ 攔 objectURL 抓回 bytes（11,294）→ base64 帶回 node → **exceljs 重新載入**（真往返）→ pageSetup＝`{orientation:"landscape", fitToPage:true, fitToWidth:1, fitToHeight:1}`、雙工作表（時間×機台／排程明細）——**#55 修復在 staging 線上檔案實證**（修復前這些設定序列化時全部遺失）。
+- 本輪無程式碼變更；全程零資料寫入；分頁已清理。與 R77（位元組 zip 結構）、R80（CSV 內容）＋本輪（列印設定往返）＝匯出面三層證據齊。
+- 待授權批次不變：PR19-29 十一件。
+
 ## 2026-10-15 R88（20min）他人修復併入：#55 匯出 Excel 列印版面設定寫錯屬性（9fbb888/PR29）
 
 - 發現：他人分支 fix-excel-print-layout-20261015（9fbb888，基於 main，已開 PR29）。缺陷：`grid.properties.pageSetup=...`——ExcelJS 的 pageSetup 在 worksheet 根層（`grid.pageSetup`），寫到 `properties` 下＝序列化時**整段列印設定遺失**（開啟檔案非橫向、非一頁式）。修法：`Object.assign(grid.pageSetup,...)`。
