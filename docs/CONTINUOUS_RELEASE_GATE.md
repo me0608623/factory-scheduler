@@ -7,6 +7,12 @@
 > - **staging**：`fb7e002 / index-qs4RQdPX.js`，保留 R69 真雲端離線重試修正。測試 solver 本輪一次 20 秒健康請求逾時，未據此宣稱整站功能全過。真跨帳戶/真手機、Realtime 恢復、完整衝突/匯出驗收仍未完成。
 > - **追蹤交接**：本輪查得舊 `automation`（10 分）與 `20`（20 分）均 PAUSED，未擅自啟用或重複建立。新 agent 使用 `HANDOFF_RELEASE_20MIN_2026-10-15.md` 的 prompt 接續；每輪做實際缺陷/驗收，不回到只有健康檢查。正式1023/角色/setup_pending/0037紅線不變。
 
+## 2026-10-15 R82（20min）他人修復併入：#51 反饋清單過時回應覆寫（cffd22e/PR25）
+
+- 發現：他人分支 fix-feedback-request-owner-20261015（cffd22e，基於 main，已開 PR25）。缺陷：`feedback-list` 的 RPC 回應只檢查 `UI.modal?.t==="feedback-list"`——舊請求的回應可覆寫**重開後的新清單**（同型 modal 無個別身分）；且不看 returned error、不看帳戶/角色變更。修法：捕獲 store/client/user/epoch/role 五元組＋modal 物件身分，`current()` 全比對（與本系列 directWriteOwner 同構）；returned error 進 throw；過時成功/失敗都靜默丟棄。
+- 併入：普通 merge；feedback-request **4/4**（舊成功不覆寫重開清單、取消後失敗不關別的視窗、returned error 顯示可重試、身分變更後忽略）、全套 web **877/877**＋build 過。staging 部署待後續。
+- 待授權批次：PR19-25 七件。
+
 ## 2026-10-15 R81（20min）他人修復併入：#50 LINE 設定寫入被拒仍報成功（7ca3b6a/PR24）
 
 - 發現：他人分支 fix-line-settings-save-error-20261015（7ca3b6a，基於 main，已開 PR24）。缺陷：`ln-save` 對 supabase upsert 只看 throw、不看 **returned error**（RLS 拒絕／約束失敗走 error 欄位）→ 寫入被拒仍關窗＋「已儲存」成功 toast＝靜默失敗。修法：解構 `{error}`、`if(error)throw error` 進既有 catch（保留表單＋真實訊息＋可重試）。
