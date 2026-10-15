@@ -7,6 +7,13 @@
 > - **staging**：`fb7e002 / index-qs4RQdPX.js`，保留 R69 真雲端離線重試修正。測試 solver 本輪一次 20 秒健康請求逾時，未據此宣稱整站功能全過。真跨帳戶/真手機、Realtime 恢復、完整衝突/匯出驗收仍未完成。
 > - **追蹤交接**：本輪查得舊 `automation`（10 分）與 `20`（20 分）均 PAUSED，未擅自啟用或重複建立。新 agent 使用 `HANDOFF_RELEASE_20MIN_2026-10-15.md` 的 prompt 接續；每輪做實際缺陷/驗收，不回到只有健康檢查。正式1023/角色/setup_pending/0037紅線不變。
 
+## 2026-10-15 R76（20min）他人修復併入：#47 剪枝模型漏計切換成本（3188171/PR21）
+
+- 發現：他人分支 fix-pruned-switch-objective-20261015（3188171，基於 main）＋已開 PR21。缺陷：solver 的 sw_emp/sw_mach 切換成本在剪枝候選下（a）用剪枝後 pairs 推導員工/機台集合（誤差）、（b）lits 為空時 term 整條不加＝實際有換人卻零罰。修法：`switch_choices` 於剪枝前自完整 ops 捕獲（emp/mach 集合）；lits 空時 `keep==0` 固定並照加 term。
+- 併入：普通 merge（保留他人提交）。本機驗證：`uv run --frozen python -m pytest`：新增 test_pruned_objective **3/3**、全套 solver **177 passed**（2:15）；web **865/865**。
+- **部署注意**：此為 solver runtime 變更——staging solver（factory-scheduler-solver-staging）與正式 solver 均由 Render 端分支/設定觸發；本輪僅推送 release-gate 分支與 CI，**不部署任何 solver**（未變服務不重複部署；正式待授權）。staging solver 是否隨 stage 分支 auto-deploy 由 Render 設定決定，本輪查 deployments 清單佐證。
+- 待授權批次更新：PR19（#45）＋PR20（#46）＋PR21（#47）皆就緒。
+
 ## 2026-10-15 R75（20min）他人修復併入：#46 sticky 操作面板被靜態表頭撐開偏移（070b25a/PR20）
 
 - 發現：他人分支 fix-sticky-header-offset-20261015（070b25a，基於 main）＋已開 PR20。缺陷：`updateHeaderVar` 一律以表頭 `bottom` 設 `--hdr-h`——表頭是 static（會滾走）時，sticky 操作面板仍保留上方保留空間＝滾動後面板偏移。修法：僅 sticky/fixed 表頭才取 bottom，否則 0（Math.max 防負值）。附 2 測試（801-900px 靜態表頭滾動/重繪後不偏移；sticky/fixed 保留 bottom）。
