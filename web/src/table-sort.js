@@ -6,7 +6,12 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": 
 export function dateVal(v) {
   if (v == null || v === "") return null;
   const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return m ? +(m[1] + m[2] + m[3]) : null;   // YYYYMMDD 數值比較；無效 → null（兩個方向都墊底）
+  if (!m) return null;
+  const year = +m[1], month = +m[2], day = +m[3];
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (month < 1 || month > 12 || day < 1 || day > days[month - 1]) return null;
+  return +(m[1] + m[2] + m[3]);   // YYYYMMDD 數值比較；無效 → null（兩個方向都墊底）
 }
 export function timeVal(h, m) {
   // 只在時、分皆有值且有效時排序；部分填寫也保持「未知」，不補成午夜。
