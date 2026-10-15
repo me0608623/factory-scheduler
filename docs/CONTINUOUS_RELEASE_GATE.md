@@ -1,11 +1,10 @@
 # 持續缺陷探索與發布驗收
 
-> **狀態總覽（R45 起常態更新；輪段詳細證據往下）**
-> - **本系列修復**：#32–#42 共 11 件（離線靜默丟失×2、衝突復活×2、undo 覆蓋遠端、null-modal 家族×3 大類 38 處、realtime 輪詢備援、日視圖平方級效能 20×、列印彈出封鎖崩潰）。測試 web 430→853。
-> - **R70 正式發布**：使用者明確同意先核對隔離、跳過其餘未完成驗收後合併部署；不是所有功能驗收 PASS。PR16 已合併 `e0e6f65`，PR18 已合併 `3c1e88f`（後者只增文件）。正式 web/solver runtime 均為 `e0e6f65`，web bundle `index-CV39COdK.js`；main Tests **857/857 web、57/57 tools、174 solver PASS**。
-> - **環境隔離 PASS**：正式三個原始 VITE 值逐值不變；新增三個 VITE_TEST 值並保存回讀一致，僅指向 `fkefarcwadvyqqjcjxvp` 與 staging solver。正式網站 `?mode=test` 實見隔離登入提示、正式/測試入口雙向切換正常；本輪未登入或寫入正式資料，未遷移。
-> - **staging**：`fb7e002 / index-qs4RQdPX.js`，保留 R69 真雲端離線重試修正。測試 solver 本輪一次 20 秒健康請求逾時，未據此宣稱整站功能全過。真跨帳戶/真手機、Realtime 恢復、完整衝突/匯出驗收仍未完成。
-> - **追蹤交接**：本輪查得舊 `automation`（10 分）與 `20`（20 分）均 PAUSED，未擅自啟用或重複建立。新 agent 使用 `HANDOFF_RELEASE_20MIN_2026-10-15.md` 的 prompt 接續；每輪做實際缺陷/驗收，不回到只有健康檢查。正式1023/角色/setup_pending/0037紅線不變。
+> **狀態總覽（常態更新；輪段詳細證據往下）**
+> - **正式站**：runtime `e0e6f65`（PR16/PR18 已合併；web bundle index-CV39COdK.js、solver dep-db864um89）。`?mode=test` 三個 VITE_TEST 值已設定、只連隔離 fk 專案＋staging solver（隔離核對 PASS）。**正式站待修**：#45 rs-create 迴歸（正式「輪班表→新增」會失敗）。
+> - **staging（領先正式）**：runtime `0e934c8+`——含 #43 solver 冷啟動有界重試、#45–#55 共 11 件協同修復（rs-create、sticky 面板、切換成本、標記隔離、存檔並發、LINE/反饋/重置/情境誠實回報、日期排序、xlsx 列印設定）、render.yaml AI 旗標防漂移（sync:false，未部署生效）。web **885/885**、solver **177/177**。
+> - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
+> - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
 ## 2026-10-15 R91（20min）Realtime 平台檢查：**仍未恢復**（帶金鑰 WS 500 重現）——ticket 續待
 
