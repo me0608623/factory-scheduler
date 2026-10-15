@@ -6,6 +6,12 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-15 R97（20min）他人修復併入：#56 排隊視圖交接診斷用計畫量而非完成量（72af57f/PR30）
+
+- 發現：他人分支 fix-queue-handoff-quantity-20261015（72af57f，基於 main，已開 PR30）。缺陷：work-queue 交接批量診斷的前站量用 `b.qty`（計畫量）——前站其實只完成 20/100 時仍顯示「可安排」；與 #22 的口徑原則（完成認現場回報）不一致。修法：`effectiveBlockQty`（完成以 qtyDone 計、未完成保留計畫產能）。附加價值：補排替代段可滿足交接、batch=0 語意鎖定。
+- 併入：普通 merge；queue-handoff-quantity **2/2**（完成量診斷＋不可變性、未完成保留產能＋補排滿足＋batch 語意）、全套 web **887/887**＋build 過。staging 部署待後續。
+- 待授權批次：PR19-30 十二件。
+
 ## 2026-10-15 R96（20min）#50 staging 實證：LINE 設定被 RLS 拒絕時表單保留＋真實訊息（拒絕不再假成功）
 
 - 方法（真實 staging、既有 session）：頁內 攔 `line_notify_settings` 寫入並模擬 **403 RLS 拒絕**（returned error 形狀）→ 開 LINE 通知設定 → 儲存。
