@@ -2237,7 +2237,7 @@ Object.assign(MODAL_ACT,{
     await applyManualPreview(P,{
       accepting(){m.applying=true;renderModal();},
       close(e){closeModal();render();if(e)toast(e.message);},
-      fail(){render();closeModal();toast('未確認儲存，畫面已回復；請查看右上角同步狀態');},
+      fail(pending){render();closeModal();toast(tx(pending?'調整尚未確認儲存；內容已保留，請按上方儲存狀態重試。':'排程未套用，請重新預覽。'));},
       done(moved,P){closeModal();dpApplied(moved,P);}
     });
   },
@@ -2272,6 +2272,7 @@ async function applyManualPreview(P,ui){
     validateGeneralWork(next,{today:todayStr(),baseAssignments:assignments(S)});
   }
   catch(e){ui.close(e);return;}
+  const activeStore=STORE,user=STORE.session?.user?.id,authEpoch=STORE.authEpoch||0;
   // canPermission 在 PV 模式一律 false（與自動排程 pvApply 相同：先離開預覽再寫入）
   ui.accepting();
   pushUndo();S=next;
@@ -2279,10 +2280,14 @@ async function applyManualPreview(P,ui){
     ...P.unpinned.map(x=>({k:"info",t:x.label+"：解除固定後順延"})),...P.lines];
   const shifted=P.ops.filter(x=>![...x.prev,...x.next].some(b=>b.id===P.oldId)).length;
   const saved=await commit({kind:"move",title:(P.isNew?"手動排入 ":"手動調整 ")+P.movedLabel+(shifted?"，連帶調整 "+shifted+" 道工序":""),lines});
+  if(STORE!==activeStore||STORE.session?.user?.id!==user||(STORE.authEpoch||0)!==authEpoch||S!==next)return;
   if(!saved){
+    // queueSync retries the current S. Rolling it back here silently retries the old board.
+    // A conflict/permission recovery has already replaced S and returned above.
+    if(SYNC.state==='error'){ui.fail(true);return;}
     undoStack.pop();
-    if(S===next){S=JSON.parse(P.base);render();}
-    ui.fail();return;
+    S=JSON.parse(P.base);render();
+    ui.fail(false);return;
   }
   ui.done(moved,P);
 }
@@ -2303,7 +2308,7 @@ async function pvApplyManual(){
   await applyManualPreview(P,{
     accepting(){exitManualPreview(false);toast("套用中…");},
     close(e){exitManualPreview(false);if(e)toast(e.message);},
-    fail(){render();toast('未確認儲存，畫面已回復；請查看右上角同步狀態');},
+    fail(pending){render();toast(tx(pending?'調整尚未確認儲存；內容已保留，請按上方儲存狀態重試。':'排程未套用，請重新預覽。'));},
     done:dpApplied
   });
 }
