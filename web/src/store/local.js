@@ -68,7 +68,9 @@ export class LocalStore {
   }
   async saveScenario(item) {
     validateScenario(item.payload);
-    let items=[];try{items=JSON.parse(localStorage.getItem(SCENARIOS)||'[]');}catch{}
+    let raw;
+    try{raw=localStorage.getItem(SCENARIOS);}catch{throw new Error('情境清單讀取失敗，未儲存新情境，請稍後重試');}
+    let items=[];try{items=JSON.parse(raw||'[]');}catch{}
     const old=items.find(x=>x.id===item.id);
     if(old){if(JSON.stringify(old)!==JSON.stringify(item))throw new Error('情境代號已使用');return old.id;}
     if(items.length>=20)throw new Error('最多保存 20 個情境');
