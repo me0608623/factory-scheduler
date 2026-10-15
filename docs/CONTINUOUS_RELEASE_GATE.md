@@ -7,6 +7,13 @@
 > - **staging**：`fb7e002 / index-qs4RQdPX.js`，保留 R69 真雲端離線重試修正。測試 solver 本輪一次 20 秒健康請求逾時，未據此宣稱整站功能全過。真跨帳戶/真手機、Realtime 恢復、完整衝突/匯出驗收仍未完成。
 > - **追蹤交接**：本輪查得舊 `automation`（10 分）與 `20`（20 分）均 PAUSED，未擅自啟用或重複建立。新 agent 使用 `HANDOFF_RELEASE_20MIN_2026-10-15.md` 的 prompt 接續；每輪做實際缺陷/驗收，不回到只有健康檢查。正式1023/角色/setup_pending/0037紅線不變。
 
+## 2026-10-15 R90（20min）授權後執行計畫（一鍵批次）——供使用者決策的具體內容
+
+- **現況**：staging＝release-gate 分支 0e934c8 runtime（領先正式 11 個修復 #45–#55＋#43 solver 重試＋render.yaml 防漂移）；正式＝e0e6f65。main CI 綠。十一個協同 PR（19–29）皆 MERGEABLE/CI 綠且已全部在我的分支內（普通 merge 保留他人提交）。
+- **授權後我將執行（順序）**：①核對 PR19–29 仍 MERGEABLE＋main 無新提交；②逐件普通 merge 進 main（衝突即停，不 force）；③main CI 全綠後等 Render auto-deploy（web＋solver，不手動觸發）；④核對兩服務 deployment success＋實際 SHA/bundle；⑤正式 web 瀏覽器抽驗：rs-create 修復（輪班新增可用）、?mode=test 入口、板面渲染；正式 solver /health＋capabilities；⑥錯誤紀錄視窗查詢。全程不動 1023 資料、不重跑 0037、不改 Auth/角色。
+- **風險評估**：11 件皆小修（1–15 行）＋各自測試；web 全套 885/885、solver 177/177 在本分支實測；staging 已運行同 runtime 數小時零錯誤。回滾路徑：Render dashboard revert 至 e0e6f65（既有服務，不新增資源）。
+- 本輪無程式碼變更、無部署。
+
 ## 2026-10-15 R89（20min）#55 staging 實證：下載檔案的列印設定在往返後完整保留（landscape/fitToPage/1/1）
 
 - 驗證方式：staging 瀏覽器實際點「下載彩色排程 Excel」→ 攔 objectURL 抓回 bytes（11,294）→ base64 帶回 node → **exceljs 重新載入**（真往返）→ pageSetup＝`{orientation:"landscape", fitToPage:true, fitToWidth:1, fitToHeight:1}`、雙工作表（時間×機台／排程明細）——**#55 修復在 staging 線上檔案實證**（修復前這些設定序列化時全部遺失）。
