@@ -1,5 +1,5 @@
 // 整列標記（人工填色＋文字標註）：以「表:列ID」為鍵，屬個人裝置偏好
-// （localStorage；跨帳號共享需產品決策，見 PR 說明）。與業務狀態（歸檔/已回廠/
+// （localStorage；雲端依專案與帳戶隔離，舊標記保留於本機模式）。與業務狀態（歸檔/已回廠/
 // 待確認）分開管理，不覆蓋正式業務欄位。
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -8,21 +8,41 @@ export const MARK_COLORS = [
   { k: "y", label: "黃" }, { k: "r", label: "紅" }, { k: "g", label: "綠" }, { k: "b", label: "藍" },
 ];
 
-let cache = null;
+let getStore = () => ({kind:'local'});
+let cache = null, cacheOwner = null;
+export function configureTableMarks(provider) {
+  getStore = provider;
+  cache = null; cacheOwner = null;
+}
+function context() {
+  const store = getStore();
+  if(store?.kind === 'local') return {key:KEY,owner:KEY};
+  const user=store?.session?.user?.id,project=store?.sb?.supabaseUrl;
+  if(store?.kind !== 'supabase' || !user || !project) return {key:null,owner:null};
+  const key=KEY+':account:'+JSON.stringify([project,user]);
+  return {key,owner:JSON.stringify([key,store.authEpoch||0])};
+}
+export function markOwner() { return context().owner; }
 function load() {
+  const {key,owner}=context();
+  if(owner!==cacheOwner){cache=null;cacheOwner=owner;}
+  if(!key){cache=null;return {};}
   if (cache) return cache;
-  try { cache = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; }
+  try { cache = JSON.parse(localStorage.getItem(key) || "{}") || {}; }
   catch (e) { cache = {}; }
   if (typeof cache !== "object" || Array.isArray(cache)) cache = {};
   return cache;
 }
 function save() {
-  try { localStorage.setItem(KEY, JSON.stringify(cache)); return true; }
+  const {key}=context();
+  if(!key)return false;
+  try { localStorage.setItem(key, JSON.stringify(cache)); return true; }
   catch (e) { return false; }   // 私密模式／額滿：保留記憶體狀態，回報失敗由 UI 提示
 }
 
 export function markOf(table, id) { return load()[table + ":" + id] || null; }
-export function setMark(table, id, mark) {
+export function setMark(table, id, mark, owner=markOwner()) {
+  if(!owner || owner!==markOwner())return false;
   const k = table + ":" + id;
   const c = load();
   if (mark) c[k] = mark; else delete c[k];

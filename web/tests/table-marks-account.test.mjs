@@ -1,0 +1,73 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+
+test('account switches, logout and relogin isolate marks without claiming legacy data',async()=>{
+  const legacy=JSON.stringify({'tf:row':{c:'y',n:'Legacy local note'}});
+  const storage=new Map([['fsched-table-marks-v1',legacy]]);
+  globalThis.localStorage={getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v)};
+  const marks=await import('../src/table-marks.js?accounts');
+  const store={kind:'supabase',sb:{supabaseUrl:'https://project-a.example'},session:{user:{id:'alice'}},authEpoch:0};
+  marks.configureTableMarks(()=>store);
+  assert.equal(marks.markOf('tf','row'),null,'unknown legacy ownership must not be assigned to Alice');
+  marks.setMark('tf','row',{c:'r',n:'Alice note'});
+  const aliceOwner=marks.markOwner();
+  store.session={user:{id:'alice'},access_token:'refreshed'};
+  assert.equal(marks.markOwner(),aliceOwner,'token refresh retains the same owner');
+  store.session={user:{id:'bob'}};store.authEpoch++;
+  assert.equal(marks.markOf('tf','row'),null,'Bob must not see Alice in-memory cache');
+  assert.equal(marks.setMark('tf','row',{c:'r',n:'Stale Alice edit'},aliceOwner),false);
+  marks.setMark('tf','row',{c:'b',n:'Bob note'});
+  store.session=null;store.authEpoch++;
+  assert.equal(marks.markOf('tf','row'),null);
+  assert.equal(marks.setMark('tf','row',{c:'g',n:'Signed out'}),false);
+  store.session={user:{id:'alice'}};store.authEpoch++;
+  assert.deepEqual(marks.markOf('tf','row'),{c:'r',n:'Alice note'});
+  assert.equal(marks.setMark('tf','row',null,aliceOwner),false,'old login cannot clear the new login');
+  store.session={user:{id:'bob'}};store.authEpoch++;
+  assert.deepEqual(marks.markOf('tf','row'),{c:'b',n:'Bob note'});
+  store.sb={supabaseUrl:'https://project-b.example'};
+  assert.equal(marks.markOf('tf','row'),null,'same user ID in another project is isolated');
+  assert.equal(storage.get('fsched-table-marks-v1'),legacy);
+  store.kind='local';
+  assert.deepEqual(marks.markOf('tf','row'),{c:'y',n:'Legacy local note'});
+  const fresh=await import('../src/table-marks.js?reload');
+  store.kind='supabase';store.sb={supabaseUrl:'https://project-a.example'};
+  fresh.configureTableMarks(()=>store);
+  assert.deepEqual(fresh.markOf('tf','row'),{c:'b',n:'Bob note'},'reload restores only the active account');
+});
+
+test('real mark actions reject stale modal writes and clears after account changes',async()=>{
+  const storage=new Map();
+  globalThis.localStorage={getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v)};
+  const marks=await import('../src/table-marks.js?actions');
+  const store={kind:'supabase',sb:{supabaseUrl:'https://example.test'},session:{user:{id:'a'}},authEpoch:0};
+  marks.configureTableMarks(()=>store);
+  const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+  const guard=source.split('\n').find(line=>line.includes("['mk-color','mk-clear','mk-save'].includes(act)"));
+  const cases=source.slice(source.indexOf('    case "row-mark":'),source.indexOf('    case "sz-in":'));
+  assert.ok(guard);
+  assert.match(source,/configureTableMarks\(\(\)=>STORE\)/);
+  const ctx={...marks,UI:{modal:null},$:()=>({value:'Alice draft'}),toast:()=>{},render:()=>{},renderModal:()=>{}};
+  ctx.openModal=m=>{ctx.UI.modal=m;};ctx.closeModal=()=>{ctx.UI.modal=null;};
+  vm.createContext(ctx);
+  vm.runInContext('function action(act,a){'+guard+'switch(act){'+cases+'}}',ctx);
+  const button={dataset:{t:'tf',id:'row',v:'g'}};
+  ctx.action('row-mark',button);
+  const stale=ctx.UI.modal;
+  store.session={user:{id:'b'}};store.authEpoch++;
+  marks.setMark('tf','row',{c:'b',n:'Bob note'});
+  for(const act of ['mk-save','mk-clear','mk-color']){
+    ctx.UI.modal=stale;ctx.action(act,button);
+    assert.equal(ctx.UI.modal,null);
+    assert.deepEqual(marks.markOf('tf','row'),{c:'b',n:'Bob note'});
+  }
+  ctx.action('row-mark',button);
+  ctx.action('mk-save',button);
+  assert.deepEqual(structuredClone(marks.markOf('tf','row')),{c:'b',n:'Alice draft'},'current owner can still save entered text');
+  const renderGuard=source.split('\n').find(line=>line.includes("m.t==='row-mark'&&"));
+  ctx.UI.modal=stale;ctx.m=stale;
+  vm.runInContext('(function(){'+renderGuard+'})()',ctx);
+  assert.equal(ctx.UI.modal,null,'old note is not rendered in the next account');
+});
