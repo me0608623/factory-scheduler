@@ -12,6 +12,7 @@
 - 發現：他人分支 fix-local-archive-concurrency-20261015（eba4610，基於 main，已開 PR23）。缺陷：`saveLegacyArchive` 原本「先 await list 再寫索引」＝讀改寫分離——同分頁兩次並發存檔都拿到舊索引，後寫覆蓋前寫＝**丟一筆索引項**（payload 留存但清單看不到）。修法：讀改寫改同步一段（同 tick 讀 index→寫 archive→寫 index）、重複 id 冪等、索引寫失敗只在已寫 payload 時回滾（wroteArchive 旗標）、壞索引不覆蓋不刪既有資料。
 - 併入：普通 merge；local-archive-concurrency **4/4**（並發雙存保留兩項、重複冪等、失敗回滾僅新 payload、壞索引不破壞）、全套 web **871/871**＋build 過。staging 部署待後續。
 - 待授權批次：PR19/20/21/22/23 五件。
+- staging 部署驗收：CI 綠→前進 stage 分支（38cae3f→cac15bd）→web-staging deployment **success**（新 bundle index-DtKzetQO.js；solver 無 diff未重部署）。PR16 分支同步。
 
 ## 2026-10-15 R78（20min）他人修復併入：#48 表格標記跨雲端帳戶隔離（e9b306a/PR22）
 
