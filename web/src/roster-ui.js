@@ -35,7 +35,7 @@ export function rosterUI({state,ui,esc,uid,canEdit,canMaster,open,close,syncInpu
   const actions={
     rosters:()=>open({t:'rosters'}),'rs-open':a=>open({t:'roster-sheet',id:a.dataset.id}),'rs-back':a=>open({t:'roster-sheet',id:a.dataset.id}),
     'rs-new':safe(()=>open({t:'roster-new'})),
-    'rs-create':safe(()=>{syncInputs();const d=ui.modal?.draft;if(!d)return;p=newRoster(state(),{id:uid(),start:d.start,factory:Number(d.factory)});Object.assign(p,d,{factory:Number(d.factory)});resetCells(p,state());save(p);open({t:'roster-sheet',id:p.id});}),
+    'rs-create':safe(()=>{syncInputs();const d=ui.modal?.draft;if(!d)return;const p=newRoster(state(),{id:uid(),start:d.start,factory:Number(d.factory)});Object.assign(p,d,{factory:Number(d.factory)});resetCells(p,state());save(p);open({t:'roster-sheet',id:p.id});}),
     'rs-cell':a=>open({t:'roster-cell',period:a.dataset.period,emp:a.dataset.id,date:a.dataset.date}),
     'rs-cell-save':safe(a=>{syncInputs();const m=ui.modal;if(!m?.draft)return;const c=current(a.dataset.id);if(!c)return;const p=structuredClone(c),d={...m.draft,shiftId:m.draft.shiftId||null,positionId:m.draft.positionId||null,pin:!!Number(m.draft.pin)};if(d.type!=='work'){d.shiftId=null;d.positionId=null;}p.cells=p.cells.map(c=>c.emp===d.emp&&c.date===d.date?d:c);save(p);open({t:'roster-sheet',id:p.id});}),
     'rs-shift':safe(a=>open({t:'roster-shift',id:a.dataset.id})),
