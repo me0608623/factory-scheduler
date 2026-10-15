@@ -6,6 +6,12 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-15 R94（20min）#45 staging 端到端 PASS：輪班草稿建立→持久化→獨立回讀（迴歸修復實證）
+
+- 流程（真實 staging、既有 session）：更多→輪班表→「＋建立週期草稿」→名稱改 **TEST-r94-rscreate**→「建立草稿」→ **save_staff_rosters POST 200 恰一次**、視窗切到「TEST-r94-rscreate · 固定班 · 草稿」工作表、**零 TypeError/toast**（正式站未修前此步拋 `p is not defined`）。reload 後重進輪班表清單＝**TEST-r94-rscreate 存在**（獨立回讀持久化確認）。
+- 遺留合成資料：隔離 fk 專案多一筆名為 TEST-r94-rscreate 的輪班草稿（標識清楚可供日後清理；staff_rosters 屬草稿域，不影響 12/8/20/103 排程基準）。
+- 至此 #43/#45/#46/#55＋#48 防漂移配置皆有 staging 級以上實證；其餘協同修復（#47/#49–#54）有單元測試鎖定。PR19-29 待授權不變。
+
 ## 2026-10-15 R92+R93（20min）狀態總覽塊更新＋#46 staging 瀏覽器實證
 
 - **R92**：狀態總覽塊（文件頂部）全面刷新——正式 e0e6f65／待修 #45、staging 0e934c8＋（#43＋#45–#55＋render.yaml 防漂移）、待使用者三項（批次授權／Realtime ticket／真手機跨帳戶）、web 885/885＋solver 177/177。
