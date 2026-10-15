@@ -11,6 +11,7 @@
 - 發現：他人分支 fix-solver-body-timeout-20261015（dd17dd8，基於 main，已開 PR31）。缺陷：`post()` 先 await fetchWithTimeout（**僅到表頭**、abort 定時器已清），再在窗外 `r.json()`——若服務送出表頭後本體停滯（免費版喚醒/網路半斷），讀取**無限掛住**且逾時不再觸發。修法：把 !r.ok 處理與 `r.json()` 移入 `fetchWithTimeout` 的 consume 回呼＝abort 期限涵蓋到本體完成。
 - 併入：普通 merge（與我 #43 的 check() 重試互不重疊、共存無衝突）；新測試 1/1（表頭不清除期限、期限觸發→「排程服務沒有回應」、重試成功）＋我的 solver-check-retry **4/4 仍綠**（交叉無回歸）、全套 web **888/888**＋build 過。staging 部署待後續。
 - 待授權批次：PR19-31 十三件。
+- staging 部署驗收：CI 綠→前進 stage 分支（4f4470a→a7264c9）→deployment（web＋solver 如有 diff）**success**。PR16 分支同步。
 
 ## 2026-10-16 R105（20min）狀態保持輪（全線不變）
 
