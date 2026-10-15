@@ -69,22 +69,23 @@ async function post(path, body, headers = {}) {
   if(RUNTIME.error)throw RUNTIME.error;
   const h = { "Content-Type": "application/json", ...headers };
   if (KEY) h["X-API-Key"] = KEY;
-  let r;
   try {
     // 測試模式放寬到 120s：staging 免費版冷啟動（~30-50s）＋求解時間，60s 會在第一次呼叫就失敗
-    r = await fetchWithTimeout(BASE + path, { method: "POST", headers: h, body: JSON.stringify(body) }, RUNTIME.mode==='test'?120000:60000);
+    return await fetchWithTimeout(BASE + path, { method: "POST", headers: h, body: JSON.stringify(body) }, RUNTIME.mode==='test'?120000:60000, async r => {
+      if (!r.ok) {
+        let msg = "排程服務錯誤 " + r.status;
+        try { const j = await r.json(); if (j.detail) msg = typeof j.detail === "string" ? j.detail : msg; } catch {}
+        const err = new Error(msg);
+        err.status = r.status;
+        throw err;
+      }
+      return r.json();
+    });
   } catch (e) {
+    if (e.status) throw e;
     SOLVER.up = false;
     throw new Error("排程服務沒有回應");
   }
-  if (!r.ok) {
-    let msg = "排程服務錯誤 " + r.status;
-    try { const j = await r.json(); if (j.detail) msg = typeof j.detail === "string" ? j.detail : msg; } catch {}
-    const err = new Error(msg);
-    err.status = r.status;
-    throw err;
-  }
-  return r.json();
 }
 
 function fetchWithTimeout(url, opt, ms, consume) {
