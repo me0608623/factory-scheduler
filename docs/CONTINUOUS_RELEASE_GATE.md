@@ -7,6 +7,12 @@
 > - **staging**：`fb7e002 / index-qs4RQdPX.js`，保留 R69 真雲端離線重試修正。測試 solver 本輪一次 20 秒健康請求逾時，未據此宣稱整站功能全過。真跨帳戶/真手機、Realtime 恢復、完整衝突/匯出驗收仍未完成。
 > - **追蹤交接**：本輪查得舊 `automation`（10 分）與 `20`（20 分）均 PAUSED，未擅自啟用或重複建立。新 agent 使用 `HANDOFF_RELEASE_20MIN_2026-10-15.md` 的 prompt 接續；每輪做實際缺陷/驗收，不回到只有健康檢查。正式1023/角色/setup_pending/0037紅線不變。
 
+## 2026-10-15 R91（20min）Realtime 平台檢查：**仍未恢復**（帶金鑰 WS 500 重現）——ticket 續待
+
+- 探測（隔離 fk 專案）：REST `/rest/v1/` 無金鑰＝401（正常防護）；realtime WS **無金鑰**＝401「No API key found」（合理）；但從 staging 公開 bundle 取出 publishable key（公開設計、非密鑰）後 **WS 帶金鑰＝HTTP 500**——與歷史故障簽名完全相同（WS 帶金鑰 500/REST 200）。正式專案 WS 同樣 401-without-key 形狀（未帶正式金鑰測，不需）。
+- 判定：staging Realtime 平台故障**未恢復**，輪詢備援（#40，60s）持續作為唯一同步通道（R69 實證 ~61 秒收斂）。優先項⑤的「Realtime 恢復證據」持續阻擋於 Supabase ticket——使用者側待辦。
+- 本輪無程式碼變更、無部署。
+
 ## 2026-10-15 R90（20min）授權後執行計畫（一鍵批次）——供使用者決策的具體內容
 
 - **現況**：staging＝release-gate 分支 0e934c8 runtime（領先正式 11 個修復 #45–#55＋#43 solver 重試＋render.yaml 防漂移）；正式＝e0e6f65。main CI 綠。十一個協同 PR（19–29）皆 MERGEABLE/CI 綠且已全部在我的分支內（普通 merge 保留他人提交）。
