@@ -7,6 +7,16 @@
 > - **staging**：`fb7e002 / index-qs4RQdPX.js`，保留 R69 真雲端離線重試修正。測試 solver 本輪一次 20 秒健康請求逾時，未據此宣稱整站功能全過。真跨帳戶/真手機、Realtime 恢復、完整衝突/匯出驗收仍未完成。
 > - **追蹤交接**：本輪查得舊 `automation`（10 分）與 `20`（20 分）均 PAUSED，未擅自啟用或重複建立。新 agent 使用 `HANDOFF_RELEASE_20MIN_2026-10-15.md` 的 prompt 接續；每輪做實際缺陷/驗收，不回到只有健康檢查。正式1023/角色/setup_pending/0037紅線不變。
 
+## 2026-10-15 R74（20min）優先項③ PASS：隔離排班桌面/手機可見性＋日期/廠別切換（staging 實測，零寫入）
+
+- **PR19 現況**：他人修復分支已開 PR19（d13ffee）——MERGEABLE、10 項 CI 全 SUCCESS；正式修復路徑就緒，仍待使用者授權（R73 已請求）。
+- **瀏覽器實測（staging 新分頁沿用既有 session，bundle index-CO_HuXT7.js＝5adf859）**：
+- ①桌面（1280px）10/15 1 廠：20 段方塊、11 欄、標題「1 廠 · 10/15（四） 排程」✓。
+- ②日期切 10/16：9 段，含保留的合成 A07（測試-趙六 組裝 150件 09:30–10:20）✓，零錯誤。
+- ③廠別切換：2 廠 5 段（標題隨之）→跨廠 14 段＋自動開跨廠加工總表（預期行為，關閉）→回 1 廠 9 段 ✓，全程零錯誤。
+- ④手機視角（390×844）：看板 9 段、`.scroller` 可水平捲動、頁面無橫向溢位（scrollWidth≤395）✓；A07 實際渲染寬 242px。真實座標點擊（CUA）A07 → 開啟資訊視窗「測試A07 測試-底座 · 組裝」✓；關閉復原。備忘：JS `.click()` 不觸發方塊開窗（掛在 pointerup）——探針限制，非產品缺陷。
+- **全程零寫入**（本輪僅導航/開關資訊視窗，未拖曳未確認任何變更）；錯誤收集器全程空。合成 A07 與既有資料未動。優先項③的拖曳/提示部分 R69 已有證據（不相容機台提示、確認停用），本輪不重複。
+
 ## 2026-10-15 R73（20min）迴歸披露：#45 rs-create ReferenceError——本系列 R29 引入、已進正式；他人分支 d13ffee 修復已併入
 
 - **發現**：fetch 見新分支 origin/codex/fix-roster-create-20261015（d13ffee，基於 main 3c1e88f）修 rs-create 的 `p is not defined`＋新增 roster-create.test.mjs。對照本分支重現：`api.actions['rs-create']()` 實拋 ReferenceError（safe() 轉英文 toast）。
