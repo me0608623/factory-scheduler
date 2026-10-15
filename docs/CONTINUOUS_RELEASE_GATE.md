@@ -7,6 +7,13 @@
 > - **staging**：`fb7e002 / index-qs4RQdPX.js`，保留 R69 真雲端離線重試修正。測試 solver 本輪一次 20 秒健康請求逾時，未據此宣稱整站功能全過。真跨帳戶/真手機、Realtime 恢復、完整衝突/匯出驗收仍未完成。
 > - **追蹤交接**：本輪查得舊 `automation`（10 分）與 `20`（20 分）均 PAUSED，未擅自啟用或重複建立。新 agent 使用 `HANDOFF_RELEASE_20MIN_2026-10-15.md` 的 prompt 接續；每輪做實際缺陷/驗收，不回到只有健康檢查。正式1023/角色/setup_pending/0037紅線不變。
 
+## 2026-10-15 R83（20min）他人修復併入×2：#52 本機重置失敗仍重載如成功（dcc4da0/PR26）、#53 情境清單讀取失敗靜默覆寫（5725165/PR27）
+
+- **#52**：`reset-local` 原本 `reset().then(reload)`＋catch 全吞——重置失敗仍 reload 看起來成功；且 `reset()` 把「索引讀取失敗」當空陣列＝**不刪任何鍵卻回報成功**。修法：reset 前驗證索引（非陣列/缺 id 即 throw 不刪）、部分刪除失敗如實上拋；app 端 confirmStep 後 disabled＋await＋失敗 toast 不 reload 可重試。
+- **#53**：`saveScenario` 讀 SCENARIOS 拋例外時 catch 吞成空陣列——**用空清單覆寫＝丟全部已存情境**。修法：讀取失敗改 throw 友善訊息（不儲存不覆寫），解析失敗仍走原本防護路徑。
+- 併入：普通 merge×2；local-reset 4/4＋scenario-read-failure 1/1（共 5 案例：失敗重置可重試、壞索引不刪、部分失敗不動無關鍵、真 handler 不 reload 可重試、讀取失敗不覆寫且重試保留雙情境）、全套 web **882/882**＋build 過。staging 部署待後續。
+- 待授權批次：PR19-27 九件。
+
 ## 2026-10-15 R82（20min）他人修復併入：#51 反饋清單過時回應覆寫（cffd22e/PR25）
 
 - 發現：他人分支 fix-feedback-request-owner-20261015（cffd22e，基於 main，已開 PR25）。缺陷：`feedback-list` 的 RPC 回應只檢查 `UI.modal?.t==="feedback-list"`——舊請求的回應可覆寫**重開後的新清單**（同型 modal 無個別身分）；且不看 returned error、不看帳戶/角色變更。修法：捕獲 store/client/user/epoch/role 五元組＋modal 物件身分，`current()` 全比對（與本系列 directWriteOwner 同構）；returned error 進 throw；過時成功/失敗都靜默丟棄。
