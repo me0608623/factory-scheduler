@@ -13,6 +13,7 @@
 - 審查意見：設計與本系列 #26/#28 的 unknown-ledger／owner 語意一致；不動業務欄位；登出（kind 仍 supabase 無 user）→ key null＝不讀不寫（fail-closed）。
 - 併入：普通 merge；table-marks-account 2/2、全套 web **867/867**＋build 過。staging 部署待後續。
 - 待授權批次：PR19/20/21/22 四件。
+- staging 部署驗收：CI 綠→前進 stage 分支（00803ea→38cae3f）→web-staging deployment **success**（solver 無 diff 未重部署）；新 bundle index-Bb8JMQji.js 內含 `account:` 組鍵形狀×4＝#48 上線。
 
 ## 2026-10-15 R77（20min）優先項④ PASS（部分）：Excel 實際下載位元組級解析＋#42 列印封鎖提示真實瀏覽器證據
 
