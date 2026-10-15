@@ -12,6 +12,7 @@
 - 發現：他人分支 fix-line-settings-save-error-20261015（7ca3b6a，基於 main，已開 PR24）。缺陷：`ln-save` 對 supabase upsert 只看 throw、不看 **returned error**（RLS 拒絕／約束失敗走 error 欄位）→ 寫入被拒仍關窗＋「已儲存」成功 toast＝靜默失敗。修法：解構 `{error}`、`if(error)throw error` 進既有 catch（保留表單＋真實訊息＋可重試）。
 - 併入：普通 merge；line-settings-save **2/2**（returned-error 與 thrown 兩路都保留表單不謊報）、全套 web **873/873**＋build 過。staging 部署待後續。
 - 待授權批次：PR19-24 六件。
+- staging 部署驗收：CI 綠→前進 stage 分支（cac15bd→cbd5fdd）→web-staging deployment **success**。PR16 分支同步。
 
 ## 2026-10-15 R80（20min）優先項④補項 PASS：CSV 下載內容級解析（R77 未驗項收尾）
 
