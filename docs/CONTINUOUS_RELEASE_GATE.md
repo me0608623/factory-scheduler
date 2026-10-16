@@ -6,6 +6,15 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R140（20min）— 自行修復：Realtime 每表一頻道（一表壞不毒化全部）
+
+- **修正（本人，c2b066f）**：R139 證實一張表未進 publication 即毒化整個 21+1 表頻道（WS 同 socket 多 topic 本可隔離）。`store/supabase.js` subscribe() 改為**每張表一個頻道**（`schedule-changes:<table>`＋account_permissions），`_subGen` generation 取代單頻道身分守衛，`_removeChannels()` 統一清理（subscribe 重入與 _clearSession 兩處）。**彙總語意不變**：任一頻道壞 → CHANNEL_ERROR（60 秒安全補讀持續）、全部 SUBSCRIBED 才回 SUBSCRIBED（app.js 消費端零改動）；健康表照常即時推送。
+- **測試**：新增 `realtime-channel-split.test.mjs` 4 測（全好彙總 SUBSCRIBED＋per-table 路由／毒化降級 CHANNEL_ERROR 但健康表仍推／重訂閱移除舊頻道＋舊 generation 回呼無效／無 session 21 表）。既有 `realtime-status.test.mjs` 4 測與 `layout-regression.test.mjs` 頻道清理測**改寫以保留原防護意圖**（舊設計的單頻道機制斷言 → 新每表頻道對應斷言：不宣稱即時、舊 generation 無效、stream error 降級且 join 不能掩蓋、登出清頻道保班表）。全量 **911/911**（907+4）、build 過。途中修正自己測試兩處：頻道數其實 21+1（原清單 21 表，非 22）；毒化順序須先全好再毒化才有 SUBSCRED 轉移。
+- **CI/部署**：CI run **38857766104** @c2b066f **success**；staging 快進 22d337f→c2b066f，deployment **7112064040** **success**；即時 bundle `index-CtBY-OGk.js` 實測含 `schedule-changes:"+` 每表命名與新結構。兩分頁（A/B）重載新 bundle 後 chip 仍「即時更新中斷」＝**正確**（4 表仍未進 publication，彙總任一壞即中斷；待使用者跑 ALTER PUBLICATION 後應直接翻轉）。
+- **未完成（下輪第一項）**：兩分頁即時推送實證（tabB 寫 tabA 免重載自動更新）——本輪發現「開加班」是多人員 modal 流程，需改走備忘等輕量寫入路徑。
+- **PR16 分支同步**：`codex/cloud-test-mode-release-20261012` → **72c8ff1** 已推送。合成資料無變更；正式環境未動（main e0e6f65）。
+- **下一項**：①兩分頁即時推送實證；②使用者三決策（批次合併 PR19–38＋正式部署／Realtime ticket＝先跑 ALTER PUBLICATION／第二帳戶、真手機）。
+
 ## 2026-10-16 R139（20min）— 優先項⑤重大進展：Realtime 中斷根因精確定位（4 張表未進 publication，毒化整個頻道）
 
 - **環境**：無新協同分支；worktree 949b87a 乾淨；main CI 綠 @e0e6f65；staging 維持 22d337f，不重複部署。頁內探測（金鑰僅存在頁面 context、不輸出）。
