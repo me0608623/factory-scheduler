@@ -9,7 +9,9 @@
 ## 2026-10-16 R129（20min）他人修復併入：#61 xlsx 匯出非同步期間切日期/廠別會誤標檔名（7b52164/PR35）
 
 - 發現：他人分支 fix-export-context-20261016（7b52164，基於 main，已開 PR35）。缺陷：`x-xlsx` 在 `await scheduleXlsx` 之後才讀 `UI.date/UI.factory` 組檔名——生成期間使用者切日期或廠別，下載檔名會標成新 context（內容卻是舊的）＝檔名與內容不符。修法：進入時即捕獲 date/factory 決定檔名與資料過濾，await 前後同源。
-- 併入：普通 merge；excel-export-context **2/2**（await 中切換不誤標、兩個並行匯出逆序完成各保其名）、全套 web **898/898**＋build 過。staging 部署待後續。待授權批次：PR19-35 十七件。
+- 併入：普通 merge；excel-export-context **2/2**（await 中切換不誤標、兩個並行匯出逆序完成各保其名）、全套 web **898/898**＋build 過。
+- staging 部署驗收：CI 綠→前進 stage 分支（d2026c8→97a25ee）→deployment **success**。PR16 分支同步。
+- 待授權批次：PR19-35 十七件。
 
 ## 2026-10-16 R128（20min）狀態保持輪（全線不變）
 
