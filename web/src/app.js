@@ -3679,7 +3679,7 @@ Object.assign(MODAL_ACT,{
     try{await STORE.setPassword(pw);closeModal();toast("登入密碼已設定");}
     catch(e){a.disabled=false;toast(e.message);}
   },
-  "reset-local":a=>{if(!confirmStep(a,"reset-local"))return;STORE.reset().then(()=>location.reload());},
+  "reset-local":async a=>{if(a.disabled||!confirmStep(a,"reset-local"))return;a.disabled=true;try{await STORE.reset();location.reload();}catch(e){toast(e.message);}finally{a.disabled=false;}},
   "solver-check":async()=>{await SOLVER.check();renderModal();toast(SOLVER.up?"已連上 OR-Tools 排程服務":"排程服務沒有回應："+SOLVER.url);}
 });
 
