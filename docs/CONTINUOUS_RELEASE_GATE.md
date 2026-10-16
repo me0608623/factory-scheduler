@@ -3,8 +3,56 @@
 > **狀態總覽（常態更新；輪段詳細證據往下）**
 > - **正式站**：runtime `e0e6f65`（PR16/PR18 已合併；web bundle index-CV39COdK.js、solver dep-db864um89）。`?mode=test` 三個 VITE_TEST 值已設定、只連隔離 fk 專案＋staging solver（隔離核對 PASS）。**正式站待修**：#45 rs-create 迴歸（正式「輪班表→新增」會失敗）。
 > - **staging（領先正式）**：runtime `4f4470a`——含 #43 solver 冷啟動有界重試、#45–#56 共 12 件協同修復（rs-create、sticky 面板、切換成本、標記隔離、存檔並發、LINE/反饋/重置/情境誠實回報、日期排序、xlsx 列印設定、排隊交接完成量）、render.yaml AI 旗標防漂移（sync:false，未部署生效）。web **887/887**、solver **177/177**。staging 實證：#43/#45/#46/#48/#50/#55＋#42 列印封鎖 toast＋#54 前門防禦；單元鎖定：#47/#49/#51–#53/#56。
-> - **最新門檻**：隔離 publication 4/4、staging/正式 Realtime 傳輸、第二帳戶跨瀏覽器同步均已於 R151 實測 PASS；只剩實體手機硬體上的排程顯示與拖曳預覽尚未驗證（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
+> - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
+
+## 2026-10-16 R167（人工授權執行）— 正式 publication 4/4＋PR40 合併部署 PASS
+
+- **正式 publication SQL（PASS）**：在 Supabase Dashboard 明確核對 `factory-scheduler / kjnnguekhshkhgycmryl` 後，依使用者授權執行且僅執行 `ALTER PUBLICATION supabase_realtime ADD TABLE public.machine_layout, public.machines, public.products, public.calendar_weekly;`；SQL Editor 回傳 `Success. No rows returned`。隨後唯讀查 `pg_publication_tables` 回傳 **4 rows / 4/4**：`calendar_weekly`、`machine_layout`、`machines`、`products`。
+- **Realtime 執行期驗證（PASS）**：由正式站線上 bundle 解析其正式 anon JWT（不輸出 token），直接對正式 Realtime 端點逐表 `phx_join`；四表 system status 均為 **ok**。已證明 R153 的 publication 根因消除。正式站當時為登出狀態，故登入後彙總 chip 尚未由本輪冒充驗收。
+- **PR40 合併（PASS）**：PR40 `codex/fix-line-save-owner-20261016` head `27beb2d`，差異僅 `web/src/app.js` 與新增 `web/tests/line-settings-owner.test.mjs`；mergeable CLEAN，既有 Tests／Deployment smoke test 全綠。解除 draft 後以普通 merge 合入 main，merge commit **`87cb15b9f4a9abb9b571373fec1a6f9edf62463c`**。
+- **main CI（PASS）**：Tests run **38925784468** frontend/database/solver 全綠；Deployment smoke test **38925784351** success；正式部署 workflow **38925784493** success。
+- **Render 正式部署（PASS）**：web deploy **dep-db94brmi0phs73c8pgl0** live、solver deploy **dep-db94brqjnfac73ah3lt0** live，兩者 commit 均為 `87cb15b`。正式 web 線上 bundle `/assets/index-XkMe5qkJ.js` 已驗證含 `line_notify_settings`、`authEpoch` ownership guard 與 `finally` 按鈕復原路徑。
+- **紅線**：未修改正式 1023 資料列、Auth、角色、setup_pending；未執行任何其他 SQL／migration；未建立 Render 資源或費用。publication 是既有 Realtime 發佈集的 metadata 調整。
+- **仍未驗**：登入正式站後的彙總 chip（本輪瀏覽器無正式登入 session）與實體手機硬體操作。隔離測試模式與跨帳戶同步沿用 R151–R153 已通過證據。
+
+## 2026-10-16 R166（20min）— 靜止輪：狀態不變（正式 SQL 仍未跑、PR40 待進 main）
+
+- main d3371d5、worktree 乾淨；正式 machines 仍 error、chip 仍中斷（17 表即時＋補讀）。待使用者＝正式 ALTER PUBLICATION／PR40 進 main／真手機驗收。
+
+## 2026-10-16 R165（20min）— 靜止輪：狀態不變（正式 SQL 仍未跑、PR40 待進 main）
+
+- main d3371d5、worktree 乾淨；正式 machines 仍 error、chip 仍中斷（17 表即時＋補讀）。待使用者＝正式 ALTER PUBLICATION／PR40 進 main／真手機驗收。
+
+## 2026-10-16 R164（20min）— 靜止輪：狀態不變（正式 SQL 仍未跑、PR40 待進 main）
+
+- main d3371d5、worktree 乾淨；正式 machines 仍 error、chip 仍中斷（17 表即時＋補讀）。待使用者＝正式 ALTER PUBLICATION／PR40 進 main／真手機驗收。
+
+## 2026-10-16 R163（20min）— 靜止輪：狀態不變（正式 SQL 仍未跑、PR40 待進 main）
+
+- main d3371d5、worktree 乾淨；正式 machines 仍 error、chip 仍中斷（17 表即時＋補讀）。待使用者＝正式 ALTER PUBLICATION／PR40 進 main／真手機驗收。
+
+## 2026-10-16 R162（20min）— 靜止輪：狀態不變（正式 SQL 仍未跑、PR40 待進 main）
+
+- main d3371d5、worktree 乾淨；正式 machines 仍 error、chip 仍中斷（17 表即時＋補讀）。待使用者＝正式 ALTER PUBLICATION／PR40 進 main／真手機驗收。
+
+## 2026-10-16 R161（20min）— 靜止輪：狀態不變（正式 SQL 仍未跑、PR40 待進 main）
+
+- main d3371d5、worktree 乾淨；正式 machines 仍 error、chip 仍中斷（17 表即時＋補讀）。待使用者＝正式 ALTER PUBLICATION／PR40 進 main／真手機驗收。
+
+## 2026-10-16 R160（20min）— 靜止輪：正式 SQL 仍未跑（machines 仍 error、chip 仍中斷）；PR40 待使用者
+
+- main 仍 d3371d5、worktree 乾淨（PR40 在 gate 分支 dc06f16 已上 staging 待使用者決定進 main）；正式 machines 復探仍 error；17 表照常即時＋補讀。待使用者＝正式 ALTER PUBLICATION（4 表）／PR40 進 main／真手機驗收。
+
+## 2026-10-16 R159（20min）— PR40 併入：LINE 設定儲存過時回應擁有權守衛（#65）
+
+- **新協同分支**：`codex/fix-line-save-owner-20261016`（27beb2d，PR40）。**缺陷**：`ln-save`（LINE 通知設定儲存）在 await 前未擷取身分——延遲的成功/錯誤回應會 `closeModal()` 關掉使用者後來開的**別的**對話框、顯示過時 toast、錯誤時按鈕不復原。屬既有 stale-reply 家族（同 #50/#51/#62 模式）的最後一處未防護點。
+- **修正（他人）**：await 前擷取 modal/store/client/user/authEpoch 五重身分＋`owns()` 檢查；成功僅在 owns 時 close＋toast、錯誤僅在 owns 時 toast、`finally` 恢復按鈕。新測試 `line-settings-owner.test.mjs`＝3 測試×5 身分維度×3 結果（15 場景：換 modal/store/client/user/epoch 後舊回應一律不動現有對話框、不出訊息、按鈕復原、寫入僅一次）。
+- **併入與驗證**：普通 merge → **dc06f16**（保留他人提交）。新測 3/3；web 全量 **914/914**（911+3）；build 過（8.6s）；CI **success**。
+- **staging 部署**：快進 `codex/excel-friendly-ui-20260930` c2b066f→dc06f16；deployment **7119938621 success**；即時 bundle `index-Bpx9CygF.js` 實測 upsert 附近含 authEpoch 守衛（minified 指紋）。
+- **PR16 分支同步**：→ **4cb389d** 已推送。
+- **正式 SQL（R158 狀態延續）**：publication 4 表仍未補、chip 仍中斷、17 表照常即時＋補讀。正式環境 main=d3371d5 未動（PR40 尚未進 main）。合成資料無變更。
+- **下一項**：PR40 待使用者決定進 main 時機；正式 ALTER PUBLICATION＋真手機驗收仍待使用者。
 
 ## 2026-10-16 R158（20min）— 靜止輪：正式 SQL 仍未跑（machines 仍 error、chip 仍中斷），其餘不變
 
@@ -46,7 +94,7 @@
 
 - **隔離 publication 已修（PASS）**：在 Supabase Dashboard 明確核對 `factory-scheduler-staging / fkefarcwadvyqqjcjxvp` 後執行使用者指定 SQL：`ALTER PUBLICATION supabase_realtime ADD TABLE public.machines, public.products, public.calendar_weekly, public.machine_layout;`。同次唯讀查 `pg_publication_tables` 回傳 **4/4**：`calendar_weekly`、`machine_layout`、`machines`、`products`。未在正式專案執行 SQL，未套 migration。
 - **staging 真 Realtime 恢復（PASS）**：重新讀既有 staging 組長分頁後 chip 為「雲端已儲存／即時已連線」；第二帳戶也同樣連線。這是實際頁面訂閱狀態，不再是 R150 的中斷狀態。
-- **正式 Realtime dashboard＋傳輸實測（PASS）**：正式 `factory-scheduler / kjnnguekhshkhgycmryl` 的 Realtime Settings 顯示 service enabled、public channels enabled、DB pool=2、Postgres Changes pool=2。Inspector 加入暫時公開頻道 `codex-health-20261016` 後收到 `sync`、`join` 與 `Subscribed to PostgreSQL`（`status=ok`），隨後停止監聽。未廣播、未寫正式 DB、未碰 1023/Auth/roles/setup_pending。
+- **正式 Realtime dashboard＋服務／傳輸層實測（PASS；非 app 全表 PASS）**：正式 `factory-scheduler / kjnnguekhshkhgycmryl` 的 Realtime Settings 顯示 service enabled、public channels enabled、DB pool=2、Postgres Changes pool=2。Inspector 加入暫時公開頻道 `codex-health-20261016` 後收到 `sync`、`join` 與 `Subscribed to PostgreSQL`（`status=ok`），隨後停止監聽。R153 後續逐表覆核證實 21 表中仍有 4 表未進 publication，故本項只證明服務／傳輸層；不能代表正式 app chip 已恢復。未廣播、未寫正式 DB、未碰 1023/Auth/roles/setup_pending。
 - **第二帳戶與跨瀏覽器同步（PASS）**：沿用既有 `me0608623+test-viewer@gmail.com`（未新建帳戶、未改密碼/角色），以一次性 magic link 登入獨立 Chrome；頁面顯示「電視／檢視」「排程唯讀」、10/16 隔離測試班表與「即時已連線」。IAB 的 `qa-lead@factory-scheduler.test` 將 10/16 加班由關→20:00，viewer 在不重載下立即顯示新狀態及「有新的變更」toast；lead 再關回，viewer 同步恢復「未開加班」。隔離測試資料已恢復原狀。
 - **手機版可自動驗收（部分 PASS；真機仍未驗）**：Chrome/IAB 以 390×844 驗證底部導覽、排程資料與大按鈕可見；lead 對 `測試X13` 方塊做真指標拖曳，成功進入「手動排班預覽」，並因變更落在已過時間而顯示「不能把新工作排在已經過去的時間」、停用確認；按取消後方塊仍為原 `08:00–08:40`，零寫入。這是桌面瀏覽器的手機尺寸/觸控路徑，不冒充實體手機硬體驗收；目前無已連接可控制的手機。
 - **未變更**：正式 1023 資料、正式 Auth/角色、正式 setup_pending、所有 migration、Render 部署與程式碼均未動；沒有新帳戶、沒有新資源或費用。
