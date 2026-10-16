@@ -6,6 +6,13 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-17 R173（20min）— 三套件本地全量刷新：solver 177/177、tools 43/43（root 語義）、web 922/922
+
+- **本地全量（gate 分支 e452aaf）**：solver `uv run pytest`＝**177 passed**（140.8s，與歷史基準一致）；tools 從 repo root 跑＝**43/43**；web 維持 **922/922**（R170）。三套件本地全綠。
+- **本地環境筆記（非缺陷）**：①tools 若從 `tools/` 目錄內直接跑，catalog-inventory 測試因 CWD 相對路徑解析成 `tools	ools...` 而失敗——從 repo root 跑即綠（CI 即此語義）；②encrypted-backup 的 8 個 age 測試硬依賴 `age`/`age-keygen` 二元（無則明確失敗、不靜默跳過——設計如此），本機未裝 age，CI 有裝且綠。兩者皆環境差異，非程式碼缺陷。
+- **狀態**：main 87cb15b、staging 2b7c606、無新分支/PR/部署、無合成資料變更。
+- **待人類**：①登入正式站看彙總 chip；②實體手機；③#66/#67/#68 併 main 授權。
+
 ## 2026-10-17 R172（20min）— 獵捕輪（無新缺陷）：scenario-save 覆核；#68 E2E 清理 DB 級確認
 
 - **獵捕覆核（無缺陷）**：`saveScenarioFromModal`＝11 條件擁有權（store/client/user/epoch/permission/modal/PV/S 身分＋JSON/state/date/factory/page/drawer/focus）＋未知結果同名重試沿用原 id（冪等）——非同步寫入面已系統性硬化，本輪抽樣再無未設防點。
