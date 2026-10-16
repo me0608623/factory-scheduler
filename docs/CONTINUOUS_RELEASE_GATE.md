@@ -6,6 +6,13 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R147（20min）— fs-hunt 待辦覆核：兩項機器候選均已在 main 實作（清單過時）；狀態靜止
+
+- **環境**：無新分支/無 main 變動（d3371d5）；worktree edf706b 乾淨；CI 綠；0 open PR。隔離 publication SQL 仍未跑（staging chip 重載後仍中斷）。
+- **fs-hunt NEXT_TASKS 覆核（報告最後更新 10-14，落後本迴圈）**：輪115 兩項「機器可做」候選——①excel.js 錯誤訊息 i18n：**已實作**＝`import-errors.js` 顯示層翻譯（PATTERNS＋ROW_MESSAGES＋TABLES/FIELDS/UNITS/LABELS 字典＋未辨識回傳原文的安全 fallback；app.js 匯入預覽經 `translateImportError` 顯示），其完整性測試 `import-errors.test.mjs` 本輪實跑 **3/3 綠**；②匯入解析 loading 回饋：**已實作**＝app.js 匯入 change handler 先開 `loading:true` modal（附註解「首次載入 excel 模組可能數秒，先給回饋」）。兩項均無需再動作，清單過時非缺陷。
+- **無新缺陷、無部署、無合成資料變更。**
+- **下一項**：監看新協同分支；使用者剩餘＝隔離 ALTER PUBLICATION SQL、正式 Realtime 服務檢查（dashboard）、第二帳戶/真手機驗收。
+
 ## 2026-10-16 R146（20min）— 正式專案 Realtime 診斷：傳輸層全斷（WS 1006×2），與隔離專案同時對照隔離可開＝服務本身故障
 
 - **環境**：無新分支/無 main 變動（d3371d5）；worktree 737ed18 乾淨；CI 綠。隔離 publication SQL 仍未跑（staging chip 仍中斷）。
