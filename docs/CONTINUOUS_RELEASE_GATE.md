@@ -6,6 +6,13 @@
 > - **最新門檻**：隔離 publication 4/4、staging/正式 Realtime 傳輸、第二帳戶跨瀏覽器同步均已於 R151 實測 PASS；只剩實體手機硬體上的排程顯示與拖曳預覽尚未驗證（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R153（20min）— 更正＋正式專案根因確定：同款 4 表未進 publication；先前「1006 傳輸層全斷」係探測抓錯 key 之假象
+
+- **更正 R146/R152**：先前正式 WS「1006 升級被拒」的診斷**錯誤**——探測時 bundle 相鄰字串抓到**測試模式的 sb_publishable key**，正式端點對該 key 回 401（curl 可見 UNAUTHORIZED），瀏覽器呈現 1006；「Settings→API exposure」建議作廢。正確做法（本輪）：從 `VITE_SUPABASE_URL` 前方取**正常模式的 legacy JWT anon key**。
+- **正式專案現況實測（正確 key）**：①curl WS 升級＝**HTTP 101**；②頁內 WS＋phx_join＋system＝**ok**（服務層完全正常——使用者 R151 的啟用動作生效）；③**逐一探 21 表：17 ok、4 error＝`machine_layout`/`machines`/`products`/`calendar_weekly`**——與隔離專案 R139 完全同款缺表（兩專案由同一套 schema 而來）。這 4 表使彙總 chip 顯示中斷（17 表實際仍即時，安全補讀續跑）。
+- **待使用者（正式專案 SQL，職權所在）**：`ALTER PUBLICATION supabase_realtime ADD TABLE public.machine_layout, public.machines, public.products, public.calendar_weekly;` 執行後正式 chip 應翻「即時已連線」。
+- **其他**：main 仍 d3371d5 無部署；worktree 乾淨；無合成資料變更；隔離側全綠（R152）。
+
 ## 2026-10-16 R152（20min）— 使用者三行動獨立覆核：隔離 100% 實證修復；正式仍有落差（inspector 通、公開 WS 端點 1006）
 
 - **隔離專案（使用者 ALTER PUBLICATION 後）獨立驗證 PASS**：①staging 分頁重載 → chip＝「**系統連線 即時已連線**」（21+1 每表頻道全健康、彙總 SUBSCRIBED、60 秒安全補讀應已停止）；②逐一重探原毒化 4 表（machines/products/calendar_weekly/machine_layout）→ system status 全部 **ok**。R139-R141 的診斷與修復鏈閉環。
