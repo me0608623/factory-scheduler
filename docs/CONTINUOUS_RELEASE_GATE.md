@@ -11,6 +11,7 @@
 - 發現：他人分支 fix-modal-focus-20261016（38681c7，基於 main，已開 PR34）。缺陷：closeModal 用 rAF 延遲還原焦點給啟動鈕——若使用者在同一幀內開了**另一個視窗**，延遲的 focus() 會把焦點從新視窗偷回舊按鈕（鍵盤操作跳序）。修法：rAF 回呼加 `!UI.modal` 守門。
 - 併入：普通 merge；modal-return-focus **3/3**（正常還原一次、斷線/停用鈕跳過、先關再開同幀不偷焦點、反覆關開焦點留在當前視窗）、全套 web **896/896**＋build 過。staging 部署待後續。
 - 待授權批次：PR19-34 十六件。
+- staging 部署驗收：CI 綠→前進 stage 分支（89164bf→d2026c8）→deployment **success**。PR16 分支同步。
 
 ## 2026-10-16 R124（20min）狀態保持輪（全線不變）
 
