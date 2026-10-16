@@ -6,6 +6,11 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R129（20min）他人修復併入：#61 xlsx 匯出非同步期間切日期/廠別會誤標檔名（7b52164/PR35）
+
+- 發現：他人分支 fix-export-context-20261016（7b52164，基於 main，已開 PR35）。缺陷：`x-xlsx` 在 `await scheduleXlsx` 之後才讀 `UI.date/UI.factory` 組檔名——生成期間使用者切日期或廠別，下載檔名會標成新 context（內容卻是舊的）＝檔名與內容不符。修法：進入時即捕獲 date/factory 決定檔名與資料過濾，await 前後同源。
+- 併入：普通 merge；excel-export-context **2/2**（await 中切換不誤標、兩個並行匯出逆序完成各保其名）、全套 web **898/898**＋build 過。staging 部署待後續。待授權批次：PR19-35 十七件。
+
 ## 2026-10-16 R128（20min）狀態保持輪（全線不變）
 
 - 例行核對：worktree 乾淨同步 d3621f4；main CI 綠 @e0e6f65；staging＝d2026c8；PR19-34 十六件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
