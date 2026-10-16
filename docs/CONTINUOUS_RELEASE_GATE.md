@@ -6,6 +6,16 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R139（20min）— 優先項⑤重大進展：Realtime 中斷根因精確定位（4 張表未進 publication，毒化整個頻道）
+
+- **環境**：無新協同分支；worktree 949b87a 乾淨；main CI 綠 @e0e6f65；staging 維持 22d337f，不重複部署。頁內探測（金鑰僅存在頁面 context、不輸出）。
+- **分層探測結果（隔離專案 fkefarcwadvyqqjcjxvp）**：①WS handshake `wss://…/realtime/v1/websocket`：**可開**（R91 時代的 500 已消失＝傳輸層已恢復）；②phx_join（22 表、user token 或 anon key）：**phx_reply ok**；③但隨後 system 事件 `postgres_changes status=error`（"Unable to subscribe to changes with given parameters"）→ 這正是 app `store/supabase.js` subscribe() 的 streamFailed→CHANNEL_ERROR 路徑，chip「即時更新中斷」是**正確偵測**。
+- **二分＋逐表定位**：h1(11表) ok、h2(11表) error → q2(machine_layout/employees/machines/products/calendar_weekly) error → 單表逐一測：**machines=error、products=error、calendar_weekly=error、machine_layout=error**（employees ok、其餘 17 表合併訂閱 ok）。結論：這 4 張表（多半未加入 `supabase_realtime` publication）任一存在即毒化整個 22 表頻道。
+- **修正配方驗證**：app 原清單去掉這 4 表（17 表）訂閱 → **system status=ok「Subscribed to PostgreSQL」**。
+- **待使用者（②Realtime ticket 更新素材）**：在隔離 fk 專案 SQL editor 執行（正式專案不動）`ALTER PUBLICATION supabase_realtime ADD TABLE public.machines, public.products, public.calendar_weekly, public.machine_layout;` 後 app 免改碼即應恢復即時（chip 應轉「即時更新中」）。app 端替代硬化（把 4 表拆獨立頻道、一表壞不毒化全部）列為候選，本輪不實作。
+- **合成資料**：無變更。正式環境未動（main e0e6f65）。
+- **下一項**：監看新協同分支；使用者三決策（①批次合併 PR19–38 ②Realtime ticket＝本輪根因素材 ③第二帳戶/真手機）。
+
 ## 2026-10-16 R138（20min）— 優先項④補遺：#56 未排工作、#51 反饋清單來回（staging 實證）
 
 - **環境**：無新協同分支；worktree 34f56e0 乾淨；main CI 綠 @e0e6f65；staging 維持 22d337f（bundle index-CLJ6Hpoh.js，分頁 reload 後實載），不重複部署。
