@@ -3,8 +3,18 @@
 > **狀態總覽（常態更新；輪段詳細證據往下）**
 > - **正式站**：runtime `e0e6f65`（PR16/PR18 已合併；web bundle index-CV39COdK.js、solver dep-db864um89）。`?mode=test` 三個 VITE_TEST 值已設定、只連隔離 fk 專案＋staging solver（隔離核對 PASS）。**正式站待修**：#45 rs-create 迴歸（正式「輪班表→新增」會失敗）。
 > - **staging（領先正式）**：runtime `4f4470a`——含 #43 solver 冷啟動有界重試、#45–#56 共 12 件協同修復（rs-create、sticky 面板、切換成本、標記隔離、存檔並發、LINE/反饋/重置/情境誠實回報、日期排序、xlsx 列印設定、排隊交接完成量）、render.yaml AI 旗標防漂移（sync:false，未部署生效）。web **887/887**、solver **177/177**。staging 實證：#43/#45/#46/#48/#50/#55＋#42 列印封鎖 toast＋#54 前門防禦；單元鎖定：#47/#49/#51–#53/#56。
-> - **最新門檻**：隔離 publication 4/4、staging Realtime、正式 Realtime **服務／傳輸層**與第二帳戶跨瀏覽器同步已 PASS；R153 證實正式 app 仍因 `machine_layout`／`machines`／`products`／`calendar_weekly` 未加入 publication 而顯示中斷。尚待明確授權執行正式 publication SQL，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
+> - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
+
+## 2026-10-16 R167（人工授權執行）— 正式 publication 4/4＋PR40 合併部署 PASS
+
+- **正式 publication SQL（PASS）**：在 Supabase Dashboard 明確核對 `factory-scheduler / kjnnguekhshkhgycmryl` 後，依使用者授權執行且僅執行 `ALTER PUBLICATION supabase_realtime ADD TABLE public.machine_layout, public.machines, public.products, public.calendar_weekly;`；SQL Editor 回傳 `Success. No rows returned`。隨後唯讀查 `pg_publication_tables` 回傳 **4 rows / 4/4**：`calendar_weekly`、`machine_layout`、`machines`、`products`。
+- **Realtime 執行期驗證（PASS）**：由正式站線上 bundle 解析其正式 anon JWT（不輸出 token），直接對正式 Realtime 端點逐表 `phx_join`；四表 system status 均為 **ok**。已證明 R153 的 publication 根因消除。正式站當時為登出狀態，故登入後彙總 chip 尚未由本輪冒充驗收。
+- **PR40 合併（PASS）**：PR40 `codex/fix-line-save-owner-20261016` head `27beb2d`，差異僅 `web/src/app.js` 與新增 `web/tests/line-settings-owner.test.mjs`；mergeable CLEAN，既有 Tests／Deployment smoke test 全綠。解除 draft 後以普通 merge 合入 main，merge commit **`87cb15b9f4a9abb9b571373fec1a6f9edf62463c`**。
+- **main CI（PASS）**：Tests run **38925784468** frontend/database/solver 全綠；Deployment smoke test **38925784351** success；正式部署 workflow **38925784493** success。
+- **Render 正式部署（PASS）**：web deploy **dep-db94brmi0phs73c8pgl0** live、solver deploy **dep-db94brqjnfac73ah3lt0** live，兩者 commit 均為 `87cb15b`。正式 web 線上 bundle `/assets/index-XkMe5qkJ.js` 已驗證含 `line_notify_settings`、`authEpoch` ownership guard 與 `finally` 按鈕復原路徑。
+- **紅線**：未修改正式 1023 資料列、Auth、角色、setup_pending；未執行任何其他 SQL／migration；未建立 Render 資源或費用。publication 是既有 Realtime 發佈集的 metadata 調整。
+- **仍未驗**：登入正式站後的彙總 chip（本輪瀏覽器無正式登入 session）與實體手機硬體操作。隔離測試模式與跨帳戶同步沿用 R151–R153 已通過證據。
 
 ## 2026-10-16 R166（20min）— 靜止輪：狀態不變（正式 SQL 仍未跑、PR40 待進 main）
 
