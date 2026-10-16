@@ -6,6 +6,10 @@
 > - **最新門檻**：隔離 publication 4/4、staging/正式 Realtime 傳輸、第二帳戶跨瀏覽器同步均已於 R151 實測 PASS；只剩實體手機硬體上的排程顯示與拖曳預覽尚未驗證（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R163（20min）— 靜止輪：狀態不變（正式 SQL 仍未跑、PR40 待進 main）
+
+- main d3371d5、worktree 乾淨；正式 machines 仍 error、chip 仍中斷（17 表即時＋補讀）。待使用者＝正式 ALTER PUBLICATION／PR40 進 main／真手機驗收。
+
 ## 2026-10-16 R162（20min）— 靜止輪：狀態不變（正式 SQL 仍未跑、PR40 待進 main）
 
 - main d3371d5、worktree 乾淨；正式 machines 仍 error、chip 仍中斷（17 表即時＋補讀）。待使用者＝正式 ALTER PUBLICATION／PR40 進 main／真手機驗收。
