@@ -6,6 +6,15 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-17 R169（20min）— 自行修復 #67：solver-check 延遲結果重繪他人視窗（清輸入中草稿）
+
+- **獵捕覆核（無缺陷）**：openPlans（planCalculationJob 重入＋五重身分）、reportWork（busy/擁有權/件數不倒退不超額/pending 機制）、saveCellEdit（數字整數≥0、日期 regex、重複碼回滾、驗證器 rollback）——皆已硬化。
+- **新缺陷（#67，自行修復）**：`solver-check`（更多→設定→重新連線排程服務）await `SOLVER.check()`（#43 使其可達 45 秒＋）後**無條件** `renderModal()`＋toast——`renderModal` 會重繪**當時開著的任何視窗**：使用者期間關掉設定、改開新增備忘並打字，延遲結果一到，備忘視窗從模型重建＝**打字中未儲存的草稿被清掉**，再加一條過時 toast。
+- **修正（a16da84）**：進入時記下 `const m=UI.modal`；await 後 `if(UI.modal!==m)return;` 才 renderModal＋toast（視窗被換掉或關掉＝靜默，家族慣例）。新測試 `solver-check-stale.test.mjs` 2 測（新鮮路徑正常重繪＋toast；換視窗/關視窗兩路皆不重繪、不出 toast）。
+- **驗證**：新測 2/2；web 全量 **921/921**（919+2）；build 過；CI 38930762392 success；staging 快進 09757cc→a16da84、deployment **7123938426 success**；bundle `index-Gf-a3LkZ.js` 實測 minified 區段 `const t=u.modal;await ge.check(),u.modal===t&&(...)`＝守衛上線（#66 password 守衛同段可見亦在線）。
+- **PR16 分支同步**：→ **0ed6ba6** 已推送。main 未動（87cb15b）。合成資料無變更。
+- **剩餘人工（不阻機器）**：①登入正式站看彙總 chip；②實體手機顯示與拖曳。#66/#67 併 main 待新授權。
+
 ## 2026-10-17 R168（20min）— 新基準核可＋自行修復：password-save 過時回應擁有權守衛（#66）
 
 - **R167 基準獨立驗證**：main=**87cb15b**（PR40 已併）、0 open PR、CI 綠；正式 web+solver 部署 7123186027/7123186223 @87cb15b 均 success；正式專案 4 表（machines/products/calendar_weekly/machine_layout）以正確 JWT 復探全部 system **ok**＝publication 修復屬實。gate 分支 merge main → 14d6cbb。
