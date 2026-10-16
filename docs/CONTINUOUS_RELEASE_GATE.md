@@ -6,6 +6,14 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R145（20min）— 優先項④列印路徑 staging 實證 PASS（#55 字面名稱＋A4 版面＋廠別日期標題）
+
+- **環境**：無新分支/無 main 變動（d3371d5）；worktree fd8b75d 乾淨；CI 綠。隔離 publication SQL 仍未跑（staging chip 重載後仍中斷）。
+- **列印實測（合併後 build）**：攔截 `window.open`（列印文件以 document.write 寫入新視窗）→ 更多→匯出／匯入 Excel→「列印本日排程」（data-act=x-print-day）。擷取文件實證：**標題「2 廠 日班表 2026-10-16」**（廠別＋日期正確）；`@page size:A4 portrait` 列印版面；含機台（tst06 測試-電鍍槽）、工單（測試M19）、**字面產品/工序名（電鍍，#55 escape 契約）**、件數 360；文內嵌 `window.print()`。表格 6 列（thead＋5 方塊列，機台欄 rowspan 合併）。
+- **合成資料**：無變更（列印文件僅攔截記憶體、未開真視窗、未寫入）。正式環境未動。
+- **④收斂聲明**：接收端保護面（取消 0 寫入／真正套用／輪詢備援／離線重試／Excel 位元組級／列印文件）在合併後 build 均有 staging 實證；跨帳戶與真手機仍屬 ⑤（待使用者）。
+- **下一項**：監看新協同分支；使用者剩餘＝隔離 ALTER PUBLICATION SQL、第二帳戶/真手機驗收、（可選）正式 publication 檢查。
+
 ## 2026-10-16 R144（20min）— 合併後 Excel 匯出位元組級回歸（#61 檔名＋廠別範圍＋OOXML 內容）staging PASS
 
 - **環境**：無新分支/無 main 變動（d3371d5）；worktree 91e4518 乾淨；CI 綠；staging 維持 c2b066f 內容（＝main src）。隔離 publication SQL 仍未跑（staging chip 重載後仍「即時更新中斷」）。
