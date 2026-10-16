@@ -2913,6 +2913,8 @@ Object.assign(MODAL_ACT,{
 async function runRerun(){
   const P=PV,R=P&&P.rerun;
   if(!P||!R||R.busy||P.savedScenario)return;
+  const store=STORE,user=store?.session?.user?.id,epoch=store?.authEpoch;
+  const current=()=>PV===P&&P.rerun===R&&STORE===store&&store?.session?.user?.id===user&&store?.authEpoch===epoch;
   const orderCode=($("#pv-r-order")?.value||R.order||"").trim();
   const machine=($("#pv-r-machine")?.value||R.machine||"").trim();
   const text=($("#pv-r-text")?.value||R.text||"").trim();
@@ -2930,6 +2932,7 @@ async function runRerun(){
     const now={date:todayStr(),min:nowMin()};
     const timeLimit=planTimeLimit(S);
     const plan=STORE.kind==="supabase"?await SOLVER.plansDb(P.event,now,STORE.jwt(),timeLimit,hints):await SOLVER.plans(toSnapshot(S,HOLI),P.event,now,timeLimit,hints);
+    if(!current()){R.busy=false;return;}
     const fresh=(plan.options||[]).filter(x=>String(x.id).startsWith("R"));
     if(!fresh.length){R.busy=false;render();toast("照這些條件算不出新的排法；可以放寬一個條件再試");return;}
     const B=P.B,ev={date:plan.date,oid:P.event&&P.event.order?P.event.order.id:undefined};
@@ -2942,7 +2945,7 @@ async function runRerun(){
     render();
     toast("已新增 "+newOpts.length+" 套「照你的條件」的方案；比較後按「用這套」才會生效");
   }catch(e){
-    R.busy=false;render();
+    R.busy=false;if(!current())return;render();
     if(e.status&&e.status<500)toast(e.message);
     else toast("重排沒有成功（"+(e.message||"服務沒有回應")+"）；正式班表沒有改變");
   }
