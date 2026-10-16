@@ -24,7 +24,7 @@ export function buildScheduleWorkbook(state, date) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "產線排程";
   const grid = workbook.addWorksheet("時間×機台", { views: [{ state: "frozen", xSplit: 1, ySplit: 5 }] });
-  grid.properties.pageSetup = { fitToPage: true, fitToWidth: 1, fitToHeight: 1, orientation: "landscape" };
+  Object.assign(grid.pageSetup, { fitToPage: true, fitToWidth: 1, fitToHeight: 1, orientation: "landscape" });
   grid.columns = [{ width: 13 }, ...state.machines.map(() => ({ width: 28 }))];
   const last = Math.max(2,state.machines.length + 1);
   grid.mergeCells(2, 1, 2, last);
