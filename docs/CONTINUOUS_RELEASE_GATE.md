@@ -6,6 +6,15 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-17 R170（20min）— 自行修復 #68：每分鐘背景刷新清掉頁表輸入中的格子內容
+
+- **獵捕覆核（無缺陷）**：queueSync（epoch/chain 序列化＋候選保留）、runDrawerWrite、changeExecutionConfirmation（busy/擁有權/pendingReload）——皆已硬化。
+- **新缺陷（#68，自行修復）**：啟動時的 60 秒「今天看板」自動刷新條件只查 drag/modal/PV——**沒查 `UI.editCell` 與 `UI.page`**。頁表（工作紀錄／欠缺品項／跨廠加工，這些頁面 view 仍="day"）的 cellinp 在 blur 前輸入只存在 DOM；分鐘刷新 render() 重建表格＝**輸入中未提交的格子內容被清掉**（頁面輸入如 wl-date 的未提交字元同理）。
+- **修正（2b7c606，最小）**：interval 條件加 `!UI.editCell`（編輯中不刷）與 `!UI.page`（頁面檢視無時間性內容，不需背景刷新；看板本身照舊每分鐘刷新）。新測試 `refresh-interval-guard.test.mjs`（結構斷言，比照 layout-regression 慣例）。
+- **驗證**：新測 1/1；web 全量 **922/922**（921+1）；build 過；CI success；staging 快進 a16da84→2b7c606、deployment **7124429131 success**；live bundle **index-AlI8oRn3.js** 實測 minified interval 含 `!u.editCell&&!u.page`（首次抓到舊 hash＝CDN 邊緣殘留，三次破快取重取確認）。
+- **PR16 分支同步**：→ **85b2641** 已推送。main 未動（87cb15b）。合成資料無變更。
+- **待人類**：①登入正式站看彙總 chip；②實體手機；③#66/#67/#68 併 main 授權。
+
 ## 2026-10-17 R169（20min）— 自行修復 #67：solver-check 延遲結果重繪他人視窗（清輸入中草稿）
 
 - **獵捕覆核（無缺陷）**：openPlans（planCalculationJob 重入＋五重身分）、reportWork（busy/擁有權/件數不倒退不超額/pending 機制）、saveCellEdit（數字整數≥0、日期 regex、重複碼回滾、驗證器 rollback）——皆已硬化。
