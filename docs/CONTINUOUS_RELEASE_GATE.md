@@ -6,6 +6,15 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R141（20min）— 兩分頁即時推送實證：R140 每表頻道修復在 staging 現場生效（chip 中斷下健康表照常即時）
+
+- **環境**：無新協同分支；worktree 0bcbbc9 乾淨；main CI 綠 @e0e6f65；staging 維持 c2b066f（兩分頁 bundle 皆 index-CtBY-OGk.js），不重複部署。
+- **實證（同帳號兩分頁，明確標示：僅證 Realtime 通道、非跨帳戶驗收）**：分頁A 開備忘清單（0 張）備觀測 → 分頁B 走 app 正規流程：備忘抽屜→新增備忘→填 `TEST-r141-rt 即時推送驗證`＋指定機台 tst06→儲存備忘（toast「備忘已保存」）→ **分頁A 未重載、未操作**，約 3 秒內清單自動出現該備忘＋toast「現場備忘有更新」。
+- **推送唯一性證據**：該 toast 路徑 `if(source!=="reconcile"&&…)` 明確排除 60 秒安全補讀（poll 一律以 source="reconcile" 呼叫）→ 只能來自 `schedule_memos` 頻道的 postgres_changes 即時事件。且分頁A chip 仍顯示「即時更新中斷」（4 表未進 publication 的彙總）——**R140 每表頻道隔離在現場生效：壞表只降級自己，健康表照常即時推送**。
+- **合成資料變更（已標記可留）**：隔離 fk 專案 schedule_memos 新增 1 筆 `TEST-r141-rt`（指定 tst06；app 無刪除備忘路徑＝設計上僅 upsert，故保留並記錄）。正式環境未動。
+- **使用者行動提示**：跑 `ALTER PUBLICATION supabase_realtime ADD TABLE public.machines, public.products, public.calendar_weekly, public.machine_layout;` 後，重載頁面 chip 應翻轉「即時更新中」且安全補讀停止（全頻道健康）。
+- **下一項**：監看新協同分支；使用者三決策不變（批次合併 PR19–38＋正式部署／Realtime SQL／第二帳戶、真手機）。
+
 ## 2026-10-16 R140（20min）— 自行修復：Realtime 每表一頻道（一表壞不毒化全部）
 
 - **修正（本人，c2b066f）**：R139 證實一張表未進 publication 即毒化整個 21+1 表頻道（WS 同 socket 多 topic 本可隔離）。`store/supabase.js` subscribe() 改為**每張表一個頻道**（`schedule-changes:<table>`＋account_permissions），`_subGen` generation 取代單頻道身分守衛，`_removeChannels()` 統一清理（subscribe 重入與 _clearSession 兩處）。**彙總語意不變**：任一頻道壞 → CHANNEL_ERROR（60 秒安全補讀持續）、全部 SUBSCRIBED 才回 SUBSCRIBED（app.js 消費端零改動）；健康表照常即時推送。
