@@ -6,6 +6,15 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-17 R168（20min）— 新基準核可＋自行修復：password-save 過時回應擁有權守衛（#66）
+
+- **R167 基準獨立驗證**：main=**87cb15b**（PR40 已併）、0 open PR、CI 綠；正式 web+solver 部署 7123186027/7123186223 @87cb15b 均 success；正式專案 4 表（machines/products/calendar_weekly/machine_layout）以正確 JWT 復探全部 system **ok**＝publication 修復屬實。gate 分支 merge main → 14d6cbb。
+- **新缺陷（#66，自行修復）**：`password-save`（設定登入密碼）await `STORE.setPassword`（auth.updateUser，網路可達數秒）後**無條件** `closeModal()`＋toast——延遲的成功/錯誤會關掉使用者後來開的任何視窗、彈過時提示（#65 同家族最後一處）；且無視窗類型防護。**修正**：進入即驗 `UI.modal?.t==="password"`；await 前擷取 modal/store/client/user/authEpoch 五重身分＋`owns()`——成功僅在 owns 時關窗＋toast、錯誤僅在 owns 時復原按鈕＋提示。
+- **測試**：新增 `password-save-owner.test.mjs` **5 測試**（success/error×5 身分維度：換 modal/store/client/user/epoch 後舊回應不動現有視窗、不出訊息、不復活舊按鈕、setPassword 僅一次；新鮮成功正常關窗；短碼/不一致僅驗證 toast 不觸網；非密碼視窗 no-op）。web 全量 **919/919**（914+5）；build 過。
+- **staging（僅 staging，未動 main——新規則：併 main/部署正式需新授權）**：CI 38927873623 @09757cc success；快進 staging 分支 dc06f16→09757cc；deployment **7123485457 success**；bundle `index-BFkFN22P.js` 實測 password-save 區段含視窗類型防護＋authEpoch 擁有權。
+- **PR16 分支同步**：→ **328209d** 已推送。合成資料無變更。
+- **剩餘人工（不阻機器工作）**：①登入正式站看彙總 chip；②實體手機顯示與拖曳。
+
 ## 2026-10-16 R167（人工授權執行）— 正式 publication 4/4＋PR40 合併部署 PASS
 
 - **正式 publication SQL（PASS）**：在 Supabase Dashboard 明確核對 `factory-scheduler / kjnnguekhshkhgycmryl` 後，依使用者授權執行且僅執行 `ALTER PUBLICATION supabase_realtime ADD TABLE public.machine_layout, public.machines, public.products, public.calendar_weekly;`；SQL Editor 回傳 `Success. No rows returned`。隨後唯讀查 `pg_publication_tables` 回傳 **4 rows / 4/4**：`calendar_weekly`、`machine_layout`、`machines`、`products`。

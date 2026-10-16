@@ -3693,7 +3693,13 @@ Object.assign(MODAL_ACT,{
     catch(e){if(owns()){a.disabled=false;toast(e.message);}}
   },
   "reset-local":async a=>{if(a.disabled||!confirmStep(a,"reset-local"))return;a.disabled=true;try{await STORE.reset();location.reload();}catch(e){toast(e.message);}finally{a.disabled=false;}},
-  "solver-check":async()=>{await SOLVER.check();renderModal();toast(SOLVER.up?"已連上 OR-Tools 排程服務":"排程服務沒有回應："+SOLVER.url);}
+  "solver-check":async()=>{
+    const m=UI.modal;
+    await SOLVER.check();
+    // 健康檢查可達數十秒；結果只回饋到發起它的視窗，重繪後來開的視窗會清掉正在輸入的草稿
+    if(UI.modal!==m)return;
+    renderModal();toast(SOLVER.up?"已連上 OR-Tools 排程服務":"排程服務沒有回應："+SOLVER.url);
+  }
 });
 
 MODALS['access-accounts']=m=>({title:tx('權限管理'),body:m.loading?'<div class="hint">'+tx('讀取帳號中…')+'</div>':
