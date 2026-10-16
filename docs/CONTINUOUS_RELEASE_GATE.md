@@ -6,6 +6,15 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R136（20min）— 優先項③手機視窗（390px 模擬）staging 實證：看板可見、日/週手動切換、底部預覽抽屜、44px 目標
+
+- **環境**：無新協同分支；worktree 358248b 乾淨；main CI 綠 @e0e6f65；staging 維持 82dece7（bundle index-EqniYfcJ.js），不重複部署。沿用 R135 可用分頁（組長 session）。
+- **390×844 模擬結果（staging 實測）**：①看板 `2廠 10/16 排程` 5 blocks 正常渲染，文件零水平溢流（scrollWidth=clientWidth=375），欄位以內部 scroller 橫向捲動；②日/週＝手動切換：「整週」鈕（實測高 44px）→「本週總覽」週檢視（10/12–10/18 七日卡），點 10/16 回日檢視；③底部固定導覽列存在（今天/工單/人/產量/工作紀錄/備忘/更多）；④點方塊（滾動露出、避開導覽帶後）→ 全寬圓角卡片 modal（327px、× 關閉鈕 44px，內容含員工切換/固定選項）；⑤拖曳方塊（pointer 三段式、投放點須在視窗內否則 elementFromPoint=null 無目標）→ PV 開啟：`.pv-drawer pv-manual-drawer` **position:fixed、貼底（bottom=844=innerHeight）、375 寬、506 高、上圓角 18px**＝手機底部抽屜規格落實（桌面上緣右抽屜 CSS 亦核對：top:78px right:10px）。`注意`：querySelector 撈到第一個 `[data-act="pv-cancel"]` 是 0×0 隱藏鈕，可見取消鈕在抽屜操作列（168×48）。
+- **零寫入**：取消後 toast「已取消，排程沒有改變」；拖曳後看板曾顯示 M19 09:30–13:30＋釘＝預覽 pending 態（board 渲染 after 狀態），取消即回復 **08:00–12:00**；PV 完全關閉、5 blocks。無任何 save_blocks/API 寫入（僅 UI 預覽）。
+- **記錄（非缺陷）**：手機模擬下頁面本身可捲動，看板區塊起始 y≈772 在固定導覽（top≈766）之下，需捲動露出後才可點——一般手機操作同理（先捲再看），不判缺陷；Real 機行為仍待使用者驗收（模擬≠真機，不偽稱真機驗證）。
+- **合成資料**：無變更。正式環境未動（main e0e6f65）。視窗已還原 1280×720。
+- **下一項**：監看新協同分支；使用者三決策不變（①批次合併 PR19–37＋正式部署 ②Realtime ticket ③第二帳戶/真手機驗收）。
+
 ## 2026-10-16 R135（20min）— PR37 修復 staging 瀏覽器實證（dpScrollTarget 快樂路徑＋零寫入）
 
 - **環境**：無新協同分支；worktree 969affe 乾淨同步；main CI 綠 @e0e6f65。staging 已是 R134 的 82dece7（deployment 7110060743），本輪不重複部署。
