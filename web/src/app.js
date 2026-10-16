@@ -3324,9 +3324,10 @@ Object.assign(MODAL_ACT,{
   "x-copy-all":()=>copyText(allRows().map(r=>r.join("\t")).join("\n")),
   "x-dl":()=>downloadCSV(),
   "x-xlsx":async()=>{
-    try{const {scheduleXlsx}=await import("./excel.js");const machines=shownMachines(),ids=new Set(machines.map(m=>m.id));
-      const bytes=await scheduleXlsx({...S,machines,blocks:S.blocks.filter(b=>ids.has(b.m)),workAssignments:assignments(S).filter(a=>inFactory(workCatalog(S).find(w=>w.id===a.workId)||{},UI.factory))},UI.date);
-      saveFile("產線排程_"+(UI.factory==="all"?"跨廠":factoryName(UI.factory))+"_"+UI.date+".xlsx",new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));}
+    try{const {scheduleXlsx}=await import("./excel.js");const machines=shownMachines(),ids=new Set(machines.map(m=>m.id)),date=UI.date,factory=UI.factory;
+      const filename="產線排程_"+(factory==="all"?"跨廠":factoryName(factory))+"_"+date+".xlsx";
+      const bytes=await scheduleXlsx({...S,machines,blocks:S.blocks.filter(b=>ids.has(b.m)),workAssignments:assignments(S).filter(a=>inFactory(workCatalog(S).find(w=>w.id===a.workId)||{},factory))},date);
+      saveFile(filename,new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));}
     catch(e){toast("Excel 匯出失敗："+e.message);}
   },
   "x-template":()=>{
