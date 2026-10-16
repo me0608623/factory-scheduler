@@ -14,7 +14,7 @@ import { workQueue } from './work-queue.js';
 import { makeScenario, scenarioStale, validateScenario, scenarioKey, scenarioCreatedDate } from './scenarios.js';
 import { reflowAllWindows } from './win.js';
 import { applySort, sortTh, sortBar, TF_SORT, RUSH_SORT, WL_SORT } from './table-sort.js';
-import { markOf, setMark, markRowAttrs, markBtns, MARK_COLORS, changeMarkColor } from './table-marks.js';
+import { markOf, setMark, markRowAttrs, markBtns, MARK_COLORS, changeMarkColor, configureTableMarks, markOwner } from './table-marks.js';
 import { schedZoomState, loadSchedZoom, setZoom, setWheelZoom, SZOOM_STEP, captureZoomAnchor, anchorScroll, rafApply } from './szoom.js';
 import { executionOf, canReport, assertExecutionProtected } from './execution.js';
 import { ExecutionRetries } from './execution-retries.js';
@@ -1345,6 +1345,7 @@ document.addEventListener("click",e=>{
   if(PV&&PV.kind==="manual"){const blk=e.target.closest&&e.target.closest(".blk");if(blk&&blk.dataset.bid){pvClickBlock(blk.dataset.bid);return;}}
   const a=e.target.closest("[data-act]");if(!a)return;
   const act=a.dataset.act,id=a.dataset.id;
+  if(['mk-color','mk-clear','mk-save'].includes(act)&&(!markOwner()||UI.modal?.t!=='row-mark'||UI.modal.owner!==markOwner())){closeModal();return;}
   if(PV&&PV_BLOCK.has(act)){toast("預覽中：先按「套用」或「取消」");return;}
   if(act.startsWith('b-')&&executionOf(S,UI.modal?.id)){toast('已有現場回報，不能修改這段排程');return;}
   const step=UI.view==="week"?7:1;
@@ -1359,7 +1360,7 @@ document.addEventListener("click",e=>{
     case "drawer-zoom":UI.drawerZoom=!UI.drawerZoom;render();requestAnimationFrame(()=>{try{document.querySelector(".ops-drawer")?.scrollIntoView({block:"start"});}catch(e){}});break;
     case "sort-col":{const t=a.dataset.t,k=a.dataset.k;const cols=t==="tf"?TF_SORT:t==="rush"?RUSH_SORT:WL_SORT;const st=UI.tableSort[t];UI.tableSort[t]=(st&&st.key===k)?{key:k,dir:st.dir==="asc"?"desc":"asc"}:{key:k,dir:"asc"};saveTableSort();render();break;}
     case "sort-reset":{UI.tableSort[a.dataset.t]=null;saveTableSort();render();break;}
-    case "row-mark":{const t=a.dataset.t,id=a.dataset.id;const m=markOf(t,id);openModal({t:"row-mark",tb:t,id,draft:{c:m?.c||"",n:m?.n||""}});break;}
+    case "row-mark":{if(!markOwner())return;const t=a.dataset.t,id=a.dataset.id;const m=markOf(t,id);openModal({t:"row-mark",tb:t,id,owner:markOwner(),draft:{c:m?.c||"",n:m?.n||""}});break;}
     case "mk-color":{UI.modal.draft=changeMarkColor(UI.modal.draft,a.dataset.v,$("#mk-note")?.value);renderModal();break;}
     case "mk-clear":{const t=a.dataset.t,id=a.dataset.id;if(!setMark(t,id,null))toast("這台裝置無法保存標記設定");closeModal();render();break;}
     case "mk-save":{const d=UI.modal;const n=($("#mk-note")?.value||"").trim().slice(0,200);const c=d.draft.c;if(!c&&!n){toast("請選顏色或填寫標註");break;}if(!setMark(d.tb,d.id,{c,n}))toast("這台裝置無法保存標記（已套用於本次畫面）");closeModal();render();break;}
@@ -1871,6 +1872,7 @@ function renderModal(){
   let root=$("#modal-root");
   if(!root){root=document.createElement("div");root.id="modal-root";document.body.appendChild(root);}
   const m=UI.modal;if(!m){root.innerHTML="";return;}
+  if(m.t==='row-mark'&&(!markOwner()||m.owner!==markOwner())){closeModal();return;}
   const f=MODALS[m.t];if(!f){closeModal();return;}
   const c=f(m);if(!c){closeModal();return;}
   const keep=root.querySelector(".overlay"),focusToken=keep&&root.contains(document.activeElement)?modalFocusToken(document.activeElement):null;
@@ -4955,6 +4957,7 @@ Object.assign(MODALS,staffRosterUI.modals);Object.assign(MODAL_ACT,staffRosterUI
 MODAL_ACT['mach-products']=()=>{if(!canMaster())return;syncInputs();const m=UI.modal;if(!m.id||JSON.stringify(m.draft)!==JSON.stringify(mach(m.id))){toast('請先儲存或取消設備設定，再開啟產品設定');return;}openModal({t:'products'});};
 export async function boot(store,authLinkType=""){
   STORE=store;
+  configureTableMarks(()=>STORE);
   await start();
   if(STORE.kind==="supabase"&&STORE.session&&["invite","recovery"].includes(authLinkType))
     openModal({t:"password"});
