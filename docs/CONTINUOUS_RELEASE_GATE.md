@@ -6,6 +6,16 @@
 > - **最新門檻**：隔離 publication 4/4、staging/正式 Realtime 傳輸、第二帳戶跨瀏覽器同步均已於 R151 實測 PASS；只剩實體手機硬體上的排程顯示與拖曳預覽尚未驗證（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R159（20min）— PR40 併入：LINE 設定儲存過時回應擁有權守衛（#65）
+
+- **新協同分支**：`codex/fix-line-save-owner-20261016`（27beb2d，PR40）。**缺陷**：`ln-save`（LINE 通知設定儲存）在 await 前未擷取身分——延遲的成功/錯誤回應會 `closeModal()` 關掉使用者後來開的**別的**對話框、顯示過時 toast、錯誤時按鈕不復原。屬既有 stale-reply 家族（同 #50/#51/#62 模式）的最後一處未防護點。
+- **修正（他人）**：await 前擷取 modal/store/client/user/authEpoch 五重身分＋`owns()` 檢查；成功僅在 owns 時 close＋toast、錯誤僅在 owns 時 toast、`finally` 恢復按鈕。新測試 `line-settings-owner.test.mjs`＝3 測試×5 身分維度×3 結果（15 場景：換 modal/store/client/user/epoch 後舊回應一律不動現有對話框、不出訊息、按鈕復原、寫入僅一次）。
+- **併入與驗證**：普通 merge → **dc06f16**（保留他人提交）。新測 3/3；web 全量 **914/914**（911+3）；build 過（8.6s）；CI **success**。
+- **staging 部署**：快進 `codex/excel-friendly-ui-20260930` c2b066f→dc06f16；deployment **7119938621 success**；即時 bundle `index-Bpx9CygF.js` 實測 upsert 附近含 authEpoch 守衛（minified 指紋）。
+- **PR16 分支同步**：→ **4cb389d** 已推送。
+- **正式 SQL（R158 狀態延續）**：publication 4 表仍未補、chip 仍中斷、17 表照常即時＋補讀。正式環境 main=d3371d5 未動（PR40 尚未進 main）。合成資料無變更。
+- **下一項**：PR40 待使用者決定進 main 時機；正式 ALTER PUBLICATION＋真手機驗收仍待使用者。
+
 ## 2026-10-16 R158（20min）— 靜止輪：正式 SQL 仍未跑（machines 仍 error、chip 仍中斷），其餘不變
 
 - main d3371d5、無分支/PR/部署、worktree 乾淨；正式 machines 復探仍 error；17 表照常即時＋補讀。待使用者正式 ALTER PUBLICATION（4 表）＋真手機驗收。
