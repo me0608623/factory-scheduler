@@ -6,6 +6,15 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R144（20min）— 合併後 Excel 匯出位元組級回歸（#61 檔名＋廠別範圍＋OOXML 內容）staging PASS
+
+- **環境**：無新分支/無 main 變動（d3371d5）；worktree 91e4518 乾淨；CI 綠；staging 維持 c2b066f 內容（＝main src）。隔離 publication SQL 仍未跑（staging chip 重載後仍「即時更新中斷」）。
+- **Excel 匯出實測（staging、合併後 build、攔截 createObjectURL＋anchor.download）**：更多→匯出／匯入 Excel→下載 XLSX（當前檢視＝2廠 10/16）。**檔名 `產線排程_2 廠_2026-10-16.xlsx`**（#61：await 前擷取 date/factory，與檢視一致）；MIME 正確、9287 bytes、PK zip。
+- **位元組級解析（頁內 zip 解析＋DecompressionStream inflate）**：OOXML 條目齊全（[Content_Types].xml／xl/sharedStrings.xml／sheet1+sheet2／styles/theme）；sheet1 27 列；sharedStrings 解壓後＝「產線排程 10/16（五）」標題＋**僅 2 廠機台（tst06 測試-電鍍槽、tst07 測試-檢驗台）**＋真實方塊（測試-馮十一 測試M19 電鍍 08:00–12:00 360件）；1 廠工序（裁切/組裝）**不存在**＝匯出範圍正確跟隨廠別。#61＋匯出內容在合併後 build PASS。
+- **記錄**：更多面板按鈕「匯出／匯入」用全形斜線（／），ASCII regex 對不到——自動化以 includes("Excel") 定位。
+- **合成資料**：無變更（下載為本機攔截，未寫入資料庫）。正式環境未動。
+- **下一項**：監看新協同分支；使用者剩餘＝隔離 ALTER PUBLICATION SQL、第二帳戶/真手機驗收、（可選）正式 publication 檢查。
+
 ## 2026-10-16 R143（20min）— 使用者合併 PR39：main=d3371d5，正式四件套齊；隔離 publication SQL 仍未跑
 
 - **狀態變化**：使用者於 06:51:24Z 合併 **PR39** → main **d3371d5**（gate 分支 c2b066f 內容全部進 main：#43 solver 有界重試、R140 realtime 每表頻道、#44 render.yaml sync:false 防漂移＋檢查點文件）。open PRs=0。
