@@ -6,6 +6,16 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R135（20min）— PR37 修復 staging 瀏覽器實證（dpScrollTarget 快樂路徑＋零寫入）
+
+- **環境**：無新協同分支；worktree 969affe 乾淨同步；main CI 綠 @e0e6f65。staging 已是 R134 的 82dece7（deployment 7110060743），本輪不重複部署。
+- **瀏覽器實證（組長 session 沿用）**：既有分頁輸入路由失效（role-click/CUA/dom_cua 三路在 document 捕獲探針均 0 事件；分頁 bundle 也停在舊快取 index-Bnyk9wq0.js）→ 開新分頁即恢復：bundle=**index-EqniYfcJ.js**（?cb 破快取與部署 API 一致）、localStorage 登入沿用（測試-組長）。
+- **PR37 實證**：在 2廠 10/16（5 blocks）以三段式 pointer 事件垂直拖曳「測試A07 檢驗」方塊（時間軸為縱向；水平 +60px 不觸發＝同目標，垂直 +130px 才改時段）→ `enterManualPreview` 開啟「手動排班預覽」抽屜 → **dpScrollTarget 恰好觸發 1 次 scrollIntoView**，目標 `.blk.ro.pv-mv`（被移動方塊），實測置中顯示（rect 331–389 / 720），重試隨即終止——修復後時鐘一致，快樂路徑不退化、無殘留迴圈。
+- **零寫入**：點「取消」→ toast「已取消，排程沒有改變」；A07 方塊維持 08:00–08:50、5 blocks、`__errs` 0。與 R69 cancel=0 寫入結論一致。
+- **記錄（非缺陷）**：`＋手動排班` 在 1廠/2廠 10/16 與空白的 2廠 10/19 均回「目前沒有可新增的工作（工序已排滿或尚未建立工單）」＝隔離資料狀態；此路徑無法開 PV，須走拖曳路徑。
+- **合成資料**：無新增變更。正式環境未動（main e0e6f65）。
+- **下一項**：監看新協同分支；使用者三決策不變（①批次合併 PR19–37＋正式部署 ②Realtime ticket ③第二帳戶/真手機驗收）。
+
 ## 2026-10-16 R134（20min）— PR37 併入：dpScrollTarget 時鐘混用（#63）
 
 - **新協同分支**：`codex/fix-preview-scroll-deadline-20261016`（622e249，PR37）。重現：`web/src/app.js` `dpScrollTarget` 以 `deadline=Date.now()+800`（epoch 毫秒 ≈1.7e12）設限，卻用 `performance.now()`（頁面載入後毫秒 ≈數千）比較 → `performance.now()<deadline` 恆真：預覽目標永不出現時 rAF 重試迴圈**無界**每幀查 DOM，直到 PV 變更；兄弟函式 `focusDpBack`（行 2415-2419）本來就是 Date.now() 一致用法，此處為單點不一致。
