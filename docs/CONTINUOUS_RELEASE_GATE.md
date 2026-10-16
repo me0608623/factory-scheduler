@@ -6,6 +6,16 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R137（20min）— PR38 併入：durOf 小數速率 ulp 捨入多給時段（#64）
+
+- **新協同分支**：`codex/fix-duration-rounding-20261016`（c65c481，PR38）。**重現（本輪實測 node IEEE）**：`durOf(qty,rate)=Math.ceil(qty/rate/10)*10`，rate=0.7、qty=21 時 `21/0.7/10=3.0000000000000004`（高於整數 1 ulp）→ ceil=4 → **40 分鐘**（正確值 30）；22@0.7（真餘數 3.1428…）與 63@2.1（恰整數）不受影響。影響面：產品型錄小數速率（件/分）下，特定件數的工時被多加 10 分鐘（21 件＝+33%）。
+- **最小修正（他人）**：先扣相對 1-ulp（`slots-Number.EPSILON*Math.max(1,slots)`）再 ceil；新測試 `duration-rounding.test.mjs` 3 項（邊界 30 回填 quantityForMinutes=21、**BigInt 精確算術掃描** 分母 10/100 × 分子 1–99 × qty 至 1e6、真餘數仍進位＋最小 10 分鐫保留）。
+- **併入與驗證**：普通 merge → **22d337f**（保留他人提交）。新測 3/3；web 全量 **907/907**（904+3）；build 過（13.3s）；CI run **38851541908** @22d337f **success**。
+- **staging 部署**：快進 `codex/excel-friendly-ui-20260930` 82dece7→22d337f；deployment **7111026910** state=**success**。即時 bundle `index-CLJ6Hpoh.js`（?cb）：實測含 `Math.ceil(n-Number.EPSILON*Math.max(1,n))`、舊形 `Math.ceil(x/y/10)` 已消失——修復上線。
+- **PR16 分支同步**：`codex/cloud-test-mode-release-20261012` 普通 merge → **0fbc644** 已推送。
+- **正式環境**：未動（main 仍 e0e6f65）。合成資料無變更。
+- **下一項**：監看新協同分支；使用者三決策不變（①批次合併 PR19–38＋正式部署 ②Realtime ticket ③第二帳戶/真手機驗收）。
+
 ## 2026-10-16 R136（20min）— 優先項③手機視窗（390px 模擬）staging 實證：看板可見、日/週手動切換、底部預覽抽屜、44px 目標
 
 - **環境**：無新協同分支；worktree 358248b 乾淨；main CI 綠 @e0e6f65；staging 維持 82dece7（bundle index-EqniYfcJ.js），不重複部署。沿用 R135 可用分頁（組長 session）。
