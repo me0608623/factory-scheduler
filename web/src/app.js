@@ -241,7 +241,11 @@ function pairsFor(pid,k){
     for(const E of S.employees)if(compatible(E,M,prod(pid),st))out.push([M,E]);}
   return out;
 }
-function durOf(qty,rate){return Math.max(10,Math.ceil(qty/rate/10)*10);}
+function durOf(qty,rate){
+  const slots=qty/rate/10;
+  // Decimal rates can put an exact boundary one rounding error above an integer.
+  return Math.max(10,Math.ceil(slots-Number.EPSILON*Math.max(1,slots))*10);
+}
 function manualQty(oid,step,minutes,exceptId=null){
   const o=order(oid),p=o&&prod(o.pid),st=p&&p.steps[step];
   return o&&st?quantityForMinutes(minutes,st.rate,remainingQty(o.qty,S.blocks,oid,step,exceptId,S.execution||[])):0;
