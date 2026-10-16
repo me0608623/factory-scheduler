@@ -2399,7 +2399,7 @@ function dpScrollTarget(target){
   const attempt=()=>{
     if(PV!==preview||!PV)return;
     const el=find();
-    if(!el){if(performance.now()<deadline)requestAnimationFrame(attempt);return;}
+    if(!el){if(Date.now()<deadline)requestAnimationFrame(attempt);return;}
     el.scrollIntoView({block:"center",inline:"nearest"});
     if(window.matchMedia?.('(max-width:980px)').matches){
       const top=document.querySelector('.pv-manual')?.getBoundingClientRect().bottom??0;
