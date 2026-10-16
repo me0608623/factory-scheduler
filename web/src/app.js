@@ -727,7 +727,12 @@ let _hdrRO=null;
 function updateHeaderVar(){
   const top=document.querySelector(".top");
   if(!top)return;
-  try{document.documentElement.style.setProperty("--hdr-h",Math.round(top.getBoundingClientRect().bottom)+"px");}catch(e){}
+  try{
+    // A static header scrolls away; it must not reserve space above the sticky pane.
+    const position=getComputedStyle(top).position;
+    const bottom=position==='sticky'||position==='fixed'?top.getBoundingClientRect().bottom:0;
+    document.documentElement.style.setProperty("--hdr-h",Math.max(0,Math.round(bottom))+"px");
+  }catch(e){}
 }
 if(typeof ResizeObserver!=="undefined"&&!_hdrRO){_hdrRO=new ResizeObserver(updateHeaderVar);}
 function watchHeader(){
