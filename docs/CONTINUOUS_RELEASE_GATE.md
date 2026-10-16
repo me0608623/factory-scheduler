@@ -6,6 +6,16 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R142（20min）— 使用者執行批次合併：PR19–38 全進 main＝4c67b34；正式部署驗證＋PR39 補遺開立
+
+- **重大狀態變化**：使用者把 PR19–38（二十件，#45–#64）全數合併進 main（3c1e88f→**4c67b34**），open PRs 20→0。main CI @4c67b34：Tests **success**、Deployment smoke test **success**。
+- **正式部署（部署 ID 實查）**：web 連續部署（…1461476→63412ff→af47a1a→**4c67b34=7112584159** state **success**）；solver **7112554079 @c4d8b4d**（PR21 動到 solver/app/model.py）**success**。正式 web live bundle 實測 **index-BuuT_ygy.js**；正式 solver `/health` 實測 `{ok:true, ortools:9.15.6755, database:true, capabilities:[work_assignments_v1, staff_roster_draft_v1, schedule_chat_readonly_v1, schedule_chat_range_v1, schedule_chat_ai_v1]}`。
+- **正式站瀏覽器實查（全程唯讀、未登入、零寫入）**：①正常模式＝新 bundle 載入、真實 1023 機台（f1aa 2.0T…f1z 0.6T 共 26 台）與泰文 UI 正常渲染、**setup_pending 橫幅仍在（資料待確認·暫停排班，未解除）**、新手導覽對話框正常、`__errs` 0；②`?mode=test`＝「測試模式 · 不影響正式資料」橫幅＋獨立 auth（登入牆顯示「請用測試帳號登入；正式帳號與測試帳號不共用」）fail-closed 隔離在新版完整保留、`__errs` 0。
+- **觀察（未深查）**：正式正常模式 chip 顯示「即時更新中斷」（泰文）——正式專案可能也有 publication 缺表（同 R139 模式）或僅因 PR39 未部署；待使用者指示才對正式專案做對應動作（正式 SQL 屬使用者職權）。
+- **PR39 開立（gate 分支補遺）**：tree-diff vs main 僅三件＋文件——#43 solver 有界健康重試（＋4 測）、R140 realtime 每表頻道（＋4 新測、2 檔改寫保留防護）、#44 render.yaml sync:false 防漂移；checkpoint/驗收文件。https://github.com/me0608623/factory-scheduler/pull/39 待使用者合併。
+- **合成資料**：無新增變更。staging 維持 c2b066f（gate 分支）。PR16 分支 72c8ff1。
+- **下一項**：PR39 待使用者合併（合併後正式即獲得每表頻道與 solver 重試）；Realtime SQL（隔離專案 ALTER PUBLICATION）仍待使用者；第二帳戶/真手機驗收不變。
+
 ## 2026-10-16 R141（20min）— 兩分頁即時推送實證：R140 每表頻道修復在 staging 現場生效（chip 中斷下健康表照常即時）
 
 - **環境**：無新協同分支；worktree 0bcbbc9 乾淨；main CI 綠 @e0e6f65；staging 維持 c2b066f（兩分頁 bundle 皆 index-CtBY-OGk.js），不重複部署。
