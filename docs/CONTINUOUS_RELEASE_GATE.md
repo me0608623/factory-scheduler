@@ -6,6 +6,16 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R134（20min）— PR37 併入：dpScrollTarget 時鐘混用（#63）
+
+- **新協同分支**：`codex/fix-preview-scroll-deadline-20261016`（622e249，PR37）。重現：`web/src/app.js` `dpScrollTarget` 以 `deadline=Date.now()+800`（epoch 毫秒 ≈1.7e12）設限，卻用 `performance.now()`（頁面載入後毫秒 ≈數千）比較 → `performance.now()<deadline` 恆真：預覽目標永不出現時 rAF 重試迴圈**無界**每幀查 DOM，直到 PV 變更；兄弟函式 `focusDpBack`（行 2415-2419）本來就是 Date.now() 一致用法，此處為單點不一致。
+- **最小修正（他人）**：行 2402 `performance.now()`→`Date.now()`；同 commit 新增 `web/tests/preview-scroll-deadline.test.mjs`（3 測試：deadline 停排程／視窗內出現滾動一次即止／PV 取代或取消不再查詢）。本輪複核 diff 確認僅此一行＋測試。
+- **併入與驗證**：普通 merge → 82dece7（保留他人提交）。新測試 3/3 綠；web 全量 **904/904**（901+3）；`npm run build` 過（13.2s）。CI run **38845051160** @82dece7 **success**。
+- **staging 部署**：快進 `codex/excel-friendly-ui-20260930` 18ee95e→82dece7；deployment **7110060743** state=**success**（web `dep-db8phkdbedkc73f3g26g`；solver 目錄無 diff，Render 跳過）。即時 bundle `index-EqniYfcJ.js`（?cb 破快取）：minified `er`=dpScrollTarget 區段實測 `if(!a){Date.now()<s&&requestAnimationFrame(i)` — 時鐘一致，修復上線。bundle 內其餘 6 處 `performance.now()` 為 solver 計時等合法用途。
+- **PR16 分支同步**：`codex/cloud-test-mode-release-20261012` 普通 merge → **c759a75** 已推送。
+- **正式環境**：未動（main 仍 e0e6f65；正式部署授權仍待使用者）。合成資料無新增變更。
+- **下一項**：繼續監看新協同分支；使用者三決策不變（①批次合併 PR19–37＋正式部署 ②Realtime ticket ③第二帳戶/真手機驗收）。
+
 ## 2026-10-16 R133（20min）他人修復併入：#62 預覽重排過時回應污染新預覽（efcee20/PR36）
 
 - 發現：他人分支 fix-rerun-owner-20261016（efcee20，基於 main，已開 PR36）。缺陷：`runRerun` await SOLVER 後**不檢查 PV/R 身分**——使用者取消預覽或開了新預覽後，遲到的回應仍會把新方案注入**舊 P 物件**或渲染已離開的預覽（與本系列 #51 同型的過時回應族）。修法：捕獲 store/user/epoch＋PV===P＋P.rerun===R 五重 `current()`，過時成功/空結果/失敗全部靜默丟棄。
