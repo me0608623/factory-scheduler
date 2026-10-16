@@ -6,6 +6,10 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R126（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 518ee48；main CI 綠 @e0e6f65；staging＝d2026c8；PR19-34 十六件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
 ## 2026-10-16 R125（20min）他人修復併入：#60 關窗焦點還原可偷走新視窗焦點（38681c7/PR34）
 
 - 發現：他人分支 fix-modal-focus-20261016（38681c7，基於 main，已開 PR34）。缺陷：closeModal 用 rAF 延遲還原焦點給啟動鈕——若使用者在同一幀內開了**另一個視窗**，延遲的 focus() 會把焦點從新視窗偷回舊按鈕（鍵盤操作跳序）。修法：rAF 回呼加 `!UI.modal` 守門。
