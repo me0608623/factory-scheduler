@@ -6,6 +6,11 @@
 > - **最新門檻**：隔離 publication 4/4、staging/正式 Realtime 傳輸、第二帳戶跨瀏覽器同步均已於 R151 實測 PASS；只剩實體手機硬體上的排程顯示與拖曳預覽尚未驗證（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R154（20min）— 正式 SQL 仍未跑：machines 表復探仍 error、chip 仍中斷（其餘靜止）
+
+- main 仍 d3371d5（CI 綠）、worktree 乾淨、無新分支/PR/部署。正式 chip 重載後仍「ขาดการเชื่อมต่อ」；`machines` 表以正確 JWT 重探仍 system error＝publication 4 表未補（R153 診斷不變，待使用者正式 SQL）。17 表照常即時＋補讀中。
+- 無合成資料變更。隔離側全綠（R152）。
+
 ## 2026-10-16 R153（20min）— 更正＋正式專案根因確定：同款 4 表未進 publication；先前「1006 傳輸層全斷」係探測抓錯 key 之假象
 
 - **更正 R146/R152**：先前正式 WS「1006 升級被拒」的診斷**錯誤**——探測時 bundle 相鄰字串抓到**測試模式的 sb_publishable key**，正式端點對該 key 回 401（curl 可見 UNAUTHORIZED），瀏覽器呈現 1006；「Settings→API exposure」建議作廢。正確做法（本輪）：從 `VITE_SUPABASE_URL` 前方取**正常模式的 legacy JWT anon key**。
