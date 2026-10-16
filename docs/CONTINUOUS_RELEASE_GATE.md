@@ -6,6 +6,10 @@
 > - **最新門檻**：隔離 publication 4/4、staging/正式 Realtime 傳輸、第二帳戶跨瀏覽器同步均已於 R151 實測 PASS；只剩實體手機硬體上的排程顯示與拖曳預覽尚未驗證（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R160（20min）— 靜止輪：正式 SQL 仍未跑（machines 仍 error、chip 仍中斷）；PR40 待使用者
+
+- main 仍 d3371d5、worktree 乾淨（PR40 在 gate 分支 dc06f16 已上 staging 待使用者決定進 main）；正式 machines 復探仍 error；17 表照常即時＋補讀。待使用者＝正式 ALTER PUBLICATION（4 表）／PR40 進 main／真手機驗收。
+
 ## 2026-10-16 R159（20min）— PR40 併入：LINE 設定儲存過時回應擁有權守衛（#65）
 
 - **新協同分支**：`codex/fix-line-save-owner-20261016`（27beb2d，PR40）。**缺陷**：`ln-save`（LINE 通知設定儲存）在 await 前未擷取身分——延遲的成功/錯誤回應會 `closeModal()` 關掉使用者後來開的**別的**對話框、顯示過時 toast、錯誤時按鈕不復原。屬既有 stale-reply 家族（同 #50/#51/#62 模式）的最後一處未防護點。
