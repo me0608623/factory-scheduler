@@ -313,6 +313,13 @@ def solve(
                 candidate.wall = time.time() - t_start
                 return candidate
 
+    # Search pruning must not change which switches incur a cost: restricted
+    # and full model objectives are compared below. Retain the original choices.
+    switch_choices = {
+        key: ({pr[1] for pr in op.pairs}, {pr[0] for pr in op.pairs})
+        for key, op in ops.items()
+    } if _switch_cost_enabled(weights) else {}
+
     if pair_cap is not None:
         machine_busy: dict[str, list[tuple[int, int]]] = {mid: [] for mid in machs}
         employee_busy: dict[str, list[tuple[int, int]]] = {eid: [] for eid in emps}
@@ -638,8 +645,8 @@ def solve(
                 if not prev or not cur:
                     continue
                 if weights.sw_emp:
-                    prev_emps = {pr[1] for pr in prev.pairs}
-                    cur_emps = {pr[1] for pr in cur.pairs}
+                    prev_emps = switch_choices[prev.key][0]
+                    cur_emps = switch_choices[cur.key][0]
                     shared = prev_emps & cur_emps
                     # 兩站員工集合本來就無交集 → 路由必然換人（技能限制），不罰
                     if shared and len(cur_emps) > 1:
@@ -653,10 +660,12 @@ def solve(
                                 lits.append(both(pe, ce, f"same_emp_{o.id}_{k}_{e}"))
                         if lits:
                             m.add_max_equality(keep, lits)
-                            terms.append(weights.sw_emp * (1 - keep))
+                        else:
+                            m.add(keep == 0)
+                        terms.append(weights.sw_emp * (1 - keep))
                 if weights.sw_mach:
-                    prev_machs = {pr[0] for pr in prev.pairs}
-                    cur_machs = {pr[0] for pr in cur.pairs}
+                    prev_machs = switch_choices[prev.key][1]
+                    cur_machs = switch_choices[cur.key][1]
                     shared_m = prev_machs & cur_machs
                     # 相鄰兩站通常是不同工序 → 不同機台集合屬路由本質，不罰
                     if shared_m and len(cur_machs) > 1:
@@ -669,7 +678,9 @@ def solve(
                                 lits_m.append(both(pm, cm, f"same_mach_{o.id}_{k}_{mid}"))
                         if lits_m:
                             m.add_max_equality(keep_m, lits_m)
-                            terms.append(weights.sw_mach * (1 - keep_m))
+                        else:
+                            m.add(keep_m == 0)
+                        terms.append(weights.sw_mach * (1 - keep_m))
     m.minimize(sum(terms) if terms else 0)
 
     solver = cp_model.CpSolver()
