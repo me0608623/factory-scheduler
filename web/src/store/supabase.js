@@ -99,6 +99,8 @@ export class SupabaseStore {
     this.userName = "";
     this.session = null;
     this.realtimeStatus = null;
+    this.channels = [];
+    this._subGen = null;
   }
 
   // ---------- 帳號 ----------
@@ -148,8 +150,8 @@ export class SupabaseStore {
     // 登出要一併移除即時頻道：sb.channel(同名) 會回傳同一實例，
     // 下一個工作階段若對「已訂閱」的頻道再 .on() 會拋
     // 「cannot add postgres_changes callbacks after subscribe()」並中斷登入後的啟動。
-    const old=this.channel;this.channel=null;this.realtimeStatus=null;
-    if(old){try{this.sb.removeChannel(old);}catch(e){}}
+    this._subGen=null;this.realtimeStatus=null;
+    this._removeChannels();
   }
 
   _watchAuthSession() {
@@ -508,28 +510,53 @@ export class SupabaseStore {
   }
 
   // ---------- 即時推送 ----------
+  // 每張表一個頻道（同一條 WS 上的獨立 topic）：任何一張表未加入
+  // supabase_realtime publication 時只有該表失效，其餘表仍即時
+  // （R139 實測：一張壞表會毒化整個多表頻道，全陪葬退輪詢）。
+  // 彙總語意維持舊約定：任一頻道壞 → CHANNEL_ERROR（安全補讀持續），
+  // 全部 SUBSCRIBED 才回 SUBSCRIBED；健康頻道照常推送變更。
+  _removeChannels() {
+    const olds=this.channels||[];this.channels=[];
+    for(const ch of olds){try{this.sb.removeChannel(ch);}catch(e){}}
+  }
   subscribe(onChange, onStatus = () => {}) {
     // 冪等：重複呼叫（如 re-login 後 start() 再跑）先移除舊頻道，
     // 否則對已訂閱頻道再 .on() 會拋錯（見 _clearSession 註解）。
-    const old=this.channel;this.channel=null;
-    if(old){try{this.sb.removeChannel(old);}catch(e){}}
-    const ch = this.sb.channel("schedule-changes");
-    this.channel=ch;
-    let streamFailed=false,joinStatus='CONNECTING';
-    const report=status=>{if(this.channel!==ch)return;this.realtimeStatus=status;onStatus(status);};
-    report('CONNECTING');
+    const gen={};this._subGen=gen;
+    this._removeChannels();
+    this.realtimeStatus=null;
+    const states=new Map();
+    const report=status=>{if(this._subGen!==gen)return;this.realtimeStatus=status;onStatus(status);};
+    const aggregate=()=>{
+      let failed=false,all=true;
+      for(const s of states.values()){
+        if(['CHANNEL_ERROR','TIMED_OUT','CLOSED'].includes(s))failed=true;
+        if(s!=='SUBSCRIBED')all=false;
+      }
+      const status=failed?'CHANNEL_ERROR':(all?'SUBSCRIBED':'CONNECTING');
+      if(status!==this.realtimeStatus)report(status);
+    };
+    const attach=(key,pgConfig,handler)=>{
+      const ch=this.sb.channel("schedule-changes:"+key);
+      this.channels.push(ch);
+      states.set(key,'CONNECTING');
+      const setSt=s=>{if(this._subGen!==gen)return;states.set(key,s);aggregate();};
+      let streamFailed=false,joinStatus='CONNECTING';
+      ch.on("postgres_changes",pgConfig,handler);
+      ch.on('system',{},payload=>{
+        if(payload.extension!=='postgres_changes')return;
+        if(['error','timeout'].includes(payload.status)){streamFailed=true;setSt('CHANNEL_ERROR');}
+        else if(payload.status==='ok'){streamFailed=false;if(joinStatus==='SUBSCRIBED')setSt('SUBSCRIBED');}
+      });
+      // Raw errors can contain connection details: expose only the status.
+      try{ch.subscribe(status=>{joinStatus=status;setSt(status==='SUBSCRIBED'&&streamFailed?'CHANNEL_ERROR':status);});}catch{setSt('CHANNEL_ERROR');}
+    };
     for (const t of ["schedule_state", "change_sets", "machine_faults", "leaves", "employee_overtime_days", "orders", "calendar_days", "work_execution","work_contents","work_assignments","transfer_orders","rush_orders","work_log","staff_rosters","leave_requests","schedule_memos","machine_layout","employees","machines","products","calendar_weekly"]) {
-      ch.on("postgres_changes", { event: "*", schema: "public", table: t }, () => {if(this.channel===ch)onChange(t);});
+      attach(t,{event:"*",schema:"public",table:t},()=>{if(this._subGen===gen)onChange(t);});
     }
-    if(this.session?.user?.id)ch.on("postgres_changes",{event:"*",schema:"public",table:"account_permissions",filter:"user_id=eq."+this.session.user.id},
-      async()=>{if(this.channel!==ch)return;try{await this._profile();}catch{}if(this.channel===ch)onChange("account_permissions");});
-    ch.on('system',{},payload=>{
-      if(payload.extension!=='postgres_changes')return;
-      if(['error','timeout'].includes(payload.status)){streamFailed=true;report('CHANNEL_ERROR');}
-      else if(payload.status==='ok'){streamFailed=false;if(joinStatus==='SUBSCRIBED')report('SUBSCRIBED');}
-    });
-    // Raw errors can contain connection details: expose only the status.
-    try{ch.subscribe(status=>{joinStatus=status;report(status==='SUBSCRIBED'&&streamFailed?'CHANNEL_ERROR':status);});}catch{report('CHANNEL_ERROR');}
+    if(this.session?.user?.id)attach('account_permissions',{event:"*",schema:"public",table:"account_permissions",filter:"user_id=eq."+this.session.user.id},
+      async()=>{if(this._subGen!==gen)return;try{await this._profile();}catch{}if(this._subGen===gen)onChange("account_permissions");});
+    aggregate();
   }
 }
 

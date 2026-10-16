@@ -6,6 +6,35 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R139（20min）— 優先項⑤重大進展：Realtime 中斷根因精確定位（4 張表未進 publication，毒化整個頻道）
+
+- **環境**：無新協同分支；worktree 949b87a 乾淨；main CI 綠 @e0e6f65；staging 維持 22d337f，不重複部署。頁內探測（金鑰僅存在頁面 context、不輸出）。
+- **分層探測結果（隔離專案 fkefarcwadvyqqjcjxvp）**：①WS handshake `wss://…/realtime/v1/websocket`：**可開**（R91 時代的 500 已消失＝傳輸層已恢復）；②phx_join（22 表、user token 或 anon key）：**phx_reply ok**；③但隨後 system 事件 `postgres_changes status=error`（"Unable to subscribe to changes with given parameters"）→ 這正是 app `store/supabase.js` subscribe() 的 streamFailed→CHANNEL_ERROR 路徑，chip「即時更新中斷」是**正確偵測**。
+- **二分＋逐表定位**：h1(11表) ok、h2(11表) error → q2(machine_layout/employees/machines/products/calendar_weekly) error → 單表逐一測：**machines=error、products=error、calendar_weekly=error、machine_layout=error**（employees ok、其餘 17 表合併訂閱 ok）。結論：這 4 張表（多半未加入 `supabase_realtime` publication）任一存在即毒化整個 22 表頻道。
+- **修正配方驗證**：app 原清單去掉這 4 表（17 表）訂閱 → **system status=ok「Subscribed to PostgreSQL」**。
+- **待使用者（②Realtime ticket 更新素材）**：在隔離 fk 專案 SQL editor 執行（正式專案不動）`ALTER PUBLICATION supabase_realtime ADD TABLE public.machines, public.products, public.calendar_weekly, public.machine_layout;` 後 app 免改碼即應恢復即時（chip 應轉「即時更新中」）。app 端替代硬化（把 4 表拆獨立頻道、一表壞不毒化全部）列為候選，本輪不實作。
+- **合成資料**：無變更。正式環境未動（main e0e6f65）。
+- **下一項**：監看新協同分支；使用者三決策（①批次合併 PR19–38 ②Realtime ticket＝本輪根因素材 ③第二帳戶/真手機）。
+
+## 2026-10-16 R138（20min）— 優先項④補遺：#56 未排工作、#51 反饋清單來回（staging 實證）
+
+- **環境**：無新協同分支；worktree 34f56e0 乾淨；main CI 綠 @e0e6f65；staging 維持 22d337f（bundle index-CLJ6Hpoh.js，分頁 reload 後實載），不重複部署。
+- **自動化環境記錄**：R135 可用分頁輸入路由也失效（document 捕獲探針 0 事件，與首分頁同症狀）→ 改用頁內 `dispatchEvent(click)`（data-act 委派可達；modal 內按鈕同樣有效）。兩個 IAB 分頁現均無法收 CUA/locator 輸入，後續輪次直接以 dispatch 為主。
+- **#56 未排工作（work-queue）**：更多→未排工作 modal 開啟，標題「未排工作與待處理差異」＋免責聲明＋「此範圍目前沒有未排量或已回報短少」＝空狀態渲染正確，與 1/2廠工序排滿的看板一致（effectiveBlockQty 計算無錯誤）。交接短少數量的正算由單元測試 queue-handoff-quantity 覆蓋；本輪為 UI 即時路徑證據。
+- **#51 查看反饋（feedback-list，boss 專屬）來回實證**：清單初始＝「還沒有反饋」（RPC list_feedback 成功、無錯誤）→ 意見反饋表單（類型 select：問題／錯誤等 4 項＋textarea）送出合成反饋 **TEST-r138-feedback-list**（明確標記自動化測試資料可刪）→ toast「感謝！意見已送出」→ 重開清單顯示該筆：**owner 顯示「測試-組長」、類型 問題／錯誤、時間 2026-10-16 04:55**——RPC 寫入→清單讀取→owner 欄位渲染全鏈路通。
+- **合成資料變更**：隔離 fk 專案新增 1 筆 feedback（TEST-r138-feedback-list，可刪）。其餘未動；正式環境未動（main e0e6f65）。
+- **下一項**：監看新協同分支；使用者三決策不變（①批次合併 PR19–38＋正式部署 ②Realtime ticket ③第二帳戶/真手機驗收）。
+
+## 2026-10-16 R137（20min）— PR38 併入：durOf 小數速率 ulp 捨入多給時段（#64）
+
+- **新協同分支**：`codex/fix-duration-rounding-20261016`（c65c481，PR38）。**重現（本輪實測 node IEEE）**：`durOf(qty,rate)=Math.ceil(qty/rate/10)*10`，rate=0.7、qty=21 時 `21/0.7/10=3.0000000000000004`（高於整數 1 ulp）→ ceil=4 → **40 分鐘**（正確值 30）；22@0.7（真餘數 3.1428…）與 63@2.1（恰整數）不受影響。影響面：產品型錄小數速率（件/分）下，特定件數的工時被多加 10 分鐘（21 件＝+33%）。
+- **最小修正（他人）**：先扣相對 1-ulp（`slots-Number.EPSILON*Math.max(1,slots)`）再 ceil；新測試 `duration-rounding.test.mjs` 3 項（邊界 30 回填 quantityForMinutes=21、**BigInt 精確算術掃描** 分母 10/100 × 分子 1–99 × qty 至 1e6、真餘數仍進位＋最小 10 分鐫保留）。
+- **併入與驗證**：普通 merge → **22d337f**（保留他人提交）。新測 3/3；web 全量 **907/907**（904+3）；build 過（13.3s）；CI run **38851541908** @22d337f **success**。
+- **staging 部署**：快進 `codex/excel-friendly-ui-20260930` 82dece7→22d337f；deployment **7111026910** state=**success**。即時 bundle `index-CLJ6Hpoh.js`（?cb）：實測含 `Math.ceil(n-Number.EPSILON*Math.max(1,n))`、舊形 `Math.ceil(x/y/10)` 已消失——修復上線。
+- **PR16 分支同步**：`codex/cloud-test-mode-release-20261012` 普通 merge → **0fbc644** 已推送。
+- **正式環境**：未動（main 仍 e0e6f65）。合成資料無變更。
+- **下一項**：監看新協同分支；使用者三決策不變（①批次合併 PR19–38＋正式部署 ②Realtime ticket ③第二帳戶/真手機驗收）。
+
 ## 2026-10-16 R136（20min）— 優先項③手機視窗（390px 模擬）staging 實證：看板可見、日/週手動切換、底部預覽抽屜、44px 目標
 
 - **環境**：無新協同分支；worktree 358248b 乾淨；main CI 綠 @e0e6f65；staging 維持 82dece7（bundle index-EqniYfcJ.js），不重複部署。沿用 R135 可用分頁（組長 session）。
