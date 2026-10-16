@@ -6,6 +6,11 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R133（20min）他人修復併入：#62 預覽重排過時回應污染新預覽（efcee20/PR36）
+
+- 發現：他人分支 fix-rerun-owner-20261016（efcee20，基於 main，已開 PR36）。缺陷：`runRerun` await SOLVER 後**不檢查 PV/R 身分**——使用者取消預覽或開了新預覽後，遲到的回應仍會把新方案注入**舊 P 物件**或渲染已離開的預覽（與本系列 #51 同型的過時回應族）。修法：捕獲 store/user/epoch＋PV===P＋P.rerun===R 五重 `current()`，過時成功/空結果/失敗全部靜默丟棄。
+- 併入：普通 merge；rerun-owner **3/3**（現行接受一次＋連點拒絕＋保留原方案、取消/換預覽/換帳戶三路忽略遲到回應、失敗清 busy 如實回報）、全套 web **901/901**＋build 過。staging 部署待後續。待授權批次：PR19-36 十八件。
+
 ## 2026-10-16 R132（20min）狀態保持輪（全線不變）
 
 - 例行核對：worktree 乾淨同步 e3813d0；main CI 綠 @e0e6f65；staging＝97a25ee；PR19-35 十七件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
