@@ -3,7 +3,7 @@
 > **狀態總覽（常態更新；輪段詳細證據往下）**
 > - **正式站**：runtime `e0e6f65`（PR16/PR18 已合併；web bundle index-CV39COdK.js、solver dep-db864um89）。`?mode=test` 三個 VITE_TEST 值已設定、只連隔離 fk 專案＋staging solver（隔離核對 PASS）。**正式站待修**：#45 rs-create 迴歸（正式「輪班表→新增」會失敗）。
 > - **staging（領先正式）**：runtime `4f4470a`——含 #43 solver 冷啟動有界重試、#45–#56 共 12 件協同修復（rs-create、sticky 面板、切換成本、標記隔離、存檔並發、LINE/反饋/重置/情境誠實回報、日期排序、xlsx 列印設定、排隊交接完成量）、render.yaml AI 旗標防漂移（sync:false，未部署生效）。web **887/887**、solver **177/177**。staging 實證：#43/#45/#46/#48/#50/#55＋#42 列印封鎖 toast＋#54 前門防禦；單元鎖定：#47/#49/#51–#53/#56。
-> - **最新門檻**：隔離 publication 4/4、staging/正式 Realtime 傳輸、第二帳戶跨瀏覽器同步均已於 R151 實測 PASS；只剩實體手機硬體上的排程顯示與拖曳預覽尚未驗證（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
+> - **最新門檻**：隔離 publication 4/4、staging Realtime、正式 Realtime **服務／傳輸層**與第二帳戶跨瀏覽器同步已 PASS；R153 證實正式 app 仍因 `machine_layout`／`machines`／`products`／`calendar_weekly` 未加入 publication 而顯示中斷。尚待明確授權執行正式 publication SQL，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
 ## 2026-10-16 R166（20min）— 靜止輪：狀態不變（正式 SQL 仍未跑、PR40 待進 main）
@@ -84,7 +84,7 @@
 
 - **隔離 publication 已修（PASS）**：在 Supabase Dashboard 明確核對 `factory-scheduler-staging / fkefarcwadvyqqjcjxvp` 後執行使用者指定 SQL：`ALTER PUBLICATION supabase_realtime ADD TABLE public.machines, public.products, public.calendar_weekly, public.machine_layout;`。同次唯讀查 `pg_publication_tables` 回傳 **4/4**：`calendar_weekly`、`machine_layout`、`machines`、`products`。未在正式專案執行 SQL，未套 migration。
 - **staging 真 Realtime 恢復（PASS）**：重新讀既有 staging 組長分頁後 chip 為「雲端已儲存／即時已連線」；第二帳戶也同樣連線。這是實際頁面訂閱狀態，不再是 R150 的中斷狀態。
-- **正式 Realtime dashboard＋傳輸實測（PASS）**：正式 `factory-scheduler / kjnnguekhshkhgycmryl` 的 Realtime Settings 顯示 service enabled、public channels enabled、DB pool=2、Postgres Changes pool=2。Inspector 加入暫時公開頻道 `codex-health-20261016` 後收到 `sync`、`join` 與 `Subscribed to PostgreSQL`（`status=ok`），隨後停止監聽。未廣播、未寫正式 DB、未碰 1023/Auth/roles/setup_pending。
+- **正式 Realtime dashboard＋服務／傳輸層實測（PASS；非 app 全表 PASS）**：正式 `factory-scheduler / kjnnguekhshkhgycmryl` 的 Realtime Settings 顯示 service enabled、public channels enabled、DB pool=2、Postgres Changes pool=2。Inspector 加入暫時公開頻道 `codex-health-20261016` 後收到 `sync`、`join` 與 `Subscribed to PostgreSQL`（`status=ok`），隨後停止監聽。R153 後續逐表覆核證實 21 表中仍有 4 表未進 publication，故本項只證明服務／傳輸層；不能代表正式 app chip 已恢復。未廣播、未寫正式 DB、未碰 1023/Auth/roles/setup_pending。
 - **第二帳戶與跨瀏覽器同步（PASS）**：沿用既有 `me0608623+test-viewer@gmail.com`（未新建帳戶、未改密碼/角色），以一次性 magic link 登入獨立 Chrome；頁面顯示「電視／檢視」「排程唯讀」、10/16 隔離測試班表與「即時已連線」。IAB 的 `qa-lead@factory-scheduler.test` 將 10/16 加班由關→20:00，viewer 在不重載下立即顯示新狀態及「有新的變更」toast；lead 再關回，viewer 同步恢復「未開加班」。隔離測試資料已恢復原狀。
 - **手機版可自動驗收（部分 PASS；真機仍未驗）**：Chrome/IAB 以 390×844 驗證底部導覽、排程資料與大按鈕可見；lead 對 `測試X13` 方塊做真指標拖曳，成功進入「手動排班預覽」，並因變更落在已過時間而顯示「不能把新工作排在已經過去的時間」、停用確認；按取消後方塊仍為原 `08:00–08:40`，零寫入。這是桌面瀏覽器的手機尺寸/觸控路徑，不冒充實體手機硬體驗收；目前無已連接可控制的手機。
 - **未變更**：正式 1023 資料、正式 Auth/角色、正式 setup_pending、所有 migration、Render 部署與程式碼均未動；沒有新帳戶、沒有新資源或費用。
