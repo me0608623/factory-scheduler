@@ -6,6 +6,14 @@
 > - **最新門檻**：隔離 publication 4/4、staging/正式 Realtime 傳輸、第二帳戶跨瀏覽器同步均已於 R151 實測 PASS；只剩實體手機硬體上的排程顯示與拖曳預覽尚未驗證（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R152（20min）— 使用者三行動獨立覆核：隔離 100% 實證修復；正式仍有落差（inspector 通、公開 WS 端點 1006）
+
+- **隔離專案（使用者 ALTER PUBLICATION 後）獨立驗證 PASS**：①staging 分頁重載 → chip＝「**系統連線 即時已連線**」（21+1 每表頻道全健康、彙總 SUBSCRIBED、60 秒安全補讀應已停止）；②逐一重探原毒化 4 表（machines/products/calendar_weekly/machine_layout）→ system status 全部 **ok**。R139-R141 的診斷與修復鏈閉環。
+- **正式專案落差（需再查一處）**：使用者 dashboard Inspector 見 sync/join/訂閱成功，但本輪兩個獨立實測仍不通——①頁內直連 `wss://kjnnguekhshkhgycmryl.supabase.co/realtime/v1/websocket`＝**1006（升級被拒）**；②正式站 app 本身（匿名、正常模式）chip 仍「การอัปเดตเรียลไทม์**ขาดการเชื่อมต่อ**」（中斷）。解釋：Dashboard Inspector 走平台內部通道，**公開 WS 端點**另由 API 設定管轄——請到正式 Supabase **Settings→API** 檢查「Expose realtime API」（與 Realtime 服務開關是兩回事）是否啟用；若已啟用仍 1006，携本證據報 Supabase 支援。
+- **第二帳戶同步**：使用者以既有 viewer 實測組長改隔離加班設定→viewer 免重載同步、測後還原＝跨帳戶即時同步 PASS（使用者證詞＋通道已實證健康；本輪未獨立重測）。真手機硬體驗收仍待使用者。
+- **紅線覆核**：正式 1023/Auth/setup_pending/migration/Render 部署未動（使用者聲明＋本輪 main 仍 d3371d5 無部署）。合成資料無新增變更。
+- **下一項**：使用者查正式 Settings→API 的 Realtime exposure；其餘（真手機）照舊。隔離側全綠，持續監看新協同分支。
+
 ## 2026-10-16 R151（人工授權執行）— 隔離 Realtime 修復＋正式 Realtime 恢復＋雙帳戶同步 PASS
 
 - **隔離 publication 已修（PASS）**：在 Supabase Dashboard 明確核對 `factory-scheduler-staging / fkefarcwadvyqqjcjxvp` 後執行使用者指定 SQL：`ALTER PUBLICATION supabase_realtime ADD TABLE public.machines, public.products, public.calendar_weekly, public.machine_layout;`。同次唯讀查 `pg_publication_tables` 回傳 **4/4**：`calendar_weekly`、`machine_layout`、`machines`、`products`。未在正式專案執行 SQL，未套 migration。
