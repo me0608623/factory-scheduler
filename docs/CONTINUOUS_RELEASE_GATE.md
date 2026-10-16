@@ -6,6 +6,15 @@
 > - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-16 R143（20min）— 使用者合併 PR39：main=d3371d5，正式四件套齊；隔離 publication SQL 仍未跑
+
+- **狀態變化**：使用者於 06:51:24Z 合併 **PR39** → main **d3371d5**（gate 分支 c2b066f 內容全部進 main：#43 solver 有界重試、R140 realtime 每表頻道、#44 render.yaml sync:false 防漂移＋檢查點文件）。open PRs=0。
+- **CI/部署實查**：main @d3371d5 三 workflow全綠（Tests／部署 Render 正式環境／Deployment smoke test 均 success）。正式 web 與 solver **兩者都以 d3371d5 部署完成且 success**（deployments API 最新兩筆）。正式 live bundle 實測 **index-7bIYWoBy.js** 且 grep 確認含 `schedule-changes:"+`（每表頻道指紋）＝修復確實在正式生效；solver /health ok（ortools 9.15.6755、database true）。
+- **隔離專案 publication（未跑）**：staging 分頁重載後 chip 仍「即時更新中斷」——`ALTER PUBLICATION supabase_realtime ADD TABLE public.machines, public.products, public.calendar_weekly, public.machine_layout;` 仍待使用者執行；跑完後 chip 應翻轉且安全補讀停止（現在正式/staging 都已有每表頻道，健康表不受影響）。
+- **gate 分支同步**：fast-forward 9d96b47→**d3371d5** 已推（main 已包含本分支全部內容，後續檢查點直接疊在 main 之上）。
+- **合成資料**：無變更。
+- **下一項**：監看新協同分支；使用者剩餘動作＝隔離 ALTER PUBLICATION SQL、第二帳戶/真手機驗收、（可選）正式專案 realtime publication 檢查。
+
 ## 2026-10-16 R142（20min）— 使用者執行批次合併：PR19–38 全進 main＝4c67b34；正式部署驗證＋PR39 補遺開立
 
 - **重大狀態變化**：使用者把 PR19–38（二十件，#45–#64）全數合併進 main（3c1e88f→**4c67b34**），open PRs 20→0。main CI @4c67b34：Tests **success**、Deployment smoke test **success**。
