@@ -1,11 +1,465 @@
 # 持續缺陷探索與發布驗收
 
-> **狀態總覽（R45 起常態更新；輪段詳細證據往下）**
-> - **本系列修復**：#32–#42 共 11 件（離線靜默丟失×2、衝突復活×2、undo 覆蓋遠端、null-modal 家族×3 大類 38 處、realtime 輪詢備援、日視圖平方級效能 20×、列印彈出封鎖崩潰）。測試 web 430→853。
-> - **staging**：線上 41d4f88（bundle index-DxKb0Nzr.js，**#32–#42 全部上線**）。備忘：本次 build 耗 ~40 分鐘（此前 2-3 分）——Render 建置偶發慢，非斷線；push 觸發正常。
-> - **R69 更新優先於上條歷史版本**：staging 已為 **fb7e002 / index-qs4RQdPX.js**，新增手動套用離線重試修正並真雲端回驗；原#32–#42保留。合併/正式部署門檻仍未全過。
-> - **PR16/18 均 draft**：#18 head＝本分支（自動跟隨）、#16＝test-mode 分支（每輪同步；最新 853/853 綠）。
-> - **發布閘門而非全部待使用者**：agent 持續實測可用 session、拖曳/取消/套用、輪詢備援、離線/衝突與回歸；真不同身份/角色、真手機桌面與 Realtime 恢復、正式 VITE_TEST_* 隔離設定仍需實證。hook secret 只是可選備援；帳號/寄信依最新直接人類授權，不沿用舊「未同意」當現況。全部過才合併/正式部署，維持1023/角色/0037紅線。
+> **狀態總覽（常態更新；輪段詳細證據往下）**
+> - **正式站**：runtime `e0e6f65`（PR16/PR18 已合併；web bundle index-CV39COdK.js、solver dep-db864um89）。`?mode=test` 三個 VITE_TEST 值已設定、只連隔離 fk 專案＋staging solver（隔離核對 PASS）。**正式站待修**：#45 rs-create 迴歸（正式「輪班表→新增」會失敗）。
+> - **staging（領先正式）**：runtime `4f4470a`——含 #43 solver 冷啟動有界重試、#45–#56 共 12 件協同修復（rs-create、sticky 面板、切換成本、標記隔離、存檔並發、LINE/反饋/重置/情境誠實回報、日期排序、xlsx 列印設定、排隊交接完成量）、render.yaml AI 旗標防漂移（sync:false，未部署生效）。web **887/887**、solver **177/177**。staging 實證：#43/#45/#46/#48/#50/#55＋#42 列印封鎖 toast＋#54 前門防禦；單元鎖定：#47/#49/#51–#53/#56。
+> - **待使用者**：①授權批次合併 PR19–29＋部署正式（執行計畫見 R90 段：一鍵、含回滾路徑）；②staging Realtime ticket（R91 實證仍 WS 500——輪詢備援持續）；③真跨帳戶第二帳號／真手機驗收（腳本 docs/ACCEPTANCE_SCRIPT.md）。
+> - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
+
+## 2026-10-16 R142（20min）— 使用者執行批次合併：PR19–38 全進 main＝4c67b34；正式部署驗證＋PR39 補遺開立
+
+- **重大狀態變化**：使用者把 PR19–38（二十件，#45–#64）全數合併進 main（3c1e88f→**4c67b34**），open PRs 20→0。main CI @4c67b34：Tests **success**、Deployment smoke test **success**。
+- **正式部署（部署 ID 實查）**：web 連續部署（…1461476→63412ff→af47a1a→**4c67b34=7112584159** state **success**）；solver **7112554079 @c4d8b4d**（PR21 動到 solver/app/model.py）**success**。正式 web live bundle 實測 **index-BuuT_ygy.js**；正式 solver `/health` 實測 `{ok:true, ortools:9.15.6755, database:true, capabilities:[work_assignments_v1, staff_roster_draft_v1, schedule_chat_readonly_v1, schedule_chat_range_v1, schedule_chat_ai_v1]}`。
+- **正式站瀏覽器實查（全程唯讀、未登入、零寫入）**：①正常模式＝新 bundle 載入、真實 1023 機台（f1aa 2.0T…f1z 0.6T 共 26 台）與泰文 UI 正常渲染、**setup_pending 橫幅仍在（資料待確認·暫停排班，未解除）**、新手導覽對話框正常、`__errs` 0；②`?mode=test`＝「測試模式 · 不影響正式資料」橫幅＋獨立 auth（登入牆顯示「請用測試帳號登入；正式帳號與測試帳號不共用」）fail-closed 隔離在新版完整保留、`__errs` 0。
+- **觀察（未深查）**：正式正常模式 chip 顯示「即時更新中斷」（泰文）——正式專案可能也有 publication 缺表（同 R139 模式）或僅因 PR39 未部署；待使用者指示才對正式專案做對應動作（正式 SQL 屬使用者職權）。
+- **PR39 開立（gate 分支補遺）**：tree-diff vs main 僅三件＋文件——#43 solver 有界健康重試（＋4 測）、R140 realtime 每表頻道（＋4 新測、2 檔改寫保留防護）、#44 render.yaml sync:false 防漂移；checkpoint/驗收文件。https://github.com/me0608623/factory-scheduler/pull/39 待使用者合併。
+- **合成資料**：無新增變更。staging 維持 c2b066f（gate 分支）。PR16 分支 72c8ff1。
+- **下一項**：PR39 待使用者合併（合併後正式即獲得每表頻道與 solver 重試）；Realtime SQL（隔離專案 ALTER PUBLICATION）仍待使用者；第二帳戶/真手機驗收不變。
+
+## 2026-10-16 R141（20min）— 兩分頁即時推送實證：R140 每表頻道修復在 staging 現場生效（chip 中斷下健康表照常即時）
+
+- **環境**：無新協同分支；worktree 0bcbbc9 乾淨；main CI 綠 @e0e6f65；staging 維持 c2b066f（兩分頁 bundle 皆 index-CtBY-OGk.js），不重複部署。
+- **實證（同帳號兩分頁，明確標示：僅證 Realtime 通道、非跨帳戶驗收）**：分頁A 開備忘清單（0 張）備觀測 → 分頁B 走 app 正規流程：備忘抽屜→新增備忘→填 `TEST-r141-rt 即時推送驗證`＋指定機台 tst06→儲存備忘（toast「備忘已保存」）→ **分頁A 未重載、未操作**，約 3 秒內清單自動出現該備忘＋toast「現場備忘有更新」。
+- **推送唯一性證據**：該 toast 路徑 `if(source!=="reconcile"&&…)` 明確排除 60 秒安全補讀（poll 一律以 source="reconcile" 呼叫）→ 只能來自 `schedule_memos` 頻道的 postgres_changes 即時事件。且分頁A chip 仍顯示「即時更新中斷」（4 表未進 publication 的彙總）——**R140 每表頻道隔離在現場生效：壞表只降級自己，健康表照常即時推送**。
+- **合成資料變更（已標記可留）**：隔離 fk 專案 schedule_memos 新增 1 筆 `TEST-r141-rt`（指定 tst06；app 無刪除備忘路徑＝設計上僅 upsert，故保留並記錄）。正式環境未動。
+- **使用者行動提示**：跑 `ALTER PUBLICATION supabase_realtime ADD TABLE public.machines, public.products, public.calendar_weekly, public.machine_layout;` 後，重載頁面 chip 應翻轉「即時更新中」且安全補讀停止（全頻道健康）。
+- **下一項**：監看新協同分支；使用者三決策不變（批次合併 PR19–38＋正式部署／Realtime SQL／第二帳戶、真手機）。
+
+## 2026-10-16 R140（20min）— 自行修復：Realtime 每表一頻道（一表壞不毒化全部）
+
+- **修正（本人，c2b066f）**：R139 證實一張表未進 publication 即毒化整個 21+1 表頻道（WS 同 socket 多 topic 本可隔離）。`store/supabase.js` subscribe() 改為**每張表一個頻道**（`schedule-changes:<table>`＋account_permissions），`_subGen` generation 取代單頻道身分守衛，`_removeChannels()` 統一清理（subscribe 重入與 _clearSession 兩處）。**彙總語意不變**：任一頻道壞 → CHANNEL_ERROR（60 秒安全補讀持續）、全部 SUBSCRIBED 才回 SUBSCRIBED（app.js 消費端零改動）；健康表照常即時推送。
+- **測試**：新增 `realtime-channel-split.test.mjs` 4 測（全好彙總 SUBSCRIBED＋per-table 路由／毒化降級 CHANNEL_ERROR 但健康表仍推／重訂閱移除舊頻道＋舊 generation 回呼無效／無 session 21 表）。既有 `realtime-status.test.mjs` 4 測與 `layout-regression.test.mjs` 頻道清理測**改寫以保留原防護意圖**（舊設計的單頻道機制斷言 → 新每表頻道對應斷言：不宣稱即時、舊 generation 無效、stream error 降級且 join 不能掩蓋、登出清頻道保班表）。全量 **911/911**（907+4）、build 過。途中修正自己測試兩處：頻道數其實 21+1（原清單 21 表，非 22）；毒化順序須先全好再毒化才有 SUBSCRED 轉移。
+- **CI/部署**：CI run **38857766104** @c2b066f **success**；staging 快進 22d337f→c2b066f，deployment **7112064040** **success**；即時 bundle `index-CtBY-OGk.js` 實測含 `schedule-changes:"+` 每表命名與新結構。兩分頁（A/B）重載新 bundle 後 chip 仍「即時更新中斷」＝**正確**（4 表仍未進 publication，彙總任一壞即中斷；待使用者跑 ALTER PUBLICATION 後應直接翻轉）。
+- **未完成（下輪第一項）**：兩分頁即時推送實證（tabB 寫 tabA 免重載自動更新）——本輪發現「開加班」是多人員 modal 流程，需改走備忘等輕量寫入路徑。
+- **PR16 分支同步**：`codex/cloud-test-mode-release-20261012` → **72c8ff1** 已推送。合成資料無變更；正式環境未動（main e0e6f65）。
+- **下一項**：①兩分頁即時推送實證；②使用者三決策（批次合併 PR19–38＋正式部署／Realtime ticket＝先跑 ALTER PUBLICATION／第二帳戶、真手機）。
+
+## 2026-10-16 R139（20min）— 優先項⑤重大進展：Realtime 中斷根因精確定位（4 張表未進 publication，毒化整個頻道）
+
+- **環境**：無新協同分支；worktree 949b87a 乾淨；main CI 綠 @e0e6f65；staging 維持 22d337f，不重複部署。頁內探測（金鑰僅存在頁面 context、不輸出）。
+- **分層探測結果（隔離專案 fkefarcwadvyqqjcjxvp）**：①WS handshake `wss://…/realtime/v1/websocket`：**可開**（R91 時代的 500 已消失＝傳輸層已恢復）；②phx_join（22 表、user token 或 anon key）：**phx_reply ok**；③但隨後 system 事件 `postgres_changes status=error`（"Unable to subscribe to changes with given parameters"）→ 這正是 app `store/supabase.js` subscribe() 的 streamFailed→CHANNEL_ERROR 路徑，chip「即時更新中斷」是**正確偵測**。
+- **二分＋逐表定位**：h1(11表) ok、h2(11表) error → q2(machine_layout/employees/machines/products/calendar_weekly) error → 單表逐一測：**machines=error、products=error、calendar_weekly=error、machine_layout=error**（employees ok、其餘 17 表合併訂閱 ok）。結論：這 4 張表（多半未加入 `supabase_realtime` publication）任一存在即毒化整個 22 表頻道。
+- **修正配方驗證**：app 原清單去掉這 4 表（17 表）訂閱 → **system status=ok「Subscribed to PostgreSQL」**。
+- **待使用者（②Realtime ticket 更新素材）**：在隔離 fk 專案 SQL editor 執行（正式專案不動）`ALTER PUBLICATION supabase_realtime ADD TABLE public.machines, public.products, public.calendar_weekly, public.machine_layout;` 後 app 免改碼即應恢復即時（chip 應轉「即時更新中」）。app 端替代硬化（把 4 表拆獨立頻道、一表壞不毒化全部）列為候選，本輪不實作。
+- **合成資料**：無變更。正式環境未動（main e0e6f65）。
+- **下一項**：監看新協同分支；使用者三決策（①批次合併 PR19–38 ②Realtime ticket＝本輪根因素材 ③第二帳戶/真手機）。
+
+## 2026-10-16 R138（20min）— 優先項④補遺：#56 未排工作、#51 反饋清單來回（staging 實證）
+
+- **環境**：無新協同分支；worktree 34f56e0 乾淨；main CI 綠 @e0e6f65；staging 維持 22d337f（bundle index-CLJ6Hpoh.js，分頁 reload 後實載），不重複部署。
+- **自動化環境記錄**：R135 可用分頁輸入路由也失效（document 捕獲探針 0 事件，與首分頁同症狀）→ 改用頁內 `dispatchEvent(click)`（data-act 委派可達；modal 內按鈕同樣有效）。兩個 IAB 分頁現均無法收 CUA/locator 輸入，後續輪次直接以 dispatch 為主。
+- **#56 未排工作（work-queue）**：更多→未排工作 modal 開啟，標題「未排工作與待處理差異」＋免責聲明＋「此範圍目前沒有未排量或已回報短少」＝空狀態渲染正確，與 1/2廠工序排滿的看板一致（effectiveBlockQty 計算無錯誤）。交接短少數量的正算由單元測試 queue-handoff-quantity 覆蓋；本輪為 UI 即時路徑證據。
+- **#51 查看反饋（feedback-list，boss 專屬）來回實證**：清單初始＝「還沒有反饋」（RPC list_feedback 成功、無錯誤）→ 意見反饋表單（類型 select：問題／錯誤等 4 項＋textarea）送出合成反饋 **TEST-r138-feedback-list**（明確標記自動化測試資料可刪）→ toast「感謝！意見已送出」→ 重開清單顯示該筆：**owner 顯示「測試-組長」、類型 問題／錯誤、時間 2026-10-16 04:55**——RPC 寫入→清單讀取→owner 欄位渲染全鏈路通。
+- **合成資料變更**：隔離 fk 專案新增 1 筆 feedback（TEST-r138-feedback-list，可刪）。其餘未動；正式環境未動（main e0e6f65）。
+- **下一項**：監看新協同分支；使用者三決策不變（①批次合併 PR19–38＋正式部署 ②Realtime ticket ③第二帳戶/真手機驗收）。
+
+## 2026-10-16 R137（20min）— PR38 併入：durOf 小數速率 ulp 捨入多給時段（#64）
+
+- **新協同分支**：`codex/fix-duration-rounding-20261016`（c65c481，PR38）。**重現（本輪實測 node IEEE）**：`durOf(qty,rate)=Math.ceil(qty/rate/10)*10`，rate=0.7、qty=21 時 `21/0.7/10=3.0000000000000004`（高於整數 1 ulp）→ ceil=4 → **40 分鐘**（正確值 30）；22@0.7（真餘數 3.1428…）與 63@2.1（恰整數）不受影響。影響面：產品型錄小數速率（件/分）下，特定件數的工時被多加 10 分鐘（21 件＝+33%）。
+- **最小修正（他人）**：先扣相對 1-ulp（`slots-Number.EPSILON*Math.max(1,slots)`）再 ceil；新測試 `duration-rounding.test.mjs` 3 項（邊界 30 回填 quantityForMinutes=21、**BigInt 精確算術掃描** 分母 10/100 × 分子 1–99 × qty 至 1e6、真餘數仍進位＋最小 10 分鐫保留）。
+- **併入與驗證**：普通 merge → **22d337f**（保留他人提交）。新測 3/3；web 全量 **907/907**（904+3）；build 過（13.3s）；CI run **38851541908** @22d337f **success**。
+- **staging 部署**：快進 `codex/excel-friendly-ui-20260930` 82dece7→22d337f；deployment **7111026910** state=**success**。即時 bundle `index-CLJ6Hpoh.js`（?cb）：實測含 `Math.ceil(n-Number.EPSILON*Math.max(1,n))`、舊形 `Math.ceil(x/y/10)` 已消失——修復上線。
+- **PR16 分支同步**：`codex/cloud-test-mode-release-20261012` 普通 merge → **0fbc644** 已推送。
+- **正式環境**：未動（main 仍 e0e6f65）。合成資料無變更。
+- **下一項**：監看新協同分支；使用者三決策不變（①批次合併 PR19–38＋正式部署 ②Realtime ticket ③第二帳戶/真手機驗收）。
+
+## 2026-10-16 R136（20min）— 優先項③手機視窗（390px 模擬）staging 實證：看板可見、日/週手動切換、底部預覽抽屜、44px 目標
+
+- **環境**：無新協同分支；worktree 358248b 乾淨；main CI 綠 @e0e6f65；staging 維持 82dece7（bundle index-EqniYfcJ.js），不重複部署。沿用 R135 可用分頁（組長 session）。
+- **390×844 模擬結果（staging 實測）**：①看板 `2廠 10/16 排程` 5 blocks 正常渲染，文件零水平溢流（scrollWidth=clientWidth=375），欄位以內部 scroller 橫向捲動；②日/週＝手動切換：「整週」鈕（實測高 44px）→「本週總覽」週檢視（10/12–10/18 七日卡），點 10/16 回日檢視；③底部固定導覽列存在（今天/工單/人/產量/工作紀錄/備忘/更多）；④點方塊（滾動露出、避開導覽帶後）→ 全寬圓角卡片 modal（327px、× 關閉鈕 44px，內容含員工切換/固定選項）；⑤拖曳方塊（pointer 三段式、投放點須在視窗內否則 elementFromPoint=null 無目標）→ PV 開啟：`.pv-drawer pv-manual-drawer` **position:fixed、貼底（bottom=844=innerHeight）、375 寬、506 高、上圓角 18px**＝手機底部抽屜規格落實（桌面上緣右抽屜 CSS 亦核對：top:78px right:10px）。`注意`：querySelector 撈到第一個 `[data-act="pv-cancel"]` 是 0×0 隱藏鈕，可見取消鈕在抽屜操作列（168×48）。
+- **零寫入**：取消後 toast「已取消，排程沒有改變」；拖曳後看板曾顯示 M19 09:30–13:30＋釘＝預覽 pending 態（board 渲染 after 狀態），取消即回復 **08:00–12:00**；PV 完全關閉、5 blocks。無任何 save_blocks/API 寫入（僅 UI 預覽）。
+- **記錄（非缺陷）**：手機模擬下頁面本身可捲動，看板區塊起始 y≈772 在固定導覽（top≈766）之下，需捲動露出後才可點——一般手機操作同理（先捲再看），不判缺陷；Real 機行為仍待使用者驗收（模擬≠真機，不偽稱真機驗證）。
+- **合成資料**：無變更。正式環境未動（main e0e6f65）。視窗已還原 1280×720。
+- **下一項**：監看新協同分支；使用者三決策不變（①批次合併 PR19–37＋正式部署 ②Realtime ticket ③第二帳戶/真手機驗收）。
+
+## 2026-10-16 R135（20min）— PR37 修復 staging 瀏覽器實證（dpScrollTarget 快樂路徑＋零寫入）
+
+- **環境**：無新協同分支；worktree 969affe 乾淨同步；main CI 綠 @e0e6f65。staging 已是 R134 的 82dece7（deployment 7110060743），本輪不重複部署。
+- **瀏覽器實證（組長 session 沿用）**：既有分頁輸入路由失效（role-click/CUA/dom_cua 三路在 document 捕獲探針均 0 事件；分頁 bundle 也停在舊快取 index-Bnyk9wq0.js）→ 開新分頁即恢復：bundle=**index-EqniYfcJ.js**（?cb 破快取與部署 API 一致）、localStorage 登入沿用（測試-組長）。
+- **PR37 實證**：在 2廠 10/16（5 blocks）以三段式 pointer 事件垂直拖曳「測試A07 檢驗」方塊（時間軸為縱向；水平 +60px 不觸發＝同目標，垂直 +130px 才改時段）→ `enterManualPreview` 開啟「手動排班預覽」抽屜 → **dpScrollTarget 恰好觸發 1 次 scrollIntoView**，目標 `.blk.ro.pv-mv`（被移動方塊），實測置中顯示（rect 331–389 / 720），重試隨即終止——修復後時鐘一致，快樂路徑不退化、無殘留迴圈。
+- **零寫入**：點「取消」→ toast「已取消，排程沒有改變」；A07 方塊維持 08:00–08:50、5 blocks、`__errs` 0。與 R69 cancel=0 寫入結論一致。
+- **記錄（非缺陷）**：`＋手動排班` 在 1廠/2廠 10/16 與空白的 2廠 10/19 均回「目前沒有可新增的工作（工序已排滿或尚未建立工單）」＝隔離資料狀態；此路徑無法開 PV，須走拖曳路徑。
+- **合成資料**：無新增變更。正式環境未動（main e0e6f65）。
+- **下一項**：監看新協同分支；使用者三決策不變（①批次合併 PR19–37＋正式部署 ②Realtime ticket ③第二帳戶/真手機驗收）。
+
+## 2026-10-16 R134（20min）— PR37 併入：dpScrollTarget 時鐘混用（#63）
+
+- **新協同分支**：`codex/fix-preview-scroll-deadline-20261016`（622e249，PR37）。重現：`web/src/app.js` `dpScrollTarget` 以 `deadline=Date.now()+800`（epoch 毫秒 ≈1.7e12）設限，卻用 `performance.now()`（頁面載入後毫秒 ≈數千）比較 → `performance.now()<deadline` 恆真：預覽目標永不出現時 rAF 重試迴圈**無界**每幀查 DOM，直到 PV 變更；兄弟函式 `focusDpBack`（行 2415-2419）本來就是 Date.now() 一致用法，此處為單點不一致。
+- **最小修正（他人）**：行 2402 `performance.now()`→`Date.now()`；同 commit 新增 `web/tests/preview-scroll-deadline.test.mjs`（3 測試：deadline 停排程／視窗內出現滾動一次即止／PV 取代或取消不再查詢）。本輪複核 diff 確認僅此一行＋測試。
+- **併入與驗證**：普通 merge → 82dece7（保留他人提交）。新測試 3/3 綠；web 全量 **904/904**（901+3）；`npm run build` 過（13.2s）。CI run **38845051160** @82dece7 **success**。
+- **staging 部署**：快進 `codex/excel-friendly-ui-20260930` 18ee95e→82dece7；deployment **7110060743** state=**success**（web `dep-db8phkdbedkc73f3g26g`；solver 目錄無 diff，Render 跳過）。即時 bundle `index-EqniYfcJ.js`（?cb 破快取）：minified `er`=dpScrollTarget 區段實測 `if(!a){Date.now()<s&&requestAnimationFrame(i)` — 時鐘一致，修復上線。bundle 內其餘 6 處 `performance.now()` 為 solver 計時等合法用途。
+- **PR16 分支同步**：`codex/cloud-test-mode-release-20261012` 普通 merge → **c759a75** 已推送。
+- **正式環境**：未動（main 仍 e0e6f65；正式部署授權仍待使用者）。合成資料無新增變更。
+- **下一項**：繼續監看新協同分支；使用者三決策不變（①批次合併 PR19–37＋正式部署 ②Realtime ticket ③第二帳戶/真手機驗收）。
+
+## 2026-10-16 R133（20min）他人修復併入：#62 預覽重排過時回應污染新預覽（efcee20/PR36）
+
+- 發現：他人分支 fix-rerun-owner-20261016（efcee20，基於 main，已開 PR36）。缺陷：`runRerun` await SOLVER 後**不檢查 PV/R 身分**——使用者取消預覽或開了新預覽後，遲到的回應仍會把新方案注入**舊 P 物件**或渲染已離開的預覽（與本系列 #51 同型的過時回應族）。修法：捕獲 store/user/epoch＋PV===P＋P.rerun===R 五重 `current()`，過時成功/空結果/失敗全部靜默丟棄。
+- 併入：普通 merge；rerun-owner **3/3**（現行接受一次＋連點拒絕＋保留原方案、取消/換預覽/換帳戶三路忽略遲到回應、失敗清 busy 如實回報）、全套 web **901/901**＋build 過。
+- staging 部署驗收：CI 綠→前進 stage 分支（97a25ee→18ee95e）→deployment **success**。PR16 分支同步。
+- 待授權批次：PR19-36 十八件。
+
+## 2026-10-16 R132（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 e3813d0；main CI 綠 @e0e6f65；staging＝97a25ee；PR19-35 十七件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R131（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 b0fb204；main CI 綠 @e0e6f65；staging＝97a25ee；PR19-35 十七件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R130（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 aa2e6de；main CI 綠 @e0e6f65；staging＝97a25ee；PR19-35 十七件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R129（20min）他人修復併入：#61 xlsx 匯出非同步期間切日期/廠別會誤標檔名（7b52164/PR35）
+
+- 發現：他人分支 fix-export-context-20261016（7b52164，基於 main，已開 PR35）。缺陷：`x-xlsx` 在 `await scheduleXlsx` 之後才讀 `UI.date/UI.factory` 組檔名——生成期間使用者切日期或廠別，下載檔名會標成新 context（內容卻是舊的）＝檔名與內容不符。修法：進入時即捕獲 date/factory 決定檔名與資料過濾，await 前後同源。
+- 併入：普通 merge；excel-export-context **2/2**（await 中切換不誤標、兩個並行匯出逆序完成各保其名）、全套 web **898/898**＋build 過。
+- staging 部署驗收：CI 綠→前進 stage 分支（d2026c8→97a25ee）→deployment **success**。PR16 分支同步。
+- 待授權批次：PR19-35 十七件。
+
+## 2026-10-16 R128（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 d3621f4；main CI 綠 @e0e6f65；staging＝d2026c8；PR19-34 十六件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R127（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 4eb61fb；main CI 綠 @e0e6f65；staging＝d2026c8；PR19-34 十六件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R126（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 518ee48；main CI 綠 @e0e6f65；staging＝d2026c8；PR19-34 十六件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R125（20min）他人修復併入：#60 關窗焦點還原可偷走新視窗焦點（38681c7/PR34）
+
+- 發現：他人分支 fix-modal-focus-20261016（38681c7，基於 main，已開 PR34）。缺陷：closeModal 用 rAF 延遲還原焦點給啟動鈕——若使用者在同一幀內開了**另一個視窗**，延遲的 focus() 會把焦點從新視窗偷回舊按鈕（鍵盤操作跳序）。修法：rAF 回呼加 `!UI.modal` 守門。
+- 併入：普通 merge；modal-return-focus **3/3**（正常還原一次、斷線/停用鈕跳過、先關再開同幀不偷焦點、反覆關開焦點留在當前視窗）、全套 web **896/896**＋build 過。staging 部署待後續。
+- 待授權批次：PR19-34 十六件。
+- staging 部署驗收：CI 綠→前進 stage 分支（89164bf→d2026c8）→deployment **success**。PR16 分支同步。
+
+## 2026-10-16 R124（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 8ca5beb；main CI 綠 @e0e6f65；staging＝89164bf；PR19-33 十五件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R123（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 f01493b；main CI 綠 @e0e6f65；staging＝89164bf；PR19-33 十五件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R122（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 a9a8ed8；main CI 綠 @e0e6f65；staging＝89164bf；PR19-33 十五件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R121（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 c67d4c5；main CI 綠 @e0e6f65；staging＝89164bf；PR19-33 十五件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R120（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 c33682e；main CI 綠 @e0e6f65；staging＝89164bf；PR19-33 十五件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R119（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 420d232；main CI 綠 @e0e6f65；staging＝89164bf；PR19-33 十五件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R118（20min）他人修復併入：#59 列印班表的產品/工序名未跳脫＝HTML 注入面（28662a7/PR33）
+
+- 發現：他人分支 fix-print-labels-20261015（28662a7，基於 main，已開 PR33）。缺陷：`printDaySchedule` 的工單格 `esc(o.code)` 有跳脫，但 `prod(o.pid)?.name` 與 `stepName(b)` **未跳脫**——產品/工序名含 `<` 時可注入 HTML 到列印文件（資料來自工單主檔＝老闆輸入，屬防禦縱深缺口）。修法：兩處補 `esc()`。
+- 併入：普通 merge；print-labels **2/2**（`<img onerror>` 名稱以純文字渲染；封鎖後重試重印完整文件）＋我的 print-popup-guard 仍綠（同檔共存）、全套 web **893/893**＋build 過。staging 部署待後續。
+- 待授權批次：PR19-33 十五件。
+- staging 部署驗收：CI 綠→前進 stage 分支（ff1c422→89164bf）→deployment **success**。PR16 分支同步。
+
+## 2026-10-16 R117（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 e52fbdc；main CI 綠 @e0e6f65；staging＝ff1c422；PR19-32 十四件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R116（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 1dfe81b；main CI 綠 @e0e6f65；staging＝ff1c422；PR19-32 十四件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R115（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 698afa2；main CI 綠 @e0e6f65；staging＝ff1c422；PR19-32 十四件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R114（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 6590769；main CI 綠 @e0e6f65；staging＝ff1c422；PR19-32 十四件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R113（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 ef59c26；main CI 綠 @e0e6f65；staging＝ff1c422；PR19-32 十四件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R112（20min）他人修復併入：#58 浮動視窗幾何驗證不全（y/h 可 NaN 入畫）（d0de20a/PR32）
+
+- 發現：他人分支 fix-window-geometry-20261015（d0de20a，基於 main，已開 PR32）。缺陷：win.js `load()` 只驗 x/w 有限——y 或 h 為 NaN/字串的壞資料會通過，paint 時 `clampRect` 算出 NaN 座標＝視窗不可見/不可拖。修法：四欄全驗（x/y/w/h 皆有限＋w>0＋h>0），壞值回預設。
+- 註：我在 R37 曾審過 win.js 並記「壞資料回預設」——當時聚焦 load 的 try/catch 與 x/w 檢查，未抓出 y/h 未驗＝審查遺漏，他人補上。單元測試補三案例（壞幾何畫前回退、有效幾何重開＋reflow 存活、復原後可拖/取消/重開）。
+- 併入：普通 merge；win-storage **3/3**、全套 web **891/891**＋build 過。
+- staging 部署驗收：CI 綠→前進 stage 分支（a7264c9→ff1c422）→deployment **success**。PR16 分支同步。
+- 待授權批次：PR19-32 十四件。
+
+## 2026-10-16 R111（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 a1cdd8c；main CI 綠 @e0e6f65；staging＝a7264c9；PR19-31 十三件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R110（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 2b2f921；main CI 綠 @e0e6f65；staging＝a7264c9；PR19-31 十三件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R109（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 c553e3c；main CI 綠 @e0e6f65；staging＝a7264c9；PR19-31 十三件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R108（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 b5a017e；main CI 綠 @e0e6f65；staging＝a7264c9；PR19-31 十三件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R107（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 762891d；main CI 綠 @e0e6f65；staging＝a7264c9；PR19-31 十三件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R106（20min）他人修復併入：#57 solver POST 逾時在表頭後失效＝回應本體可無限掛住（dd17dd8/PR31）
+
+- 發現：他人分支 fix-solver-body-timeout-20261015（dd17dd8，基於 main，已開 PR31）。缺陷：`post()` 先 await fetchWithTimeout（**僅到表頭**、abort 定時器已清），再在窗外 `r.json()`——若服務送出表頭後本體停滯（免費版喚醒/網路半斷），讀取**無限掛住**且逾時不再觸發。修法：把 !r.ok 處理與 `r.json()` 移入 `fetchWithTimeout` 的 consume 回呼＝abort 期限涵蓋到本體完成。
+- 併入：普通 merge（與我 #43 的 check() 重試互不重疊、共存無衝突）；新測試 1/1（表頭不清除期限、期限觸發→「排程服務沒有回應」、重試成功）＋我的 solver-check-retry **4/4 仍綠**（交叉無回歸）、全套 web **888/888**＋build 過。staging 部署待後續。
+- 待授權批次：PR19-31 十三件。
+- staging 部署驗收：CI 綠→前進 stage 分支（4f4470a→a7264c9）→deployment（web＋solver 如有 diff）**success**。PR16 分支同步。
+
+## 2026-10-16 R105（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 7cd7577；main CI 綠 @e0e6f65；staging＝4f4470a；PR19-30 十二件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R104（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 e05b068；main CI 綠 @e0e6f65；staging＝4f4470a；PR19-30 十二件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R103（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 85c319c；main CI 綠 @e0e6f65；staging＝4f4470a；PR19-30 十二件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R102（20min）狀態保持輪（全線不變）
+
+- 例行核對：worktree 乾淨同步 def46b7；main CI 綠 @e0e6f65；staging＝4f4470a；PR19-30 十二件 OPEN 不變、無新協同分支。待使用者三項不變（批次授權／Realtime ticket／真手機跨帳戶）。
+
+## 2026-10-16 R101（20min）狀態保持輪（無新工作面；全線不變）
+
+- 例行核對：worktree 乾淨同步 ef9175b；main CI 綠 @e0e6f65；staging＝4f4470a（12 修復全上線）；PR19-30 十二件 OPEN 不變、無新協同分支。
+- 待使用者三項不變：①批次合併＋部署正式（R90 計畫＋E 節驗收單）；②Realtime ticket；③第二帳戶/真手機驗收（A–D 節）。
+
+## 2026-10-15 R100（20min）系列百輪小結：30 輪 20min 追蹤——12 件協同修復上線、7 項修復 staging 實證、瓶頸全在使用者側
+
+- **20min 系列（R71–R100）累計**：我方修復 #43（solver 冷啟動有界重試）＋render.yaml 防漂移；併入他人修復 12 件（#45–#56，PR19–30 全部普通 merge、全數上 staging、web 430→887）；優先項①②③完成、④大部分完成（連點/匯出/下載解析/列印提示皆有實證）、⑤持續阻擋（Realtime R91 實證仍 500、第二帳戶未建立）。
+- **實證分層**：staging 級＝#43/#45/#46/#48/#50/#55＋#42＋#54 前門；單元級＝#47/#49/#51–#53/#56；匯出面三層（zip/CSV 內容/列印設定往返）。遺留合成資料：A07（基準保留）、TEST-r94-rscreate 輪班草稿、一筆本機黃標——皆已標識。
+- **不變瓶頸（全在使用者側）**：①批次合併 PR19–30＋部署正式（R90 計畫＋E 節驗收單）；②Realtime ticket；③第二帳戶/真手機驗收（A–D 節腳本）。
+- 本輪無程式碼變更、無部署。
+
+## 2026-10-15 R99（20min）#54 瀏覽器層探針：UI 表單擋不可能日期（前門防禦）＋空日期雙向墊底——測試列已清理
+
+- 嘗試在欠缺品項新增出貨日 `2026-02-30` 的列：**原生 date input 拒收**（賦值後 value 清空）＝前門防禦有效——不可能日期經 UI 進不去（#54 的文字型壞日期只可能來自匯入/舊資料，該路徑由 excel.js 的 dateValue 回程檢查＋單元測試鎖定）。
+- 附帶實證：空出貨日的列在降冪排序下**墊底**（test row 位於最後列）＝dateVal null 語意正確。
+- 清理：TEST-r99 測試列經兩段確認刪除（「已刪除」toast、複查不在）；零錯誤、零殘留。待授權批次不變（PR19-30）。
+
+## 2026-10-15 R98（20min）驗收腳本補 E 節：PR19–30 修復批次的 30 秒抽驗清單
+
+- ACCEPTANCE_SCRIPT.md 新增 **E 節**（7 項抽驗，每項 30 秒內）：#45 輪班草稿建立、#46 850px sticky 面板、#48 標記帳戶隔離（雙帳號）、#50 LINE 儲存成功／拒絕路徑、#55 Excel 橫向一頁式、#54 不可能日期墊底、#56 交接批量提示——正式部署後照單驗收。
+- 覆蓋分層說明：staging 實證＝#43/#45/#46/#48/#50/#55＋防漂移；單元鎖定＝#47/#49/#51–#54；#51 瀏覽器實證受阻於 boss-only 入口（組長 session）、#52/#53 為本機模式路徑（雲端站不適用）——單元測試已鎖定。
+- 本輪無程式碼變更、無部署。待授權批次：PR19-30 十二件。
+
+## 2026-10-15 R97（20min）他人修復併入：#56 排隊視圖交接診斷用計畫量而非完成量（72af57f/PR30）
+
+- 發現：他人分支 fix-queue-handoff-quantity-20261015（72af57f，基於 main，已開 PR30）。缺陷：work-queue 交接批量診斷的前站量用 `b.qty`（計畫量）——前站其實只完成 20/100 時仍顯示「可安排」；與 #22 的口徑原則（完成認現場回報）不一致。修法：`effectiveBlockQty`（完成以 qtyDone 計、未完成保留計畫產能）。附加價值：補排替代段可滿足交接、batch=0 語意鎖定。
+- 併入：普通 merge；queue-handoff-quantity **2/2**（完成量診斷＋不可變性、未完成保留產能＋補排滿足＋batch 語意）、全套 web **887/887**＋build 過。staging 部署待後續。
+- 待授權批次：PR19-30 十二件。
+- staging 部署驗收：CI 綠→前進 stage 分支（0e934c8→4f4470a）→web-staging deployment **success**。PR16 分支同步。
+
+## 2026-10-15 R96（20min）#50 staging 實證：LINE 設定被 RLS 拒絕時表單保留＋真實訊息（拒絕不再假成功）
+
+- 方法（真實 staging、既有 session）：頁內 攔 `line_notify_settings` 寫入並模擬 **403 RLS 拒絕**（returned error 形狀）→ 開 LINE 通知設定 → 儲存。
+- 結果：**表單保留**（modal 仍開、標題不變）、toast 顯示真實訊息「new row violates row-level security policy」、**無「已儲存」假成功**、儲存鈕重新可用（可重試）、零錯誤。修復前此情境＝關窗＋「已儲存」成功 toast。
+- 註：mock 在頁內 攔截、請求未達伺服器＝**零實際寫入**；分頁已清理。#50 有單元測試＋本 staging 實證。
+- 待授權批次不變（PR19-29）。
+
+## 2026-10-15 R95（20min）#48 staging 實證：表格標記以 (project,user) 隔離鍵落localStorage
+
+- 流程（真實 staging、既有 session）：欠缺品項頁 → 點一列「標記／填色」→ 選黃 → 儲存 → localStorage 出現鍵 **`fsched-table-marks-v1:account:["https://fkefarcwadvyqqjcjxvp.supabase.co","05a27bab-…"]`**＝(專案,使用者) 隔離鍵（修復前＝裸 `fsched-table-marks-v1` 跨帳戶共享）。標記前無任何 marks 鍵（乾淨起始）；零錯誤零 toast。
+- 遺留：隔離專案裝置 localStorage 多一筆 rush 列黃標（本機偏好、不進資料庫；可由使用者在此裝置清除）。#47/#49–#54 仍由單元測試鎖定。
+- 待授權批次不變（PR19-29）。
+
+## 2026-10-15 R94（20min）#45 staging 端到端 PASS：輪班草稿建立→持久化→獨立回讀（迴歸修復實證）
+
+- 流程（真實 staging、既有 session）：更多→輪班表→「＋建立週期草稿」→名稱改 **TEST-r94-rscreate**→「建立草稿」→ **save_staff_rosters POST 200 恰一次**、視窗切到「TEST-r94-rscreate · 固定班 · 草稿」工作表、**零 TypeError/toast**（正式站未修前此步拋 `p is not defined`）。reload 後重進輪班表清單＝**TEST-r94-rscreate 存在**（獨立回讀持久化確認）。
+- 遺留合成資料：隔離 fk 專案多一筆名為 TEST-r94-rscreate 的輪班草稿（標識清楚可供日後清理；staff_rosters 屬草稿域，不影響 12/8/20/103 排程基準）。
+- 至此 #43/#45/#46/#55＋#48 防漂移配置皆有 staging 級以上實證；其餘協同修復（#47/#49–#54）有單元測試鎖定。PR19-29 待授權不變。
+
+## 2026-10-15 R92+R93（20min）狀態總覽塊更新＋#46 staging 瀏覽器實證
+
+- **R92**：狀態總覽塊（文件頂部）全面刷新——正式 e0e6f65／待修 #45、staging 0e934c8＋（#43＋#45–#55＋render.yaml 防漂移）、待使用者三項（批次授權／Realtime ticket／真手機跨帳戶）、web 885/885＋solver 177/177。
+- **R93（#46 實證）**：staging 真實分頁 850×900（static 表頭範圍）：表頭 position=static；滾動 600px 前後＋resize 重算，`--hdr-h` 三次皆 **0px**（表頭滾出 viewport bottom=-331）＝修復生效——靜態表頭不再撐開 sticky 操作面板（修復前會用 ≈269px 撐開）。零寫入、分頁已清理。
+
+## 2026-10-15 R91（20min）Realtime 平台檢查：**仍未恢復**（帶金鑰 WS 500 重現）——ticket 續待
+
+- 探測（隔離 fk 專案）：REST `/rest/v1/` 無金鑰＝401（正常防護）；realtime WS **無金鑰**＝401「No API key found」（合理）；但從 staging 公開 bundle 取出 publishable key（公開設計、非密鑰）後 **WS 帶金鑰＝HTTP 500**——與歷史故障簽名完全相同（WS 帶金鑰 500/REST 200）。正式專案 WS 同樣 401-without-key 形狀（未帶正式金鑰測，不需）。
+- 判定：staging Realtime 平台故障**未恢復**，輪詢備援（#40，60s）持續作為唯一同步通道（R69 實證 ~61 秒收斂）。優先項⑤的「Realtime 恢復證據」持續阻擋於 Supabase ticket——使用者側待辦。
+- 本輪無程式碼變更、無部署。
+
+## 2026-10-15 R90（20min）授權後執行計畫（一鍵批次）——供使用者決策的具體內容
+
+- **現況**：staging＝release-gate 分支 0e934c8 runtime（領先正式 11 個修復 #45–#55＋#43 solver 重試＋render.yaml 防漂移）；正式＝e0e6f65。main CI 綠。十一個協同 PR（19–29）皆 MERGEABLE/CI 綠且已全部在我的分支內（普通 merge 保留他人提交）。
+- **授權後我將執行（順序）**：①核對 PR19–29 仍 MERGEABLE＋main 無新提交；②逐件普通 merge 進 main（衝突即停，不 force）；③main CI 全綠後等 Render auto-deploy（web＋solver，不手動觸發）；④核對兩服務 deployment success＋實際 SHA/bundle；⑤正式 web 瀏覽器抽驗：rs-create 修復（輪班新增可用）、?mode=test 入口、板面渲染；正式 solver /health＋capabilities；⑥錯誤紀錄視窗查詢。全程不動 1023 資料、不重跑 0037、不改 Auth/角色。
+- **風險評估**：11 件皆小修（1–15 行）＋各自測試；web 全套 885/885、solver 177/177 在本分支實測；staging 已運行同 runtime 數小時零錯誤。回滾路徑：Render dashboard revert 至 e0e6f65（既有服務，不新增資源）。
+- 本輪無程式碼變更、無部署。
+
+## 2026-10-15 R89（20min）#55 staging 實證：下載檔案的列印設定在往返後完整保留（landscape/fitToPage/1/1）
+
+- 驗證方式：staging 瀏覽器實際點「下載彩色排程 Excel」→ 攔 objectURL 抓回 bytes（11,294）→ base64 帶回 node → **exceljs 重新載入**（真往返）→ pageSetup＝`{orientation:"landscape", fitToPage:true, fitToWidth:1, fitToHeight:1}`、雙工作表（時間×機台／排程明細）——**#55 修復在 staging 線上檔案實證**（修復前這些設定序列化時全部遺失）。
+- 本輪無程式碼變更；全程零資料寫入；分頁已清理。與 R77（位元組 zip 結構）、R80（CSV 內容）＋本輪（列印設定往返）＝匯出面三層證據齊。
+- 待授權批次不變：PR19-29 十一件。
+
+## 2026-10-15 R88（20min）他人修復併入：#55 匯出 Excel 列印版面設定寫錯屬性（9fbb888/PR29）
+
+- 發現：他人分支 fix-excel-print-layout-20261015（9fbb888，基於 main，已開 PR29）。缺陷：`grid.properties.pageSetup=...`——ExcelJS 的 pageSetup 在 worksheet 根層（`grid.pageSetup`），寫到 `properties` 下＝序列化時**整段列印設定遺失**（開啟檔案非橫向、非一頁式）。修法：`Object.assign(grid.pageSetup,...)`。
+- 併入：普通 merge；新測試做 **XLSX 往返**（寫出→重新載入→斷言 orientation/fitToPage/fitToWidth/fitToHeight＋內容格）1/1、全套 web **885/885**＋build 過。與 R77/R80 的位元組級下載證據互補——本修復讓列印設定真正存進檔案。
+- staging 部署驗收：CI 綠→前進 stage 分支（116ec1e→0e934c8）→web-staging deployment **success**。PR16 分支同步。
+- 待授權批次：PR19-29 十一件。
+
+## 2026-10-15 R87（20min）R86 待查項排除：三連點重現＝恰一個 200——預覽套用連點 PASS（結案）
+
+- **重現實驗**（staging、A07、狀態碼級計數器）：blk 視窗改 10:30–11:20 → 預覽 → **同步三連點** pv-apply → save_blocks 恰 **[200] 一個**、一個 toast、面板關閉、位置正確。R86 的 2-POST 觀察**不重現**——判定為一次性雜訊（R86 計數器為 URL 字串匹配、可能抓到套用流程外的第二個寫入如先前操作殘留；且最終狀態一直正確）。
+- 靜態＋動態證據齊：`pvApplyManual` 的 `PV.applying` 守門＋`accepting()` 同步清 PV＝連點收斂單次寫入。**預覽套用連點 PASS，結案**。
+- 收尾：A07 單擊移回基準 **10/16 09:30–10:20 手動固定**（本輪共兩次套用：三連點測試＋還原，各恰一個 200）。全程僅隔離庫合成資料、零錯誤、分頁已清理。
+- 待授權批次不變：PR19-28 十件。
+
+## 2026-10-15 R86（20min）優先項④：預覽套用連點實測——單擊=恰一次 200 寫入；三連點曾見 2 個 POST（未定型，記錄待查）
+
+- **單擊對照（PASS）**：A07 blk 視窗改 09:30–10:20 → 預覽 → **單擊**確認套用 → 恰 **1 個 save_blocks POST（HTTP 200）**、一個 toast、位置正確。A07 已由 10:30–11:20 移回基準 **10/16 09:30–10:20 手動固定**（本輪中間曾暫移 10:30–11:20，已還原）。
+- **三連點觀察（未定型）**：先前同一流程改 10:30–11:20 後**同步連點三次**確認套用，觀察到 **2 個 save_blocks POST**（但最終狀態正確：僅一次移動、一個 toast、面板關閉）。待釐清：supabase-js 401/token-refresh 自動重試（同一邏輯寫入的兩個 fetch）vs 真實雙寫。靜態分析：`pvApplyManual` 有 `PV.applying` 守門＋`accepting()` 同步 `exitManualPreview`（PV=null）→ 理論上第二三次點擊應走 `pvApply()` 的 `!PV` 早退＝不應寫入；與觀察矛盾，傾向 token-refresh 解釋但**無 response 狀態碼證據，不判定**。已記錄為待查項（下輪可重現三連點＋狀態碼計數）。
+- 全程僅隔離庫合成資料寫入；錯誤收集器空；分頁已清理。
+
+## 2026-10-15 R85（20min）他人修復併入：#54 表格排序接受不可能日期（fc766b8/PR28）
+
+- 發現：他人分支 fix-invalid-date-sort-20261015（fc766b8，基於 main，已開 PR28）。缺陷：`dateVal` 只做正則形狀匹配——「2026-02-30」「2026-13-01」等**不可能日期被當有效值參與排序**（排在中間而非按約定墊底）。修法：閏年感知的月日上限驗證（含 1900/2000 世紀閏年規則），無效一律 null＝兩方向墊底。
+- 併入：普通 merge；date-sort-calendar **2/2**（8 種不可能日期＋閏年規則、雙向墊底不動行）、全套 web **884/884**＋build 過。staging 部署待後續。
+- 待授權批次：PR19-28 十件。
+- staging 部署驗收：CI 綠→前進 stage 分支（2a1e43d→116ec1e）→web-staging deployment **success**。PR16 分支同步。
+
+## 2026-10-15 R84（20min）優先項④補項 PASS：接收端同步鈕連點＝恰一次補讀（staging 實測）
+
+- 情境：接收端分頁（既有組長 session）掛 fetch 計數器後，**快速連點同步鈕三次**（「即時更新中斷·按此更新班表」）。
+- 結果：初始載入 1 次 snapshot；連點三下後計數 1→**2**（恰新增一次補讀），再等 5 秒仍為 2＝無第二輪、無重複；20 段不變、零錯誤、零寫入。`remoteLoading` 守門在真實 staging 連點下有效（不把三次點擊放大成三次補讀）。
+- 補充觀察：同步晶片文案＝「雲端已儲存／即時更新中斷」——Realtime 仍未恢復（與交接一致，等待平台 ticket）；輪詢備援（#40）持續作為同步通道。
+- 本輪無新協同分支；PR19-27 九件待授權不變。分頁已清理。
+
+## 2026-10-15 R83（20min）他人修復併入×2：#52 本機重置失敗仍重載如成功（dcc4da0/PR26）、#53 情境清單讀取失敗靜默覆寫（5725165/PR27）
+
+- **#52**：`reset-local` 原本 `reset().then(reload)`＋catch 全吞——重置失敗仍 reload 看起來成功；且 `reset()` 把「索引讀取失敗」當空陣列＝**不刪任何鍵卻回報成功**。修法：reset 前驗證索引（非陣列/缺 id 即 throw 不刪）、部分刪除失敗如實上拋；app 端 confirmStep 後 disabled＋await＋失敗 toast 不 reload 可重試。
+- **#53**：`saveScenario` 讀 SCENARIOS 拋例外時 catch 吞成空陣列——**用空清單覆寫＝丟全部已存情境**。修法：讀取失敗改 throw 友善訊息（不儲存不覆寫），解析失敗仍走原本防護路徑。
+- 併入：普通 merge×2；local-reset 4/4＋scenario-read-failure 1/1（共 5 案例：失敗重置可重試、壞索引不刪、部分失敗不動無關鍵、真 handler 不 reload 可重試、讀取失敗不覆寫且重試保留雙情境）、全套 web **882/882**＋build 過。staging 部署待後續。
+- 待授權批次：PR19-27 九件。
+- staging 部署驗收：CI 綠→前進 stage 分支（d5651c6→2a1e43d）→web-staging deployment **success**。PR16 分支同步。
+
+## 2026-10-15 R82（20min）他人修復併入：#51 反饋清單過時回應覆寫（cffd22e/PR25）
+
+- 發現：他人分支 fix-feedback-request-owner-20261015（cffd22e，基於 main，已開 PR25）。缺陷：`feedback-list` 的 RPC 回應只檢查 `UI.modal?.t==="feedback-list"`——舊請求的回應可覆寫**重開後的新清單**（同型 modal 無個別身分）；且不看 returned error、不看帳戶/角色變更。修法：捕獲 store/client/user/epoch/role 五元組＋modal 物件身分，`current()` 全比對（與本系列 directWriteOwner 同構）；returned error 進 throw；過時成功/失敗都靜默丟棄。
+- 併入：普通 merge；feedback-request **4/4**（舊成功不覆寫重開清單、取消後失敗不關別的視窗、returned error 顯示可重試、身分變更後忽略）、全套 web **877/877**＋build 過。staging 部署待後續。
+- 待授權批次：PR19-25 七件。
+- staging 部署驗收：CI 綠→前進 stage 分支（cbd5fdd→d5651c6）→web-staging deployment **success**。PR16 分支同步。
+
+## 2026-10-15 R81（20min）他人修復併入：#50 LINE 設定寫入被拒仍報成功（7ca3b6a/PR24）
+
+- 發現：他人分支 fix-line-settings-save-error-20261015（7ca3b6a，基於 main，已開 PR24）。缺陷：`ln-save` 對 supabase upsert 只看 throw、不看 **returned error**（RLS 拒絕／約束失敗走 error 欄位）→ 寫入被拒仍關窗＋「已儲存」成功 toast＝靜默失敗。修法：解構 `{error}`、`if(error)throw error` 進既有 catch（保留表單＋真實訊息＋可重試）。
+- 併入：普通 merge；line-settings-save **2/2**（returned-error 與 thrown 兩路都保留表單不謊報）、全套 web **873/873**＋build 過。staging 部署待後續。
+- 待授權批次：PR19-24 六件。
+- staging 部署驗收：CI 綠→前進 stage 分支（cac15bd→cbd5fdd）→web-staging deployment **success**。PR16 分支同步。
+
+## 2026-10-15 R80（20min）優先項④補項 PASS：CSV 下載內容級解析（R77 未驗項收尾）
+
+- 修正 R77 的 locator 失誤（按鈕文字含巢狀 span 導致名稱不匹配）——改用 `[data-act="x-dl"]` 直取：staging 實測點「下載全部明細 CSV」→ blob 8,346 bytes、`text/csv;charset=utf-8`；**抓回內容解析**：表頭 12 欄（日期/星期/開始/結束/機台/員工/工單/產品/工序/數量/固定/問題）、資料 103 列＋表頭＝104 行、首列 2026-09-30 張三 B05 裁切 90 件＝與隔離庫 103 段基準吻合。
+- 全程零寫入、零錯誤；分頁已清理。至此優先項④的「Excel 實際下載解析」雙格式（xlsx＋CSV）都有 staging 真實瀏覽器證據；列印視窗內容仍環境阻擋（單元測試鎖定）。
+- 本輪無新協同代理分支（PR19-23 五件不變，待授權）。
+
+## 2026-10-15 R79（20min）他人修復併入：#49 本機歷史存檔並發丟索引項（eba4610/PR23）
+
+- 發現：他人分支 fix-local-archive-concurrency-20261015（eba4610，基於 main，已開 PR23）。缺陷：`saveLegacyArchive` 原本「先 await list 再寫索引」＝讀改寫分離——同分頁兩次並發存檔都拿到舊索引，後寫覆蓋前寫＝**丟一筆索引項**（payload 留存但清單看不到）。修法：讀改寫改同步一段（同 tick 讀 index→寫 archive→寫 index）、重複 id 冪等、索引寫失敗只在已寫 payload 時回滾（wroteArchive 旗標）、壞索引不覆蓋不刪既有資料。
+- 併入：普通 merge；local-archive-concurrency **4/4**（並發雙存保留兩項、重複冪等、失敗回滾僅新 payload、壞索引不破壞）、全套 web **871/871**＋build 過。staging 部署待後續。
+- 待授權批次：PR19/20/21/22/23 五件。
+- staging 部署驗收：CI 綠→前進 stage 分支（38cae3f→cac15bd）→web-staging deployment **success**（新 bundle index-DtKzetQO.js；solver 無 diff未重部署）。PR16 分支同步。
+
+## 2026-10-15 R78（20min）他人修復併入：#48 表格標記跨雲端帳戶隔離（e9b306a/PR22）
+
+- 發現：他人分支 fix-account-table-marks-20261015（e9b306a，基於 main）＋已開 PR22。缺陷：table-marks（人工填色/標註）原以單一 localStorage 鍵儲存＝**跨雲端帳戶共享**（A 帳號在裝置上的標記會洩給同裝置切換後的 B 帳號；同一台裝置不同 Supabase 專案也共享）。修法：`configureTableMarks(()=>STORE)`＋context 依 (project,user) 組鍵 `KEY:account:[...]`、authEpoch 入 owner；本機模式沿用舊鍵（不遷移不宣稱）；setMark 帶 owner 防跨身分殘留 modal 寫入；row-mark modal 在 renderModal 以 markOwner 守門關窗。
+- 審查意見：設計與本系列 #26/#28 的 unknown-ledger／owner 語意一致；不動業務欄位；登出（kind 仍 supabase 無 user）→ key null＝不讀不寫（fail-closed）。
+- 併入：普通 merge；table-marks-account 2/2、全套 web **867/867**＋build 過。staging 部署待後續。
+- 待授權批次：PR19/20/21/22 四件。
+- staging 部署驗收：CI 綠→前進 stage 分支（00803ea→38cae3f）→web-staging deployment **success**（solver 無 diff 未重部署）；新 bundle index-Bb8JMQji.js 內含 `account:` 組鍵形狀×4＝#48 上線。
+
+## 2026-10-15 R77（20min）優先項④ PASS（部分）：Excel 實際下載位元組級解析＋#42 列印封鎖提示真實瀏覽器證據
+
+- **xlsx 下載（staging 實測，位元組級）**：攔 `URL.createObjectURL` → 點「下載彩色排程 Excel」→ 實際 blob 11,264 bytes、MIME xlsx；**抓回位元組解析**：zip magic PK、entries 含 sheet1/sheet2/sharedStrings/workbook.xml＝有效 xlsx（與 excel-export-artifact.test.mjs 同判準，但這是 staging 真實 bundle 的瀏覽器證據）。兩次下載一致。
+- **列印（#42 真實瀏覽器 PASS）**：點「列印現場班表」→ IAB 封鎖彈出（環境限制）→ 實際出現 #42 的友善 toast「瀏覽器封鎖了列印視窗；請在網址列允許彈出視窗後再按一次列印。」而非崩潰——R43 修復在真實封鎖情境驗證成功。列印視窗內容（HTML 表格）在本環境無法驗證（彈出被封鎖）；由 print-popup-guard.test.mjs 單元鎖定 write/close 內容，列 **未驗證（環境阻擋）**。
+- CSV 下載鈕在此 modal 找不到（按鈕名「下載全部明細 CSV 檔」在匯出視窗快照有列但 locator 0——可能文字換行/分行導致；記錄未驗，不硬拚）。
+- 全程零寫入（僅下載與開關視窗）；錯誤收集器空；分頁已清理。
+
+## 2026-10-15 R76（20min）他人修復併入：#47 剪枝模型漏計切換成本（3188171/PR21）
+
+- 發現：他人分支 fix-pruned-switch-objective-20261015（3188171，基於 main）＋已開 PR21。缺陷：solver 的 sw_emp/sw_mach 切換成本在剪枝候選下（a）用剪枝後 pairs 推導員工/機台集合（誤差）、（b）lits 為空時 term 整條不加＝實際有換人卻零罰。修法：`switch_choices` 於剪枝前自完整 ops 捕獲（emp/mach 集合）；lits 空時 `keep==0` 固定並照加 term。
+- 併入：普通 merge（保留他人提交）。本機驗證：`uv run --frozen python -m pytest`：新增 test_pruned_objective **3/3**、全套 solver **177 passed**（2:15）；web **865/865**。
+- **部署注意**：此為 solver runtime 變更——staging solver（factory-scheduler-solver-staging）與正式 solver 均由 Render 端分支/設定觸發；本輪僅推送 release-gate 分支與 CI，**不部署任何 solver**（未變服務不重複部署；正式待授權）。staging solver 是否隨 stage 分支 auto-deploy 由 Render 設定決定，本輪查 deployments 清單佐證。
+- 待授權批次更新：PR19（#45）＋PR20（#46）＋PR21（#47）皆就緒。
+- staging 部署驗收（補）：CI 綠後前進 stage 分支（c6a87a1→00803ea）——**兩個 staging 服務各自收到部署**（此分支 auto-deploy web＋solver，2c16dc6 起可證）：solver-staging dep 7086433467 **success**，部署後 /health 三連 200（0.63/0.27/0.23s，ok/database/capabilities 正常，熱啟動驗證 #43 重試語意受惠）。web-staging 未重複部署（Render 差異偵測略過 web——本 push 對 web 無 diff）。正式 solver 未動。
+
+## 2026-10-15 R75（20min）他人修復併入：#46 sticky 操作面板被靜態表頭撐開偏移（070b25a/PR20）
+
+- 發現：他人分支 fix-sticky-header-offset-20261015（070b25a，基於 main）＋已開 PR20。缺陷：`updateHeaderVar` 一律以表頭 `bottom` 設 `--hdr-h`——表頭是 static（會滾走）時，sticky 操作面板仍保留上方保留空間＝滾動後面板偏移。修法：僅 sticky/fixed 表頭才取 bottom，否則 0（Math.max 防負值）。附 2 測試（801-900px 靜態表頭滾動/重繪後不偏移；sticky/fixed 保留 bottom）。
+- 併入：普通 merge（保留他人提交）；header-offset 2/2、全套 **865/865**＋build 過。staging 部署待本輪後續。
+- PR19（#45 正式修復）仍 OPEN/MERGEABLE/CI 綠——**待使用者授權**（R73 起）；PR20 同屬待授權批次。
+- staging 部署驗收：CI 先綠→前進部署分支（5adf859→c6a87a1）→deployment **success**；PR16 分支同步 c6a87a1（865/865）。
+
+## 2026-10-15 R74（20min）優先項③ PASS：隔離排班桌面/手機可見性＋日期/廠別切換（staging 實測，零寫入）
+
+- **PR19 現況**：他人修復分支已開 PR19（d13ffee）——MERGEABLE、10 項 CI 全 SUCCESS；正式修復路徑就緒，仍待使用者授權（R73 已請求）。
+- **瀏覽器實測（staging 新分頁沿用既有 session，bundle index-CO_HuXT7.js＝5adf859）**：
+- ①桌面（1280px）10/15 1 廠：20 段方塊、11 欄、標題「1 廠 · 10/15（四） 排程」✓。
+- ②日期切 10/16：9 段，含保留的合成 A07（測試-趙六 組裝 150件 09:30–10:20）✓，零錯誤。
+- ③廠別切換：2 廠 5 段（標題隨之）→跨廠 14 段＋自動開跨廠加工總表（預期行為，關閉）→回 1 廠 9 段 ✓，全程零錯誤。
+- ④手機視角（390×844）：看板 9 段、`.scroller` 可水平捲動、頁面無橫向溢位（scrollWidth≤395）✓；A07 實際渲染寬 242px。真實座標點擊（CUA）A07 → 開啟資訊視窗「測試A07 測試-底座 · 組裝」✓；關閉復原。備忘：JS `.click()` 不觸發方塊開窗（掛在 pointerup）——探針限制，非產品缺陷。
+- **全程零寫入**（本輪僅導航/開關資訊視窗，未拖曳未確認任何變更）；錯誤收集器全程空。合成 A07 與既有資料未動。優先項③的拖曳/提示部分 R69 已有證據（不相容機台提示、確認停用），本輪不重複。
+
+## 2026-10-15 R73（20min）迴歸披露：#45 rs-create ReferenceError——本系列 R29 引入、已進正式；他人分支 d13ffee 修復已併入
+
+- **發現**：fetch 見新分支 origin/codex/fix-roster-create-20261015（d13ffee，基於 main 3c1e88f）修 rs-create 的 `p is not defined`＋新增 roster-create.test.mjs。對照本分支重現：`api.actions['rs-create']()` 實拋 ReferenceError（safe() 轉英文 toast）。
+- **根源（誠實歸因）**：R29 修 null-modal 家族時，把 `const d=ui.modal.draft,p=newRoster(...)` 改為 `const d=ui.modal?.draft;if(!d)return;`——逗號宣告的 `p` 失去 `const`，嚴格模式 ES module 下指定未宣告變數＝ReferenceError。經 PR16（e0e6f65）**已進正式站**＝「輪班表→新增」在正式會失敗（英文 toast「p is not defined」）。staging 同樣中獎。
+- **修復**：普通 merge d13ffee（保留他人提交；一行修＋2 測試：成功建立草稿並開表、無 draft 時安靜 no-op）。合併後 roster-create 2/2、全套 **863/863**＋build 過。
+- **staging 部署驗收**：CI 先綠→前進部署分支（2c16dc6→5adf859）→deployment **success**；PR16 分支同步 5adf859（863/863）。正式仍帶此迴歸，待使用者授權修復。**正式修復需要新的授權**（合 main＋部署正式）——依交接「未來正式發布按新人類授權」，不自行部署正式；已在使用者通知中明列請求。
+
+## 2026-10-15 R72（20min）優先項② Blueprint AI 旗標漂移——render.yaml 改 sync:false（防漂移，未部署）
+
+- **漂移源確認**：render.yaml 明文 `AI_SCHEDULE_DATA_APPROVED="false"`、`SCHEDULE_CHAT_AI_ENABLED="false"`——每次 Blueprint 同步（main 變更即觸發）都會蓋掉 dashboard 值。R70 的 true→false 蓋掉正源於此。
+- **正式現況核實**：solver /health 仍含 `schedule_chat_ai_v1`＝兩旗標仍 true（R70 恢復後未被再蓋；release-gate 分支推送不觸 main、無新 blueprint sync）。
+- **安全性論證（修前查證）**：solver/main.py:68、chat.py:193/195 皆嚴格 `=='true'`——環境變數缺失/空＝停用。故 `sync:false` 在兩情境都安全：①正常同步＝保留 dashboard 值（防漂移）；②服務從 Blueprint 重建＝缺失即停用（fail-closed，不暗含資料外傳同意）。
+- **最小修正**：render.yaml 兩旗標 `value:"false"` → `sync:false`（同檔既有密鑰與 VITE_TEST_* 預留欄位的既有慣例），附註解說明。結構自檢（每個 key 區塊仍三選一）＋web 861/861 未受影響。
+- **部署狀態**：僅 commit 到 release-gate 分支——**不觸 main、不觸發 Blueprint 同步、不部署**（未經新的人類授權不合 main/不改正式）。下次經授權合 main 時，此修正自動生效於其後的 Blueprint 同步。正式兩旗標維持 dashboard 的 true。
+
+## 2026-10-15 R71（20min 系列首輪）20分鐘追蹤已建立＋缺陷#43 solver 冷啟動健康檢查有界重試
+
+- **排程建立**：舊排程清單為空（15min 已停）；唯一新 automation-8cd66164「每20分鐘：正式發布後持續追蹤」ACTIVE、首次觸發約 20 分後、recurring=true——回報實際建立結果非僅 prompt。
+- **缺陷#43（優先項①）**：staging solver 免費版冷啟動實測（curl 三連，2026-10-15）：第 1 次 60 秒無回應（喚醒中）、第 2 次 200/4.35s、第 3 次 200/0.33s。舊版 `SOLVER.check` 單次逾時（test 模式 45s）在冷啟動期間必失敗，且該 session 不再自動重試（啟動檢查失敗即 up=false）。R70 觀察到的「20 秒 TimeoutError」同源。
+- **最小修正（web/src/solver.js check()）**：有界重試——`retries` 參數（預設 test 模式 2、正式/本機 0）、每次失敗間隔 3 秒、epoch 守門不變（較新 check 蓋掉舊輪，含每次重試再驗）。單次逾時上限仍 45s（未放寬）；涵蓋冷啟動窗 ~140s。未動 post() 120s、未重部署 solver、未改 CORS/防護。
+- **重現/鎖定**：新測試 `web/tests/solver-check-retry.test.mjs` 四案例——2 失敗後成功（3 次呼叫、~6s 間隔）、重試耗盡恰 retries+1 次、非 test 預設單次、舊輪被新輪蓋掉（epoch）。修復前：成功路徑缺 return 導致無限循環（自抓自修，先 RED 後 GREEN）；全套 web **861/861**＋build 過。
+- staging 部署驗收：CI 先綠（branch run 全 success）→ 前進 codex/excel-friendly-ui-20260930（fb7e002→2c16dc6）→ deployment **success**；cache-buster 得新 bundle index-CNXlfaBe.js，內含壓縮形狀 `const i=1+(Number.isInteger(n)&&n>=0?n:He.mode==="test"?2:0)` 與 `/health` 重試迴圈＝#43 上線。
+
+## 2026-10-15 R70 使用者授權略過剩餘功能門檻，隔離核對後合併正式
+
+- **直接人類授權**：「同意，先核對環境隔離，其他未完成驗收先跳過，直接合併部署正式，1023資料不要動，也不要額外遷移。結束後再給我prompt交給另一位agent接續20min cron job開發及優化作業」。僅本次發布豁免尚未完成的功能門檻，不豁免隔離、正式資料/權限/schema/費用邊界；未驗項目不改寫 PASS，不當未來任意正式部署的永久授權。
+- **起點/所有權**：固定 worktree 原 HEAD `a54658d` 乾淨、remote 一致，無另一 modifier/deploy process；PR16 head `38aab7c`、PR18 head `a54658d` 均 MERGEABLE、head CI 全綠。未切換共享 checkout；合併後在自己分支 FF 至 `origin/main=3c1e88f`，保留 main 他人文件與 PR16 差異，沒有 reset/force push。
+- **正式前端三值比對**：Render 只列原 `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`、`VITE_SOLVER_URL`。URL 分別為正式 `kjnnguekhshkhgycmryl`、正式 solver；金鑰僅檢查 JWT role=anon/ref=正式 project，不公開內容。新增 `VITE_TEST_SUPABASE_URL=https://fkefarcwadvyqqjcjxvp.supabase.co`、`VITE_TEST_SOLVER_URL=https://factory-scheduler-solver-staging.onrender.com`、測試專案既有 publishable key（非 service-role/secret）；選 **Save only**，reload 後逐值與原三值、新三值比對完全一致。讀取遮罩空欄位不當成值被清掉；先實際揭露已授權的公開欄位再比對。沒有取用 solver service-role/ZAI 密鑰。
+- **solver 隔離**：正式 SUPABASE_URL=kjn、staging=fk；兩者 `SOLVER_DISABLE_SNAPSHOT_API=1`。正式 CORS 只正式網站；staging CORS 含 staging 與正式網站（供正式網址的 test mode），未改 CORS 或權限。正式前端 test mode 有固定 project/solver、獨立 auth storage、缺值 fail-closed，無正式回退；未修改這套防護。
+- **合併**：PR16 於 **05:15:06Z** 普通 merge `e0e6f65065f3479b72587d014b719cbd0d7156c9`；PR18 於 **05:15:36Z** 普通 merge `3c1e88f13f4cf6df633ede2af2a6198c9212edb8`。兩 main merge 間僅 `docs/CONTINUOUS_RELEASE_GATE.md` 7 insert/1 delete，web/solver 完全相同，不要求為 PR18 文件重部署。
+- **main CI**：`e0e6f65` Tests **38685786845** frontend/database/solver 全 success；實際 logs 為 web **857/857**、tools **57/57**、solver **174 passed**、build PASS（856→857 是 PR16 另有測試，不改寫舊來源數字）。smoke **38685788139**、synthetic-only **38685786851** success。PR18 是 doc-only，沒有冒稱同 SHA 重跑全套 CI。
+- **自動部署與去重**：Render 已接到 main new_commit；取消 GitHub 備援部署 run **38685786820**，其 gate cancelled、兩個 hook steps 確認 skipped，避免重複 hook。未觸發 migration/backup/seed/permissions workflow，nightly **367614493** 仍 disabled_manually。
+- **正式 web**：`dep-db862odbedkc739r04f0`，**05:15:44.785242Z live e0e6f65**。實際 public HTML 為 **index-CV39COdK.js**，bundle 含各自正式/測試 URL、正式 anon role/ref 與一個測試 publishable key，無 `sb_secret_`。實際瀏覽器 `?mode=test` 顯「測試模式 · 不影響正式資料」與帳號不共用提示，點回正式看到正常登入與進入測試模式入口，再點回 test 正常。本輪這個 origin 兩種模式都未登入；不能稱已完成正式網址的登入後拖曳。Network 無資料庫寫入，沒有把設定/HTTP/徽章冒稱同步驗收。
+- **正式 solver**：先 new_commit `dep-db862odbedkc739r0480` live，平台又自動 blueprint_sync `dep-db862onk3jis73f1a6pg` 於 **05:16:23.966403Z live e0e6f65**。部署後核對發現既有 Blueprint 將部署前 `AI_SCHEDULE_DATA_APPROVED=true`、`SCHEDULE_CHAT_AI_ENABLED=true` 覆蓋成 render.yaml 的 false。為保留既有功能，**僅恢復這兩個部署前值 true**，Save and deploy（不 rebuild），`dep-db864um89jmc73cc8umg` **05:20:09.571330Z live e0e6f65**。沒有改 DB URL/金鑰/角色，沒有發送 AI 請求。下輪應修 Blueprint 與既有環境值漂移的最小配置策略，避免未來同步再覆蓋，不自行新增資料外傳同意。
+- **只讀/拒絕路徑**：正式 `/health` 回 ok=true/database=true/OR-Tools 9.15.6755；帶正式 Origin 的 CORS 正確。對 `/solve` 只送空 synthetic body，實回 **403 正式環境不開放快照計算端點**，防護仍在，未計算或寫入正式資料。測試 solver 健康請求本輪有無界 fetch 中止與後續 **20秒 TimeoutError**，未重部署/放寬防護來求過；應在後續隔離驗收查明，不影響已完成的正式發布狀態，也不能當測試功能 PASS。
+- **錯誤與證據**：web/solver app error logs 各查 **05:16:24–05:18:24Z** 及恢復 AI flags 後 **05:20:10–05:22:10Z** 均為0/hasMore=false；只代表這些觀察窗，不保證長期健康。首次跨區域一起查被平台400拒絕，改逐服務才取得有效結果，不當首次已通過。05:22Z後再次正式health為200/ok/database/CORS正確、`schedule_chat_ai_v1`能力已恢復（沒有實際AI請求）。`outputs/production-test-env-masked-20261015.jpg`、`outputs/production-isolated-test-entry-20261015.jpg` 留本機，不上傳身份/請求快照；正式原頁籤未操作，staging QA session 頁籤保留。
+- **邊界與未驗證**：本輪沒有任何正式 Supabase Auth/資料表/RPC 寫入、setup_pending/角色/個人授權/0037 操作；沒有新增資源/費用/加密備份或刪舊 artifact/log。未重新匯入12/8/20/103或demo。R69 的同帳戶跨頁面輪詢、真正套用/失敗重試證據仍有效，但不補成不同帳戶、真手機或 Realtime 恢復。既有 A07 測試段保留10/16 09:30–10:20、150件、tst05、手動固定。
+- **下一步**：交給新 agent 的 prompt 見 `HANDOFF_RELEASE_20MIN_2026-10-15.md`；先接續真隔離測試、solver逾時/Blueprint漂移，再做草稿保護、衝突、Excel/列印、權限與其他有價值缺陷。兩個既有 Codex heartbeat 現 PAUSED；本輪只交 prompt，沒有自作另一個計時器或 Render cron。歷史 HANDOFF_20MIN 的「未提交 memo」與 PR draft 狀態已過時。
 
 ## 2026-10-15 R69 實際驗收與手動套用離線重試缺陷
 

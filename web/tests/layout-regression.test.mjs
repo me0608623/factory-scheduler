@@ -144,12 +144,22 @@ test('功能解說主題選單：捲動容器與樣式', () => {
 });
 
 test('即時頻道：重複訂閱與登出必須先移除舊頻道（re-login 後 .on() 不再拋錯）', () => {
-  let current,removed=0;
-  const client={channel(){return current ||= {joined:false,on(){assert.equal(this.joined,false,'不可再次綁定已訂閱頻道');return this;},subscribe(){this.joined=true;return this;}};},removeChannel(ch){assert.equal(ch,current);removed++;current=null;}};
+  // sb.channel(同名) 回傳同一實例：未先 removeChannel 就重建會對已訂閱頻道再 .on() 而拋錯
+  const live=new Map();let removed=0;
+  const client={channel(name){
+    let ch=live.get(name);
+    if(!ch){ch={name,joined:false,on(){assert.equal(this.joined,false,'不可再次綁定已訂閱頻道');return this;},subscribe(){this.joined=true;return this;}};live.set(name,ch);}
+    return ch;
+  },removeChannel(ch){live.delete(ch.name);removed++;}};
   const store=new SupabaseStore(client);
-  store.subscribe(()=>{});const first=store.channel;
-  store.subscribe(()=>{});assert.notEqual(store.channel,first);assert.equal(removed,1);
-  store._clearSession();assert.equal(store.channel,null);assert.equal(removed,2);
+  store.subscribe(()=>{});const n=store.channels.length;
+  assert.ok(n>1,'每張表一個頻道');
+  const first=[...live.keys()];
+  store.subscribe(()=>{});
+  assert.equal(removed,n,'重複訂閱先移除全部舊頻道');
+  assert.equal(live.size,n);assert.ok([...live.keys()].every(k=>first.includes(k)));
+  store._clearSession();
+  assert.deepEqual(store.channels,[]);assert.equal(removed,n*2,'登出也要移除全部頻道');
 });
 
 test('加一列：pageShell 不重複加號（i18n addrow 已含＋）', () => {

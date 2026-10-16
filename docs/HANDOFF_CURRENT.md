@@ -1,8 +1,16 @@
 # Factory Scheduler — current handoff
 
-Last updated: 2026-10-12 (Asia/Taipei)
+Last updated: 2026-10-15 (Asia/Taipei)
 
 This is the first file a replacement agent should read. It records the current repository, production environment, verified state, and the next safe actions. Do not put passwords, Supabase service-role keys, anon keys, or AI provider keys in this file.
+
+## Latest release checkpoint (2026-10-15; supersedes the historical notes below)
+
+- The human explicitly authorized verifying isolation and skipping remaining functional acceptance for this release only. PR16 merged as `e0e6f65`; PR18 merged as `3c1e88f` (docs-only afterward). Production web and solver runtime are `e0e6f65`; web bundle `index-CV39COdK.js`. Main Tests38685786845 passed: web857/tools57/solver174; smoke38685788139 passed.
+- Production's normal three VITE values were preserved exactly. The three test-mode values were added, saved without a redundant deploy, and read back: only isolated `fkefarcwadvyqqjcjxvp` and staging solver; public publishable key, separate auth storage, no production fallback. The deployed `?mode=test` login and both mode-switch links were exercised, not authenticated cross-account/mobile scheduling.
+- No production1023/Auth/roles/setup_pending/data writes or migration. Existing0037 was not rerun. No new resource/paid plan or seed reset. Historical unfinished functional gates remain unverified, not PASS.
+- Production web deploy `dep-db862odbedkc739r04f0`; solver final deploy `dep-db864um89jmc73cc8umg` restored two pre-existing AI flags after automatic Blueprint drift. No AI request was made. Investigate configuration drift and a staging-solver health timeout next; do not redeploy blindly.
+- Continue from `C:/Users/me060/Downloads/factory-scheduler-release-gate-20261013/docs/CONTINUOUS_RELEASE_GATE.md` top checkpoint and `HANDOFF_RELEASE_20MIN_2026-10-15.md`. The shared checkout below is not switched by this work. Both old Codex timers were observed PAUSED; this release supplies a new-agent prompt, not an already-created new timer. Do not repeat old memo work or wait for already-merged draft PRs.
 
 ## Latest release checkpoint (2026-10-12)
 
