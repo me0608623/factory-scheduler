@@ -6,6 +6,15 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-17 R171（20min）— #68 staging E2E＋嚴重度誠實校正；獵捕覆核（undo/addrow/delete）
+
+- **獵捕覆核（無缺陷）**：undo→commit→queueSync 雲端重同步正確（無靜默分歧）；addrow 開 modal＋saving 防重入；刪除有 confirmRow/tbl-del 二次確認。
+- **#68 staging E2E（fix 上線版 index-AlI8oRn3.js）**：工作紀錄新增 TEST 列（TEST-r171）→ 開 hour 格子編輯＋標記元素 → **等滿兩個刷新週期（75 秒）：`.cellinp` 元素同一（dataset 標記仍在）＝背景 tick 完全未重繪**＝修復機制現場生效（修復前 tick 會 render() 重建輸入）。
+- **嚴重度校正（誠實記錄）**：R170 把 #68 框成「格子輸入中文字被清」——E2E 發現**現有 UI 的內嵌格子全是 select（時/分），文字格不存在**（rush 表無內嵌編輯、走表單 modal＝本來就被 !UI.modal 擋）。實際影響＝select 選擇半途被重置（窗口極小）＋**頁面未提交篩選字元/焦點在 tick 被清**（wl-date 等＝真實但輕微）。修正（!UI.editCell＋!UI.page）仍正確且未來任何文字格加入即受保護，但缺陷嚴重度應記為「低」而非「中」。
+- **合成資料（已清理）**：隔離 fk 新增 rush 列 TEST-r171-vendor＋wl 列 TEST-r171 供 E2E，測後均以正規刪除路徑移除（toast 已刪除×2，DOM 驗證不存在）。淨變更＝0。
+- **main 未動（87cb15b）；無部署（staging 維持 2b7c606）。**
+- **待人類**：①登入正式站看彙總 chip；②實體手機；③#66/#67/#68 併 main 授權。
+
 ## 2026-10-17 R170（20min）— 自行修復 #68：每分鐘背景刷新清掉頁表輸入中的格子內容
 
 - **獵捕覆核（無缺陷）**：queueSync（epoch/chain 序列化＋候選保留）、runDrawerWrite、changeExecutionConfirmation（busy/擁有權/pendingReload）——皆已硬化。
