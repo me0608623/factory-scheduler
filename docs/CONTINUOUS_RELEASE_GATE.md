@@ -6,6 +6,10 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-18 R290（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
 ## 2026-10-18 R289（20min）— 使用者回報 F 部結果＋worktree 重疊覆核（已乾淨）
 
 - **F 部結果記錄（ACCEPTANCE_SCRIPT 已同步標註）**：①正式 chip＝**阻擋**（正式站停登入頁、瀏覽器無正式帳號 session；機器側證據完整：21 表 publication 4/4 ok、PR41 8faa65e 已上正式、聚焦 8/8＋全量 922/922＋CI 綠、web+solver live、/health ok、未動 SQL/1023/Auth）；②手機＝**390×844 瀏覽器尺寸隔離 staging PASS**（方塊可見、拖曳→底部預覽→取消、toast 正確、chip 即時已連線）——使用者明確聲明不冒充實體手機，真機仍待真人。
