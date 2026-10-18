@@ -6,6 +6,11 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-18 R285（20min）— gate 分支併 main 16d9c9b（PR41/42 內容）→ 2d44a5d
+
+- main 已含我的 #66/#67/#68（PR41）＋他人 PR42（登入品牌字體）；gate 分支普通 merge 同步（無衝突），已推。0 open PR。staging 仍 88cf3d7（六模式回饋），main 未含本輪 UI。
+- 待人類：F 部兩項＋R284 UI 進 main 授權。
+
 ## 2026-10-18 R284（20min）— 使用者指定：非同步等待回饋系統（六模式）設計＋實作上 staging 88cf3d7
 
 - **設計對映（使用者提出六模式→本專案場景）**：轉圈＝modal 短等待（歷史排程／權限帳號／反饋／情境清單＋解析提示）；骨架屏＝版型可預期的 modal 清單載入；進度條＝Excel 匯入（讀檔 FileReader 真實百分比、解析期誠實標示為不確定進度，不假造數字）；頂部細線＝雲端同步週期（queueSync busy 時 3px 細線、結束淡出、不擋看板）；按鈕載入態＝6 個非同步動作鈕（匯入確認／歷史存檔／表格儲存／備忘儲存／重排一輪／Excel 下載）busy 時內嵌 spinner＋鎖住；打字點點＝AI 聊天等待回覆（文字保留給讀屏、點點 aria-hidden）。
