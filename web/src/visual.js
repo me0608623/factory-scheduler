@@ -29,8 +29,9 @@ export function ensureVisualStyles() {
 /* —— 無 WebGL 時的靜態漸層（兼 reduced-motion）—— */
 .vg-fallback{position:absolute;inset:0;
   background:radial-gradient(120% 90% at 20% 10%,#315FA7 0%,#233C7A 45%,#141B33 100%)}
-/* —— 液態 Logo —— */
-.vg-logo text{fill:currentColor}
+/* —— 品牌字標：保持清晰穩定，不套用形變或動態特效 —— */
+.vg-logo{display:block;overflow:visible}
+.vg-logo text{fill:currentColor;text-rendering:geometricPrecision}
 /* —— 深色模式微調 —— */
 :root:not([data-theme="light"]):not([data-app-theme="light"]) .vg-glass{
   background:color-mix(in srgb,#1A2233 62%,transparent);
@@ -43,20 +44,13 @@ export function ensureVisualStyles() {
 const motionFull = () => { try { return new URLSearchParams(location.search).get("motion") === "full"; } catch (e) { return false; } };
 const reducedMotion = () => !motionFull() && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-// —— 液態 Logo（SVG 位移形變；reduced-motion 時靜態）——
+// —— 品牌字標（保留既有函式名稱相容舊呼叫；輸出為正式、靜態 SVG）——
 export function liquidLogoSVG(text, { size = 34 } = {}) {
-  const id = "vglogo" + Math.random().toString(36).slice(2, 7);
   const w = Math.max(6, text.length) * size * 0.62 + size;
-  const anim = reducedMotion() ? "" :
-    `<animate attributeName="baseFrequency" dur="9s" values="0.012 0.02;0.02 0.012;0.012 0.02" repeatCount="indefinite"/>`;
   return `<svg class="vg-logo" width="${Math.round(w)}" height="${Math.round(size * 1.8)}" viewBox="0 0 ${Math.round(w)} ${Math.round(size * 1.8)}" role="img" aria-label="${text}">
-  <defs><filter id="${id}" x="-20%" y="-40%" width="140%" height="180%">
-    <feTurbulence type="fractalNoise" baseFrequency="0.012 0.02" numOctaves="2" seed="7" result="n">${anim}</feTurbulence>
-    <feDisplacementMap in="SourceGraphic" in2="n" scale="10" xChannelSelector="R" yChannelSelector="G"/>
-  </filter></defs>
   <text x="${Math.round(w / 2)}" y="${Math.round(size * 1.16)}" text-anchor="middle"
-    font-size="${size}" font-weight="900" filter="url(#${id})"
-    font-family="\"Microsoft JhengHei UI\",\"PingFang TC\",sans-serif">${text}</text></svg>`;
+    font-size="${size}" font-weight="800" letter-spacing="-0.02em"
+    font-family="\"Noto Sans TC\",\"Microsoft JhengHei UI\",\"PingFang TC\",sans-serif">${text}</text></svg>`;
 }
 
 // —— 動態漸層＋互動點陣背景（raw WebGL；shader-gradient 的等效）——
