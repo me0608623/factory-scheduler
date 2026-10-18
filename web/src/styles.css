@@ -1100,3 +1100,33 @@ tr.mk-noted>td:first-child::after{content:"✎";position:absolute}
 .board[data-fit="1"] .fit-date{display:inline}
 .board[data-fit="1"] .wh{padding:8px 3px;text-align:center}
 @media(max-width:800px){.szbar{margin-left:0}.top-in{min-width:0}.top-main{min-width:0}.page-links,.datenav{min-width:0}}
+
+/* ===== 非同步等待回饋原語（spinner／骨架／進度條／頂部細線／按鈕載入態／打字點點） ===== */
+/* 純 CSS、零依賴；prefers-reduced-motion 時停用動畫改靜態暗示 */
+.spin{display:inline-block;width:16px;height:16px;border-radius:50%;border:2.5px solid currentColor;border-top-color:transparent;vertical-align:-3px;flex:none;animation:fs-spin .8s linear infinite}
+.spin-lg{width:24px;height:24px;border-width:3px;vertical-align:-6px}
+.btn .spin{width:14px;height:14px;border-width:2.5px;vertical-align:-2px;margin-right:7px}
+@keyframes fs-spin{to{transform:rotate(360deg)}}
+.skel{height:var(--skel-h,16px);border-radius:8px;background:linear-gradient(100deg,var(--line) 30%,var(--surface2) 50%,var(--line) 70%);background-size:200% 100%;animation:fs-skel 1.4s ease infinite}
+.skel-row{display:flex;gap:10px;align-items:center;padding:9px 0}
+@keyframes fs-skel{to{background-position:-200% 0}}
+.prog{position:relative;height:8px;border-radius:6px;background:var(--line);overflow:hidden}
+.prog>i{position:absolute;top:0;bottom:0;left:0;width:var(--val,0%);background:var(--accent);border-radius:6px;transition:width .2s}
+.prog.indet>i{width:36%;animation:fs-indet 1.1s ease-in-out infinite alternate}
+@keyframes fs-indet{from{left:-36%}to{left:100%}}
+.loadbar{position:fixed;top:0;left:0;right:0;height:3px;z-index:200;overflow:hidden;pointer-events:none}
+.loadbar::after{content:"";display:block;height:100%;width:40%;background:var(--accent);animation:fs-indet 1s ease-in-out infinite alternate}
+.loadbar.out{animation:fs-bar-out .3s forwards}
+@keyframes fs-bar-out{to{opacity:0}}
+.dots{display:inline-flex;gap:4px;margin-left:7px;vertical-align:1px}
+.dots i{width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.35;animation:fs-dot 1.2s ease-in-out infinite}
+.dots i:nth-child(2){animation-delay:.2s}
+.dots i:nth-child(3){animation-delay:.4s}
+@keyframes fs-dot{0%,60%,100%{transform:translateY(0);opacity:.35}30%{transform:translateY(-4px);opacity:1}}
+@media(prefers-reduced-motion:reduce){
+  .spin,.skel,.prog.indet>i,.loadbar::after,.dots i,.loadbar.out{animation:none}
+  .skel{background:var(--surface2)}
+  .prog.indet>i{left:32%}
+  .prog>i{transition:none}
+  .dots i{opacity:.6}.dots i:nth-child(2){opacity:.8}.dots i:nth-child(3){opacity:1}
+}

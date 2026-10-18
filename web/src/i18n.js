@@ -266,6 +266,7 @@ export const UI_TEXT = {
   "員工 {e} 人、機台 {m} 台、產品 {p} 種、工單 {o} 張": { en: "{e} employees, {m} machines, {p} products, {o} orders", vi: "{e} nhân viên, {m} máy, {p} sản phẩm, {o} đơn hàng", th: "พนักงาน {e} คน เครื่อง {m} ตัว สินค้า {p} ชนิด ใบสั่ง {o} ใบ" },
   "檔案：": { en: "File: ", vi: "Tệp: ", th: "ไฟล์: " },
   "正在解析 Excel…": { en: "Parsing the Excel file…", vi: "Đang phân tích file Excel…", th: "กำลังอ่านไฟล์ Excel…" },
+  "產生檔案中…": { en: "Generating the file…", vi: "Đang tạo file…", th: "กำลังสร้างไฟล์…" },
   "{table} 第 {n} 列": { en: "{table} row {n}", vi: "{table} hàng {n}", th: "{table} แถว {n}" },
   "{place}：請填入值，不要使用公式或連結": { en: "{place}: enter a value, not a formula or link", vi: "{place}: nhập giá trị, không dùng công thức hoặc liên kết", th: "{place}: กรอกค่า ไม่ใช่สูตรหรือลิงก์" },
   "{place}{field}：請填正數": { en: "{place}{field}: enter a positive number", vi: "{place}{field}: nhập số dương", th: "{place}{field}: กรอกเลขบวก" },

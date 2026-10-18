@@ -71,12 +71,16 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
   from.onchange=to.onchange=()=>refresh();  launch.onclick=()=>{refresh();panel.hidden=!panel.hidden;launch.setAttribute('aria-expanded',String(!panel.hidden));positionPanel();if(!panel.hidden)input.focus();};
   root.querySelector('.chat-close').onclick=hide;
   panel.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();hide();}});
-  root.querySelector('.chat-clear').onclick=()=>{generation++;log.replaceChildren();messages=[];lastStamp='';busy=false;submit.disabled=false;input.value='';input.focus();};
+  root.querySelector('.chat-clear').onclick=()=>{generation++;log.replaceChildren();messages=[];lastStamp='';busy=false;submit.disabled=false;submit.textContent='送出';input.value='';input.focus();};
   async function send(question){
     const q=question.trim();if(!q||busy)return;refresh();if(!enabled())return;
     const v={...view(),date:from.value,end_date:to.value,question:q},base=scopeStamp(),token=++generation;busy=true;submit.disabled=true;
+    // 送出鈕載入態：轉圈＋鎖住防止連點；等待回覆期間顯示打字點點（長度未知）
+    submit.innerHTML='<span class="spin" aria-hidden="true"></span>';
     if(lastStamp&&lastStamp!==base){messages=[];add('notice','排程或查看範圍已更新；本題重新讀取目前資料，不沿用舊資料判斷。');}
-    lastStamp=base;add('user',q);input.value='';const pending=add('assistant','正在讀取排程…');
+    lastStamp=base;add('user',q);input.value='';
+    const pending=add('assistant','正在讀取排程');
+    const dots=document.createElement('span');dots.className='dots';dots.setAttribute('aria-hidden','true');dots.innerHTML='<i></i><i></i><i></i>';pending.append(dots);
     try{
       let result;
       if(store().kind==='local'){const context=chatContext(snapshot(),v);result={...answerFromFacts(q,context),context};}
@@ -92,7 +96,7 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
       if(context.truncated)add('notice','本次最多提供 100 筆依據；請縮小範圍，不能據此宣稱沒有其他問題。');
       if(result.answerTruncated)add('notice','畫面先列出 12 筆；還有其他符合的資料，請縮小日期或指定員工後查詢。');
     }catch(e){if(token===generation)pending.textContent='無法回答：'+e.message+'。沒有修改排程；也未將查詢失敗當成沒有問題。';}
-    finally{if(token===generation){busy=false;submit.disabled=false;log.scrollTop=log.scrollHeight;}}
+    finally{if(token===generation){busy=false;submit.disabled=false;submit.textContent='送出';log.scrollTop=log.scrollHeight;}}
   }
   root.querySelector('form').onsubmit=e=>{e.preventDefault();send(input.value);};
   // 語音輸入：按住說話，放開自動送出（Chrome/Edge 支援）
