@@ -140,7 +140,7 @@ test('輪116 棘輪：匯入解析必須先開 loading 回饋、完成後以 loa
   assert.ok(importIdx > loadIdx, 'loading modal 必須在動態載入 excel 模組之前開啟');
   const handler = app.slice(loadIdx, loadIdx + 2000);
   assert.ok((handler.match(/!UI\.modal\.loading/g) || []).length >= 2, '成功與錯誤路徑都要以 loading 態守門');
-  assert.ok(app.includes("if(m.loading)return {title:tx('Excel 匯出／匯入'),body:'<div class=\"hint\">'+tx('正在解析 Excel…')+'</div>'}"), 'import-preview 須渲染 loading 態');
+  assert.ok(app.includes("if(m.loading)return {title:tx('Excel 匯出／匯入'),body:'<div class=\"hint\" role=\"status\"><span class=\"spin\" aria-hidden=\"true\"></span>'+tx('正在解析 Excel…')"), 'import-preview 須渲染 loading 態（spinner＋文字＋進度條）');
 });
 
 test('輪116 查證：正在解析 Excel… 三語有譯文', () => {

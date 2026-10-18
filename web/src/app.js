@@ -2175,8 +2175,9 @@ auto(){
 },
 /* ---------- 匯出 ---------- */
 export(){
+  const exporting=UI.modal?.t==='export'&&!!UI.modal.exporting;
   return {title:tx('Excel 匯出／匯入'),body:
-   '<button class="btn primary" data-act="x-xlsx" style="height:60px;justify-content:flex-start">'+IC.down+tx('下載 {date} 彩色排程 Excel（.xlsx）',{date:mdw(UI.date)})+'</button>'+
+   '<button class="btn primary" data-act="x-xlsx" style="height:60px;justify-content:flex-start"'+(exporting?' disabled':'')+'>'+(exporting?'<span class="spin" aria-hidden="true"></span>'+tx('產生檔案中…'):IC.down+tx('下載 {date} 彩色排程 Excel（.xlsx）',{date:mdw(UI.date)}))+'</button>'+
    '<button class="btn" data-act="erp-export" style="height:60px;justify-content:flex-start">'+tx('匯出完工量 CSV（會計用）')+'</button>'+
    '<button class="btn" data-act="x-print-day" style="height:60px;justify-content:flex-start">'+tx('列印 {date} 現場班表',{date:mdw(UI.date)})+'</button>'+
    '<button class="btn" data-act="x-template" style="height:60px;justify-content:flex-start">'+IC.down+tx('下載批次匯入範本（.xlsx）')+'</button>'+
@@ -2188,7 +2189,7 @@ export(){
    '<div class="hint">'+tx('複製後，直接貼到 Google 試算表或 Excel 的 A1 格。')+'</div>'};
 },
 "import-preview"(m){
-  if(m.loading)return {title:tx('Excel 匯出／匯入'),body:'<div class="hint">'+tx('正在解析 Excel…')+'</div>'};
+  if(m.loading)return {title:tx('Excel 匯出／匯入'),body:'<div class="hint" role="status"><span class="spin" aria-hidden="true"></span>'+tx('正在解析 Excel…')+'</div><div class="prog'+(m.readPct==null?' indet':'')+'" style="margin-top:10px" aria-hidden="true"><i'+(m.readPct!=null?' style="--val:'+m.readPct+'%"':'')+'></i></div>'};
   const hasSecondFactory=S.employees.some(e=>factoryOf(e)===2)||S.machines.some(x=>factoryOf(x)===2)||S.products.some(p=>p.steps.some(s=>factoryOf(s)===2));
   const hasGroups=(S.groups||[]).length>0;
   const hasGeneral=workCatalog(S).length>0||assignments(S).length>0||transferOrders(S).length>0;
@@ -2199,7 +2200,7 @@ export(){
     !m.errors.length?'<div class="issues"><div class="issue">'+tx('確認後將以 Excel 內容取代現有員工、機台、產品工序與工單，並清空現有 {n} 段排程；上班日設定保留。匯入後再按「自動排程」建立新班表。',{n:S.blocks.length})+'</div></div>':'';
   return {title:tx(m.errors.length?'Excel 匯入 · 請修正檔案':'Excel 匯入 · 確認取代資料'),
     body:'<div class="hint">'+tx('檔案：')+esc(m.filename)+'</div>'+summary+problems+(m.importCandidate?'':warning)+(m.saving?'<div class="hint" role="status">'+tx('正在儲存匯入資料，請稍候；此時無法取消。')+'</div>':'')+(m.importError?'<div class="issues" role="alert"><div class="issue">'+esc(m.importError)+'</div></div>':''),
-    foot:'<button class="btn" data-act="close"'+(m.saving?' disabled':'')+'>'+tx(m.importCandidate?'關閉':'取消')+'</button>'+(m.errors.length||!m.data||hasSecondFactory||hasGroups||hasGeneral||(m.importCandidate&&!m.importRetryable)?'':'<button class="btn primary" data-act="x-import-confirm"'+(m.saving?' disabled':'')+'>'+tx(m.saving?'儲存中…':m.importCandidate?'重試儲存':'確認匯入並清空舊排程')+'</button>')};
+    foot:'<button class="btn" data-act="close"'+(m.saving?' disabled':'')+'>'+tx(m.importCandidate?'關閉':'取消')+'</button>'+(m.errors.length||!m.data||hasSecondFactory||hasGroups||hasGeneral||(m.importCandidate&&!m.importRetryable)?'':'<button class="btn primary" data-act="x-import-confirm"'+(m.saving?' disabled':'')+'>'+(m.saving?'<span class="spin" aria-hidden="true"></span>'+tx('儲存中…'):m.importCandidate?tx('重試儲存'):tx('確認匯入並清空舊排程'))+'</button>')};
 },
 "legacy-preview"(m){
   const legacy=m.legacy,day=legacy.days[m.date]||{"1廠":[],"2廠":[],overtime:{}};
@@ -2210,10 +2211,10 @@ export(){
     '<div class="hint">'+tx('存為歷史資料後，可從上方「歷史排程」按日期查看；現有示範排程不變。')+'</div>'+
     (m.saving?'<div class="hint" role="status">'+tx('歷史資料儲存中；關閉視窗不會取消已送出的儲存。')+'</div>':'')+
     (m.error?'<div class="issues"><div class="issue">'+esc(m.error)+'</div></div>':''),
-    foot:'<button class="btn" data-act="close">'+tx(m.saving?'關閉':'取消')+'</button>'+(canArchive()&&legacy.dates.length?'<button class="btn primary" data-act="legacy-save"'+(m.saving?' disabled':'')+'>'+(m.saving?tx('儲存中…'):tx('存為歷史排程'))+'</button>':'')};
+    foot:'<button class="btn" data-act="close">'+tx(m.saving?'關閉':'取消')+'</button>'+(canArchive()&&legacy.dates.length?'<button class="btn primary" data-act="legacy-save"'+(m.saving?' disabled':'')+'>'+(m.saving?'<span class="spin" aria-hidden="true"></span>'+tx('儲存中…'):tx('存為歷史排程'))+'</button>':'')};
 },
 "legacy-history"(m){
-  if(m.loading)return {title:tx('歷史排程'),body:'<div class="hint">'+tx('正在讀取…')+'</div>'};
+  if(m.loading)return {title:tx('歷史排程'),body:'<div class="hint" role="status"><span class="spin" aria-hidden="true"></span>'+tx('正在讀取…')+'</div><div class="skel-row" aria-hidden="true"><span class="skel" style="flex:2;--skel-h:18px"></span><span class="skel" style="flex:1;--skel-h:14px"></span></div><div class="skel-row" aria-hidden="true"><span class="skel" style="flex:2;--skel-h:18px"></span><span class="skel" style="flex:1;--skel-h:14px"></span></div>'};
   if(m.error)return {title:tx('歷史排程'),body:'<div class="issues" role="alert"><div class="issue">'+esc(m.error)+'</div></div>',foot:'<button class="btn" data-act="close">'+tx('關閉')+'</button><button class="btn primary" data-act="history-retry">'+tx('重試讀取')+'</button>'};
   if(!m.archive)return {title:tx('歷史排程'),body:'<div class="hint">'+tx('尚未存入舊版排程。請到 Excel 選擇含「1廠」「2廠」的檔案。')+'</div>',foot:'<button class="btn" data-act="export">'+tx('選擇 Excel')+'</button>'};
   const legacy=m.legacy,day=legacy?.days[m.date],names=m.archives;
@@ -2682,7 +2683,7 @@ function rerunHTML(){
     (R.noLate?'<div class="field"><label for="pv-r-order">'+tx('哪張單不能晚')+'</label><select class="inp" id="pv-r-order">'+orders.map(o=>'<option value="'+esc(o.code)+'"'+(R.order===o.code?' selected':'')+'>'+esc(o.code)+' '+esc(prod(o.pid)?.name||'')+' · 期限 '+md(o.due)+'</option>').join('')+'</select></div>':'')+
     (R.pinMach?'<div class="field"><label for="pv-r-machine">'+tx('哪台機器不要動')+'</label><select class="inp" id="pv-r-machine">'+machines.map(m=>'<option value="'+esc(m.id)+'"'+(R.machine===m.id?' selected':'')+'>'+esc(m.id+' '+m.label)+'</option>').join('')+'</select></div>':'')+
     '<div class="field"><label for="pv-r-text">'+tx('一句白話（可選）')+'</label><input class="inp" id="pv-r-text" maxlength="80" value="'+esc(R.text)+'" placeholder="'+tx('例：星期五前一定要出 AVK-5')+'" autocomplete="off"></div>'+
-    '<button class="btn primary pv-rerun-btn" data-act="pv-rerun"'+(R.busy?' disabled':'')+'>'+(R.busy?'OR-Tools 計算中…':'按這些條件再排一輪')+'</button>'+
+    '<button class="btn primary pv-rerun-btn" data-act="pv-rerun"'+(R.busy?' disabled':'')+'>'+(R.busy?'<span class="spin" aria-hidden="true"></span>OR-Tools 計算中…':'按這些條件再排一輪')+'</button>'+
     '<div class="hint">'+tx('只會多一輪「照你的條件」的預覽方案；沒按「用這套」之前，正式班表不會變。')+'</div>';
 }
 function pvPanelHTML(o){
@@ -3331,11 +3332,15 @@ Object.assign(MODAL_ACT,{
   "x-copy-all":()=>copyText(allRows().map(r=>r.join("\t")).join("\n")),
   "x-dl":()=>downloadCSV(),
   "x-xlsx":async()=>{
+    // 按鈕載入態只在匯出對話框內生效（按鈕只存在於此）；無對話框情境行為不變
+    const m=UI.modal;
+    if(m&&m.t==="export"){if(m.exporting)return;m.exporting=true;renderModal();}
     try{const {scheduleXlsx}=await import("./excel.js");const machines=shownMachines(),ids=new Set(machines.map(m=>m.id)),date=UI.date,factory=UI.factory;
       const filename="產線排程_"+(factory==="all"?"跨廠":factoryName(factory))+"_"+date+".xlsx";
       const bytes=await scheduleXlsx({...S,machines,blocks:S.blocks.filter(b=>ids.has(b.m)),workAssignments:assignments(S).filter(a=>inFactory(workCatalog(S).find(w=>w.id===a.workId)||{},factory))},date);
       saveFile(filename,new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));}
     catch(e){toast("Excel 匯出失敗："+e.message);}
+    finally{if(m&&UI.modal===m){m.exporting=false;renderModal();}}
   },
   "x-template":()=>{
     const a=document.createElement("a");a.href="/匯入範本.xlsx";a.download="產線排程_匯入範本.xlsx";
@@ -3414,7 +3419,17 @@ document.addEventListener("change",async e=>{
   try{
     const {readImportXlsx}=await import("./excel.js");
     if(UI.modal!==request||!ownsImport()||!UI.modal.loading)return;
-    const bytes=await file.arrayBuffer(),result=await readImportXlsx(bytes,file.name);
+    // 讀檔階段用 FileReader 真實百分比（進度條模式）；無事件環境退回 arrayBuffer
+    const bytes=await new Promise((res,rej)=>{
+      if(typeof FileReader==="undefined"||!file.size){file.arrayBuffer().then(res,rej);return;}
+      const fr=new FileReader();
+      fr.onprogress=e=>{if(e.lengthComputable&&UI.modal===request&&UI.modal.loading){UI.modal.readPct=Math.min(100,Math.round(e.loaded/e.total*100));renderModal();}};
+      fr.onload=()=>res(fr.result);
+      fr.onerror=()=>rej(fr.error||new Error("read failed"));
+      fr.readAsArrayBuffer(file);
+    });
+    if(UI.modal===request&&UI.modal.loading){UI.modal.readPct=null;renderModal();}   // 讀取完成→解析中（不確定進度）
+    const result=await readImportXlsx(bytes,file.name);
     if(UI.modal!==request||!ownsImport()||!UI.modal.loading)return;   // 只接受原登入的同一次匯入
     if(result.legacy){
       const digest=await crypto.subtle.digest("SHA-256",bytes);
@@ -3517,7 +3532,12 @@ function sideHealthHTML(){
   const hint=STORE?.kind==='supabase'&&SYNC.state==='ok'&&SYNC.realtime!=='SUBSCRIBED'?'<small>'+tx('按此更新班表')+'</small>':'';
   return '<button class="side-health '+v.tone+'" data-act="sync"><i></i><span><b>'+tx('系統連線')+'</b><small>'+esc(tx(v.detail||v.text))+'</small>'+hint+'</span></button>';
 }
-function updateSyncChip(){const el=$("#syncchip");if(el)el.outerHTML=syncChipHTML();const side=$(".side-health");if(side)side.outerHTML=sideHealthHTML();}
+function updateSyncChip(){const el=$("#syncchip");if(el)el.outerHTML=syncChipHTML();const side=$(".side-health");if(side)side.outerHTML=sideHealthHTML();
+  // 頂部細線：雲端同步週期不擋看板操作，只用 3px 進行中細線提示（結束後淡出）
+  let bar=$(".loadbar");
+  if(SYNC.state==="busy"&&!bar){bar=document.createElement("div");bar.className="loadbar";bar.setAttribute("role","status");bar.setAttribute("aria-label",tx("同步中"));document.body.append(bar);}
+  else if(SYNC.state!=="busy"&&bar&&!bar.classList.contains("out")){bar.classList.add("out");setTimeout(()=>{if(bar.classList.contains("out"))bar.remove();},320);}
+}
 let syncChain=Promise.resolve(),syncPending=0,syncEpoch=0,lastSyncState='ok';
 // 同步中或上次同步失敗（本機變更尚未確認存進雲端）關閉分頁＝靜默丟失變更：離開前提示
 addEventListener("beforeunload",e=>{if(syncPending>0||SYNC.state!=="ok"||UI.leaveBrushSaving||UI.memoSaving||UI.directSaving||UI.executionSaving||UI.scenarioSaving||executionRetries.has(STORE)||STORE.hasPendingConfirmations?.()){e.preventDefault();e.returnValue="";}});
@@ -3702,7 +3722,7 @@ Object.assign(MODAL_ACT,{
   }
 });
 
-MODALS['access-accounts']=m=>({title:tx('權限管理'),body:m.loading?'<div class="hint">'+tx('讀取帳號中…')+'</div>':
+MODALS['access-accounts']=m=>({title:tx('權限管理'),body:m.loading?'<div class="hint" role="status"><span class="spin" aria-hidden="true"></span>'+tx('讀取帳號中…')+'</div><div class="skel-row" aria-hidden="true"><span class="skel" style="flex:2;--skel-h:18px"></span><span class="skel" style="flex:1;--skel-h:14px"></span></div><div class="skel-row" aria-hidden="true"><span class="skel" style="flex:2;--skel-h:18px"></span><span class="skel" style="flex:1;--skel-h:14px"></span></div><div class="skel-row" aria-hidden="true"><span class="skel" style="flex:2;--skel-h:18px"></span><span class="skel" style="flex:1;--skel-h:14px"></span></div>':
   '<div class="hint">'+tx('點帳號設定職位與系統權限。職位決定預設值，可逐一開關實際功能。')+'</div>'+m.accounts.map(x=>{
     const emp=S.employees.find(e=>e.id===x.employeeId);
     const gs=emp?employeeGroups(S,emp.id).map(g=>g.group.name).join('、'):'';
@@ -3769,7 +3789,7 @@ MODALS['feedback']=()=>({title:tx('意見反饋'),body:
   '<div class="field"><label for="fb-msg">'+tx('內容')+'</label><textarea class="inp" id="fb-msg" rows="4" maxlength="2000" placeholder="'+tx('例如：手機上排程表很難滑、希望可以…')+'"></textarea></div>'+
   '<a class="btn" href="mailto:me0608623@gmail.com?subject=[排程系統反饋]" style="text-decoration:none">'+tx('用 Email 寄')+'</a>',
   foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="feedback-send">'+tx('送出')+'</button>'});
-MODALS['feedback-list']=m=>m.loading?{title:tx('查看反饋'),body:'<div class="hint">'+tx('讀取中…')+'</div>'}:{title:tx('查看反饋')+'（最近 50 筆）',body:
+MODALS['feedback-list']=m=>m.loading?{title:tx('查看反饋'),body:'<div class="hint" role="status"><span class="spin" aria-hidden="true"></span>'+tx('讀取中…')+'</div><div class="skel-row" aria-hidden="true"><span class="skel" style="flex:3;--skel-h:16px"></span><span class="skel" style="flex:1;--skel-h:12px"></span></div><div class="skel-row" aria-hidden="true"><span class="skel" style="flex:3;--skel-h:16px"></span><span class="skel" style="flex:1;--skel-h:12px"></span></div>'}:{title:tx('查看反饋')+'（最近 50 筆）',body:
   (m.items||[]).map(x=>'<div style="border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0"><b>'+esc(x.author)+'</b> <span class="tag">'+esc(FEEDBACK_CATS.find(c=>c[0]===x.category)?.[1]||x.category)+'</span> <span class="tag '+(x.status==='resolved'?'ok':x.status==='read'?'mute':'warn')+'">'+(x.status==='new'?'新':x.status==='read'?'已讀':'已解決')+'</span><p style="margin:6px 0">'+esc(x.message)+'</p><small style="color:var(--muted)">'+esc((x.createdAt||'').replace('T',' ').slice(0,16))+(x.pageUrl?' · '+esc(x.pageUrl.replace(location.origin,'')):'')+'</small></div>').join('')||'<div class="hint">'+tx('還沒有反饋。')+'</div>',
   foot:'<button class="btn primary" data-act="close">'+tx('關閉')+'</button>'};
 MODALS['leave-request']=m=>{const d=m.leaveDraft||{date:m.date||UI.date,note:m.note||''};return {title:tx('新增請假詢問'),body:
@@ -4257,7 +4277,7 @@ function tableFormModal(m){
     }).join("");
   const foot=m.ro?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':'<button class="btn" data-act="close">'+tx('取消')+'</button>'+
     (!isNew?'<button class="btn danger" data-act="tbl-del" data-table="'+table+'" data-id="'+esc(m.id||"")+'">'+(m.confirmDel?"再按一次刪除":tx("刪除"))+'</button>':'')+
-    '<div class="spacer"></div><button class="btn primary" data-act="tbl-save" data-table="'+table+'"'+(m.saving?" disabled":"")+'>'+(m.saving?"儲存中…":tx("儲存"))+'</button>';
+    '<div class="spacer"></div><button class="btn primary" data-act="tbl-save" data-table="'+table+'"'+(m.saving?" disabled":"")+'>'+(m.saving?'<span class="spin" aria-hidden="true"></span>'+tx("儲存中…"):tx("儲存"))+'</button>';
   return {title:tx(isNew?"新增 — {table}":"編輯 — {table}",{table:tx(TABLE_TITLES[table])}),body,foot};
 }
 MODALS['tbl-form']=tableFormModal;
@@ -4407,7 +4427,7 @@ MODALS['memo-edit']=m=>{const d=m.memoDraft||{text:m.text||''};return {title:tx(
   '<div class="field"><label for="memo-employee">'+tx('人員（可不選）')+'</label><select class="inp" id="memo-employee"><option value="">'+tx('不指定')+'</option>'+shownEmployees().map(x=>'<option value="'+x.id+'"'+(d.employeeId===x.id?' selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select></div></div>'+
   '<div class="field"><label for="memo-text">'+tx('一句話')+'</label><input class="inp" id="memo-text" maxlength="140" value="'+esc(d.text||'')+'"></div>'+
   '<label class="permission-row"><input id="memo-pinned" type="checkbox"'+(d.pinned?' checked':'')+'><span><b>'+tx('釘選')+'</b><small>'+tx('固定顯示在其他備忘前面')+'</small></span></label>',
-  foot:'<button class="btn" data-act="close">'+tx(m.saving?'關閉':'取消')+'</button><button class="btn primary" data-act="memo-save"'+(m.saving?' disabled':'')+'>'+tx(m.saving?'儲存中…':'儲存備忘')+'</button>'};};
+  foot:'<button class="btn" data-act="close">'+tx(m.saving?'關閉':'取消')+'</button><button class="btn primary" data-act="memo-save"'+(m.saving?' disabled':'')+'>'+(m.saving?'<span class="spin" aria-hidden="true"></span>'+tx('儲存中…'):tx('儲存備忘'))+'</button>'};};
 
 function directWriteStatus(drawer){
   return (UI.directSaving?.drawer===drawer?'<div class="drawer-hint" data-direct-write-status role="status">'+tx('操作儲存中，請稍候。')+'</div>':'')+
@@ -4675,7 +4695,7 @@ async function changeExecutionConfirmation(button,confirmed){
 }
 MODALS['scenario-list']=m=>({title:tx('保存的試排情境'),body:
   '<div class="hint">'+tx('情境與正式班表分開保存，只供原本／調整後對照，不提供直接套用。雲端只列出此帳號保存的情境，最多 20 份。')+'</div>'+
-  (m.viewLoading?'<div class="hint" role="status">'+tx('正在讀取情境，可取消。')+'</div>':'')+
+  (m.viewLoading?'<div class="hint" role="status"><span class="spin" aria-hidden="true"></span>'+tx('正在讀取情境，可取消。')+'</div><div class="skel-row" aria-hidden="true"><span class="skel" style="flex:2;--skel-h:20px"></span></div><div class="skel-row" aria-hidden="true"><span class="skel" style="flex:2;--skel-h:20px"></span></div>':'')+
   (m.viewError?'<div class="issue" role="alert">'+esc(tx(m.viewError))+'</div>':'')+
   (m.loading?'<div class="hint" role="status">'+tx('讀取中…')+'</div>':m.error?'<div class="issue" role="alert">'+esc(m.error)+'</div>':
     (m.items||[]).map(s=>{const date=scenarioCreatedDate(s.created_at);return '<button class="btn" style="width:100%;height:auto;min-height:48px;margin:8px 0;white-space:normal;overflow-wrap:anywhere;text-align:left" data-act="scenario-view" data-id="'+esc(s.id)+'">'+esc(s.name)+(date?' · '+esc(date):'')+'</button>';}).join('')||'<div class="hint">'+tx('還沒有保存的情境。')+'</div>'),
