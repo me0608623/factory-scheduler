@@ -6,6 +6,15 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-18 R284（20min）— 使用者指定：非同步等待回饋系統（六模式）設計＋實作上 staging 88cf3d7
+
+- **設計對映（使用者提出六模式→本專案場景）**：轉圈＝modal 短等待（歷史排程／權限帳號／反饋／情境清單＋解析提示）；骨架屏＝版型可預期的 modal 清單載入；進度條＝Excel 匯入（讀檔 FileReader 真實百分比、解析期誠實標示為不確定進度，不假造數字）；頂部細線＝雲端同步週期（queueSync busy 時 3px 細線、結束淡出、不擋看板）；按鈕載入態＝6 個非同步動作鈕（匯入確認／歷史存檔／表格儲存／備忘儲存／重排一輪／Excel 下載）busy 時內嵌 spinner＋鎖住；打字點點＝AI 聊天等待回覆（文字保留給讀屏、點點 aria-hidden）。
+- **實作（88cf3d7，7 檔）**：styles.css 追加六原語（純 CSS 零依賴、共用 fs-spin/fs-skel/fs-indet/fs-dot/fs-bar-out keyframes、**prefers-reduced-motion 全覆蓋停動畫改靜態**）；app.js：updateSyncChip 掛頂部細線、5 個 loading 分支升級 spinner＋骨架行、匯入改 FileReader onprogress 真實％＋解析期 indet、x-xlsx 對話框內 busy 旗標防重入、6 鈕 spinner；chat-ui.js：等待訊息打字點點＋送出鈕 spinner＋結束還原「送出」。i18n：新增「產生檔案中…」en/vi/th（「同步中」已有）。
+- **測試**：新增 async-feedback.test.mjs 9 測（六原語存在、reduced-motion 覆蓋、44px 不縮、loadbar 隨 busy 開關、6 鈕 spinner、x-xlsx 防重入、FileReader 進度＋fallback、loading 分支骨架、聊天點點＋還原）。**修改 2 個既有測試（意圖不變）**：i18n-behavior 輪116 棘輪推進到新 loading 標記（spinner＋文字＋進度條）；import-race fixture 補 renderModal stub。web 全量 **931/931**（922+9）；build 過。
+- **staging**：CI success；deployment **7151260443 @88cf3d7 success**；live `index-CS8kxVtI.js`＋CSS `index-DVP2KAsb.css` 實測：CSS 六原語全在（含 reduced-motion）、JS loadbar hook／點點 HTML／onprogress 全在。（初次驗證抓錯檔——CSS 在獨立 .css asset，已更正。）
+- **重大狀態變化（本輪期間發生）**：使用者合併 **PR41**（=我的 #66/#67/#68 gate 修復全部進 main）與 **PR42**（他人：正式登入品牌字體簡化 c4cb74f）→ main=**16d9c9b**，正式 web+solver 部署 7151263607/7151263713 success。#66/#67/#68 待授權事項**結案**。
+- **待人類**：F 部兩項人工驗收（正式站登入看 chip＝PR41 上正式後可直接看；實體手機）。下一輪：gate 分支併 main（16d9c9b）＋本輪 UI 是否進 main待授權。
+
 ## 2026-10-18 R283（20min）— 靜止輪：狀態不變
 
 - main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
