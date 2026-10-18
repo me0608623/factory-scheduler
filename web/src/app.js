@@ -3680,15 +3680,26 @@ Object.assign(MODAL_ACT,{
   "logout":async()=>{await STORE.logout();location.reload();},
   "password-open":()=>openModal({t:"password"}),
   "password-save":async a=>{
+    const m=UI.modal;
+    if(m?.t!=="password")return;
     const pw=$("#new-password").value,again=$("#confirm-password").value;
     if(pw.length<12){toast("密碼至少需要 12 個字元");return;}
     if(pw!==again){toast("兩次密碼不一致");return;}
+    const store=STORE,client=store.sb,user=store.session?.user?.id,epoch=store.authEpoch;
+    // 延遲的設定結果只屬於發起它的對話框與工作階段；不得關掉別的視窗或彈過時提示
+    const owns=()=>UI.modal===m&&STORE===store&&store.sb===client&&store.session?.user?.id===user&&store.authEpoch===epoch;
     a.disabled=true;
-    try{await STORE.setPassword(pw);closeModal();toast("登入密碼已設定");}
-    catch(e){a.disabled=false;toast(e.message);}
+    try{await store.setPassword(pw);if(!owns())return;closeModal();toast("登入密碼已設定");}
+    catch(e){if(owns()){a.disabled=false;toast(e.message);}}
   },
   "reset-local":async a=>{if(a.disabled||!confirmStep(a,"reset-local"))return;a.disabled=true;try{await STORE.reset();location.reload();}catch(e){toast(e.message);}finally{a.disabled=false;}},
-  "solver-check":async()=>{await SOLVER.check();renderModal();toast(SOLVER.up?"已連上 OR-Tools 排程服務":"排程服務沒有回應："+SOLVER.url);}
+  "solver-check":async()=>{
+    const m=UI.modal;
+    await SOLVER.check();
+    // 健康檢查可達數十秒；結果只回饋到發起它的視窗，重繪後來開的視窗會清掉正在輸入的草稿
+    if(UI.modal!==m)return;
+    renderModal();toast(SOLVER.up?"已連上 OR-Tools 排程服務":"排程服務沒有回應："+SOLVER.url);
+  }
 });
 
 MODALS['access-accounts']=m=>({title:tx('權限管理'),body:m.loading?'<div class="hint">'+tx('讀取帳號中…')+'</div>':
@@ -4969,7 +4980,8 @@ async function start(){
   STORE.subscribe(onRemoteChange,onRealtimeStatus);
   scheduleChat?.destroy();scheduleChat=installScheduleChat({snapshot:()=>({...toSnapshot(S,HOLI),work_execution:structuredClone(S.execution||[])}),view:()=>({date:UI.date,factory:UI.factory}),store:()=>STORE,enabled:()=>!UI.tv&&canPermission('schedule.manage'),stamp:()=>scenarioKey(S)+'|'+UI.date+'|'+UI.factory});
   SOLVER.check().then(up=>{updateSyncChip();scheduleChat?.refresh();if(up)toast("已連上 OR-Tools 排程服務");});
-  setInterval(()=>{if(!drag&&!generalDrag&&!UI.modal&&!PV&&UI.view==="day"&&UI.date===todayStr())render();},60000);
+  // 每分鐘刷新「今天」看板；表格內嵌編輯中（cellinp 未 blur）與頁面檢視不得被背景重繪清掉未提交輸入
+  setInterval(()=>{if(!drag&&!generalDrag&&!UI.editCell&&!UI.page&&!UI.modal&&!PV&&UI.view==="day"&&UI.date===todayStr())render();},60000);
 }
 const crossFactoryUI=transferUI({state:()=>S,ui:UI,esc,uid,canEdit:()=>canPermission('transfers.manage'),open:openModal,close:closeModal,syncInputs,commit:entry=>commit(entry,'transfers.manage'),toast,today:todayStr,clearUndo:()=>{undoStack=[];}});
 Object.assign(MODALS,crossFactoryUI.modals);Object.assign(MODAL_ACT,crossFactoryUI.actions);
