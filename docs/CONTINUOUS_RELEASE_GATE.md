@@ -6,7 +6,12 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-20 R381 — tools 測試套件覆核：51/57 綠；6 失敗＝age 二進位不在本機 PATH（設計上大聲 fail-closed），零回歸
+## 2026-10-20 R382 — 正式站指紋與健康例行覆核：不變且健康
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權（MERGEABLE/CLEAN）。零寫入。
+- 正式 bundle 仍為 index-B6aZuEu_.js（e911674/PR43 內容，未被意外更動）；solver health 200/247ms。
+
+ — tools 測試套件覆核：51/57 綠；6 失敗＝age 二進位不在本機 PATH（設計上大聲 fail-closed），零回歸
 
 - 狀態：main=e911674 不變；PR #44/#45/#46 待授權（MERGEABLE/CLEAN）。零寫入。
 
