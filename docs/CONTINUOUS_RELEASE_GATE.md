@@ -6,7 +6,40 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-19 R354（20min）— 靜止輪：狀態不變
+## 2026-10-19 R355 — R284 六模式非同步回饋完成合併上正式（實質輪）
+
+使用者新授權（本輪起）：停止靜止輪；R284 驗證後逕行合併 main。
+
+### 差異與候選版本
+- staging 分支 88cf3d7 相對 origin/main=16d9c9b：實質內容僅 R284（7 檔：app.js/chat-ui.js/i18n.js/styles.css＋3 測試檔）；8c50343（登入品牌）≡ main c4cb74f 內容相同；R170-R283 checkpoint 文件全部排除。88cf3d7 既有 CI（Tests＋Deployment smoke）皆 success。worktree 乾淨無重疊。
+- 乾淨分支 codex/async-feedback-main-20261019 自 main cherry-pick → 4657cca。
+
+### 本地驗證
+- 專項 42/42（async-feedback/i18n-behavior/import-race/excel-export-context）；全套 web 931/931（首跑 31 檔失敗＝新 worktree 未 npm install 缺 @electric-sql/pglite，安裝後全綠，非回歸）；vite build OK。
+
+### staging 實操作（既有組長 session；每項真實互動取樣）
+1. 按鈕忙碌/防連點：備忘儲存→「儲存中…」+spin+disabled（t=976）→完成關閉（t=2988）；驗證失敗（未選人/機）toast「請至少指定一台機台或一位人員」不出現假忙碌，對話框可重試。
+2. spinner：歷史班表/查看反饋 loading 態 role=status + .spin。
+3. skeleton：歷史排程 loading 顯示 .skel-row×2/.skel×4，載入完成換真內容（「尚未存入舊版排程…」）；查看反饋同模式。
+4. 進度條：匯入 4.9MB 假檔＝indet→--val:100%（真實 FileReader 進度幀）→indet（解析）→錯誤對話框；32MB 檔被 5MB 上限誠實拒絕；空白範本＝解析 110ms（本機對照）→三項驗證錯誤誠實列出；失敗均未顯示為成功。
+5. 頂部載入線：上班日設定儲存→queueSync busy 期間 .loadbar 掛載＋chip「同步中…」持續整個同步→完成後移除、chip 回「雲端已儲存」（週二 on→off 已還原）。
+6. 打字點點：聊天送出→submit disabled+spin、pending「正在讀取排程」+3 顆 .dots→回覆後全部還原。
+- 額外：聊天 fetch reject（模擬逾時）→「無法回答：排程服務沒有回應。沒有修改排程；也未將查詢失敗當成沒有問題。」＋按鈕還原；等待中切換視圖無污染無崩潰。
+- reduced-motion：live CSS assets/index-DVP2KAsb.css 含 .spin,.skel,.prog.indet>i,.loadbar:after,.dots i,.loadbar.out{animation:none}（靜態驗證；IAB 無法動態模擬 media query，如實標注）。
+- Excel 重入守衛：x-xlsx 同 tick 雙擊＝createObjectURL×1、下載×1、忙碌態「產生檔案中…」可見、完成還原。
+- 測試儀器教訓（重要）：FileReader.prototype.readAsArrayBuffer 延遲 patch 曾造成「匯入無限卡解析」假缺陷；全新重載（全原生驗證）後範本匯入正常。真實觀察＝import 流程守衛（UI.modal!==request 等）觸發時靜默 return，loading 態無逾時/錯誤面——列入缺陷探索候選（#D1）。
+- 寫入紀錄（僅隔離 fk）：1 筆測試備忘「R284 驗證：載入動畫測試」（保留）、週二上班日 on→off（還原）。
+
+### PR／CI／部署／正式驗證
+- PR #43（最小：僅 cherry-pick 4657cca）→ CI 六檢查全 pass（database/frontend/solver ×2 commits）。
+- 合併 main=e911674（2026-10-19 15:49 本地）；Render deployment 7168447876（main - factory-scheduler-web，e911674）status=success。
+- 正式 bundle index-B6aZuEu_.js 含 fs-spin/loadbar/readPct（3 標記）、CSS index-DVP2KAsb.css 含全部 fs-* keyframes、i18n「產生檔案中…」在字典+使用處。
+- 正式站唯讀瀏覽器驗證：既有 Richard（老闆）session 重載新 bundle 正常、彙總 chip＝「即時已連線」（機器證據；真人驗收①仍待使用者親自確認，不冒充）。未做任何正式寫入。
+
+### 下一步
+- 進入持續缺陷探索（不再靜止輪）。候選：#D1 import loading 無逾時/錯誤面；清單七類（靜默失敗、取消後寫入、連點/晚到 ACK、切頁/登出污染、離線/Realtime 競爭、窄屏遮擋/44px、動畫極簡）。
+
+— 靜止輪：狀態不變
 
 - PASS（狀態未變，最小檢查點）：fetch 後 HEAD 77a59f7（R353），工作樹乾淨；open PR=0；origin/main=16d9c9b（PR41/PR42 已合併）、staging 分支=88cf3d7（六模式非同步回饋，deploy 7151260443）；最新 deployment 7151263713（main solver 16d9c9b，10-18）＝既有基準。無合成資料變更。
 - 剩餘真人項不變：①正式站登入後確認彙總 Realtime chip；②實體手機排程顯示與拖曳；③R284 六模式 UI 併入 main 之授權（staging 已部署待驗收）。
