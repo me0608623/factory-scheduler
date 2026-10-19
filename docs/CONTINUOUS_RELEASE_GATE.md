@@ -6,7 +6,12 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-20 R392 — 資料管理頁（員工、設備與工單）驗證 PASS
+## 2026-10-20 R393 — PR #47 變更路徑 zh 回歸 live PASS：busy 結束 tx 還原正常
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。
+- staging（2fc44f7）zh 送出「誰請假？」→等待期 spinner＋pending 訊息＋快捷全 zh→回覆（資料查詢…誠實無紀錄）→送出鈕還原「送出」無 spinner＝tx('送出') 改動路徑 live 回歸乾淨；聊天關閉正常。
+
+ — 資料管理頁（員工、設備與工單）驗證 PASS
 
 - 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。
 - 更多→「員工、設備與工單」開啟完整資料管理頁（?view=catalog）：13 人名冊＋搜尋/廠別分組篩選/新增編輯刪除功能描述＋全部工單/產品工序區塊齊全；返回班表正常、chip 健康。
