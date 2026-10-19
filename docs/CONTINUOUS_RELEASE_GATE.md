@@ -6,7 +6,21 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-20 R386 — staging 長時段 session 健康覆核：正常
+## 2026-10-20 R387 — 缺陷 #D4：語言切換不重譯聊天面板（已修復上 staging＋live 證實）；fs-hunt 兩項待辦判定＝已完成（清單過時）
+
+- 狀態：main=e911674 不變；PR #44/#45/#46/#47 待授權。
+
+### fs-hunt NEXT_TASKS 覆核（歷史校正）
+- 「解析器錯誤訊息 i18n」＝已實作：src/import-errors.js 顯示層翻譯（樣式比對→tx、安全 fallback）＋完整性測試 3/3 過（kitchen-sink 壞檔每條錯誤 en/vi/th 有譯）＋app.js L2198 已接線。清單過時。
+- 「匯入解析載入回饋」＝R284 已解（loading 態＋進度條，R355 實證）。清單過時。
+
+### #D4 重現、原因、修復（live 重現於現行 staging）
+- 重現：切換 UI 語言 zh→en（不重載）——主介面全英但聊天面板快捷題目/placeholder/標題殘留中文（面板僅在 installScheduleChat 建構一次，從不重譯）；另同族兩處：busy 結束/清除的送出鈕還原與 mic 事件 placeholder 寫死中文（en 模式下問完第一題送出鈕變中文）。
+- 修復（chat-ui.js，PR #47）：retranslate() 重譯靜態文字（對話內容不動、busy 保護）＋refresh() 偵測 I18N.lang 變更即時呼叫（app.js 每次 render 已呼叫 refresh，零改動）；送出還原與 mic placeholder 改 tx()。
+- 測試：新 chat-retranslate.test.mjs（3 棘輪）；async-feedback 還原棘輪推進至 tx 版。全套 934/934、build OK。PR #47 CI 全 pass；staging 2fc44f7 deploy 7183324073 success、分支 CI success。
+- live 證實：staging 上 en→zh 切換不重載，聊天快捷題目與 placeholder 即時轉中文（修復前殘留舊語言）。零資料寫入。
+
+ — staging 長時段 session 健康覆核：正常
 
 - 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
 - staging 組長 session 逾日仍有效：重載後登入維持、chip「雲端已儲存＋即時已連線」、10/20（二）班表正常渲染、環境無掛鉤殘留（fetch 原生）。
