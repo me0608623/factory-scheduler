@@ -6,7 +6,21 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-19 R361 — 跨分頁 Realtime 補讀 live 驗證 PASS（現行 build 6de406b）
+## 2026-10-19 R362 — 優先項②覆核：AI 旗標防漂移已於 10-15 落地（12a36db）；line-notify 靜默吞錯判定＝設計
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+
+### 優先項②覆核（歷史校正）
+- render.yaml（main）已含 AI_SCHEDULE_DATA_APPROVED 與 SCHEDULE_CHAT_AI_ENABLED 兩鍵 sync:false 宣告＋註解（Blueprint 同步不得蓋掉 dashboard 值；程式嚴格比對字串 true，缺失=fail-closed 停用）。落地提交＝12a36db（2026-10-15，ops(#44): render.yaml AI flags sync:false — stop blueprint drift，作者 me0608623），main 與全部分支已含。判定：最小防漂移配置已存在，無需新修；此後 Blueprint 同步不會再把旗標蓋成 false。
+- 程式碼側對照：solver/app/chat.py L193/L195 非 true 即拒——缺失/錯值都停用，不暗含資料外傳同意。
+
+### line-notify 靜默吞錯稽核（類別一抽查）
+- app.js L185/L3205 sendLineNotify fire-and-forget：主操作（排程儲存/故障回報）自有浮現面；LINE 通知失敗不阻擋現場操作，設定狀態可在 LINE 通知對話框查看。判定＝best-effort 設計，不改。
+
+### 優先項清單狀態（①-⑤）
+- ① solver 逾時＝已有界（R357 覆核）。② AI 旗標防漂移＝已落地（本輪覆核）。③ 隔離排程可見/拖曳＝R359 證據＋R289 世代。④ 寫入保護/取消/連點/衝突＝#D1-#D3＋既有測試家族。⑤ Realtime 證據＝R361 live＋機器證據；真跨帳戶/真手機＝真人項不變。
+
+ — 跨分頁 Realtime 補讀 live 驗證 PASS（現行 build 6de406b）
 
 - 狀態：main=e911674 不變；PR #44/#45/#46 待授權。
 
