@@ -6,7 +6,12 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-20 R388 — #D4 家族掃描（其他一次性建構面）：全乾淨；四 PR 全 MERGEABLE/CLEAN
+## 2026-10-20 R389 — 三服務健康例行覆核：全部 200
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。
+- 正式 web/solver/staging 三服務 HTTP 200。輪值探索持續。
+
+ — #D4 家族掃描（其他一次性建構面）：全乾淨；四 PR 全 MERGEABLE/CLEAN
 
 - 狀態：main=e911674 不變。零寫入。
 - 掃描：win.js 零 tx（拖曳把手無文字）；floor 頁隨 render() 重新產 HTML＋canvas（fillText 的故障標籤於繪製時以 tx 求值）＝語言切換即重繪；tour/toast 逐次渲染。聊天面板是唯一一次性建構持久面（#D4 已修，PR #47）。
