@@ -6,7 +6,15 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-19 R369 — 人／產量（現場回報）抽屜視圖驗證 PASS；UI 表面全覽完成
+## 2026-10-19 R370 — 公開倉庫衛生覆核：三個待授權 PR diff 零機密、CI 全綠
+
+- 狀態：main=e911674 不變。零寫入。
+
+### 覆核
+- PR #44/#45/#46 完整 diff 掃描 api_key/secret/password/token/Bearer/JWT/publishable 等模式：零命中（僅程式碼中的正當識別字）。三 PR CI（database/frontend/solver/web）現勢全 pass。
+- 待辦不變：①使用者授權合併三 PR；②真人項（正式站登入確認 chip、實體手機）。
+
+ — 人／產量（現場回報）抽屜視圖驗證 PASS；UI 表面全覽完成
 
 - 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
 
