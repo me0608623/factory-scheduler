@@ -9,7 +9,9 @@ const setter=source.slice(source.indexOf('function setPath('),source.indexOf('\n
 const save=source.slice(source.indexOf('async function saveTableForm('),source.indexOf('\nfunction catalogPageHTML('));
 function harness({rows=[],id=null,fields=[],allowed=true,sync=async()=>true}={}){
   const messages=[];
-  const ctx={structuredClone,validateRush,UI:{modal:{t:'tbl-form',table:'rush',id,draft:id?structuredClone(rows.find(r=>r.id===id)):null}},S:{rushOrders:rows},
+  const ctx={structuredClone,validateRush,UI:{modal:{t:'tbl-form',table:'rush',id,draft:id?structuredClone(rows.find(r=>r.id===id)):null},flashNewRow:null},
+    STORE:{kind:'local',session:{user:{id:'u1'}},authEpoch:1},
+    S:{rushOrders:rows},
     document:{querySelectorAll:()=>fields.map(([key,value,type='text'])=>({dataset:{fk:key},value,type,tagName:'INPUT'}))},
     canPermission:()=>allowed,uid:()=> 'new-row',renderModal:()=>{},closeModal:()=>{ctx.UI.modal=null;},
     toast:m=>messages.push(m),TABLE_TITLES:{rush:'欠缺品項'},commit:sync};
@@ -46,4 +48,30 @@ test('cloud save failure never announces saved; success waits for acknowledgemen
   const pending=h.save();assert.deepEqual(h.messages,[]);resolve(false);await pending;assert.deepEqual(h.messages,[]);
   const ok=harness({fields:[['f2.desc','QA']],sync:()=>new Promise(r=>{resolve=r;})});
   const saving=ok.save();assert.deepEqual(ok.messages,[]);resolve(true);await saving;assert.deepEqual(ok.messages,['已儲存']);
+});
+test('account switch while saving suppresses saved toast and flash marker on the new session',async()=>{
+  let resolve;const h=harness({fields:[['f2.desc','QA']],sync:()=>new Promise(r=>{resolve=r;})});
+  const pending=h.save();
+  h.ctx.STORE={kind:'local',session:{user:{id:'u2'}},authEpoch:1};   // 儲存在途中切換帳號
+  resolve(true);await pending;
+  assert.deepEqual(h.messages,[]);                 // 不對新帳號顯示「已儲存」
+  assert.equal(h.ctx.UI.flashNewRow,null);         // 不把舊請求的閃爍標記寫進新狀態
+});
+test('account switch on save failure shows nothing on the new session',async()=>{
+  let reject;const h=harness({fields:[['f2.desc','QA']],sync:()=>new Promise((_,rj)=>{reject=rj;})});
+  const pending=h.save();
+  h.ctx.STORE={...h.ctx.STORE,authEpoch:2};        // epoch 變更＝新登入
+  reject(new Error('網路中斷'));
+  await pending.catch(()=>{});
+  assert.deepEqual(h.messages,[]);                 // 舊帳號的失敗訊息不污染新畫面
+});
+test('same account save failure still rolls back the row and reports the error',async()=>{
+  const rows=[{id:'r',f1:{vendor:'original',shortQty:10},f2:{}}];
+  let reject;const h=harness({rows,id:'r',fields:[['f1.vendor','changed']],sync:()=>new Promise((_,rj)=>{reject=rj;})});
+  const pending=h.save();
+  h.ctx.allowed=false;                             // 同帳號下權限被撤銷：仍屬同一 store，要回滾＋提示
+  reject(new Error('寫入失敗'));
+  await pending.catch(()=>{});
+  assert.equal(rows[0].f1.vendor,'original');      // 草稿回滾
+  assert.match(h.messages.at(-1),/沒存到/);
 });
