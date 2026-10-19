@@ -6,7 +6,29 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-19 R355 — R284 六模式非同步回饋完成合併上正式（實質輪）
+## 2026-10-19 R356 — 缺陷探索 #D1：匯入 loading 對話框守衛絆倒後永轉（已修復上 staging）
+
+- 狀態：main=e911674（R284 已上正式，web deploy 7168447876＋solver deploy 7168492789 均 success，solver health 200/235ms）；open PR=0 起手。
+
+### 重現與原因（單元級重現，R355 瀏覽器教訓後採 vm 夾具）
+- web/tests/import-race.test.mjs 既有案例「changed store/user/auth epoch/permission」即為 #D1：匯入解析中所有權變更（如 realtime 撤銷 canArchive）→ xlsx-import change handler 四個守衛靜默 return → 同一次匯入的 loading 對話框（spinner＋不定進度條）永久停留、無逾時無錯誤面（舊測試甚至把 UI.modal===loading 固化為預期）。
+
+### 最小修正（commit 6b90ab3）
+- web/src/app.js：新增 dismissStaleImport()（守衛絆倒時，若 UI.modal===request 且 loading 仍開著→closeModal()），套用於 4 個守衛點（import 之後、readImportXlsx 之後、legacy digest 之後、catch）。晚到資料仍永不採納；已替換/已關閉的對話框不受影響。
+- web/tests/import-race.test.mjs：所有權變更斷言改為「對話框已關閉（null）且無新開」；新增 catch 路徑測試（權限/epoch 變更後解析錯誤→對話框關閉）。
+
+### 測試／CI／部署
+- 專項 20/20；全套 web 932/932；build OK。PR #44（base main，僅 6b90ab3）全部檢查 pass（database×2/frontend×2/solver×4）。**待使用者授權後合併 main（不自動併）**。
+- staging：fix 併入 codex/excel-friendly-ui-20260930（merge commit 3297476；衝突兩檔以修正分支版解=含 R284+fix）→ deploy 7168975461 success；分支 CI（Tests＋Deployment smoke）success；staging 實測匯入正常路徑不受影響（範本→誠實三錯、無卡住、可關閉）。
+- 本地與 Render bundle hash 因 VITE 環境嵌入本就不同（CSS index-DVP2KAsb.css 兩邊一致），部署 API sha=3297476 即建置來源。
+
+### 寫入紀錄
+- 本輪零資料寫入（僅唯讀瀏覽器操作）。
+
+### 下一步
+- 缺陷探索清單續行：靜默失敗、取消後寫入、連點/晚到 ACK、切頁/登出污染、離線/Realtime 競爭、窄屏 44px、動畫極簡。
+
+ — R284 六模式非同步回饋完成合併上正式（實質輪）
 
 使用者新授權（本輪起）：停止靜止輪；R284 驗證後逕行合併 main。
 
