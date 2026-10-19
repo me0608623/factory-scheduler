@@ -1,5 +1,5 @@
 import {chatContext,answerFromFacts} from './chat-context.js';
-import { tx } from './i18n.js';
+import { tx, I18N } from './i18n.js';
 import {SOLVER} from './solver.js';
 import {floatWindow} from './win.js';
 
@@ -64,14 +64,27 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
   const attachSpeak=(el,text)=>{if(!synthOK)return;const b=document.createElement('button');b.className='btn chat-speak';b.textContent='🔊 播報';b.onclick=()=>{if(b.dataset.on){stopSpeak();b.textContent='🔊 播報';b.dataset.on='';}else{speak(text);b.dataset.on='1';b.textContent='■ 停止';}};el.append(b);};
   const from={value:view().date},to={value:view().date};let lastViewDate='';
   let busy=false,generation=0,lastStamp='',messages=[];
+  const QUICK=['目前排程有哪些問題？','誰請假？','哪些機台故障？','輪班人力缺口','跨廠流轉進度','特別趕貨欠什麼？'];
+  const retranslate=()=>{   // 語言切換後重建靜態文字（對話內容不動；busy 中不碰送出鈕與輸入提示）
+    launch.setAttribute('aria-label',tx('開啟排程 AI 聊天室'));launch.textContent=tx('✦ 排程助理');
+    panel.setAttribute('aria-label',tx('排程 AI 聊天室'));
+    root.querySelector('.chat-panel header strong').textContent=tx('排程助理');
+    ttsBtn.title=tx('新回答自動唸出來');
+    root.querySelector('.chat-clear').textContent=tx('清除');
+    root.querySelector('.chat-close').setAttribute('aria-label',tx('關閉聊天室'));
+    log.setAttribute('aria-label',tx('排程對話'));
+    if(!busy){input.placeholder=tx('問我排程、請假、趕貨…');submit.textContent=tx('送出');}
+    root.querySelectorAll('.chat-quick button').forEach((b,i)=>{if(QUICK[i])b.textContent=tx(QUICK[i]);});
+  };
+  let lastLang=I18N.lang;
   const add=(who,text)=>{const el=document.createElement('div');el.className='chat-message '+who;el.textContent=text;log.append(el);while(log.children.length>30)log.firstElementChild.remove();log.scrollTop=log.scrollHeight;return el;};
   const hide=()=>{panel.hidden=true;launch.setAttribute('aria-expanded','false');focusAfterChatClose(launch);};
   const scopeStamp=()=>stamp()+'|'+from.value+'|'+to.value;
-  const refresh=()=>{const v=view();root.hidden=!enabled();if(v.date!==lastViewDate){from.value=to.value=v.date;lastViewDate=v.date;}};
+  const refresh=()=>{const v=view();root.hidden=!enabled();if(I18N.lang!==lastLang){lastLang=I18N.lang;retranslate();}if(v.date!==lastViewDate){from.value=to.value=v.date;lastViewDate=v.date;}};
   from.onchange=to.onchange=()=>refresh();  launch.onclick=()=>{refresh();panel.hidden=!panel.hidden;launch.setAttribute('aria-expanded',String(!panel.hidden));positionPanel();if(!panel.hidden)input.focus();};
   root.querySelector('.chat-close').onclick=hide;
   panel.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();hide();}});
-  root.querySelector('.chat-clear').onclick=()=>{generation++;log.replaceChildren();messages=[];lastStamp='';busy=false;submit.disabled=false;submit.textContent='送出';input.value='';input.focus();};
+  root.querySelector('.chat-clear').onclick=()=>{generation++;log.replaceChildren();messages=[];lastStamp='';busy=false;submit.disabled=false;submit.textContent=tx('送出');input.value='';input.focus();};
   async function send(question){
     const q=question.trim();if(!q||busy)return;refresh();if(!enabled())return;
     const v={...view(),date:from.value,end_date:to.value,question:q},base=scopeStamp(),token=++generation;busy=true;submit.disabled=true;
@@ -96,7 +109,7 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
       if(context.truncated)add('notice','本次最多提供 100 筆依據；請縮小範圍，不能據此宣稱沒有其他問題。');
       if(result.answerTruncated)add('notice','畫面先列出 12 筆；還有其他符合的資料，請縮小日期或指定員工後查詢。');
     }catch(e){if(token===generation)pending.textContent='無法回答：'+e.message+'。沒有修改排程；也未將查詢失敗當成沒有問題。';}
-    finally{if(token===generation){busy=false;submit.disabled=false;submit.textContent='送出';log.scrollTop=log.scrollHeight;}}
+    finally{if(token===generation){busy=false;submit.disabled=false;submit.textContent=tx('送出');log.scrollTop=log.scrollHeight;}}
   }
   root.querySelector('form').onsubmit=e=>{e.preventDefault();send(input.value);};
   // 語音輸入：按住說話，放開自動送出（Chrome/Edge 支援）
@@ -118,8 +131,8 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
         input.value=txt;
         if(e.results[e.results.length-1].isFinal){micBtn.click();setTimeout(()=>{if(input.value.trim())send(input.value);},200);}
       };
-      rec.onerror=()=>{listening=false;micBtn.textContent='🎤';micBtn.classList.remove('rec');input.placeholder='問我排程、請假、趕貨…';};
-      rec.onend=()=>{listening=false;micBtn.textContent='🎤';micBtn.classList.remove('rec');input.placeholder='問我排程、請假、趕貨…';};
+      rec.onerror=()=>{listening=false;micBtn.textContent='🎤';micBtn.classList.remove('rec');input.placeholder=tx('問我排程、請假、趕貨…');};
+      rec.onend=()=>{listening=false;micBtn.textContent='🎤';micBtn.classList.remove('rec');input.placeholder=tx('問我排程、請假、趕貨…');};
       rec.start();
     };
   }
