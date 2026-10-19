@@ -4293,6 +4293,8 @@ async function saveTableForm(button){
   const table=m.table,D=structuredClone(m.draft||{});
   const perm=table==="rush"?"rush.manage":table==="tf"?"transfers.manage":"worklog.manage";
   if(!canPermission(perm)){toast("沒有修改權限；沒存到");return;}
+  const store=STORE,user=store?.session?.user?.id??null,authEpoch=store?.authEpoch??0;
+  const sameStore=()=>STORE===store&&(STORE?.session?.user?.id??null)===user&&(STORE?.authEpoch??0)===authEpoch;
   for(const el of document.querySelectorAll("[data-fk]")){
     const key=el.dataset.fk;
     if(el.type==="checkbox")setPath(D,key,el.checked);
@@ -4331,9 +4333,11 @@ async function saveTableForm(button){
     }
     closeModal();
     const saved=await commit({kind:"edit",title:(m.id?"更新":"新增")+TABLE_TITLES[table]+"一列",lines:[]},perm);
+    if(!sameStore())return;   // 帳號已切換：不把舊請求的成功提示寫到新畫面
     UI.flashNewRow=D.id;
     if(saved)toast("已儲存");
   }catch(e){
+    if(!sameStore())return;   // 舊帳號的失敗不顯示、不回滾新帳號的畫面
     m.saving=false;
     list.splice(0,list.length,...original);
     renderModal();
