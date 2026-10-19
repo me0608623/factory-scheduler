@@ -6,7 +6,25 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-19 R359 — 窄屏 390×844 全視圖實測（現行 staging 6de406b）：全數 PASS；拖曳受阻判定＝執行保護設計
+## 2026-10-19 R360 — 動畫極簡稽核 PASS＋離線→重試→恢復連線實測 PASS
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。
+
+### 動畫/視覺極簡稽核（類別七）
+- styles.css 非 R284 動畫僅 .chat-mic.rec pulse（麥克風錄音中指示＝功能性）。減動三層完備：使用者偏好 data-motion（settings.js L60 套用 root）、全域 @media(prefers-reduced-motion) L647 全停、R284 原語專屬覆寫 L1127。
+- 模糊效果僅 top/app-nav 的 backdrop-filter（sticky 面板功能性深度提示），行動版 .top 已明確關閉（L610 backdrop-filter:none）。判定：無不必要動畫/裝飾特效，PASS。
+### 取消後寫入抽查（情境載入）
+- viewScenario：await 後 owner.current() 守衛＋晚到錯誤僅持有時顯示＋finally 清 viewLoading；關閉對話框＝取消，晚到結果丟棄。既有 scenario-read-owner 測試覆蓋雙擋/錯誤/stale。PASS。
+
+### 離線→錯誤浮現→重試→恢復（live 實測，staging 6de406b）
+- 模擬斷線（rest/v1 fetch 全拒）→上班日設定儲存：chip 轉「同步失敗，按這裡重試」＋toast「沒存到：檢查排程版本失敗…」——失敗明確浮現、未偽裝成功、提供可操作重試。
+- 恢復連線→點重試 chip：0.9 秒內回「雲端已儲存＋即時已連線」。有界恢復、無無界重送。
+- 寫入紀錄（隔離庫）：週三上班日 on→off→on（淨零，還原完成）。fetch 包裝為通透模式（僅 __offline 時攔截），重載即清。
+
+### 結論
+- 類別五（離線部分）、七、取消抽查皆 PASS 無新缺陷。七類剩：Realtime 中斷補讀競爭（單元已覆蓋 per-table channels＋CHANNEL_ERROR 安全輪詢；live 中斷模擬待下輪）、連點/晚到 ACK 已由 #D1-D3 家族掃過。
+
+ — 窄屏 390×844 全視圖實測（現行 staging 6de406b）：全數 PASS；拖曳受阻判定＝執行保護設計
 
 - 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零資料寫入。
 
