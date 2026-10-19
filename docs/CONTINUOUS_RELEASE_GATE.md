@@ -6,7 +6,16 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-20 R380 — 三 PR 合併就緒狀態覆核：全部 MERGEABLE/CLEAN
+## 2026-10-20 R381 — tools 測試套件覆核：51/57 綠；6 失敗＝age 二進位不在本機 PATH（設計上大聲 fail-closed），零回歸
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權（MERGEABLE/CLEAN）。零寫入。
+
+### 覆核過程
+- 初跑（cwd=tools/）：9 失敗——拆解後兩類根因：(a) 權限/遷移/備份測試以 cwd 相對路徑讀 .github/workflows/*，須從 repo 根目錄執行；(b) encrypted-backup 往返測試需 age/age-keygen 二進位。
+- 從 repo 根目錄重跑：路徑類全過（backup-artifact/permissions-drill/migration-guard 20/20）；全套 57 測試 51 過 6 失敗——6 個全為 age 往返（本機 PATH 無 age；測試設計「no silent skip」大聲擋下，備份演練曾在裝有 age 的受限本機全綠）。tools 套件不在 CI 矩陣（CI=solver/frontend/database），屬演練期套件。
+- 判定：零程式回歸（#D1-#D3 僅動 web/；main 不受影響）。教訓入冊：tools 測試必須從 repo 根目錄跑；age 測試在無 age 環境會 fail-closed。
+
+ — 三 PR 合併就緒狀態覆核：全部 MERGEABLE/CLEAN
 
 - 狀態：main=e911674 不變。零寫入。
 - GitHub mergeability 實查：PR #44/#45/#46 均 mergeable=MERGEABLE、mergeStateStatus=CLEAN（與 main 無衝突，任意順序可併；本系列各分支基於 e911674 且修改區域互不重疊）。等待使用者授權。
