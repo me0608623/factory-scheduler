@@ -6,7 +6,15 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-19 R371 — 雙分頁近同時寫入衝突演練 PASS（現行 build 無 last-write-wins 覆蓋）
+## 2026-10-19 R372 — 開加班對話框結構與取消零寫入驗證 PASS（現行 build）
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+
+### 驗證
+- 加班設定對話框完整：標題含日期、誠實範圍聲明（只調今天、不改同星期其他日、請假者不排工）、主開關（開放加班/不開放）＋雙廠成對「今天可加班/不加班」切換（aria-pressed 正確）＋取消/確認並套用。
+NaN
+
+ — 雙分頁近同時寫入衝突演練 PASS（現行 build 無 last-write-wins 覆蓋）
 
 - 狀態：main=e911674 不變；PR #44/#45/#46 待授權。
 
