@@ -6,7 +6,16 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-19 R368 — 工單／給二廠回一廠抽屜視圖現行 build 驗證 PASS；?view 殘留觀察
+## 2026-10-19 R369 — 人／產量（現場回報）抽屜視圖驗證 PASS；UI 表面全覽完成
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+
+### 驗證
+- 人（people）抽屜：.ops-drawer 渲染「今日缺席 0 人」＋名冊（張三/李四/…），aria-pressed 正確。
+- 產量（output）抽屜：渲染每機台「計畫 N 件＋回報狀態（尚未回報）」，關閉（×）正常。
+- 至此 UI 表面全覽於現行 build 完成：日/週/工單/流轉/人/產量/欠缺/工作紀錄/備忘/平面圖(canvas)/聊天/對話框群（匯入匯出、上班日、歷史、反饋、權限、情境）——R355-R369 系列全數 PASS 或有設計判定記錄。
+
+ — 工單／給二廠回一廠抽屜視圖現行 build 驗證 PASS；?view 殘留觀察
 
 - 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
 
