@@ -6,7 +6,12 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-19 R351（20min）— 靜止輪：狀態不變
+## 2026-10-19 R352（20min）— 靜止輪：狀態不變
+
+- PASS（狀態未變，最小檢查點）：fetch 後 HEAD d0f036b（R351），工作樹乾淨；open PR=0；origin/main=16d9c9b（PR41/PR42 已合併）、staging 分支=88cf3d7（六模式非同步回饋，deploy 7151260443）；最新 deployment 7151263713（main solver 16d9c9b，10-18）＝既有基準。無合成資料變更。
+- 剩餘真人項不變：①正式站登入後確認彙總 Realtime chip；②實體手機排程顯示與拖曳；③R284 六模式 UI 併入 main 之授權（staging 已部署待驗收）。
+
+— 靜止輪：狀態不變
 
 - PASS（狀態未變，最小檢查點）：fetch 後 HEAD 81988f1（R350），工作樹乾淨；open PR=0；origin/main=16d9c9b（PR41/PR42 已合併）、staging 分支=88cf3d7（六模式非同步回饋，deploy 7151260443）；最新 deployment 7151263713（main solver 16d9c9b，10-18）＝既有基準。無合成資料變更。
 - 剩餘真人項不變：①正式站登入後確認彙總 Realtime chip；②實體手機排程顯示與拖曳；③R284 六模式 UI 併入 main 之授權（staging 已部署待驗收）。
