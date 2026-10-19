@@ -6,7 +6,17 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-19 R363 — 現行 build 無障礙命名基線重掃：全視圖 PASS
+## 2026-10-19 R364 — 正式站 ?mode=test 隔離在現行 build（e911674/PR43 後）覆核 PASS
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入（僅唯讀導航往返）。
+
+### 驗證
+- bundle 層：正式 index-B6aZuEu_.js 同含正式 kjn 與隔離 fkef 參照＋VITE_TEST 值（設計＝測試模式覆寫已部署）。
+- 原始碼層（runtime-config.js）：mode=test 嚴格相等檢查（URL 必須等於 https://fkefarcwadvyqqjcjxvp.supabase.co、anon key 必須在、solver 必須等於 staging solver origin），不符即落回正常模式（fail-closed）；隔離 auth storageKey（fsched-test-auth-fkef…）；solverKey 註明絕不沿用正式金鑰。
+- 瀏覽器層（正式分頁唯讀往返）：?mode=test 顯示「測試模式 · 不影響正式資料／回正式資料」橫幅＋登入牆（Richard 的正式 session 未帶入測試模式＝儲存隔離生效，明示「正式帳號與測試帳號不共用」）；返回 / 後 Richard session 完整、正常模式 chip 正常。
+- 結論：R82-90 建立的測試模式在現行 build（含 R284）維持 fail-closed 隔離，PASS。
+
+ — 現行 build 無障礙命名基線重掃：全視圖 PASS
 
 - 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
 
