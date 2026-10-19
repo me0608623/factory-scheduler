@@ -14,7 +14,7 @@ function fixture(){
   const ctx={S:{blocks:[{id:'preserved'}]},UI:{modal:null},STORE:{kind:'local',session:{user:{id:'test-user'}},authEpoch:0},
     canArchive:()=>true,canMaster:()=>true,tx:x=>x,crypto:{subtle:{digest:()=>digest.promise}},Uint8Array,
     loadExcel:async()=>({readImportXlsx:async(bytes,name)=>{parses++;return requests.get(name).promise;}}),
-    openModal:m=>{ctx.UI.modal=m;opened.push(m);},document:{addEventListener:(type,fn)=>{assert.equal(type,'change');handler=fn;}}};
+    openModal:m=>{ctx.UI.modal=m;opened.push(m);},renderModal:()=>{},document:{addEventListener:(type,fn)=>{assert.equal(type,'change');handler=fn;}}};
   vm.createContext(ctx);vm.runInContext(handlerCode,ctx);
   const choose=name=>{const pending=deferred();requests.set(name,pending);
     const target={id:'xlsx-import',files:[{name,size:100,arrayBuffer:async()=>new Uint8Array([1,2,3]).buffer}],value:name};
