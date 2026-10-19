@@ -6,7 +6,19 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-19 R364 — 正式站 ?mode=test 隔離在現行 build（e911674/PR43 後）覆核 PASS
+## 2026-10-19 R365 — 正式 bundle i18n（R284 新鍵）與列印 CSS 靜態驗證 PASS
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+
+### 驗證
+- 正式 bundle（index-B6aZuEu_.js）含 R284 新鍵「產生檔案中…」的越文（Đang tạo file…）與泰文（กำลังสร้างไฟล์…）譯文，以及「正在解析 Excel…」越文——字典完整上正式。
+- 動態 i18n 運行證據：R364 於同一正式 build 觀察 Richard session 以泰文 UI 呈現（ตารางผลิต 等）＝語言偏好运行时生效。
+- 列印 CSS：正式樣式含 @media print×2 與 @page 規則（列印文件流程先前已驗，規則仍在現行樣式）。
+
+### 結論
+- 現行正式 build 的 i18n 字典與列印樣式完整。本輪為靜態＋既有 live 證據組合，無新缺陷。
+
+ — 正式站 ?mode=test 隔離在現行 build（e911674/PR43 後）覆核 PASS
 
 - 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入（僅唯讀導航往返）。
 
