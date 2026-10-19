@@ -6,7 +6,15 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-19 R377 — 「最新變更」橫幅自隱行為確認（設計）；狀態不變
+## 2026-10-20 R378 — 跨日時間炸彈覆核：本地 web 937/937＋CI 重跑（今日日期）solver/frontend/database 全 success
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+
+### 覆核（日期 10-19→10-20 滾動）
+- 本地全套 web 測試於今日重跑（staging-deploy 分支＝#D1-#D3 全部內容）：937/937 綠；日期敏感抽查（cloud-test-seed/execution-receipt/startup-recovery）31/31 綠——相對日期防護有效。
+- 本機 python 環境失效（uv trampoline spawn 失敗）→ solver 測試改以 CI 於今日重跑驗證：rerun Tests run 39229391697（staging 分支 6de406b、無程式碼變更無部署）→ **solver/frontend/database 三作業全 success**＝整套於 10-20 日期下無時間炸彈。
+
+ — 「最新變更」橫幅自隱行為確認（設計）；狀態不變
 
 - 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
 - 「最新變更」橫幅未顯示＝latestHTML 設計行為（log 項需含摘要、3 天內、且 fsched-seen 未比對過最新 id；看過即自隱）。非缺陷。chip 健康。
