@@ -6,7 +6,16 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-19 R362 — 優先項②覆核：AI 旗標防漂移已於 10-15 落地（12a36db）；line-notify 靜默吞錯判定＝設計
+## 2026-10-19 R363 — 現行 build 無障礙命名基線重掃：全視圖 PASS
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+
+### 掃描設計與結果（staging 6de406b、組長 session、桌面 1280）
+- 逐視圖（日、工作紀錄、欠缺品項、日＋聊天開啟）掃描可見 button 與 input/textarea/select 的無障礙名稱（text/aria-label/title/label/placeholder）。
+- 按鈕：三視圖＋聊天全部 44+ 顆均有名稱（0 未命名）。輸入：唯一旗標＝#datepick（type=date 無名），查源碼 app.js L820＝刻意隱藏的技術輸入（aria-hidden=true＋tabindex=-1＋opacity:0＋pointer-events:none），可見控制為已命名的日期按鈕（10/19（一） 平日 · 上班）——正確的 picker 模式，非缺陷。
+- 結論：延續輪145 基線（25/25 命名＋39 aria-pressed），現行 build（含 R284 六模式與 #D1-#D3 修正）無障礙命名全數 PASS，無新缺口。
+
+ — 優先項②覆核：AI 旗標防漂移已於 10-15 落地（12a36db）；line-notify 靜默吞錯判定＝設計
 
 - 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
 
