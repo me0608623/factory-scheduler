@@ -6,7 +6,12 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-20 R378 — 跨日時間炸彈覆核：本地 web 937/937＋CI 重跑（今日日期）solver/frontend/database 全 success
+## 2026-10-20 R379 — 跨日後 staging 今日班表與連線暫態覆核 PASS
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。solver health 200/220ms。
+- 跨日 sanity：staging 今日班表正確顯示 10/20（二）「平日 · 停工」（=隔離測試日曆之週二=false 狀態的正確反映）；載入瞬間 chip 為「即時連線中按此更新」（訂閱中暫態＋可操作更新入口），數秒內收斂「雲端已儲存＋即時已連線」；導覽列系統連線亦同。
+
+ — 跨日時間炸彈覆核：本地 web 937/937＋CI 重跑（今日日期）solver/frontend/database 全 success
 
 - 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
 
