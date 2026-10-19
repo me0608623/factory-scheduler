@@ -6,7 +6,16 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-19 R370 — 公開倉庫衛生覆核：三個待授權 PR diff 零機密、CI 全綠
+## 2026-10-19 R371 — 雙分頁近同時寫入衝突演練 PASS（現行 build 無 last-write-wins 覆蓋）
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。
+
+### 演練設計與結果
+- 分頁 B（桌面）上班日設定切「週六 off」儲存；隨即（Realtime 傳播窗內）分頁 A（390px）切「週日 on」儲存——兩個競爭寫入打到同一 calendar 資料。
+- A 乾淨成功（chip 同步中→雲端已儲存、toast 含後續引導）；最終狀態驗證：**週六=false（B 保留）＋週日=true（A 保留）**＝正確合併、無資料遺失、無 last-write-wins 覆蓋；雙分頁 chip 均「雲端已儲存＋即時已連線」。
+- 附帶：還原過程再次踩到 detached DOM 陷阱（對話框重繪後舊節點 dispatch 無效）——測試手法已知問題（非產品缺陷），重查新節點即解。已還原 週六=true/週日=false（本輪 4 次日曆寫入、語意淨零，隔離庫）。
+
+ — 公開倉庫衛生覆核：三個待授權 PR diff 零機密、CI 全綠
 
 - 狀態：main=e911674 不變。零寫入。
 
