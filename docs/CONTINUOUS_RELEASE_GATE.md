@@ -6,7 +6,12 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-20 R389 — 三服務健康例行覆核：全部 200
+## 2026-10-20 R390 — 記憶收斂（#D4/PR #47 與 R378-R389 補充入冊）；狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。
+- 持久記憶已補 #D4（chat retranslate、PR #47、live 證實）與 R378-R389 系列（跨日覆核、python/uv 環境限制、tools 套件須從根目錄跑、fs-hunt 兩項已完成判定），跨 context 連續性維持最新。
+
+ — 三服務健康例行覆核：全部 200
 
 - 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。
 - 正式 web/solver/staging 三服務 HTTP 200。輪值探索持續。
