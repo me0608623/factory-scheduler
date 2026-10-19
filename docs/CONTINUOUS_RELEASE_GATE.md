@@ -6,7 +6,19 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-19 R365 — 正式 bundle i18n（R284 新鍵）與列印 CSS 靜態驗證 PASS
+## 2026-10-19 R366 — 非 app.js 模組系統性掃描：stale 守衛與網路層全數乾淨（負向結果收斂）
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+
+### 掃描
+- app.js 以外全部模組（40+ 檔）grep await STORE/store/client 與原始 fetch：僅 chat-ui.js L87（SOLVER.chat）與 main.js（boot 初始化）兩處 await；無任何模組绕过有界層自行 fetch。
+- chat-ui.js send() 逐行覆核：generation token 檢查（晚到回覆丟棄）、scopeStamp 變更即捨棄並誠實告知、catch 僅 token 持有時顯示「無法回答…未將查詢失敗當成沒有問題」、finally 僅持有時還原送出鈕——守衛完備。
+- 網路層全貌：solver.js 3 處全走 fetchWithTimeout（有界）、line-notify best-effort（R362 判定）、supabase 走 SDK。stale-guard 家族審計至此涵蓋全部模組，收斂。
+
+### 結論
+- 無新缺陷。#D1-#D3 為本系列唯一實質缺陷（已修，PR #44/#45/#46 待授權）。後續輪值回到行為級探索與真人項等待。
+
+ — 正式 bundle i18n（R284 新鍵）與列印 CSS 靜態驗證 PASS
 
 - 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
 
