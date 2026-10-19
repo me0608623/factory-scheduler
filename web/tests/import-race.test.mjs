@@ -14,7 +14,7 @@ function fixture(){
   const ctx={S:{blocks:[{id:'preserved'}]},UI:{modal:null},STORE:{kind:'local',session:{user:{id:'test-user'}},authEpoch:0},
     canArchive:()=>true,canMaster:()=>true,tx:x=>x,crypto:{subtle:{digest:()=>digest.promise}},Uint8Array,
     loadExcel:async()=>({readImportXlsx:async(bytes,name)=>{parses++;return requests.get(name).promise;}}),
-    openModal:m=>{ctx.UI.modal=m;opened.push(m);},renderModal:()=>{},document:{addEventListener:(type,fn)=>{assert.equal(type,'change');handler=fn;}}};
+    openModal:m=>{ctx.UI.modal=m;opened.push(m);},closeModal:()=>{ctx.UI.modal=null;},renderModal:()=>{},document:{addEventListener:(type,fn)=>{assert.equal(type,'change');handler=fn;}}};
   vm.createContext(ctx);vm.runInContext(handlerCode,ctx);
   const choose=name=>{const pending=deferred();requests.set(name,pending);
     const target={id:'xlsx-import',files:[{name,size:100,arrayBuffer:async()=>new Uint8Array([1,2,3]).buffer}],value:name};
@@ -60,7 +60,16 @@ test('changed store, user, auth epoch or revoked archive permission cannot accep
     if(kind==='epoch')f.ctx.STORE.authEpoch++;
     if(kind==='permission')f.ctx.canArchive=()=>false;
     first.pending.resolve(valid('old'));await first.task;
-    assert.equal(f.ctx.UI.modal,loading,kind);assert.equal(f.opened.length,1,kind);
+    // 晚到結果不得寫入，且同一次匯入的 loading 對話框要被收掉而不是永轉
+    assert.notEqual(f.ctx.UI.modal,loading,kind);assert.equal(f.ctx.UI.modal,null,kind);assert.equal(f.opened.length,1,kind);
+  }
+});
+test('ownership loss while parsing closes the loading dialog instead of leaving it spinning forever (catch path)',async()=>{
+  for(const kind of ['permission','epoch']){
+    const f=fixture(),first=f.choose('first.xlsx'),loading=f.ctx.UI.modal;await tick();
+    if(kind==='permission')f.ctx.canArchive=()=>false;else f.ctx.STORE.authEpoch++;
+    first.pending.reject(new Error('PARSE_FAIL'));await first.task;
+    assert.equal(f.ctx.UI.modal,null,kind);assert.equal(f.opened.length,1,kind);assert.notEqual(loading.loading,undefined);
   }
 });
 test('cancelled normal parse or parse error leaves the current screen unchanged',async()=>{
