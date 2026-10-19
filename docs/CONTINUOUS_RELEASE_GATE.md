@@ -6,7 +6,28 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-19 R356 — 缺陷探索 #D1：匯入 loading 對話框守衛絆倒後永轉（已修復上 staging）
+## 2026-10-19 R357 — 缺陷探索 #D2：tbl-form 儲存缺帳號切換守衛（已修復上 staging）＋優先項①覆核
+
+- 狀態：main=e911674 不變；PR #44（#D1）開啟待授權。
+
+### 優先項①覆核（solver 逾時）
+- 實查 web/src/solver.js：post() 全部走 fetchWithTimeout（正常 60s、測試模式 120s，AbortController）；check() 有 3s/45s 上限＋有界重試；錯誤轉「排程服務沒有回應」。判定＝已有界，無需新修。
+
+### #D2 重現與原因
+- 類別：帳號切換後舊請求污染新狀態。saveTableForm（欠缺品項/給二廠回一廠/工作紀錄 列儲存）在 await commit 期間帳號切換（STORE 換物件或 authEpoch 變）後：成功路徑仍設 UI.flashNewRow＋對新帳號 toast「已儲存」；失敗路徑對新畫面 toast 舊錯誤＋重繪新帳號對話框。同型守衛已存在於 memo/leave/scenario/password（#50/#51/#62/#65/#66），tbl-form 漏網。單元重現：table-form-save 夾具 pending commit→換 STORE→resolve/reject→污染成立。
+
+### 最小修正（commit 1edac30，PR #45）
+- app.js：儲存開始捕捉 store/userId/authEpoch；commit 後 sameStore() 不成立→跳過 flash 標記與「已儲存」；catch 對已切換 store 完全靜默（不回滾/不 toast/不重繪）；同帳號失敗（如中途撤權）仍回滾草稿＋顯示錯誤。
+- table-form-save.test.mjs：+3 測試（切換後成功不提示不閃爍、切換後失敗全靜默、同帳號失敗仍回滾＋提示）；夾具補 STORE/flashNewRow。
+
+### 測試／CI／部署／staging 實測
+- 專項 8/8；全套 web 934/934；build OK。PR #45 檢查全 pass（database×2/frontend×2/solver×4/web×2）。staging：af7cf99 → deploy 7169678406 success、分支 CI（Tests＋Deployment smoke）success。
+- staging 實測正常路徑：新增欠缺品項列（R284-D2驗證/3）→「已儲存」toast＋對話框關閉→列落地→兩段式刪除清除（淨寫入 0）。
+
+### 下一步
+- PR #44/#45 待使用者授權合併 main；續七類清單探索。
+
+ — 缺陷探索 #D1：匯入 loading 對話框守衛絆倒後永轉（已修復上 staging）
 
 - 狀態：main=e911674（R284 已上正式，web deploy 7168447876＋solver deploy 7168492789 均 success，solver health 200/235ms）；open PR=0 起手。
 
