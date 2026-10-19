@@ -6,7 +6,12 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-19 R376 — 跨機台提示與機台欄渲染抽查 PASS
+## 2026-10-19 R377 — 「最新變更」橫幅自隱行為確認（設計）；狀態不變
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+- 「最新變更」橫幅未顯示＝latestHTML 設計行為（log 項需含摘要、3 天內、且 fsched-seen 未比對過最新 id；看過即自隱）。非缺陷。chip 健康。
+
+ — 跨機台提示與機台欄渲染抽查 PASS
 
 - 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
 
