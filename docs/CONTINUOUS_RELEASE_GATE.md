@@ -6,7 +6,29 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-19 R357 — 缺陷探索 #D2：tbl-form 儲存缺帳號切換守衛（已修復上 staging）＋優先項①覆核
+## 2026-10-19 R358 — 缺陷探索 #D3：profile/feedback/access 流程帳號切換守衛掃蕩（已修復上 staging）
+
+- 狀態：main=e911674 不變；PR #44/#45 待授權。
+
+### #D3 重現與原因（系統性掃描 await STORE.* 全部呼叫點）
+- 四處漏網（同 #D2 家族，memo/leave/scenario/password/tbl-form 已有守衛）：
+- saveOwnProfile（最重）：await updateProfile 後無條件 STORE.userName=name——帳號切換後把舊帳號顯示名寫到新 store 物件＋render＋toast（單元重現：切換後新 store.userName 被污染）。
+- feedback-send：晚到成功會 closeModal 新 session 的對話框＋感謝 toast；晚到失敗顯示舊錯誤。
+- access-reset/access-save：晚到成功 toast＋對新 session 重開 access-accounts loading 對話框（單元重現：重開計數=1→0）。
+- access-accounts 載入器（nav case＋MODAL_ACT）：晚到失敗 closeModal 新 session 的任意對話框。
+
+### 最小修正（commit 於 codex/stale-guard-sweep-20261019）
+- app.js 六處：標準捕捉三元素（store/userId/authEpoch）＋owns()；晚到成功跳過 toast/關窗/重開；晚到失敗僅在持有時 toast；按鈕 re-enable 移 finally；載入器只關自己的 loading 對話框。
+- 新測試 web/tests/stale-guard-sweep.test.mjs（2 案例：profile 改名污染、access 重開對話框，各含對照組）。
+
+### 測試／CI／部署／staging
+- 專項 2/2＋回歸 21/21（三檔）；全套 web 933/933（main 基準 931＋2）；build OK。PR #46 檢查全 pass（database×2/frontend×2/solver×4/web×2）。與 #44/#45 無檔案重疊可獨立合併。
+- staging：6de406b → deploy 7170099023 success、分支 CI（Tests＋Deployment smoke）success；載入健康抽查（組長 session、chip 即時已連線、主區正常）。本輪零資料寫入。
+
+### 下一步
+- PR #44/#45/#46 待授權；續七類探索（離線/Realtime 競爭、窄屏 44px、動畫極簡等）。
+
+ — 缺陷探索 #D2：tbl-form 儲存缺帳號切換守衛（已修復上 staging）＋優先項①覆核
 
 - 狀態：main=e911674 不變；PR #44（#D1）開啟待授權。
 
