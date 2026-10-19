@@ -6,7 +6,12 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-20 R384 — 分支盤點：無新協同分支；狀態不變
+## 2026-10-20 R385 — 遷移邊界覆核：main 與 staging 最新皆 0037，無新增遷移
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+- db/migrations 盤點：origin/main 與 staging 分支最新皆為 0037_permission_whitelist_complete.sql——無任何 PR 或分支引入新遷移，符合「0037 已完成不重跑不額外遷移」邊界。
+
+ — 分支盤點：無新協同分支；狀態不變
 
 - 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
 - 遠端分支按時間排序：僅本系列分支（gate/staging/三修正分支/PR43 分支）＋main——無其他協作者新推送。輪值探索持續，待授權項不變。
