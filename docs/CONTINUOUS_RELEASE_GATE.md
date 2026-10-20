@@ -88,6 +88,10 @@
 - 正式 bundle 由 index-BA47z8as.js 更新為 index-DbLgT-M7.js；PR #48 字串標記全在（此為測試模式×2、前往測試資料×2、這天沒有測試排程×2、現有測試資料在×2）；scheduledMachinesFirst 為局部函式被壓縮改名（ancestry 63dd73e 已實證在 main）。solver health 200/253ms。零正式資料寫入。
 - 遺留：gate 分支新提交 25b5441（docs 記錄）尚在分支上，將隨下次 gate→main PR 或已含於分支同步。
 
+## 2026-10-20 R438 — 例行覆核：三服務 200；新基準 b4b5709 穩定
+
+- 狀態：main=b4b5709（PR #48 已上正式）；open PR=0；三服務 200。零寫入。真人項①②不變。
+
 - 瀏覽器補充（新 bundle index-BA47z8as.js）：?mode=test 測試模式橫幅＋登入牆正常（隔離維持）；返回 / 後 Richard session 已失效（登入牆呈現）——判定為分頁閒置逾時之 session 過期（#D1-#D4 不觸 auth；R364 同型往返後 session 曾存活），非部署造成。正式站目前停於可接手的登入頁＝真人項①的起點。注意：以「測試模式」子字串偵測會誤判（正常登入頁含「進入測試模式」連結文字），須比對完整橫幅文案。
 
 ## 2026-10-20 R425 — 使用者合併四 PR（#44-#47）→ main=2dd3b10 → 正式部署驗證 PASS
