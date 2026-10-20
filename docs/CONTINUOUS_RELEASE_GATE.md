@@ -6,7 +6,7 @@
 - 原因：原 103 段測試班表只涵蓋特定日期；直接複製會讓既有工單各工序排程量超過工單量，造成後續 `save_blocks` 拖曳驗證失敗。
 - 修正：新增 `tools/daily-test-fixtures.mjs`，建立獨立「每日拖曳練習」員工／機台／單站產品，並為 2026-10-20～2027-11-20 每一天建立獨立工單與 09:00–09:30 班表。測試日曆同區間每天開放；SQL 只允許固定隔離 URL、全交易、可重跑、無 DELETE/TRUNCATE，既有 block ID 存在即不覆蓋使用者拖曳結果。
 - 實際執行：Supabase SQL Editor 頁面明示 `factory-scheduler-staging` 與 project ref `fkefarcwadvyqqjcjxvp`；回傳 `daily_practice_blocks=397`、first_date=2026-10-20、last_date=2027-11-20。
-- 實際覆核：逐日檢查回傳 `missing_or_duplicate_days=0`、`closed_days=0`、`checked_days=397`。PGlite 套用完整 migrations 後，週五／週六／週日／週一 fixtures、重跑不增版、組長 `save_blocks` 真函式拖曳 09:00→10:00 全通過；web 全套 **946/946** PASS。
+- 實際覆核：逐日檢查回傳 `missing_or_duplicate_days=0`、`closed_days=0`、`checked_days=397`。PGlite 套用完整 migrations 後，週五／週六／週日／週一 fixtures、重跑不增版、組長 `save_blocks` 真函式拖曳 09:00→10:00 全通過；web 全套 **946/946** PASS。提交 `141daa8` 已推至 PR #48，兩組 GitHub Tests／Deployment smoke 共 10 個 jobs 全綠。
 - 未驗證：目前無測試帳密可供本輪代理登入，瀏覽器只能驗證正式前端 `?mode=test` 正確進入隔離登入牆，尚未冒稱真人登入後畫面／手指拖曳通過。使用者登入後刷新即可看到當日「每日拖曳練習機」班表。
 
 > **狀態總覽（常態更新；輪段詳細證據往下）**
