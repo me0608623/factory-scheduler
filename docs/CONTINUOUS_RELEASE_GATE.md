@@ -78,6 +78,16 @@
 - 狀態：main=2dd3b10；PR #48 CI 全綠待授權。
 - worktree 觀察：web/src/app.js 有協同 session 之未提交修改（+4/-2：測試模式下把有排程的機台排前面 scheduledMachinesFirst——延續 PR #48 可發現性主題，手機第一屏直接看得到測試機台）。依重疊只讀原則，本輪不碰不提交該檔。
 
+## 2026-10-20 R437 — 使用者合併 PR #48（含協同 session 之 scheduledMachinesFirst 後續提交）→ main=b4b5709 → 正式部署驗證 PASS
+
+### 使用者動作
+- 12:40Z 合併 PR #48（測試模式可發現性＋每日拖曳練習 fixtures＋協同 session 於 gate 分支上的後續提交 63dd73e「show scheduled test machines first」——測試機台排欄首）。
+### 部署與驗證
+- main CI（b4b5709）：Tests＋Deployment smoke＋部署 Render 正式環境全 success。
+- Render：web deploy 7199920177＋solver deploy 7199920374（皆 sha=b4b5709）status=success。
+- 正式 bundle 由 index-BA47z8as.js 更新為 index-DbLgT-M7.js；PR #48 字串標記全在（此為測試模式×2、前往測試資料×2、這天沒有測試排程×2、現有測試資料在×2）；scheduledMachinesFirst 為局部函式被壓縮改名（ancestry 63dd73e 已實證在 main）。solver health 200/253ms。零正式資料寫入。
+- 遺留：gate 分支新提交 25b5441（docs 記錄）尚在分支上，將隨下次 gate→main PR 或已含於分支同步。
+
 - 瀏覽器補充（新 bundle index-BA47z8as.js）：?mode=test 測試模式橫幅＋登入牆正常（隔離維持）；返回 / 後 Richard session 已失效（登入牆呈現）——判定為分頁閒置逾時之 session 過期（#D1-#D4 不觸 auth；R364 同型往返後 session 曾存活），非部署造成。正式站目前停於可接手的登入頁＝真人項①的起點。注意：以「測試模式」子字串偵測會誤判（正常登入頁含「進入測試模式」連結文字），須比對完整橫幅文案。
 
 ## 2026-10-20 R425 — 使用者合併四 PR（#44-#47）→ main=2dd3b10 → 正式部署驗證 PASS
