@@ -6,6 +6,15 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
+## 2026-10-20 R426 — 新基準 2dd3b10 確認；PR #48（測試模式可發現性）審查完成：CI 全綠、推薦合併
+
+- 狀態：main=2dd3b10（四 PR 已併）；三服務 200。
+### PR #48 審查（使用者開立，head=gate 分支，+1383/-4 七檔）
+- 實質變更：①dayHTML 於測試模式＋當日無方塊時顯示「這天沒有測試排程／現有測試資料在 {date}」＋「前往測試資料」按鈕（test-mode.js 新增 nearestScheduleDate：找可見機台最近有排程日期）——填補 R379 觀察到的真實缺口（測試模式落在停工日只見空板）；②測試模式橫幅改雙行＋brand/nav 持續性「此為測試模式」標籤（隔離訊號強化）；③5 個新 i18n 鍵（en/vi/th）＋樣式；④新測試檔 test-mode-schedule.test.mjs（nearestScheduleDate 單元＋接線棘輪＋譯文）。
+- 文件：ACCEPTANCE_SCRIPT F 部＋gate 全部 checkpoint 歷史（+1312 行）併入 main docs——使用者刻意為之。
+- CI：database/frontend/solver×2/web 全 pass。與 main 無衝突（MERGEABLE/CLEAN）。**審查結論：推薦合併**（待使用者授權）。
+- 持久記憶已同步新基準與本審查。
+
 - 瀏覽器補充（新 bundle index-BA47z8as.js）：?mode=test 測試模式橫幅＋登入牆正常（隔離維持）；返回 / 後 Richard session 已失效（登入牆呈現）——判定為分頁閒置逾時之 session 過期（#D1-#D4 不觸 auth；R364 同型往返後 session 曾存活），非部署造成。正式站目前停於可接手的登入頁＝真人項①的起點。注意：以「測試模式」子字串偵測會誤判（正常登入頁含「進入測試模式」連結文字），須比對完整橫幅文案。
 
 ## 2026-10-20 R425 — 使用者合併四 PR（#44-#47）→ main=2dd3b10 → 正式部署驗證 PASS
