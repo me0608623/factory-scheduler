@@ -132,6 +132,11 @@
 
 - 狀態：main=b4b5709；PR #49 CI 全綠待授權。零寫入。真人項①②不變。
 
+## 2026-10-21 R448 — 跨日時間炸彈覆核：main Tests 於 10-21 重跑 solver/frontend/database 全 success
+
+- 狀態：main=b4b5709；PR #49 待授權。零寫入。
+- rerun main Tests run 39423748085（b4b5709、無程式碼變更無部署）於 10-21 日期執行 → solver/frontend/database 三作業全 success＝現行正式內容無時間炸彈。三服務 200。真人項①②不變。
+
 - 瀏覽器補充（新 bundle index-BA47z8as.js）：?mode=test 測試模式橫幅＋登入牆正常（隔離維持）；返回 / 後 Richard session 已失效（登入牆呈現）——判定為分頁閒置逾時之 session 過期（#D1-#D4 不觸 auth；R364 同型往返後 session 曾存活），非部署造成。正式站目前停於可接手的登入頁＝真人項①的起點。注意：以「測試模式」子字串偵測會誤判（正常登入頁含「進入測試模式」連結文字），須比對完整橫幅文案。
 
 ## 2026-10-20 R425 — 使用者合併四 PR（#44-#47）→ main=2dd3b10 → 正式部署驗證 PASS
