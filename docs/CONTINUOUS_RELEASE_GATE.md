@@ -104,6 +104,10 @@
 - 安全覆核：DELETE 僅針對前版工具自建的固定 ID（tstdaily 機/TEST-DAY 員工及其 orders/blocks/skills/machine_products）——自產合成資料清理，非 1023 名冊、非 A07/tst05 基準（tst01-05 為重用不刪）；無正式 URL/無 migration。測試 947/947、build OK（PR body）。
 - CI 實查：database×2/frontend×2/solver×4/web×2 全 pass；MERGEABLE/CLEAN。**推薦合併**（待使用者授權）。
 
+## 2026-10-20 R441 — 例行覆核：三服務 200；PR #49 待授權
+
+- 狀態：main=b4b5709；PR #49（擬真每日排程）CI 全綠待使用者授權。零寫入。真人項①②不變。
+
 - 瀏覽器補充（新 bundle index-BA47z8as.js）：?mode=test 測試模式橫幅＋登入牆正常（隔離維持）；返回 / 後 Richard session 已失效（登入牆呈現）——判定為分頁閒置逾時之 session 過期（#D1-#D4 不觸 auth；R364 同型往返後 session 曾存活），非部署造成。正式站目前停於可接手的登入頁＝真人項①的起點。注意：以「測試模式」子字串偵測會誤判（正常登入頁含「進入測試模式」連結文字），須比對完整橫幅文案。
 
 ## 2026-10-20 R425 — 使用者合併四 PR（#44-#47）→ main=2dd3b10 → 正式部署驗證 PASS
