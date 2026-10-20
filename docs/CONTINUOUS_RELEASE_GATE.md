@@ -1,5 +1,13 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-20 R437 — 測試班表「有資料但手機第一屏看不到」修正並正式發布
+
+- 真實重現：隔離測試帳號在 2026-10-20 已讀到 `TEST-DAY-20261020`（09:00–09:30、30 件），但專用機台 `tstdaily 每日拖曳練習機` 排在 12 台機台的最後；手機／窄視窗第一屏只看到前方空機台，畫面因此看似沒有測試資料。這不是資料庫缺資料。
+- 最小修正：僅在 `RUNTIME.mode==='test'` 的非預覽日班表，穩定把當日有排程的機台排到前面；正式模式、週班表、資料列與原機台相對順序均不改。新增純函式與回歸測試，輸入陣列不突變。
+- 驗證：針對情境 10/10 PASS；完整 web **947/947 PASS**；`vite build` PASS。GitHub Tests／Deployment smoke 兩組共 10 jobs 全綠。
+- 發布：提交 `63dd73e`；PR #48 由 draft 轉 ready 後合併，main=`b4b5709`。正式 Render deploy `dep-dbbm17l9fdbs73eb8ma0` 已 `live`，正式 `?mode=test` 回應 200，bundle `index-DbLgT-M7.js` 含隔離與正式兩套 runtime 設定。未執行 SQL／migration，正式 1023、Auth、角色與 setup_pending 均未修改。
+- 實際資料證據：已登入的隔離站 DOM 顯示 10/20、`tstdaily 每日拖曳練習機`、`測試-每日拖曳 TEST-DAY-20261020 組裝 30件 09:00–09:30`，sync chip 為「雲端已儲存／即時已連線」。正式 `?mode=test` 本輪瀏覽器無隔離登入 session，因此登入後第一屏仍需使用者刷新核對；不冒稱真人登入驗收已完成。
+
 ## 2026-10-20 R427 — 隔離測試庫補齊每日可拖曳班表：397/397 天 PASS
 
 - 使用者需求：測試模式每天都要有可操作排程。實作範圍只限 Supabase `fkefarcwadvyqqjcjxvp`；正式 `kjnnguekhshkhgycmryl`、1023、Auth、角色、setup_pending、migration 均未開啟或修改。
