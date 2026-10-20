@@ -1002,9 +1002,12 @@ async function toggleDeviceSetting(button){
 async function saveOwnProfile(button){
   const name=$('#profile-display-name')?.value.trim()||'';
   if(name.length<1||name.length>60){toast('顯示名稱需要 1–60 個字');return;}
+  const store=STORE,user=store?.session?.user?.id??null,epoch=store?.authEpoch??0;
+  const owns=()=>STORE===store&&(STORE?.session?.user?.id??null)===user&&(STORE?.authEpoch??0)===epoch;
   button.disabled=true;
-  try{await STORE.updateProfile({displayName:name});STORE.userName=name;render();toast('個人資料已儲存');}
-  catch(e){button.disabled=false;toast(e.message);}
+  try{await STORE.updateProfile({displayName:name});if(!owns())return;STORE.userName=name;render();toast('個人資料已儲存');}
+  catch(e){if(owns())toast(e.message);}
+  finally{button.disabled=false;}
 }
 
 function moreDrawerHTML(){
@@ -1485,7 +1488,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
       closeModal();
       try{await STORE.logout();toast("已登出");}catch(e){toast("登出失敗："+e.message);}
       showLogin();})();break;
-    case "access":{if(STORE.role!=='boss'){toast("只有老闆可以管理權限");break;}openModal({t:'access-accounts',loading:true,accounts:[]});(async()=>{try{const accounts=await STORE.listAccessAccounts();if(UI.modal?.t==='access-accounts'){UI.modal.loading=false;UI.modal.accounts=accounts;renderModal();}}catch(e){toast(e.message);closeModal();}})();break;}
+    case "access":{if(STORE.role!=='boss'){toast("只有老闆可以管理權限");break;}openModal({t:'access-accounts',loading:true,accounts:[]});const m=UI.modal,store=STORE,user=store.session?.user?.id,epoch=store.authEpoch;const owns=()=>STORE===store&&STORE.session?.user?.id===user&&STORE.authEpoch===epoch;(async()=>{try{const accounts=await store.listAccessAccounts();if(UI.modal===m&&UI.modal?.t==='access-accounts'){UI.modal.loading=false;UI.modal.accounts=accounts;renderModal();}}catch(e){if(owns())toast(e.message);if(UI.modal===m)closeModal();}})();break;}
     case 'layout':UI.layout=a.dataset.v;render();break;
     case 'work-contents':openModal({t:'work-contents'});break;
     case 'work-content-new':if(canWorkContents())openModal({t:'work-content-edit'});break;
@@ -1645,7 +1648,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "analytics":UI.page="analytics";UI.drawer=null;setUrlView("analytics");render();window.scrollTo(0,0);break;
     case "line-notify":openModal({t:"line-notify"});break;
     case "ln-save":{const h=async a=>{if(STORE.kind==="local"){toast("本機示範模式無法設定 LINE 通知；請在雲端帳號使用");return;}const modal=UI.modal,store=STORE,client=store.sb,user=store.session?.user?.id,epoch=store.authEpoch;const owns=()=>UI.modal===modal&&STORE===store&&store.sb===client&&store.session?.user?.id===user&&store.authEpoch===epoch;a.disabled=true;try{const enabled=$("#ln-enabled")?.checked||false;const userId=$("#ln-user")?.value.trim()||"";const groupId=$("#ln-group")?.value.trim()||"";const events={};for(const el of document.querySelectorAll("[data-ln-event]"))events[el.dataset.lnEvent]=el.checked;const {error}=await client.from("line_notify_settings").upsert({user_id:user,enabled,line_user_id:userId,line_group_id:groupId,events},{onConflict:"user_id"});if(error)throw error;if(!owns())return;closeModal();toast("LINE 通知設定已儲存");}catch(e){if(owns())toast(e.message);}finally{a.disabled=false;}};h(a);break;};
-    case "feedback-send":{const h=async a=>{if(STORE.kind==="local"){toast("本機示範模式無法送出反饋；請改用下面的 Email 連結");return;}const msg=$("#fb-msg")?.value.trim()||"",cat=$("#fb-cat")?.value||"other";if(!msg){toast("請寫一些內容");return;}a.disabled=true;try{const {error}=await STORE.sb.from("feedback").insert({author_name:STORE.userName||"未命名",category:cat,message:msg,page_url:location.href,user_id:STORE.session?.user?.id});if(error)throw error;closeModal();toast("感謝！意見已送出，我們會盡快處理。"+(STORE.role==="boss"?" 到「更多功能→查看反饋」看全部。":""));}catch(e){a.disabled=false;toast(e.message);}};h(a);break;};
+    case "feedback-send":{const h=async a=>{if(STORE.kind==="local"){toast("本機示範模式無法送出反饋；請改用下面的 Email 連結");return;}const msg=$("#fb-msg")?.value.trim()||"",cat=$("#fb-cat")?.value||"other";if(!msg){toast("請寫一些內容");return;}const store=STORE,user=store.session?.user?.id,epoch=store.authEpoch;const owns=()=>STORE===store&&STORE.session?.user?.id===user&&STORE.authEpoch===epoch;a.disabled=true;try{const {error}=await store.sb.from("feedback").insert({author_name:STORE.userName||"未命名",category:cat,message:msg,page_url:location.href,user_id:user});if(error)throw error;if(!owns())return;closeModal();toast("感謝！意見已送出，我們會盡快處理。"+(store.role==="boss"?" 到「更多功能→查看反饋」看全部。":""));}catch(e){if(owns())toast(e.message);}finally{a.disabled=false;}};h(a);break;};
     case "feedback-list":{
       if(STORE.role!=="boss"){toast("只有老闆可以查看全部反饋");break;}
       if(STORE.kind==="local"){toast("查看反饋需要雲端模式；本機示範資料沒有反饋紀錄");break;}
@@ -3734,10 +3737,10 @@ MODALS['access-account']=m=>{const x=m.account,isBoss=x.role==='boss';return {ti
     '<label class="permission-row"><input type="checkbox" data-permission="'+key+'" '+(x.permissions?.[key]?'checked ':'')+(isBoss?'disabled ':'')+'><span><b>'+esc(name)+'</b><small>'+esc(desc)+'</small></span></label>').join(''),
   foot:'<button class="btn" data-act="access-accounts">'+tx('返回')+'</button><div class="spacer"></div>'+(isBoss?'':(x.customized?'<button class="btn" data-act="access-reset">'+tx('恢復職位預設')+'</button>':'')+'<button class="btn primary" data-act="access-save">'+tx('儲存權限')+'</button>')};};
 Object.assign(MODAL_ACT,{
-  'access-accounts':async()=>{if(STORE.kind!=='supabase'||STORE.role!=='boss')return;openModal({t:'access-accounts',loading:true,accounts:[]});try{const accounts=await STORE.listAccessAccounts();if(UI.modal?.t==='access-accounts'){UI.modal.loading=false;UI.modal.accounts=accounts;renderModal();}}catch(e){toast(e.message);closeModal();}},
+  'access-accounts':async()=>{if(STORE.kind!=='supabase'||STORE.role!=='boss')return;openModal({t:'access-accounts',loading:true,accounts:[]});const m=UI.modal,store=STORE,user=store.session?.user?.id,epoch=store.authEpoch;const owns=()=>STORE===store&&STORE.session?.user?.id===user&&STORE.authEpoch===epoch;try{const accounts=await store.listAccessAccounts();if(UI.modal===m&&UI.modal?.t==='access-accounts'){UI.modal.loading=false;UI.modal.accounts=accounts;renderModal();}}catch(e){if(owns())toast(e.message);if(UI.modal===m)closeModal();}},
   'access-account':a=>{if(STORE.role!=='boss')return;const x=UI.modal?.accounts?.find(v=>v.userId===a.dataset.id);if(x)openModal({t:'access-account',account:structuredClone(x)});},
-  'access-reset':async a=>{if(STORE.role!=='boss'||UI.modal?.t!=='access-account')return;a.disabled=true;try{await STORE.setAccessPermissions(UI.modal.account.userId,{});toast('已恢復職位預設權限');MODAL_ACT['access-accounts']();}catch(e){a.disabled=false;toast(e.message);}},
-  'access-save':async a=>{if(STORE.role!=='boss'||UI.modal?.t!=='access-account')return;const x=UI.modal.account,permissions={};document.querySelectorAll('[data-permission]').forEach(el=>permissions[el.dataset.permission]=el.checked);a.disabled=true;try{await STORE.setAccessPermissions(x.userId,permissions);toast('已更新 '+(x.displayName||'帳號')+' 的功能權限');MODAL_ACT['access-accounts']();}catch(e){a.disabled=false;toast(e.message);}}
+  'access-reset':async a=>{if(STORE.role!=='boss'||UI.modal?.t!=='access-account')return;const store=STORE,user=store.session?.user?.id,epoch=store.authEpoch;const owns=()=>STORE===store&&STORE.session?.user?.id===user&&STORE.authEpoch===epoch;a.disabled=true;try{await STORE.setAccessPermissions(UI.modal.account.userId,{});if(!owns())return;toast('已恢復職位預設權限');MODAL_ACT['access-accounts']();}catch(e){if(owns())toast(e.message);}finally{a.disabled=false;}},
+  'access-save':async a=>{if(STORE.role!=='boss'||UI.modal?.t!=='access-account')return;const x=UI.modal.account,permissions={};document.querySelectorAll('[data-permission]').forEach(el=>permissions[el.dataset.permission]=el.checked);const store=STORE,user=store.session?.user?.id,epoch=store.authEpoch;const owns=()=>STORE===store&&STORE.session?.user?.id===user&&STORE.authEpoch===epoch;a.disabled=true;try{await STORE.setAccessPermissions(x.userId,permissions);if(!owns())return;toast('已更新 '+(x.displayName||'帳號')+' 的功能權限');MODAL_ACT['access-accounts']();}catch(e){if(owns())toast(e.message);}finally{a.disabled=false;}}
 });
 
 MODALS['catalog-review']=()=>({title:tx(S.setupPending?'初次核對資料':'員工、設備與工單'),body:
