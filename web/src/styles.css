@@ -86,9 +86,11 @@ button{cursor:pointer}
 .btn .dot{min-width:24px;height:24px;border-radius:12px;background:var(--bad);color:#fff;font-size:13px;display:grid;place-items:center;padding:0 6px}
 .demo-chip{font-size:13px;font-weight:700;color:var(--warn);background:var(--warn-bg);border-radius:6px;padding:3px 8px}
 .environment-banner{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border:1px solid var(--warn);border-radius:10px;background:var(--warn-bg);color:var(--ink);font-size:16px}
+.environment-banner>span{display:grid;gap:1px}.environment-banner small{font-size:13px;color:var(--ink)}
 .environment-banner .btn,.test-entry{text-decoration:none;min-height:44px;color:var(--ink)}
 .login-card>.test-entry{justify-content:center}
 .top-main>.environment-banner{flex-basis:100%}
+.test-mode-label{display:inline-flex;width:max-content;align-items:center;min-height:24px;padding:2px 8px;border-radius:6px;background:var(--warn-bg);color:var(--ink);border:1px solid var(--warn);font-size:12px;font-weight:900;line-height:1.2;white-space:nowrap}
 .ro-chip{font-size:13px;font-weight:700;color:var(--muted);background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:3px 8px}
 
 .wrap{max-width:1760px;margin:0 auto 0 244px;padding-inline:24px;padding-block:12px 40px;display:flex;flex-direction:column;gap:14px}
@@ -377,6 +379,8 @@ body.nav-collapsed .side-health span{display:none}
 .k.info{background:var(--surface);color:var(--muted);border:1px solid var(--line)}
 .hint{font-size:15px;color:var(--muted)}
 .empty{padding:14px;text-align:center;color:var(--muted)}
+.test-data-empty{display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--ink)}
+.test-data-empty>b{font-size:18px}.test-data-empty>span{color:var(--muted)}.test-data-empty>.btn{margin-top:2px;min-height:48px}
 
 /* ---------- plans / incident / help ---------- */
 .plan{border:2px solid var(--line2);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:12px}
