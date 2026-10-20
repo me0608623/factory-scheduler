@@ -6,7 +6,20 @@
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
 
-## 2026-10-20 R424 — 例行覆核：三服務 200、狀態不變
+## 2026-10-20 R425 — 使用者合併四 PR（#44-#47）→ main=2dd3b10 → 正式部署驗證 PASS
+
+### 使用者動作
+- 08:01-08:02Z 連續合併 PR #44（#D1 匯入 loading 守衛）、#45（#D2 tbl-form 帳號切換守衛）、#46（#D3 stale-guard 掃蕩）、#47（#D4 聊天語言重譯）。
+### 部署與驗證
+- main CI：Tests＋Deployment smoke＋部署 Render 正式環境 workflow 全 success（2dd3b10）。
+- Render：web deploy 7194694253＋solver deploy 7194693177（皆 sha=2dd3b10）status=success。
+- git ancestry 實證四修正提交（6b90ab3/1edac30/c728f89/bd770b6）全在 main；正式 bundle 由 B6aZuEu_ 更新為 index-BA47z8as.js（Render 自 2dd3b10 建置；#D1-D4 均為局部函式、被壓縮改名，指紋鏈以部署 API sha＋ancestry 為準）。
+- 正式健康：標題正常、solver health 200/249ms、?mode=test 隔離橫幅仍在。
+- 零正式資料寫入。
+### 剩餘真人項（不變）
+- ①正式站登入後確認彙總 Realtime chip（機器證據已有：Richard session 曾顯示即時已連線）。②實體手機排程顯示與手指拖曳。
+
+ — 例行覆核：三服務 200、狀態不變
 
 - 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
 
