@@ -11,6 +11,7 @@ function day(blocks,ctx={}){
   const env={UI:{date:'2026-10-15',factory:1},S:{blocks},SZ:{day:1},readOnly:true,PV:{mode:'cmp'},
     DAY0:480,DAY1:1200,LUNCH_S:720,REG_END:1020,hourPx:()=>60,dayInfo:()=>({open:true,win:[[480,1020]]}),
     shownMachines:()=>machines,shownEmployees:()=>[],todayStr:()=> '2026-10-14',tx:(s,p)=>s.replace('{n}',p?.n),
+    RUNTIME:{mode:'prod'},scheduledMachinesFirst:machines=>machines,
     esc:x=>String(x),factoryName:()=> '1',mdw:x=>x,hm:x=>String(x),szoomBarHTML:()=>'',
     issuesOf:()=>[],blkHTML:()=>'<div class="blk"></div>',canCalendar:()=>false};
   vm.createContext(env);vm.runInContext(source.slice(source.indexOf('function dayHTML('),source.indexOf('function blkHTML(')),env);

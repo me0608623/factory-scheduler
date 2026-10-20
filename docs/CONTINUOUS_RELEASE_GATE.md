@@ -1,10 +1,1386 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-20 R427 — 隔離測試庫補齊每日可拖曳班表：397/397 天 PASS
+
+- 使用者需求：測試模式每天都要有可操作排程。實作範圍只限 Supabase `fkefarcwadvyqqjcjxvp`；正式 `kjnnguekhshkhgycmryl`、1023、Auth、角色、setup_pending、migration 均未開啟或修改。
+- 原因：原 103 段測試班表只涵蓋特定日期；直接複製會讓既有工單各工序排程量超過工單量，造成後續 `save_blocks` 拖曳驗證失敗。
+- 修正：新增 `tools/daily-test-fixtures.mjs`，建立獨立「每日拖曳練習」員工／機台／單站產品，並為 2026-10-20～2027-11-20 每一天建立獨立工單與 09:00–09:30 班表。測試日曆同區間每天開放；SQL 只允許固定隔離 URL、全交易、可重跑、無 DELETE/TRUNCATE，既有 block ID 存在即不覆蓋使用者拖曳結果。
+- 實際執行：Supabase SQL Editor 頁面明示 `factory-scheduler-staging` 與 project ref `fkefarcwadvyqqjcjxvp`；回傳 `daily_practice_blocks=397`、first_date=2026-10-20、last_date=2027-11-20。
+- 實際覆核：逐日檢查回傳 `missing_or_duplicate_days=0`、`closed_days=0`、`checked_days=397`。PGlite 套用完整 migrations 後，週五／週六／週日／週一 fixtures、重跑不增版、組長 `save_blocks` 真函式拖曳 09:00→10:00 全通過；web 全套 **946/946** PASS。提交 `141daa8` 已推至 PR #48，兩組 GitHub Tests／Deployment smoke 共 10 個 jobs 全綠。
+- 未驗證：目前無測試帳密可供本輪代理登入，瀏覽器只能驗證正式前端 `?mode=test` 正確進入隔離登入牆，尚未冒稱真人登入後畫面／手指拖曳通過。使用者登入後刷新即可看到當日「每日拖曳練習機」班表。
+
 > **狀態總覽（常態更新；輪段詳細證據往下）**
 > - **正式站**：runtime `e0e6f65`（PR16/PR18 已合併；web bundle index-CV39COdK.js、solver dep-db864um89）。`?mode=test` 三個 VITE_TEST 值已設定、只連隔離 fk 專案＋staging solver（隔離核對 PASS）。**正式站待修**：#45 rs-create 迴歸（正式「輪班表→新增」會失敗）。
 > - **staging（領先正式）**：runtime `4f4470a`——含 #43 solver 冷啟動有界重試、#45–#56 共 12 件協同修復（rs-create、sticky 面板、切換成本、標記隔離、存檔並發、LINE/反饋/重置/情境誠實回報、日期排序、xlsx 列印設定、排隊交接完成量）、render.yaml AI 旗標防漂移（sync:false，未部署生效）。web **887/887**、solver **177/177**。staging 實證：#43/#45/#46/#48/#50/#55＋#42 列印封鎖 toast＋#54 前門防禦；單元鎖定：#47/#49/#51–#53/#56。
 > - **最新門檻**：隔離與正式 publication 4/4、兩端 Realtime 服務／傳輸／四表訂閱、第二帳戶跨瀏覽器同步均已 PASS；PR40 已合併 main `87cb15b` 並部署正式。尚待登入正式站後確認彙總 chip，以及實體手機硬體驗收（桌面 390×844 路徑已 PASS）。正式 1023／角色／setup_pending／migration 均未動。
 > - **本 chat 追蹤**：20 分鐘 automation-8cd66164（ACTIVE）；worktree 分支 codex/continuous-release-gate-20261013；紅線不變（1023/角色/setup_pending/0037/夜間備份 disabled）。
+
+## 2026-10-20 R426 — 新基準 2dd3b10 確認；PR #48（測試模式可發現性）審查完成：CI 全綠、推薦合併
+
+- 狀態：main=2dd3b10（四 PR 已併）；三服務 200。
+### PR #48 審查（使用者開立，head=gate 分支，+1383/-4 七檔）
+- 實質變更：①dayHTML 於測試模式＋當日無方塊時顯示「這天沒有測試排程／現有測試資料在 {date}」＋「前往測試資料」按鈕（test-mode.js 新增 nearestScheduleDate：找可見機台最近有排程日期）——填補 R379 觀察到的真實缺口（測試模式落在停工日只見空板）；②測試模式橫幅改雙行＋brand/nav 持續性「此為測試模式」標籤（隔離訊號強化）；③5 個新 i18n 鍵（en/vi/th）＋樣式；④新測試檔 test-mode-schedule.test.mjs（nearestScheduleDate 單元＋接線棘輪＋譯文）。
+- 文件：ACCEPTANCE_SCRIPT F 部＋gate 全部 checkpoint 歷史（+1312 行）併入 main docs——使用者刻意為之。
+- CI：database/frontend/solver×2/web 全 pass。與 main 無衝突（MERGEABLE/CLEAN）。**審查結論：推薦合併**（待使用者授權）。
+- 持久記憶已同步新基準與本審查。
+
+## 2026-10-20 R427 — PR #48 更新（協同 session 加入每日拖曳練習 fixtures）：CI 全綠、MERGEABLE/CLEAN，推薦合併
+
+- 狀態：main=2dd3b10；三服務 200。零寫入。
+### PR #48 新增內容（協同 session 提交 141daa8＋cb70228）
+- tools/daily-test-fixtures.mjs（+112）：獨立「每日拖曳練習」員工/機台/單站產品＋2026-10-20～2027-11-20 每日獨立工單與 09:00–09:30 班表；SQL 限定隔離 URL（fkefarcwadvyqqjcjxvp）、全交易、可重跑、無 DELETE/TRUNCATE、既有 block 不覆蓋——已於隔離庫執行（daily_practice_blocks=397、checked_days=397、missing/duplicate/closed=0）。
+- web/tests/daily-test-fixtures.test.mjs（+48）；web 全套升至 946/946。
+- 安全掃描：fixtures SQL 無正式 URL/DELETE/TRUNCATE/DROP；僅隔離專案。此工作直接補足真人項②的練習場（使用者登入後每天有可拖曳練習資料）。
+- CI：database/frontend/solver×2/web 全 pass；mergeable=MERGEABLE、state=CLEAN。**推薦合併**（待使用者授權）。
+
+## 2026-10-20 R428 — 例行覆核：三服務 200；PR #48 待授權
+
+- 狀態：main=2dd3b10；PR #48（測試模式可發現性＋每日拖曳練習 fixtures）MERGEABLE/CLEAN、CI 全綠待使用者授權。零寫入。
+
+## 2026-10-20 R429 — 例行覆核：三服務 200；PR #48 待授權
+
+- 狀態：main=2dd3b10；PR #48 CI 全綠待使用者授權。零寫入。
+
+## 2026-10-20 R430 — 例行覆核：三服務 200；PR #48 待授權
+
+- 狀態：main=2dd3b10；PR #48 CI 全綠待使用者授權。零寫入。
+
+## 2026-10-20 R431 — 例行覆核：三服務 200；PR #48 待授權
+
+- 狀態：main=2dd3b10；PR #48 CI 全綠待使用者授權。零寫入。
+
+## 2026-10-20 R432 — 例行覆核：三服務 200；PR #48 待授權
+
+- 狀態：main=2dd3b10；PR #48 CI 全綠待使用者授權。零寫入。
+
+## 2026-10-20 R433 — 例行覆核：三服務 200；PR #48 待授權
+
+- 狀態：main=2dd3b10；PR #48 CI 全綠待使用者授權。零寫入。
+
+## 2026-10-20 R434 — 例行覆核：三服務 200；PR #48 待授權
+
+- 狀態：main=2dd3b10；PR #48 CI 全綠待使用者授權。零寫入。
+
+## 2026-10-20 R435 — 例行覆核：三服務 200；PR #48 待授權
+
+- 狀態：main=2dd3b10；PR #48 CI 全綠待使用者授權。零寫入。
+
+## 2026-10-20 R436 — 例行覆核：三服務 200；worktree 出現協同 session 未提交修改（只讀不碰）
+
+- 狀態：main=2dd3b10；PR #48 CI 全綠待授權。
+- worktree 觀察：web/src/app.js 有協同 session 之未提交修改（+4/-2：測試模式下把有排程的機台排前面 scheduledMachinesFirst——延續 PR #48 可發現性主題，手機第一屏直接看得到測試機台）。依重疊只讀原則，本輪不碰不提交該檔。
+
+- 瀏覽器補充（新 bundle index-BA47z8as.js）：?mode=test 測試模式橫幅＋登入牆正常（隔離維持）；返回 / 後 Richard session 已失效（登入牆呈現）——判定為分頁閒置逾時之 session 過期（#D1-#D4 不觸 auth；R364 同型往返後 session 曾存活），非部署造成。正式站目前停於可接手的登入頁＝真人項①的起點。注意：以「測試模式」子字串偵測會誤判（正常登入頁含「進入測試模式」連結文字），須比對完整橫幅文案。
+
+## 2026-10-20 R425 — 使用者合併四 PR（#44-#47）→ main=2dd3b10 → 正式部署驗證 PASS
+
+### 使用者動作
+- 08:01-08:02Z 連續合併 PR #44（#D1 匯入 loading 守衛）、#45（#D2 tbl-form 帳號切換守衛）、#46（#D3 stale-guard 掃蕩）、#47（#D4 聊天語言重譯）。
+### 部署與驗證
+- main CI：Tests＋Deployment smoke＋部署 Render 正式環境 workflow 全 success（2dd3b10）。
+- Render：web deploy 7194694253＋solver deploy 7194693177（皆 sha=2dd3b10）status=success。
+- git ancestry 實證四修正提交（6b90ab3/1edac30/c728f89/bd770b6）全在 main；正式 bundle 由 B6aZuEu_ 更新為 index-BA47z8as.js（Render 自 2dd3b10 建置；#D1-D4 均為局部函式、被壓縮改名，指紋鏈以部署 API sha＋ancestry 為準）。
+- 正式健康：標題正常、solver health 200/249ms、?mode=test 隔離橫幅仍在。
+- 零正式資料寫入。
+### 剩餘真人項（不變）
+- ①正式站登入後確認彙總 Realtime chip（機器證據已有：Richard session 曾顯示即時已連線）。②實體手機排程顯示與手指拖曳。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。輪值探索持續。
+
+ — 例行覆核：三服務 200、狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權（MERGEABLE/CLEAN）。零寫入。輪值探索持續。
+
+ — PR #47 變更路徑 zh 回歸 live PASS：busy 結束 tx 還原正常
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。
+- staging（2fc44f7）zh 送出「誰請假？」→等待期 spinner＋pending 訊息＋快捷全 zh→回覆（資料查詢…誠實無紀錄）→送出鈕還原「送出」無 spinner＝tx('送出') 改動路徑 live 回歸乾淨；聊天關閉正常。
+
+ — 資料管理頁（員工、設備與工單）驗證 PASS
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。
+- 更多→「員工、設備與工單」開啟完整資料管理頁（?view=catalog）：13 人名冊＋搜尋/廠別分組篩選/新增編輯刪除功能描述＋全部工單/產品工序區塊齊全；返回班表正常、chip 健康。
+
+ — 方塊詳情 modal（鍵盤路徑）驗證 PASS；本系列行為面收斂
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。
+- 驗證：方塊詳情以 Enter/Space 開啟（tabindex=0+role=button 之鍵盤設計；滑鼠點擊保留給拖曳判定）。王三方塊詳情完整：產品/站別（支架第2站/共3站焊接）、數量 230 件、時間 08:00–11:50（230 分）、機台 tst04、人員、期限＋替換人員建議（不會此機/有空 標記齊全）。關閉正常、回今日正常。
+- 至此 R355-R391 行為驗證系列涵蓋全部可達表面（含鍵盤路徑）。
+
+ — 記憶收斂（#D4/PR #47 與 R378-R389 補充入冊）；狀態不變
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。
+- 持久記憶已補 #D4（chat retranslate、PR #47、live 證實）與 R378-R389 系列（跨日覆核、python/uv 環境限制、tools 套件須從根目錄跑、fs-hunt 兩項已完成判定），跨 context 連續性維持最新。
+
+ — 三服務健康例行覆核：全部 200
+
+- 狀態：main=e911674 不變；PR #44-#47 待授權。零寫入。
+- 正式 web/solver/staging 三服務 HTTP 200。輪值探索持續。
+
+ — #D4 家族掃描（其他一次性建構面）：全乾淨；四 PR 全 MERGEABLE/CLEAN
+
+- 狀態：main=e911674 不變。零寫入。
+- 掃描：win.js 零 tx（拖曳把手無文字）；floor 頁隨 render() 重新產 HTML＋canvas（fillText 的故障標籤於繪製時以 tx 求值）＝語言切換即重繪；tour/toast 逐次渲染。聊天面板是唯一一次性建構持久面（#D4 已修，PR #47）。
+- PR #44/#45/#46/#47 實查均 mergeable=MERGEABLE、state=CLEAN——四案互不重疊、任意順序可併，待使用者授權。
+
+ — 缺陷 #D4：語言切換不重譯聊天面板（已修復上 staging＋live 證實）；fs-hunt 兩項待辦判定＝已完成（清單過時）
+
+- 狀態：main=e911674 不變；PR #44/#45/#46/#47 待授權。
+
+### fs-hunt NEXT_TASKS 覆核（歷史校正）
+- 「解析器錯誤訊息 i18n」＝已實作：src/import-errors.js 顯示層翻譯（樣式比對→tx、安全 fallback）＋完整性測試 3/3 過（kitchen-sink 壞檔每條錯誤 en/vi/th 有譯）＋app.js L2198 已接線。清單過時。
+- 「匯入解析載入回饋」＝R284 已解（loading 態＋進度條，R355 實證）。清單過時。
+
+### #D4 重現、原因、修復（live 重現於現行 staging）
+- 重現：切換 UI 語言 zh→en（不重載）——主介面全英但聊天面板快捷題目/placeholder/標題殘留中文（面板僅在 installScheduleChat 建構一次，從不重譯）；另同族兩處：busy 結束/清除的送出鈕還原與 mic 事件 placeholder 寫死中文（en 模式下問完第一題送出鈕變中文）。
+- 修復（chat-ui.js，PR #47）：retranslate() 重譯靜態文字（對話內容不動、busy 保護）＋refresh() 偵測 I18N.lang 變更即時呼叫（app.js 每次 render 已呼叫 refresh，零改動）；送出還原與 mic placeholder 改 tx()。
+- 測試：新 chat-retranslate.test.mjs（3 棘輪）；async-feedback 還原棘輪推進至 tx 版。全套 934/934、build OK。PR #47 CI 全 pass；staging 2fc44f7 deploy 7183324073 success、分支 CI success。
+- live 證實：staging 上 en→zh 切換不重載，聊天快捷題目與 placeholder 即時轉中文（修復前殘留舊語言）。零資料寫入。
+
+ — staging 長時段 session 健康覆核：正常
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+- staging 組長 session 逾日仍有效：重載後登入維持、chip「雲端已儲存＋即時已連線」、10/20（二）班表正常渲染、環境無掛鉤殘留（fetch 原生）。
+
+ — 遷移邊界覆核：main 與 staging 最新皆 0037，無新增遷移
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+- db/migrations 盤點：origin/main 與 staging 分支最新皆為 0037_permission_whitelist_complete.sql——無任何 PR 或分支引入新遷移，符合「0037 已完成不重跑不額外遷移」邊界。
+
+ — 分支盤點：無新協同分支；狀態不變
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+- 遠端分支按時間排序：僅本系列分支（gate/staging/三修正分支/PR43 分支）＋main——無其他協作者新推送。輪值探索持續，待授權項不變。
+
+ — 邊界覆核：nightly workflow 367614493 仍 disabled_manually
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+- 每日資料庫備份 workflow（367614493）實查 state=disabled_manually——符合邊界要求（GitHub 排程延遲時代之以手動補跑＋UTC22:00 備援時段，見既往備份運綱）。
+
+ — 正式站指紋與健康例行覆核：不變且健康
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權（MERGEABLE/CLEAN）。零寫入。
+- 正式 bundle 仍為 index-B6aZuEu_.js（e911674/PR43 內容，未被意外更動）；solver health 200/247ms。
+
+ — tools 測試套件覆核：51/57 綠；6 失敗＝age 二進位不在本機 PATH（設計上大聲 fail-closed），零回歸
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權（MERGEABLE/CLEAN）。零寫入。
+
+### 覆核過程
+- 初跑（cwd=tools/）：9 失敗——拆解後兩類根因：(a) 權限/遷移/備份測試以 cwd 相對路徑讀 .github/workflows/*，須從 repo 根目錄執行；(b) encrypted-backup 往返測試需 age/age-keygen 二進位。
+- 從 repo 根目錄重跑：路徑類全過（backup-artifact/permissions-drill/migration-guard 20/20）；全套 57 測試 51 過 6 失敗——6 個全為 age 往返（本機 PATH 無 age；測試設計「no silent skip」大聲擋下，備份演練曾在裝有 age 的受限本機全綠）。tools 套件不在 CI 矩陣（CI=solver/frontend/database），屬演練期套件。
+- 判定：零程式回歸（#D1-#D3 僅動 web/；main 不受影響）。教訓入冊：tools 測試必須從 repo 根目錄跑；age 測試在無 age 環境會 fail-closed。
+
+ — 三 PR 合併就緒狀態覆核：全部 MERGEABLE/CLEAN
+
+- 狀態：main=e911674 不變。零寫入。
+- GitHub mergeability 實查：PR #44/#45/#46 均 mergeable=MERGEABLE、mergeStateStatus=CLEAN（與 main 無衝突，任意順序可併；本系列各分支基於 e911674 且修改區域互不重疊）。等待使用者授權。
+
+ — 跨日後 staging 今日班表與連線暫態覆核 PASS
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。solver health 200/220ms。
+- 跨日 sanity：staging 今日班表正確顯示 10/20（二）「平日 · 停工」（=隔離測試日曆之週二=false 狀態的正確反映）；載入瞬間 chip 為「即時連線中按此更新」（訂閱中暫態＋可操作更新入口），數秒內收斂「雲端已儲存＋即時已連線」；導覽列系統連線亦同。
+
+ — 跨日時間炸彈覆核：本地 web 937/937＋CI 重跑（今日日期）solver/frontend/database 全 success
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+
+### 覆核（日期 10-19→10-20 滾動）
+- 本地全套 web 測試於今日重跑（staging-deploy 分支＝#D1-#D3 全部內容）：937/937 綠；日期敏感抽查（cloud-test-seed/execution-receipt/startup-recovery）31/31 綠——相對日期防護有效。
+- 本機 python 環境失效（uv trampoline spawn 失敗）→ solver 測試改以 CI 於今日重跑驗證：rerun Tests run 39229391697（staging 分支 6de406b、無程式碼變更無部署）→ **solver/frontend/database 三作業全 success**＝整套於 10-20 日期下無時間炸彈。
+
+ — 「最新變更」橫幅自隱行為確認（設計）；狀態不變
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+- 「最新變更」橫幅未顯示＝latestHTML 設計行為（log 項需含摘要、3 天內、且 fsched-seen 未比對過最新 id；看過即自隱）。非缺陷。chip 健康。
+
+ — 跨機台提示與機台欄渲染抽查 PASS
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+
+### 抽查
+- 1 廠日班表：「2 段排程在其他機台」提示存在（優先項③之其他機機台提示面）；11 個機台欄按鈕（含 tst 測試機）全部渲染。「查看排程」按鈕為情境性（機台選取後之深入連結），非全域——UI 狀態相依，非缺陷。
+
+ — 功能解說導覽開關驗證 PASS；R355-R375 記憶已收斂
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+
+### 驗證
+- 功能解說：#ov 覆蓋層開啟含 12 按鈕（×＋九主題：排程表觀看/員工設定/工單設定/產量/工作紀錄/備忘/排程助理/欠缺品項/給二廠回一廠＋關閉），× 乾淨關閉、Esc 亦關閉。
+- 記憶檔（factory-scheduler-r284-merged.md）已補 R356-R375 全系列狀態（#D1-#D3 三 PR 待授權＋驗證清單），跨 context 連續性收斂。
+
+ — 設定抽屜（外觀/字級/字體/主題色）與深色模式 live 驗證 PASS
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入（僅本機偏好切換並還原）。
+
+### 驗證
+- 帳戶按鈕開啟設定抽屜：誠實聲明「這台裝置的顯示方式…不會改動其他電腦或手機」；控制項完整（外觀明暗：自動/淺色/深色；字級 85–130%；字體兩款；主題色四色；通知設定）。
+- 深色模式：點「深色」→body 背景即時由 rgb(243,244,246) 轉 rgb(14,20,26)、aria-pressed=true；還原「自動跟著裝置」正常、抽屜關閉正常。
+- 涵蓋先前世代之深色模式填寫窗、視覺效果系列；現行 build（含 R284 原語）行為正常。
+
+ — 復原（undo）→同步流程 live 驗證 PASS（現行 build）
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。
+
+### 驗證
+- 流程：週二 off→on 儲存（寫入 1）→更多→「復原上一步」→toast「已復原上一步」→驗證週二回 false（寫入 2，互抵淨零）→chip 全程「雲端已儲存」（復原寫入正確同步）。
+NaN
+
+ — 開加班對話框結構與取消零寫入驗證 PASS（現行 build）
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+
+### 驗證
+- 加班設定對話框完整：標題含日期、誠實範圍聲明（只調今天、不改同星期其他日、請假者不排工）、主開關（開放加班/不開放）＋雙廠成對「今天可加班/不加班」切換（aria-pressed 正確）＋取消/確認並套用。
+NaN
+
+ — 雙分頁近同時寫入衝突演練 PASS（現行 build 無 last-write-wins 覆蓋）
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。
+
+### 演練設計與結果
+- 分頁 B（桌面）上班日設定切「週六 off」儲存；隨即（Realtime 傳播窗內）分頁 A（390px）切「週日 on」儲存——兩個競爭寫入打到同一 calendar 資料。
+- A 乾淨成功（chip 同步中→雲端已儲存、toast 含後續引導）；最終狀態驗證：**週六=false（B 保留）＋週日=true（A 保留）**＝正確合併、無資料遺失、無 last-write-wins 覆蓋；雙分頁 chip 均「雲端已儲存＋即時已連線」。
+- 附帶：還原過程再次踩到 detached DOM 陷阱（對話框重繪後舊節點 dispatch 無效）——測試手法已知問題（非產品缺陷），重查新節點即解。已還原 週六=true/週日=false（本輪 4 次日曆寫入、語意淨零，隔離庫）。
+
+ — 公開倉庫衛生覆核：三個待授權 PR diff 零機密、CI 全綠
+
+- 狀態：main=e911674 不變。零寫入。
+
+### 覆核
+- PR #44/#45/#46 完整 diff 掃描 api_key/secret/password/token/Bearer/JWT/publishable 等模式：零命中（僅程式碼中的正當識別字）。三 PR CI（database/frontend/solver/web）現勢全 pass。
+- 待辦不變：①使用者授權合併三 PR；②真人項（正式站登入確認 chip、實體手機）。
+
+ — 人／產量（現場回報）抽屜視圖驗證 PASS；UI 表面全覽完成
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+
+### 驗證
+- 人（people）抽屜：.ops-drawer 渲染「今日缺席 0 人」＋名冊（張三/李四/…），aria-pressed 正確。
+- 產量（output）抽屜：渲染每機台「計畫 N 件＋回報狀態（尚未回報）」，關閉（×）正常。
+- 至此 UI 表面全覽於現行 build 完成：日/週/工單/流轉/人/產量/欠缺/工作紀錄/備忘/平面圖(canvas)/聊天/對話框群（匯入匯出、上班日、歷史、反饋、權限、情境）——R355-R369 系列全數 PASS 或有設計判定記錄。
+
+ — 工單／給二廠回一廠抽屜視圖現行 build 驗證 PASS；?view 殘留觀察
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+
+### 驗證
+- 工單與給二廠／回一廠為側邊抽屜視圖（data-act=drawer，主區仍為班表）。兩者內容均正常渲染（工單：工單號/品號/交期；流轉：加工編號/出貨日期/已回），返回班表正常。
+- 觀察（非缺陷，記錄）：點「今天」回班表後 URL 仍殘留前一抽屜的 ?view=transfer——重載會重開該抽屜（深連結語意）。缺陷#23 修復保證 ?view 導航不清掉 mode=test 等其他 query；此殘留行為屬可接受 UX。
+- 人／產量（現場回報）視圖本輪未重驗（先前世代已測；列為後續輪值候選）。
+
+ — 週檢視與廠區平面圖現行 build 行為驗證 PASS
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+
+### 驗證
+- 週檢視（整週）：現行 build 正常渲染（本週總覽＋日期內容），頁面零溢流（overflow=-15）。
+- 廠區平面圖：主視圖呈現（回今天班表列＋廠別切換＋日期導覽＋圖例「藍＝當日有排程、灰＝閒置、紅＝故障」）；機台以 canvas 繪製（DOM 無節點屬預期），程式化像素取樣驗證 973×215 canvas 有 6.7% 彩色像素＝狀態色塊實際繪出（非空白）。返回班表正常。
+- 結論：兩視圖在現行 build 行為正常，無新缺陷。
+
+ — 非 app.js 模組系統性掃描：stale 守衛與網路層全數乾淨（負向結果收斂）
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+
+### 掃描
+- app.js 以外全部模組（40+ 檔）grep await STORE/store/client 與原始 fetch：僅 chat-ui.js L87（SOLVER.chat）與 main.js（boot 初始化）兩處 await；無任何模組绕过有界層自行 fetch。
+- chat-ui.js send() 逐行覆核：generation token 檢查（晚到回覆丟棄）、scopeStamp 變更即捨棄並誠實告知、catch 僅 token 持有時顯示「無法回答…未將查詢失敗當成沒有問題」、finally 僅持有時還原送出鈕——守衛完備。
+- 網路層全貌：solver.js 3 處全走 fetchWithTimeout（有界）、line-notify best-effort（R362 判定）、supabase 走 SDK。stale-guard 家族審計至此涵蓋全部模組，收斂。
+
+### 結論
+- 無新缺陷。#D1-#D3 為本系列唯一實質缺陷（已修，PR #44/#45/#46 待授權）。後續輪值回到行為級探索與真人項等待。
+
+ — 正式 bundle i18n（R284 新鍵）與列印 CSS 靜態驗證 PASS
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+
+### 驗證
+- 正式 bundle（index-B6aZuEu_.js）含 R284 新鍵「產生檔案中…」的越文（Đang tạo file…）與泰文（กำลังสร้างไฟล์…）譯文，以及「正在解析 Excel…」越文——字典完整上正式。
+- 動態 i18n 運行證據：R364 於同一正式 build 觀察 Richard session 以泰文 UI 呈現（ตารางผลิต 等）＝語言偏好运行时生效。
+- 列印 CSS：正式樣式含 @media print×2 與 @page 規則（列印文件流程先前已驗，規則仍在現行樣式）。
+
+### 結論
+- 現行正式 build 的 i18n 字典與列印樣式完整。本輪為靜態＋既有 live 證據組合，無新缺陷。
+
+ — 正式站 ?mode=test 隔離在現行 build（e911674/PR43 後）覆核 PASS
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入（僅唯讀導航往返）。
+
+### 驗證
+- bundle 層：正式 index-B6aZuEu_.js 同含正式 kjn 與隔離 fkef 參照＋VITE_TEST 值（設計＝測試模式覆寫已部署）。
+- 原始碼層（runtime-config.js）：mode=test 嚴格相等檢查（URL 必須等於 https://fkefarcwadvyqqjcjxvp.supabase.co、anon key 必須在、solver 必須等於 staging solver origin），不符即落回正常模式（fail-closed）；隔離 auth storageKey（fsched-test-auth-fkef…）；solverKey 註明絕不沿用正式金鑰。
+- 瀏覽器層（正式分頁唯讀往返）：?mode=test 顯示「測試模式 · 不影響正式資料／回正式資料」橫幅＋登入牆（Richard 的正式 session 未帶入測試模式＝儲存隔離生效，明示「正式帳號與測試帳號不共用」）；返回 / 後 Richard session 完整、正常模式 chip 正常。
+- 結論：R82-90 建立的測試模式在現行 build（含 R284）維持 fail-closed 隔離，PASS。
+
+ — 現行 build 無障礙命名基線重掃：全視圖 PASS
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+
+### 掃描設計與結果（staging 6de406b、組長 session、桌面 1280）
+- 逐視圖（日、工作紀錄、欠缺品項、日＋聊天開啟）掃描可見 button 與 input/textarea/select 的無障礙名稱（text/aria-label/title/label/placeholder）。
+- 按鈕：三視圖＋聊天全部 44+ 顆均有名稱（0 未命名）。輸入：唯一旗標＝#datepick（type=date 無名），查源碼 app.js L820＝刻意隱藏的技術輸入（aria-hidden=true＋tabindex=-1＋opacity:0＋pointer-events:none），可見控制為已命名的日期按鈕（10/19（一） 平日 · 上班）——正確的 picker 模式，非缺陷。
+- 結論：延續輪145 基線（25/25 命名＋39 aria-pressed），現行 build（含 R284 六模式與 #D1-#D3 修正）無障礙命名全數 PASS，無新缺口。
+
+ — 優先項②覆核：AI 旗標防漂移已於 10-15 落地（12a36db）；line-notify 靜默吞錯判定＝設計
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零寫入。
+
+### 優先項②覆核（歷史校正）
+- render.yaml（main）已含 AI_SCHEDULE_DATA_APPROVED 與 SCHEDULE_CHAT_AI_ENABLED 兩鍵 sync:false 宣告＋註解（Blueprint 同步不得蓋掉 dashboard 值；程式嚴格比對字串 true，缺失=fail-closed 停用）。落地提交＝12a36db（2026-10-15，ops(#44): render.yaml AI flags sync:false — stop blueprint drift，作者 me0608623），main 與全部分支已含。判定：最小防漂移配置已存在，無需新修；此後 Blueprint 同步不會再把旗標蓋成 false。
+- 程式碼側對照：solver/app/chat.py L193/L195 非 true 即拒——缺失/錯值都停用，不暗含資料外傳同意。
+
+### line-notify 靜默吞錯稽核（類別一抽查）
+- app.js L185/L3205 sendLineNotify fire-and-forget：主操作（排程儲存/故障回報）自有浮現面；LINE 通知失敗不阻擋現場操作，設定狀態可在 LINE 通知對話框查看。判定＝best-effort 設計，不改。
+
+### 優先項清單狀態（①-⑤）
+- ① solver 逾時＝已有界（R357 覆核）。② AI 旗標防漂移＝已落地（本輪覆核）。③ 隔離排程可見/拖曳＝R359 證據＋R289 世代。④ 寫入保護/取消/連點/衝突＝#D1-#D3＋既有測試家族。⑤ Realtime 證據＝R361 live＋機器證據；真跨帳戶/真手機＝真人項不變。
+
+ — 跨分頁 Realtime 補讀 live 驗證 PASS（現行 build 6de406b）
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。
+
+### 驗證設計與結果
+- 分頁 B（1280 桌面、組長 session）重載乾淨起場（fetch 原生、chip 即時已連線）；分頁 A（390px）新增備忘「R361-RT驗證」（選張三、儲存成功）。
+- B 不重載：資料在開啟備忘抽屜時立即呈現（時間窗 <15s，遠小於 60s 安全輪詢間隔；chip 全程「即時已連線」）——per-table Realtime 通道在現行 build 有效推送。
+- 刪除推送驗證無法執行：備忘 UI 僅有釘選/新增、無刪除動作（grep 無 memo-del）。記錄為觀察（可能為現場設計：備忘只提醒不刪）。
+
+### 合成資料變更
+- 隔離庫 +1 筆測試備忘「R361-RT驗證」（明確標記留存；現有測試備忘：輪59-同步測試、R284 驗證、R361-RT驗證）。
+
+### 結論
+- 類別五 Realtime 補讀 live 證據補齊（現行 build）。七類清單全部掃過一輪：#D1-#D3 已修（PR #44/#45/#46 待授權），其餘類別 PASS 或有設計判定記錄。下輪起維持輪值探索並覆核 PR 狀態。
+
+ — 動畫極簡稽核 PASS＋離線→重試→恢復連線實測 PASS
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。
+
+### 動畫/視覺極簡稽核（類別七）
+- styles.css 非 R284 動畫僅 .chat-mic.rec pulse（麥克風錄音中指示＝功能性）。減動三層完備：使用者偏好 data-motion（settings.js L60 套用 root）、全域 @media(prefers-reduced-motion) L647 全停、R284 原語專屬覆寫 L1127。
+- 模糊效果僅 top/app-nav 的 backdrop-filter（sticky 面板功能性深度提示），行動版 .top 已明確關閉（L610 backdrop-filter:none）。判定：無不必要動畫/裝飾特效，PASS。
+### 取消後寫入抽查（情境載入）
+- viewScenario：await 後 owner.current() 守衛＋晚到錯誤僅持有時顯示＋finally 清 viewLoading；關閉對話框＝取消，晚到結果丟棄。既有 scenario-read-owner 測試覆蓋雙擋/錯誤/stale。PASS。
+
+### 離線→錯誤浮現→重試→恢復（live 實測，staging 6de406b）
+- 模擬斷線（rest/v1 fetch 全拒）→上班日設定儲存：chip 轉「同步失敗，按這裡重試」＋toast「沒存到：檢查排程版本失敗…」——失敗明確浮現、未偽裝成功、提供可操作重試。
+- 恢復連線→點重試 chip：0.9 秒內回「雲端已儲存＋即時已連線」。有界恢復、無無界重送。
+- 寫入紀錄（隔離庫）：週三上班日 on→off→on（淨零，還原完成）。fetch 包裝為通透模式（僅 __offline 時攔截），重載即清。
+
+### 結論
+- 類別五（離線部分）、七、取消抽查皆 PASS 無新缺陷。七類剩：Realtime 中斷補讀競爭（單元已覆蓋 per-table channels＋CHANNEL_ERROR 安全輪詢；live 中斷模擬待下輪）、連點/晚到 ACK 已由 #D1-D3 家族掃過。
+
+ — 窄屏 390×844 全視圖實測（現行 staging 6de406b）：全數 PASS；拖曳受阻判定＝執行保護設計
+
+- 狀態：main=e911674 不變；PR #44/#45/#46 待授權。零資料寫入。
+
+### 390×844 掃描結果（組長 session、現行 build）
+- 欠缺品項：表格在 .sheettable 容器內可橫捲（scrollW 1090/clientW 357）；頁面級 overflow=-15 無溢流。30×34 的 ▮ 標記鈕為密集表格微控（旁鄰兩段式刪除，誤觸可復原），記錄不改。
+- 日視圖：.grid 在設計內橫捲；頁面無溢流；互動按鈕 0 個低於 44px 門檻。
+- 上班日設定 modal：343px 寬完全納入（16–359）；14 顆按鈕全部 ≥ 門檻；內容無內部溢流。
+- 聊天面板：18–357 適配；打字點點在 390px 可見且納入（right=161）。
+- 工作紀錄：無溢流、表格可捲動；桌機表頭「＋加一列」≤800px 隱藏＝設計，行動版浮動 .addrow-mobile 56×56（aria-label ＋加一列、data-act 相同）可用。
+### 拖曳驗證（390px）與受阻判定
+- 今日 1 廠僅兩方塊（王三/劉四，皆 M20 有報工件數）；10/16 A07 方塊亦存在。真實座標拖曳（cua.drag）與合成三段式指標皆不啟動（無 .dragghost/預覽）。
+- 事件送達探針證實 pointerdown(target=.blk 內 .n)/pointermove/up 均到達 document → 排除環境因素；對照 app.js L1171-1183 拖曳啟動閘：readOnly||executionOf(block)||<8px。權限正常（＋手動排班可開、memo/日曆/工作紀錄均可寫）→ 判定兩方塊具報工執行保護，禁拖＝設計行為（執行保護方塊不得拖動）。
+- 誠實標注：本輪未能在現行 build 上找到「未受執行保護」的既有方塊做正向拖曳展示（需新增工單+手動排班=新增寫入，未做）；正向拖曳證據沿用 R289 世代（390×844 拖曳→底部預覽→取消 PASS）與 E2E 測試。殘留 modal 曾遮擋指標已排除並還原（回今天、縮放開關回開）。
+
+### 結論
+- 窄屏類別本輪無新缺陷；兩個 390px 觀察（▮ 30×34、執行保護禁拖）均為設計。七類清單續行。
+
+ — 缺陷探索 #D3：profile/feedback/access 流程帳號切換守衛掃蕩（已修復上 staging）
+
+- 狀態：main=e911674 不變；PR #44/#45 待授權。
+
+### #D3 重現與原因（系統性掃描 await STORE.* 全部呼叫點）
+- 四處漏網（同 #D2 家族，memo/leave/scenario/password/tbl-form 已有守衛）：
+- saveOwnProfile（最重）：await updateProfile 後無條件 STORE.userName=name——帳號切換後把舊帳號顯示名寫到新 store 物件＋render＋toast（單元重現：切換後新 store.userName 被污染）。
+- feedback-send：晚到成功會 closeModal 新 session 的對話框＋感謝 toast；晚到失敗顯示舊錯誤。
+- access-reset/access-save：晚到成功 toast＋對新 session 重開 access-accounts loading 對話框（單元重現：重開計數=1→0）。
+- access-accounts 載入器（nav case＋MODAL_ACT）：晚到失敗 closeModal 新 session 的任意對話框。
+
+### 最小修正（commit 於 codex/stale-guard-sweep-20261019）
+- app.js 六處：標準捕捉三元素（store/userId/authEpoch）＋owns()；晚到成功跳過 toast/關窗/重開；晚到失敗僅在持有時 toast；按鈕 re-enable 移 finally；載入器只關自己的 loading 對話框。
+- 新測試 web/tests/stale-guard-sweep.test.mjs（2 案例：profile 改名污染、access 重開對話框，各含對照組）。
+
+### 測試／CI／部署／staging
+- 專項 2/2＋回歸 21/21（三檔）；全套 web 933/933（main 基準 931＋2）；build OK。PR #46 檢查全 pass（database×2/frontend×2/solver×4/web×2）。與 #44/#45 無檔案重疊可獨立合併。
+- staging：6de406b → deploy 7170099023 success、分支 CI（Tests＋Deployment smoke）success；載入健康抽查（組長 session、chip 即時已連線、主區正常）。本輪零資料寫入。
+
+### 下一步
+- PR #44/#45/#46 待授權；續七類探索（離線/Realtime 競爭、窄屏 44px、動畫極簡等）。
+
+ — 缺陷探索 #D2：tbl-form 儲存缺帳號切換守衛（已修復上 staging）＋優先項①覆核
+
+- 狀態：main=e911674 不變；PR #44（#D1）開啟待授權。
+
+### 優先項①覆核（solver 逾時）
+- 實查 web/src/solver.js：post() 全部走 fetchWithTimeout（正常 60s、測試模式 120s，AbortController）；check() 有 3s/45s 上限＋有界重試；錯誤轉「排程服務沒有回應」。判定＝已有界，無需新修。
+
+### #D2 重現與原因
+- 類別：帳號切換後舊請求污染新狀態。saveTableForm（欠缺品項/給二廠回一廠/工作紀錄 列儲存）在 await commit 期間帳號切換（STORE 換物件或 authEpoch 變）後：成功路徑仍設 UI.flashNewRow＋對新帳號 toast「已儲存」；失敗路徑對新畫面 toast 舊錯誤＋重繪新帳號對話框。同型守衛已存在於 memo/leave/scenario/password（#50/#51/#62/#65/#66），tbl-form 漏網。單元重現：table-form-save 夾具 pending commit→換 STORE→resolve/reject→污染成立。
+
+### 最小修正（commit 1edac30，PR #45）
+- app.js：儲存開始捕捉 store/userId/authEpoch；commit 後 sameStore() 不成立→跳過 flash 標記與「已儲存」；catch 對已切換 store 完全靜默（不回滾/不 toast/不重繪）；同帳號失敗（如中途撤權）仍回滾草稿＋顯示錯誤。
+- table-form-save.test.mjs：+3 測試（切換後成功不提示不閃爍、切換後失敗全靜默、同帳號失敗仍回滾＋提示）；夾具補 STORE/flashNewRow。
+
+### 測試／CI／部署／staging 實測
+- 專項 8/8；全套 web 934/934；build OK。PR #45 檢查全 pass（database×2/frontend×2/solver×4/web×2）。staging：af7cf99 → deploy 7169678406 success、分支 CI（Tests＋Deployment smoke）success。
+- staging 實測正常路徑：新增欠缺品項列（R284-D2驗證/3）→「已儲存」toast＋對話框關閉→列落地→兩段式刪除清除（淨寫入 0）。
+
+### 下一步
+- PR #44/#45 待使用者授權合併 main；續七類清單探索。
+
+ — 缺陷探索 #D1：匯入 loading 對話框守衛絆倒後永轉（已修復上 staging）
+
+- 狀態：main=e911674（R284 已上正式，web deploy 7168447876＋solver deploy 7168492789 均 success，solver health 200/235ms）；open PR=0 起手。
+
+### 重現與原因（單元級重現，R355 瀏覽器教訓後採 vm 夾具）
+- web/tests/import-race.test.mjs 既有案例「changed store/user/auth epoch/permission」即為 #D1：匯入解析中所有權變更（如 realtime 撤銷 canArchive）→ xlsx-import change handler 四個守衛靜默 return → 同一次匯入的 loading 對話框（spinner＋不定進度條）永久停留、無逾時無錯誤面（舊測試甚至把 UI.modal===loading 固化為預期）。
+
+### 最小修正（commit 6b90ab3）
+- web/src/app.js：新增 dismissStaleImport()（守衛絆倒時，若 UI.modal===request 且 loading 仍開著→closeModal()），套用於 4 個守衛點（import 之後、readImportXlsx 之後、legacy digest 之後、catch）。晚到資料仍永不採納；已替換/已關閉的對話框不受影響。
+- web/tests/import-race.test.mjs：所有權變更斷言改為「對話框已關閉（null）且無新開」；新增 catch 路徑測試（權限/epoch 變更後解析錯誤→對話框關閉）。
+
+### 測試／CI／部署
+- 專項 20/20；全套 web 932/932；build OK。PR #44（base main，僅 6b90ab3）全部檢查 pass（database×2/frontend×2/solver×4）。**待使用者授權後合併 main（不自動併）**。
+- staging：fix 併入 codex/excel-friendly-ui-20260930（merge commit 3297476；衝突兩檔以修正分支版解=含 R284+fix）→ deploy 7168975461 success；分支 CI（Tests＋Deployment smoke）success；staging 實測匯入正常路徑不受影響（範本→誠實三錯、無卡住、可關閉）。
+- 本地與 Render bundle hash 因 VITE 環境嵌入本就不同（CSS index-DVP2KAsb.css 兩邊一致），部署 API sha=3297476 即建置來源。
+
+### 寫入紀錄
+- 本輪零資料寫入（僅唯讀瀏覽器操作）。
+
+### 下一步
+- 缺陷探索清單續行：靜默失敗、取消後寫入、連點/晚到 ACK、切頁/登出污染、離線/Realtime 競爭、窄屏 44px、動畫極簡。
+
+ — R284 六模式非同步回饋完成合併上正式（實質輪）
+
+使用者新授權（本輪起）：停止靜止輪；R284 驗證後逕行合併 main。
+
+### 差異與候選版本
+- staging 分支 88cf3d7 相對 origin/main=16d9c9b：實質內容僅 R284（7 檔：app.js/chat-ui.js/i18n.js/styles.css＋3 測試檔）；8c50343（登入品牌）≡ main c4cb74f 內容相同；R170-R283 checkpoint 文件全部排除。88cf3d7 既有 CI（Tests＋Deployment smoke）皆 success。worktree 乾淨無重疊。
+- 乾淨分支 codex/async-feedback-main-20261019 自 main cherry-pick → 4657cca。
+
+### 本地驗證
+- 專項 42/42（async-feedback/i18n-behavior/import-race/excel-export-context）；全套 web 931/931（首跑 31 檔失敗＝新 worktree 未 npm install 缺 @electric-sql/pglite，安裝後全綠，非回歸）；vite build OK。
+
+### staging 實操作（既有組長 session；每項真實互動取樣）
+1. 按鈕忙碌/防連點：備忘儲存→「儲存中…」+spin+disabled（t=976）→完成關閉（t=2988）；驗證失敗（未選人/機）toast「請至少指定一台機台或一位人員」不出現假忙碌，對話框可重試。
+2. spinner：歷史班表/查看反饋 loading 態 role=status + .spin。
+3. skeleton：歷史排程 loading 顯示 .skel-row×2/.skel×4，載入完成換真內容（「尚未存入舊版排程…」）；查看反饋同模式。
+4. 進度條：匯入 4.9MB 假檔＝indet→--val:100%（真實 FileReader 進度幀）→indet（解析）→錯誤對話框；32MB 檔被 5MB 上限誠實拒絕；空白範本＝解析 110ms（本機對照）→三項驗證錯誤誠實列出；失敗均未顯示為成功。
+5. 頂部載入線：上班日設定儲存→queueSync busy 期間 .loadbar 掛載＋chip「同步中…」持續整個同步→完成後移除、chip 回「雲端已儲存」（週二 on→off 已還原）。
+6. 打字點點：聊天送出→submit disabled+spin、pending「正在讀取排程」+3 顆 .dots→回覆後全部還原。
+- 額外：聊天 fetch reject（模擬逾時）→「無法回答：排程服務沒有回應。沒有修改排程；也未將查詢失敗當成沒有問題。」＋按鈕還原；等待中切換視圖無污染無崩潰。
+- reduced-motion：live CSS assets/index-DVP2KAsb.css 含 .spin,.skel,.prog.indet>i,.loadbar:after,.dots i,.loadbar.out{animation:none}（靜態驗證；IAB 無法動態模擬 media query，如實標注）。
+- Excel 重入守衛：x-xlsx 同 tick 雙擊＝createObjectURL×1、下載×1、忙碌態「產生檔案中…」可見、完成還原。
+- 測試儀器教訓（重要）：FileReader.prototype.readAsArrayBuffer 延遲 patch 曾造成「匯入無限卡解析」假缺陷；全新重載（全原生驗證）後範本匯入正常。真實觀察＝import 流程守衛（UI.modal!==request 等）觸發時靜默 return，loading 態無逾時/錯誤面——列入缺陷探索候選（#D1）。
+- 寫入紀錄（僅隔離 fk）：1 筆測試備忘「R284 驗證：載入動畫測試」（保留）、週二上班日 on→off（還原）。
+
+### PR／CI／部署／正式驗證
+- PR #43（最小：僅 cherry-pick 4657cca）→ CI 六檢查全 pass（database/frontend/solver ×2 commits）。
+- 合併 main=e911674（2026-10-19 15:49 本地）；Render deployment 7168447876（main - factory-scheduler-web，e911674）status=success。
+- 正式 bundle index-B6aZuEu_.js 含 fs-spin/loadbar/readPct（3 標記）、CSS index-DVP2KAsb.css 含全部 fs-* keyframes、i18n「產生檔案中…」在字典+使用處。
+- 正式站唯讀瀏覽器驗證：既有 Richard（老闆）session 重載新 bundle 正常、彙總 chip＝「即時已連線」（機器證據；真人驗收①仍待使用者親自確認，不冒充）。未做任何正式寫入。
+
+### 下一步
+- 進入持續缺陷探索（不再靜止輪）。候選：#D1 import loading 無逾時/錯誤面；清單七類（靜默失敗、取消後寫入、連點/晚到 ACK、切頁/登出污染、離線/Realtime 競爭、窄屏遮擋/44px、動畫極簡）。
+
+— 靜止輪：狀態不變
+
+- PASS（狀態未變，最小檢查點）：fetch 後 HEAD 77a59f7（R353），工作樹乾淨；open PR=0；origin/main=16d9c9b（PR41/PR42 已合併）、staging 分支=88cf3d7（六模式非同步回饋，deploy 7151260443）；最新 deployment 7151263713（main solver 16d9c9b，10-18）＝既有基準。無合成資料變更。
+- 剩餘真人項不變：①正式站登入後確認彙總 Realtime chip；②實體手機排程顯示與拖曳；③R284 六模式 UI 併入 main 之授權（staging 已部署待驗收）。
+
+— 靜止輪：狀態不變
+
+- PASS（狀態未變，最小檢查點）：fetch 後 HEAD 8187620（R352），工作樹乾淨；open PR=0；origin/main=16d9c9b（PR41/PR42 已合併）、staging 分支=88cf3d7（六模式非同步回饋，deploy 7151260443）；最新 deployment 7151263713（main solver 16d9c9b，10-18）＝既有基準。無合成資料變更。
+- 剩餘真人項不變：①正式站登入後確認彙總 Realtime chip；②實體手機排程顯示與拖曳；③R284 六模式 UI 併入 main 之授權（staging 已部署待驗收）。
+
+— 靜止輪：狀態不變
+
+- PASS（狀態未變，最小檢查點）：fetch 後 HEAD d0f036b（R351），工作樹乾淨；open PR=0；origin/main=16d9c9b（PR41/PR42 已合併）、staging 分支=88cf3d7（六模式非同步回饋，deploy 7151260443）；最新 deployment 7151263713（main solver 16d9c9b，10-18）＝既有基準。無合成資料變更。
+- 剩餘真人項不變：①正式站登入後確認彙總 Realtime chip；②實體手機排程顯示與拖曳；③R284 六模式 UI 併入 main 之授權（staging 已部署待驗收）。
+
+— 靜止輪：狀態不變
+
+- PASS（狀態未變，最小檢查點）：fetch 後 HEAD 81988f1（R350），工作樹乾淨；open PR=0；origin/main=16d9c9b（PR41/PR42 已合併）、staging 分支=88cf3d7（六模式非同步回饋，deploy 7151260443）；最新 deployment 7151263713（main solver 16d9c9b，10-18）＝既有基準。無合成資料變更。
+- 剩餘真人項不變：①正式站登入後確認彙總 Realtime chip；②實體手機排程顯示與拖曳；③R284 六模式 UI 併入 main 之授權（staging 已部署待驗收）。
+
+— 靜止輪：狀態不變
+
+- PASS（狀態未變，最小檢查點）：fetch 後 HEAD 84db364（R349），工作樹乾淨；open PR=0；origin/main=16d9c9b（PR41/PR42 已合併）、staging 分支=88cf3d7（六模式非同步回饋，deploy 7151260443）；最新 deployment 7151263713（main solver 16d9c9b，10-18）＝既有基準。無合成資料變更。
+- 剩餘真人項不變：①正式站登入後確認彙總 Realtime chip；②實體手機排程顯示與拖曳；③R284 六模式 UI 併入 main 之授權（staging 已部署待驗收）。
+
+— 靜止輪：狀態不變
+
+- PASS（狀態未變，最小檢查點）：fetch 後 HEAD b013df9（R348），工作樹乾淨；open PR=0；origin/main=16d9c9b（PR41/PR42 已合併）、staging 分支=88cf3d7（六模式非同步回饋，deploy 7151260443）；最新 deployment 7151263713（main solver 16d9c9b，10-18）＝既有基準。無合成資料變更。
+- 剩餘真人項不變：①正式站登入後確認彙總 Realtime chip；②實體手機排程顯示與拖曳；③R284 六模式 UI 併入 main 之授權（staging 已部署待驗收）。
+
+— 靜止輪：狀態不變
+
+- PASS（狀態未變，最小檢查點）：fetch 後 HEAD 80cc470（R347），工作樹乾淨；open PR=0；origin/main=16d9c9b（PR41/PR42 已合併）、staging 分支=88cf3d7（六模式非同步回饋，deploy 7151260443）；最新 deployment 7151263713（main solver 16d9c9b，10-18）＝既有基準。無合成資料變更。
+- 剩餘真人項不變：①正式站登入後確認彙總 Realtime chip；②實體手機排程顯示與拖曳；③R284 六模式 UI 併入 main 之授權（staging 已部署待驗收）。
+
+— 靜止輪：狀態不變
+
+- PASS（狀態未變，最小檢查點）：fetch 後 HEAD ae18413（R346），工作樹乾淨；open PR=0；origin/main=16d9c9b（PR41/PR42 已合併）、staging 分支=88cf3d7（六模式非同步回饋，deploy 7151260443）；最新 deployment 7151263713（main solver 16d9c9b，10-18）＝既有基準。無合成資料變更。
+- 剩餘真人項不變：①正式站登入後確認彙總 Realtime chip；②實體手機排程顯示與拖曳；③R284 六模式 UI 併入 main 之授權（staging 已部署待驗收）。
+
+— 靜止輪：狀態不變
+
+- PASS（狀態未變，最小檢查點）：fetch 後 HEAD e16b53b（R345），工作樹乾淨；open PR=0；origin/main=16d9c9b（PR41/PR42 已合併）、staging 分支=88cf3d7（六模式非同步回饋，deploy 7151260443）；最新 deployment 7151263713（main solver 16d9c9b，10-18）＝既有基準。無合成資料變更。
+- 剩餘真人項不變：①正式站登入後確認彙總 Realtime chip；②實體手機排程顯示與拖曳；③R284 六模式 UI 併入 main 之授權（staging 已部署待驗收）。
+
+— 靜止輪：狀態不變
+
+- PASS（狀態未變，最小檢查點）：fetch 後 HEAD cdda2f6（R344），工作樹乾淨；open PR=0；origin/main=16d9c9b（PR41/PR42 已合併）、staging 分支=88cf3d7（六模式非同步回饋，deploy 7151260443）；最新 deployment 7151263713（main solver 16d9c9b，10-18）＝既有基準。無合成資料變更。
+- 剩餘真人項不變：①正式站登入後確認彙總 Realtime chip；②實體手機排程顯示與拖曳；③R284 六模式 UI 併入 main 之授權（staging 已部署待驗收）。
+
+— 靜止輪：狀態不變
+
+- PASS（狀態未變，最小檢查點）：fetch 後 HEAD 231be45（R343），工作樹乾淨；open PR=0；origin/main=16d9c9b（PR41/PR42 已合併）、staging 分支=88cf3d7（六模式非同步回饋，deploy 7151260443）；最新 deployment 7151263713（main solver 16d9c9b，10-18）＝既有基準。無合成資料變更。
+- 剩餘真人項不變：①正式站登入後確認彙總 Realtime chip；②實體手機排程顯示與拖曳；③R284 六模式 UI 併入 main 之授權（staging 已部署待驗收）。
+
+— 靜止輪：狀態不變
+
+- PASS（狀態未變，最小檢查點）：fetch 後 HEAD dd6a615（R342），工作樹乾淨；open PR=0；origin/main=16d9c9b（PR41/PR42 已合併）、staging 分支=88cf3d7（六模式非同步回饋，deploy 7151260443）；最新 deployment 7151263713（main solver 16d9c9b，10-18）＝既有基準，非本輪新事件。無合成資料變更。
+- 剩餘真人項不變：①正式站登入後確認彙總 Realtime chip；②實體手機排程顯示與拖曳；③R284 六模式 UI 併入 main 之授權（先進 staging 已完成）。
+
+— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R341（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R340（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R339（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R338（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R337（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R336（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R335（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R334（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R333（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R332（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R331（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R330（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R329（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R328（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R327（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R326（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R325（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R324（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R323（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R322（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R321（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R320（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R319（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R318（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R317（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R316（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R315（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R314（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R313（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R312（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R311（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-19 R310（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-18 R309（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-18 R308（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-18 R307（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-18 R306（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-18 R305（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-18 R304（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-18 R303（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-18 R302（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-18 R301（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-18 R300（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-18 R299（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-18 R298（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-18 R297（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-18 R296（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-18 R295（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-18 R294（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-18 R293（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-18 R292（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-18 R291（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-18 R290（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。僅剩真人：正式站登入 chip、實體手機、R284 UI 進 main 授權。
+
+## 2026-10-18 R289（20min）— 使用者回報 F 部結果＋worktree 重疊覆核（已乾淨）
+
+- **F 部結果記錄（ACCEPTANCE_SCRIPT 已同步標註）**：①正式 chip＝**阻擋**（正式站停登入頁、瀏覽器無正式帳號 session；機器側證據完整：21 表 publication 4/4 ok、PR41 8faa65e 已上正式、聚焦 8/8＋全量 922/922＋CI 綠、web+solver live、/health ok、未動 SQL/1023/Auth）；②手機＝**390×844 瀏覽器尺寸隔離 staging PASS**（方塊可見、拖曳→底部預覽→取消、toast 正確、chip 即時已連線）——使用者明確聲明不冒充實體手機，真機仍待真人。
+- **worktree 重疊覆核**：使用者所述「另一輪對 app.js/styles.css 的修改」在本輪實查時 **worktree 完全乾淨**（無 dirty、無 stash、無新 remote 分支、0 open PR）——該修改已由該輪自行處理或捨棄，無需我方動作。
+- **狀態**：main 16d9c9b（含 8faa65e）、staging 88cf3d7（R284 六模式）。合成資料無變更。
+- **剩餘**：①正式 chip 需真人登入；②實體手機需真人；③R284 UI 進 main 授權。
+
+## 2026-10-18 R288（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。待人類：F 部兩項＋R284 UI 進 main 授權。
+
+## 2026-10-18 R287（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。待人類：F 部兩項＋R284 UI 進 main 授權。
+
+## 2026-10-18 R286（20min）— 靜止輪：狀態不變
+
+- main 16d9c9b、staging 88cf3d7、無分支/PR/部署、無合成資料變更。待人類：F 部兩項＋R284 UI 進 main 授權。
+
+## 2026-10-18 R285（20min）— gate 分支併 main 16d9c9b（PR41/42 內容）→ 2d44a5d
+
+- main 已含我的 #66/#67/#68（PR41）＋他人 PR42（登入品牌字體）；gate 分支普通 merge 同步（無衝突），已推。0 open PR。staging 仍 88cf3d7（六模式回饋），main 未含本輪 UI。
+- 待人類：F 部兩項＋R284 UI 進 main 授權。
+
+## 2026-10-18 R284（20min）— 使用者指定：非同步等待回饋系統（六模式）設計＋實作上 staging 88cf3d7
+
+- **設計對映（使用者提出六模式→本專案場景）**：轉圈＝modal 短等待（歷史排程／權限帳號／反饋／情境清單＋解析提示）；骨架屏＝版型可預期的 modal 清單載入；進度條＝Excel 匯入（讀檔 FileReader 真實百分比、解析期誠實標示為不確定進度，不假造數字）；頂部細線＝雲端同步週期（queueSync busy 時 3px 細線、結束淡出、不擋看板）；按鈕載入態＝6 個非同步動作鈕（匯入確認／歷史存檔／表格儲存／備忘儲存／重排一輪／Excel 下載）busy 時內嵌 spinner＋鎖住；打字點點＝AI 聊天等待回覆（文字保留給讀屏、點點 aria-hidden）。
+- **實作（88cf3d7，7 檔）**：styles.css 追加六原語（純 CSS 零依賴、共用 fs-spin/fs-skel/fs-indet/fs-dot/fs-bar-out keyframes、**prefers-reduced-motion 全覆蓋停動畫改靜態**）；app.js：updateSyncChip 掛頂部細線、5 個 loading 分支升級 spinner＋骨架行、匯入改 FileReader onprogress 真實％＋解析期 indet、x-xlsx 對話框內 busy 旗標防重入、6 鈕 spinner；chat-ui.js：等待訊息打字點點＋送出鈕 spinner＋結束還原「送出」。i18n：新增「產生檔案中…」en/vi/th（「同步中」已有）。
+- **測試**：新增 async-feedback.test.mjs 9 測（六原語存在、reduced-motion 覆蓋、44px 不縮、loadbar 隨 busy 開關、6 鈕 spinner、x-xlsx 防重入、FileReader 進度＋fallback、loading 分支骨架、聊天點點＋還原）。**修改 2 個既有測試（意圖不變）**：i18n-behavior 輪116 棘輪推進到新 loading 標記（spinner＋文字＋進度條）；import-race fixture 補 renderModal stub。web 全量 **931/931**（922+9）；build 過。
+- **staging**：CI success；deployment **7151260443 @88cf3d7 success**；live `index-CS8kxVtI.js`＋CSS `index-DVP2KAsb.css` 實測：CSS 六原語全在（含 reduced-motion）、JS loadbar hook／點點 HTML／onprogress 全在。（初次驗證抓錯檔——CSS 在獨立 .css asset，已更正。）
+- **重大狀態變化（本輪期間發生）**：使用者合併 **PR41**（=我的 #66/#67/#68 gate 修復全部進 main）與 **PR42**（他人：正式登入品牌字體簡化 c4cb74f）→ main=**16d9c9b**，正式 web+solver 部署 7151263607/7151263713 success。#66/#67/#68 待授權事項**結案**。
+- **待人類**：F 部兩項人工驗收（正式站登入看 chip＝PR41 上正式後可直接看；實體手機）。下一輪：gate 分支併 main（16d9c9b）＋本輪 UI 是否進 main待授權。
+
+## 2026-10-18 R283（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R282（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R281（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R280（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R279（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R278（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R277（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R276（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R275（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R274（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R273（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R272（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R271（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R270（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R269（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R268（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R267（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R266（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R265（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R264（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R263（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R262（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R261（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R260（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R259（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R258（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R257（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R256（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R255（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R254（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R253（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R252（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R251（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R250（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R249（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R248（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R247（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R246（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R245（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R244（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R243（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R242（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-18 R241（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R240（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R239（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R238（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R237（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R236（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R235（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R234（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R233（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R232（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R231（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R230（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R229（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R228（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R227（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R226（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R225（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R224（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R223（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R222（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R221（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R220（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R219（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R218（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R217（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R216（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R215（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R214（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R213（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R212（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R211（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R210（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R209（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R208（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R207（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R206（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R205（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R204（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R203（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R202（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R201（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R200（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R199（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R198（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R197（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R196（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R195（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R194（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R193（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R192（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R191（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R190（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R189（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R188（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R187（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R186（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R185（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R184（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R183（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R182（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R181（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R180（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R179（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R178（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R177（20min）— 靜止輪：狀態不變
+
+- main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R176（20min）— 靜止輪：狀態不變
+
+- main 87cb15b（CI 綠）、staging 2b7c606、無分支/PR/部署、無合成資料變更。待人類：F 部兩項人工驗收（見 ACCEPTANCE_SCRIPT F 部）＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R175（20min）— ACCEPTANCE_SCRIPT 新增 F 部（最終兩項人工驗收的操作腳本）
+
+- 既有 E 部寫於 PR19–30 世代（pre-merge）；新增 **F 部**：收斂後僅剩的兩項人工驗收（①登入正式站看彙總 chip「即時已連線」、②實體手機看板載入/切換/拖曳/底部抽屜取消），含前置事實清單（R167–R173 已機器驗證、勿重做）與不通過時的回報方式。
+- main 87cb15b、staging 2b7c606、無部署、無合成資料變更。checkpoint 連同 F 部已推（cb393c9）。
+- 待人類：F 部兩項＋#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R174（20min）— 靜止輪：獵捕無新缺陷（roster UI 抽樣亦硬化），狀態不變
+
+- roster-ui 抽樣＝modal 草稿＋audit 錯誤時 rs-apply disabled＋預覽確認制——硬化。main 87cb15b、staging 2b7c606、無分支/PR/部署、無合成資料變更。
+- 待人類：①登入正式站看彙總 chip；②實體手機；③#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R173（20min）— 三套件本地全量刷新：solver 177/177、tools 43/43（root 語義）、web 922/922
+
+- **本地全量（gate 分支 e452aaf）**：solver `uv run pytest`＝**177 passed**（140.8s，與歷史基準一致）；tools 從 repo root 跑＝**43/43**；web 維持 **922/922**（R170）。三套件本地全綠。
+- **本地環境筆記（非缺陷）**：①tools 若從 `tools/` 目錄內直接跑，catalog-inventory 測試因 CWD 相對路徑解析成 `tools	ools...` 而失敗——從 repo root 跑即綠（CI 即此語義）；②encrypted-backup 的 8 個 age 測試硬依賴 `age`/`age-keygen` 二元（無則明確失敗、不靜默跳過——設計如此），本機未裝 age，CI 有裝且綠。兩者皆環境差異，非程式碼缺陷。
+- **狀態**：main 87cb15b、staging 2b7c606、無新分支/PR/部署、無合成資料變更。
+- **待人類**：①登入正式站看彙總 chip；②實體手機；③#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R172（20min）— 獵捕輪（無新缺陷）：scenario-save 覆核；#68 E2E 清理 DB 級確認
+
+- **獵捕覆核（無缺陷）**：`saveScenarioFromModal`＝11 條件擁有權（store/client/user/epoch/permission/modal/PV/S 身分＋JSON/state/date/factory/page/drawer/focus）＋未知結果同名重試沿用原 id（冪等）——非同步寫入面已系統性硬化，本輪抽樣再無未設防點。
+- **R171 E2E 清理 DB 級確認**：staging ?view=worklog 重載（新讀資料庫）→「還沒有資料」、無 TEST-r171 殘留＝刪除已落庫；chip「雲端已儲存 即時已連線」（隔離專案即時全通）。
+- **狀態**：main 87cb15b、staging 2b7c606、無新部署、無合成資料變更。
+- **待人類**：①登入正式站看彙總 chip；②實體手機；③#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R171（20min）— #68 staging E2E＋嚴重度誠實校正；獵捕覆核（undo/addrow/delete）
+
+- **獵捕覆核（無缺陷）**：undo→commit→queueSync 雲端重同步正確（無靜默分歧）；addrow 開 modal＋saving 防重入；刪除有 confirmRow/tbl-del 二次確認。
+- **#68 staging E2E（fix 上線版 index-AlI8oRn3.js）**：工作紀錄新增 TEST 列（TEST-r171）→ 開 hour 格子編輯＋標記元素 → **等滿兩個刷新週期（75 秒）：`.cellinp` 元素同一（dataset 標記仍在）＝背景 tick 完全未重繪**＝修復機制現場生效（修復前 tick 會 render() 重建輸入）。
+- **嚴重度校正（誠實記錄）**：R170 把 #68 框成「格子輸入中文字被清」——E2E 發現**現有 UI 的內嵌格子全是 select（時/分），文字格不存在**（rush 表無內嵌編輯、走表單 modal＝本來就被 !UI.modal 擋）。實際影響＝select 選擇半途被重置（窗口極小）＋**頁面未提交篩選字元/焦點在 tick 被清**（wl-date 等＝真實但輕微）。修正（!UI.editCell＋!UI.page）仍正確且未來任何文字格加入即受保護，但缺陷嚴重度應記為「低」而非「中」。
+- **合成資料（已清理）**：隔離 fk 新增 rush 列 TEST-r171-vendor＋wl 列 TEST-r171 供 E2E，測後均以正規刪除路徑移除（toast 已刪除×2，DOM 驗證不存在）。淨變更＝0。
+- **main 未動（87cb15b）；無部署（staging 維持 2b7c606）。**
+- **待人類**：①登入正式站看彙總 chip；②實體手機；③#66/#67/#68 併 main 授權。
+
+## 2026-10-17 R170（20min）— 自行修復 #68：每分鐘背景刷新清掉頁表輸入中的格子內容
+
+- **獵捕覆核（無缺陷）**：queueSync（epoch/chain 序列化＋候選保留）、runDrawerWrite、changeExecutionConfirmation（busy/擁有權/pendingReload）——皆已硬化。
+- **新缺陷（#68，自行修復）**：啟動時的 60 秒「今天看板」自動刷新條件只查 drag/modal/PV——**沒查 `UI.editCell` 與 `UI.page`**。頁表（工作紀錄／欠缺品項／跨廠加工，這些頁面 view 仍="day"）的 cellinp 在 blur 前輸入只存在 DOM；分鐘刷新 render() 重建表格＝**輸入中未提交的格子內容被清掉**（頁面輸入如 wl-date 的未提交字元同理）。
+- **修正（2b7c606，最小）**：interval 條件加 `!UI.editCell`（編輯中不刷）與 `!UI.page`（頁面檢視無時間性內容，不需背景刷新；看板本身照舊每分鐘刷新）。新測試 `refresh-interval-guard.test.mjs`（結構斷言，比照 layout-regression 慣例）。
+- **驗證**：新測 1/1；web 全量 **922/922**（921+1）；build 過；CI success；staging 快進 a16da84→2b7c606、deployment **7124429131 success**；live bundle **index-AlI8oRn3.js** 實測 minified interval 含 `!u.editCell&&!u.page`（首次抓到舊 hash＝CDN 邊緣殘留，三次破快取重取確認）。
+- **PR16 分支同步**：→ **85b2641** 已推送。main 未動（87cb15b）。合成資料無變更。
+- **待人類**：①登入正式站看彙總 chip；②實體手機；③#66/#67/#68 併 main 授權。
 
 ## 2026-10-17 R169（20min）— 自行修復 #67：solver-check 延遲結果重繪他人視窗（清輸入中草稿）
 

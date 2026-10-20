@@ -39,6 +39,7 @@ import {installScheduleChat} from './chat-ui.js';
 import {PERMISSIONS,effectivePermission} from './permissions.js';
 import {orderCounters,productionSummary,leaveState,visibleMemos,workerTimeline} from './overview.js';
 import {DEFAULT_PREFERENCES,applyPreferences,loadPreferences,notificationEnabled,patchPreference,savePreferences} from './settings.js';
+import {nearestScheduleDate,scheduledMachinesFirst} from './test-mode.js';
 /* ===== 1. 常數與工具 ===== */
 const COLORS=["#FFE14D","#4CDB6E","#F58CF0","#4FE3EE","#FFA64D","#AFC0FF","#FF9A9A","#BFEA6C"];
 const PROCS=["裁切","沖壓","焊接","組裝","包裝"];
@@ -797,9 +798,10 @@ function initFloatWins(){
   if(!_winResizeBound){_winResizeBound=true;addEventListener("resize",()=>reflowAllWindows());try{visualViewport?.addEventListener("resize",()=>reflowAllWindows());}catch{}}
 }
 function environmentHTML(){
-  if(RUNTIME.mode==='test')return '<div class="environment-banner" role="status"><b>'+tx('測試模式 · 不影響正式資料')+'</b><a class="btn" href="'+esc(modeUrl(location,false))+'">'+tx('回正式資料')+'</a></div>';
+  if(RUNTIME.mode==='test')return '<div class="environment-banner" role="status"><span><b>'+tx('此為測試模式')+'</b><small>'+tx('不影響正式資料')+'</small></span><a class="btn" href="'+esc(modeUrl(location,false))+'">'+tx('回正式資料')+'</a></div>';
   return TEST_AVAILABLE?'<a class="btn test-entry" href="'+esc(modeUrl(location,true))+'">'+tx('進入測試模式')+'</a>':'';
 }
+const testModeLabelHTML=()=>RUNTIME.mode==='test'?'<span class="test-mode-label">'+tx('此為測試模式')+'</span>':'';
 function topHTML(){
   const d=UI.date,di=dayInfo(d);
   const wk=UI.view==="week";
@@ -807,7 +809,7 @@ function topHTML(){
   const title=wk?md(ws)+" – "+md(addDays(ws,6)):mdw(d);
   const sub=wk?"第 "+isoWeek(ws)+" 週":dayLabel(d);
   return '<header class="top"><div class="top-in"><div class="top-main">'+
-  '<div class="brand"><span class="brand-mark"><span></span></span>產線排程</div>'+
+  '<div class="brand"><span class="brand-mark"><span></span></span><span>產線排程</span>'+testModeLabelHTML()+'</div>'+
   '<div class="workspace-heading"><span class="workspace-glyph">'+NAV_IC.today+'</span><span><b>'+esc(tx('今天排程'))+'</b><small>'+esc(tx('機台 × 時間'))+'</small></span></div>'+environmentHTML()+
   '<div class="seg factory-switch" role="group" aria-label="'+tx('排程廠別')+'">'+
   [[1,tx('1 廠')],[2,tx('2 廠')],['all',tx('跨廠')]].map(([v,t])=>'<button data-act="factory" data-v="'+v+'" aria-pressed="'+(UI.factory===v)+'">'+t+'</button>').join('')+'</div>'+
@@ -832,7 +834,7 @@ function appNavHTML(){
   const role=roleName(STORE?.role);
   return '<nav class="app-nav" aria-label="'+tx('主要功能')+'">'+
     
-    '<div class="side-brand"><span class="brand-mark"><span></span></span><span><b>產線排程</b><small>'+tx('工廠工作台')+'</small></span><button class="nav-collapse" data-act="nav-toggle" aria-label="'+(UI.navCollapsed?tx('展開導覽'):tx('收合導覽'))+'" title="'+(UI.navCollapsed?tx('展開導覽'):tx('收合導覽'))+'">'+(UI.navCollapsed?'›':'‹')+'</button></div>'+
+    '<div class="side-brand"><span class="brand-mark"><span></span></span><span><b>產線排程</b><small>'+tx('工廠工作台')+'</small>'+testModeLabelHTML()+'</span><button class="nav-collapse" data-act="nav-toggle" aria-label="'+(UI.navCollapsed?tx('展開導覽'):tx('收合導覽'))+'" title="'+(UI.navCollapsed?tx('展開導覽'):tx('收合導覽'))+'">'+(UI.navCollapsed?'›':'‹')+'</button></div>'+
     '<button class="side-profile" data-act="settings" aria-pressed="'+(UI.drawer==='settings')+'"><span class="side-avatar">'+esc(account.slice(0,1).toUpperCase())+'</span><span><b>'+esc(account)+'</b><small>'+esc(role)+'</small></span><i>›</i></button>'+
     '<span class="side-section">'+tx('排程表')+'</span>'+
     '<button class="app-nav-item nav-today" data-act="today" aria-pressed="'+(!UI.drawer)+'"><b>'+NAV_IC.today+'</b><span>'+tx('today')+'</span></button>'+item('orders',tx('orders'))+
@@ -1032,8 +1034,11 @@ function logRow(l){const dt=new Date(l.t);
 function dayHTML(ctx={}){
   const d=UI.date,di=dayInfo(d),H=hourPx(),px=m=>(m-DAY0)/60*H;
   const mk=b=>{if(!ctx.mark||!ctx.mark.has(keyB(b)))return "";return typeof ctx.markCls==="function"?ctx.markCls(b):ctx.markCls;};
-  const ms=shownMachines();
+  const baseMachines=shownMachines();
+  // 測試資料常放在專用機台；手機第一屏要直接看得到，不應要求使用者橫向尋找。
+  const ms=RUNTIME.mode==='test'&&!ctx.pv?scheduledMachinesFirst(baseMachines,S.blocks,d):baseMachines;
   const blocks=S.blocks.filter(b=>b.date===d&&ms.some(m=>m.id===b.m));
+  const testDataDate=typeof RUNTIME!=='undefined'&&RUNTIME.mode==='test'&&!ctx.pv&&!blocks.length?nearestScheduleDate(S.blocks,ms.map(m=>m.id),d):null;
   let nBad=0;
   const cols=ms.map(M=>{
     let z="";
@@ -1064,7 +1069,7 @@ function dayHTML(ctx={}){
     (ms.length?'<div class="scroller"><div class="grid" style="grid-template-columns:64px repeat('+ms.length+',minmax('+zw+'px,1fr))">'+
     '<div class="corner"></div>'+heads+'<div class="times">'+times+'</div>'+cols+'</div></div>':
     '<div class="empty factory-empty">'+tx('此廠尚未設定機台與員工；「歷史排程」是獨立的唯讀原表，不會自動變成正式排程。')+'</div>')+
-    (ms.length&&!blocks.length&&di.win.length?'<div class="empty">'+(S.setupPending?tx('名冊已匯入，工作仍待確認；原始安排可在「歷史排程」按日期查看。'):tx('這天還沒有排程。可按「＋手動排班」安排未排入的工作，或使用「自動排程」。'))+'</div>':"")+
+    (ms.length&&!blocks.length&&di.win.length?'<div class="empty'+(testDataDate?' test-data-empty':'')+'">'+(S.setupPending?tx('名冊已匯入，工作仍待確認；原始安排可在「歷史排程」按日期查看。'):testDataDate?'<b>'+tx('這天沒有測試排程')+'</b><span>'+tx('現有測試資料在 {date}',{date:mdw(testDataDate)})+'</span><button class="btn primary" data-act="goto" data-d="'+testDataDate+'">'+tx('前往測試資料')+'</button>':tx('這天還沒有排程。可按「＋手動排班」安排未排入的工作，或使用「自動排程」。'))+'</div>':"")+
     '</section>';
 }
 function blkHTML(b,px,bad,cls=""){
