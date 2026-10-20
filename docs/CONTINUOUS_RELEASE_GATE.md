@@ -33,6 +33,10 @@
 - 安全掃描：fixtures SQL 無正式 URL/DELETE/TRUNCATE/DROP；僅隔離專案。此工作直接補足真人項②的練習場（使用者登入後每天有可拖曳練習資料）。
 - CI：database/frontend/solver×2/web 全 pass；mergeable=MERGEABLE、state=CLEAN。**推薦合併**（待使用者授權）。
 
+## 2026-10-20 R428 — 例行覆核：三服務 200；PR #48 待授權
+
+- 狀態：main=2dd3b10；PR #48（測試模式可發現性＋每日拖曳練習 fixtures）MERGEABLE/CLEAN、CI 全綠待使用者授權。零寫入。
+
 - 瀏覽器補充（新 bundle index-BA47z8as.js）：?mode=test 測試模式橫幅＋登入牆正常（隔離維持）；返回 / 後 Richard session 已失效（登入牆呈現）——判定為分頁閒置逾時之 session 過期（#D1-#D4 不觸 auth；R364 同型往返後 session 曾存活），非部署造成。正式站目前停於可接手的登入頁＝真人項①的起點。注意：以「測試模式」子字串偵測會誤判（正常登入頁含「進入測試模式」連結文字），須比對完整橫幅文案。
 
 ## 2026-10-20 R425 — 使用者合併四 PR（#44-#47）→ main=2dd3b10 → 正式部署驗證 PASS
