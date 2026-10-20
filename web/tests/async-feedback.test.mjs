@@ -78,5 +78,5 @@ test('chat waiting shows typing dots and busy submit spinner',()=>{
   assert.ok(i>0,'dots element missing');
   assert.ok(chat.slice(i,i+200).includes("className='dots'")&&chat.includes("'<i></i><i></i><i></i>'"),'three dots');
   assert.ok(chat.includes("submit.innerHTML='<span class=\"spin\" aria-hidden=\"true\"></span>'"),'submit spinner');
-  assert.ok(/submit\.textContent='送出'/.test(chat),'label restored after busy');
+  assert.ok(/submit\.textContent=tx\('送出'\)/.test(chat),'label restored after busy (translated)');
 });
