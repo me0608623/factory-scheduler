@@ -11,3 +11,13 @@ export function nearestScheduleDate(blocks, machineIds, currentDate) {
     return da - db || a.localeCompare(b);
   })[0];
 }
+
+export function scheduledMachinesFirst(machines, blocks, date) {
+  const active = new Set((blocks || [])
+    .filter(block => block?.date === date)
+    .map(block => block.m));
+  return (machines || [])
+    .map((machine, index) => ({machine, index, active: active.has(machine?.id)}))
+    .sort((a, b) => Number(b.active) - Number(a.active) || a.index - b.index)
+    .map(entry => entry.machine);
+}

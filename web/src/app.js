@@ -39,7 +39,7 @@ import {installScheduleChat} from './chat-ui.js';
 import {PERMISSIONS,effectivePermission} from './permissions.js';
 import {orderCounters,productionSummary,leaveState,visibleMemos,workerTimeline} from './overview.js';
 import {DEFAULT_PREFERENCES,applyPreferences,loadPreferences,notificationEnabled,patchPreference,savePreferences} from './settings.js';
-import {nearestScheduleDate} from './test-mode.js';
+import {nearestScheduleDate,scheduledMachinesFirst} from './test-mode.js';
 /* ===== 1. 常數與工具 ===== */
 const COLORS=["#FFE14D","#4CDB6E","#F58CF0","#4FE3EE","#FFA64D","#AFC0FF","#FF9A9A","#BFEA6C"];
 const PROCS=["裁切","沖壓","焊接","組裝","包裝"];
@@ -1034,7 +1034,9 @@ function logRow(l){const dt=new Date(l.t);
 function dayHTML(ctx={}){
   const d=UI.date,di=dayInfo(d),H=hourPx(),px=m=>(m-DAY0)/60*H;
   const mk=b=>{if(!ctx.mark||!ctx.mark.has(keyB(b)))return "";return typeof ctx.markCls==="function"?ctx.markCls(b):ctx.markCls;};
-  const ms=shownMachines();
+  const baseMachines=shownMachines();
+  // 測試資料常放在專用機台；手機第一屏要直接看得到，不應要求使用者橫向尋找。
+  const ms=RUNTIME.mode==='test'&&!ctx.pv?scheduledMachinesFirst(baseMachines,S.blocks,d):baseMachines;
   const blocks=S.blocks.filter(b=>b.date===d&&ms.some(m=>m.id===b.m));
   const testDataDate=typeof RUNTIME!=='undefined'&&RUNTIME.mode==='test'&&!ctx.pv&&!blocks.length?nearestScheduleDate(S.blocks,ms.map(m=>m.id),d):null;
   let nBad=0;
