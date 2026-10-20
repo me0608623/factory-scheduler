@@ -96,6 +96,14 @@
 
 - 狀態：main=b4b5709；open PR=0；三服務 200。零寫入。真人項①②不變。
 
+## 2026-10-20 R440 — gate 分支同步 main（521d4e5）＋新 PR #49（每日練習改版：擬真排程）：CI 全綠，推薦合併
+
+- 狀態：main=b4b5709；三服務 200。零寫入。
+### PR #49 審查（使用者開立，head=gate 分支，+144/-68 三檔）
+- 協同 session 將每日練習改版：移除專用「每日拖曳練習機/TEST-DAY 員工」，改用隔離庫既有 5 台測試機台（tst01–tst05）＋測試員工，每天早晚班共 10 個擬真排程方塊；重跑保留使用者拖曳、硬鎖隔離專案（TEST_URL 檢查不變）。
+- 安全覆核：DELETE 僅針對前版工具自建的固定 ID（tstdaily 機/TEST-DAY 員工及其 orders/blocks/skills/machine_products）——自產合成資料清理，非 1023 名冊、非 A07/tst05 基準（tst01-05 為重用不刪）；無正式 URL/無 migration。測試 947/947、build OK（PR body）。
+- CI 實查：database×2/frontend×2/solver×4/web×2 全 pass；MERGEABLE/CLEAN。**推薦合併**（待使用者授權）。
+
 - 瀏覽器補充（新 bundle index-BA47z8as.js）：?mode=test 測試模式橫幅＋登入牆正常（隔離維持）；返回 / 後 Richard session 已失效（登入牆呈現）——判定為分頁閒置逾時之 session 過期（#D1-#D4 不觸 auth；R364 同型往返後 session 曾存活），非部署造成。正式站目前停於可接手的登入頁＝真人項①的起點。注意：以「測試模式」子字串偵測會誤判（正常登入頁含「進入測試模式」連結文字），須比對完整橫幅文案。
 
 ## 2026-10-20 R425 — 使用者合併四 PR（#44-#47）→ main=2dd3b10 → 正式部署驗證 PASS
