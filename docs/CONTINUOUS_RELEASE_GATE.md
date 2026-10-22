@@ -1,5 +1,13 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-22 R549 — PR #49 使用者合併 → main=326fda3 → 部署與 CI 驗證全 PASS
+
+- 事件：使用者合併 PR #49（擬真每日排程 fixtures，僅 tools/web/tests/docs，零 web/src 變更）。open PR 清空。
+- 部署：Render 正式 web 7242717599（326fda3）poll 至 **success**；正式服務仍 200 且 bundle **index-DbLgT-M7.js 不變**＝與「無前端變更」預期一致。solver/staging 未觸發（無相關變更）。
+- CI on main=326fda3：Tests 39715430809 success、Deployment smoke test success、部署 Render 正式環境 success（三workflow 輪詢至 completed，非 pending 冒稱）。
+- 協作者 R548（bfac443）驗收記錄已讀取核對：隔離庫 fkefarcwadvyqqjcjxvp 執行 simulated_blocks=3970（2026-10-20→2027-11-20、5 台 tst01–tst05）、legacy fixture 0、staging 瀏覽器 10/22 顯示 10 段 SIM-20261022-01~05、chip 即時已連線；正式 1023/Auth/migration 零接觸。
+- 剩餘：真人項①正式站登入確認 chip、②實體手機顯示與拖曳（擬真練習資料已就緒可用）。零寫入。
+
 ## 2026-10-22 R548 — 以模擬正式排班取代每日拖曳練習機；隔離雲端與畫面 PASS
 
 - 使用者確認：不要獨立的「每日拖曳練習機」，改用既有測試機台、人員及工單模擬正式排班；並於執行前明確確認刪除舊工具 fixture。範圍只限隔離 Supabase `fkefarcwadvyqqjcjxvp`，正式 `kjnnguekhshkhgycmryl`、1023、Auth、角色、setup_pending、migration 均未開啟或修改。
