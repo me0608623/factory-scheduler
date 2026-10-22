@@ -1,5 +1,9 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-22 R550 — 例行覆核＋solver 部署 7242852019 success：PR #49 合併收尾完成
+
+- 補項：PR #49 合併另觸發 solver 部署 7242852019（326fda3，03:20Z）輪詢至 **success**——web（R549 已驗）＋solver 兩端部署齊；三服務 200；open PR 維持清空。零寫入。真人項①②不變。
+
 ## 2026-10-22 R549 — PR #49 使用者合併 → main=326fda3 → 部署與 CI 驗證全 PASS
 
 - 事件：使用者合併 PR #49（擬真每日排程 fixtures，僅 tools/web/tests/docs，零 web/src 變更）。open PR 清空。
