@@ -1,5 +1,14 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-22 R548 — 以模擬正式排班取代每日拖曳練習機；隔離雲端與畫面 PASS
+
+- 使用者確認：不要獨立的「每日拖曳練習機」，改用既有測試機台、人員及工單模擬正式排班；並於執行前明確確認刪除舊工具 fixture。範圍只限隔離 Supabase `fkefarcwadvyqqjcjxvp`，正式 `kjnnguekhshkhgycmryl`、1023、Auth、角色、setup_pending、migration 均未開啟或修改。
+- 實作：`d8bc301`（分支 merge HEAD `521d4e5`）將 `tools/daily-test-fixtures.mjs` 改為沿用 `tst01`–`tst05` 與既有 `測試-%` 人員，每日建立 5 張模擬量產工單、早／下午各一段，共 10 段；2026-10-20～2027-11-20 含週末。重跑使用固定 ID 且 `on conflict do nothing`，不覆蓋已拖曳班表。清除只鎖定前一版工具的固定 employee/product/machine ID 與其 order/block 關聯。
+- 自動驗證：fixture 真 migrations/PGlite 3/3 PASS（4 日 40 段、5 台、週末開放、重跑版本不增、組長 `save_blocks` 08:00–12:00→08:20–11:50 PASS）；web **947/947 PASS**；`vite build` PASS。PR #49 已建立，CI 於 `d8bc301/521d4e5` 曾全綠；後續 routine checkpoint 會另行重跑 CI，不把 pending 冒稱綠燈。
+- 隔離實際執行 PASS：Supabase SQL Editor 頁面明示 `factory-scheduler-staging`／ref `fkefarcwadvyqqjcjxvp`；交易回傳 `simulated_blocks=3970`、`first_date=2026-10-20`、`last_date=2027-11-20`、`machines=5`。唯讀補驗回傳 legacy machine/employee/product/blocks 均 `0`，2026-10-22 為 `today_blocks=10`、`today_machines=5`。
+- 瀏覽器實際驗收 PASS：已登入 staging 重新載入後，10/22 顯示 `tst01`–`tst05` 共 10 段，工單碼 `SIM-20261022-01`～`05`，早班約 08:00–12:00、下午約 13:00–17:00；`tstdaily` 不再存在；sync chip 為「雲端已儲存／即時已連線」。正式 `?mode=test` 此瀏覽器仍停在登入牆，未代填密碼，未冒稱該 session 的登入驗收。
+- 未驗證／下一步：本輪未用瀏覽器實際拖曳並寫回雲端（自動真函式已 PASS）；PR #49 仍 draft，需在最新 checkpoint CI 全數完成後再決定 ready/merge。未部署程式碼，因資料可由既有前端即時讀取。
+
 ## 2026-10-20 R437 — 測試班表「有資料但手機第一屏看不到」修正並正式發布
 
 - 真實重現：隔離測試帳號在 2026-10-20 已讀到 `TEST-DAY-20261020`（09:00–09:30、30 件），但專用機台 `tstdaily 每日拖曳練習機` 排在 12 台機台的最後；手機／窄視窗第一屏只看到前方空機台，畫面因此看似沒有測試資料。這不是資料庫缺資料。
