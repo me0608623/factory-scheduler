@@ -1,5 +1,9 @@
 # 持續缺陷探索與發布驗收
 
+## 2026-10-23 R586 — 跨日覆核：main Tests 重跑（39715430809）solver/frontend/database 三作業全 success＝無時間炸彈
+
+- 狀態：main=326fda3（PR #49）；三服務 200；無 open PR、無新部署。跨日（10-22→10-23）以 gh run rerun 於同 SHA 重跑 Tests，輪詢至 completed：solver=success、frontend=success、database=success。零寫入。真人項①②不變。
+
 ## 2026-10-22 R585 — 例行覆核：三服務 200；PR 佇列清空
 
 - 狀態：main=326fda3；無 open PR、無新部署。零寫入。真人項①②不變。
