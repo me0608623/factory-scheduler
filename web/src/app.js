@@ -689,6 +689,7 @@ function baseHourPx(){return parseFloat(getComputedStyle(document.body).getPrope
 function hourPx(){return baseHourPx()*(UI.view==="week"?SZ.week:SZ.day);}
 
 function render(){ I18N.lang=UI.prefs.language; globalThis.__fsRenderMemo=null; ensureVisualStyles();
+  const chatFocus=document.activeElement?.closest?.('#schedule-chat')?document.activeElement:null;
   const sc=$(".scroller"),sl=sc?sc.scrollLeft:0,sy=window.scrollY;
   document.body.classList.toggle("tv",!!UI.tv);
   document.body.classList.toggle("pvmode",!!PV);
@@ -727,6 +728,7 @@ function render(){ I18N.lang=UI.prefs.language; globalThis.__fsRenderMemo=null; 
   if(UI.modal)renderModal();
   if(UI.editCell){const el=$(".cellinp");if(el){el.focus();if(el.select)el.select();}}
   scheduleChat?.refresh();
+  if(chatFocus?.isConnected&&chatFocus.getClientRects().length&&!UI.modal&&!UI.editCell)chatFocus.focus({preventScroll:true});
 }
 let _hdrRO=null;
 function updateHeaderVar(){
@@ -795,7 +797,7 @@ function initFloatWins(){
       try{localStorage.setItem("fsched-pane-w",String(UI.paneW));}catch(err){}
     });
   }
-  if(!_winResizeBound){_winResizeBound=true;addEventListener("resize",()=>reflowAllWindows());try{visualViewport?.addEventListener("resize",()=>reflowAllWindows());}catch{}}
+  if(!_winResizeBound){_winResizeBound=true;addEventListener("resize",()=>{reflowAllWindows();sizeBlockDetailModal();});try{visualViewport?.addEventListener("resize",()=>{reflowAllWindows();sizeBlockDetailModal();});}catch{}}
 }
 function environmentHTML(){
   if(RUNTIME.mode==='test')return '<div class="environment-banner" role="status"><span><b>'+tx('此為測試模式')+'</b><small>'+tx('不影響正式資料')+'</small></span><a class="btn" href="'+esc(modeUrl(location,false))+'">'+tx('回正式資料')+'</a></div>';
@@ -812,7 +814,7 @@ function topHTML(){
   '<div class="brand"><span class="brand-mark"><span></span></span><span>產線排程</span>'+testModeLabelHTML()+'</div>'+
   '<div class="workspace-heading"><span class="workspace-glyph">'+NAV_IC.today+'</span><span><b>'+esc(tx('今天排程'))+'</b><small>'+esc(tx('機台 × 時間'))+'</small></span></div>'+environmentHTML()+
   '<div class="seg factory-switch" role="group" aria-label="'+tx('排程廠別')+'">'+
-  [[1,tx('1 廠')],[2,tx('2 廠')],['all',tx('跨廠')]].map(([v,t])=>'<button data-act="factory" data-v="'+v+'" aria-pressed="'+(UI.factory===v)+'">'+t+'</button>').join('')+'</div>'+
+  [[1,tx('1 廠')],[2,tx('2 廠')],['all',tx('全部廠別')]].map(([v,t])=>'<button data-act="factory" data-v="'+v+'" aria-pressed="'+(UI.factory===v)+'">'+t+'</button>').join('')+'</div>'+
   '<div class="page-links">'+
   '<button class="btn pagelink shortage" data-act="page" data-v="shortage">'+tx('shortage')+'</button>'+
   '<button class="btn pagelink transfer" data-act="page" data-v="transfer">'+tx('transfer')+'</button>'+
@@ -825,11 +827,13 @@ function topHTML(){
   (S.setupPending?'<button class="btn primary verify-entry" data-act="catalog">'+tx('初次核對資料')+'</button>':'')+
   (UI.returnTo?'<button class="btn pagelink return-chip" data-act="page-return">↩ '+tx('返回')+(UI.returnTo.page==='shortage'?tx('欠缺品項'):UI.returnTo.page==='worklog'?tx('工作紀錄'):tx('給二廠／回一廠'))+'</button>':'')+
   '<div class="top-status">'+syncChipHTML()+
-  '<button class="btn" data-act="settings" title="'+esc(tx('settings'))+'">'+IC.user+'<span class="lbl">'+esc(STORE&&STORE.kind==="supabase"?(STORE.userName||tx('帳號')):tx('本機'))+'</span></button></div></div></div></header>';
+  '<button class="btn" data-act="settings" title="'+esc(tx('settings'))+'">'+IC.user+'<span class="lbl">'+esc(STORE&&STORE.kind==="supabase"?(STORE.userName||tx('帳號')):tx('本機'))+'</span></button></div></div></div></header><div class="schedule-chat-slot">'+
+  (!PV&&!UI.page&&!readOnly&&!S.setupPending&&(wk||UI.layout==='work')?'<div class="schedule-primary-actions"><button class="btn primary" data-act="manual-add">'+tx('＋手動排班')+'</button><button class="btn primary" data-act="auto">'+tx('⚡ 自動排班')+'</button></div>':'')+'</div>';
 }
 
 function appNavHTML(){
-  const item=(page,label)=>'<button class="app-nav-item nav-'+page+'" data-act="drawer" data-v="'+page+'" aria-pressed="'+(UI.drawer===page)+'" title="'+esc(label)+'"><b>'+NAV_IC[page]+'</b><span>'+label+'</span></button>';
+  const moreSelected=UI.drawer==='more'||['people','notes'].includes(UI.drawer)||UI.page==='worklog';
+  const item=(page,label,mobileClass='')=>'<button class="app-nav-item nav-'+page+(mobileClass?' '+mobileClass:'')+'" data-act="drawer" data-v="'+page+'" aria-pressed="'+(page==='more'&&mobileClass==='nav-more-mobile'?moreSelected:UI.drawer===page||UI.page===page)+'" title="'+esc(label)+'"><b>'+NAV_IC[page]+'</b><span>'+label+'</span></button>';
   const account=STORE&&STORE.kind==='supabase'?(STORE.userName||STORE.session?.user?.email||tx('帳號')):tx('本機模式');
   const role=roleName(STORE?.role);
   return '<nav class="app-nav" aria-label="'+tx('主要功能')+'">'+
@@ -837,10 +841,10 @@ function appNavHTML(){
     '<div class="side-brand"><span class="brand-mark"><span></span></span><span><b>產線排程</b><small>'+tx('工廠工作台')+'</small>'+testModeLabelHTML()+'</span><button class="nav-collapse" data-act="nav-toggle" aria-label="'+(UI.navCollapsed?tx('展開導覽'):tx('收合導覽'))+'" title="'+(UI.navCollapsed?tx('展開導覽'):tx('收合導覽'))+'">'+(UI.navCollapsed?'›':'‹')+'</button></div>'+
     '<button class="side-profile" data-act="settings" aria-pressed="'+(UI.drawer==='settings')+'"><span class="side-avatar">'+esc(account.slice(0,1).toUpperCase())+'</span><span><b>'+esc(account)+'</b><small>'+esc(role)+'</small></span><i>›</i></button>'+
     '<span class="side-section">'+tx('排程表')+'</span>'+
-    '<button class="app-nav-item nav-today" data-act="today" aria-pressed="'+(!UI.drawer)+'"><b>'+NAV_IC.today+'</b><span>'+tx('today')+'</span></button>'+item('orders',tx('orders'))+
-    '<span class="side-section">'+tx('現場回報')+'</span>'+item('people',tx('people'))+item('output',tx('output'))+item('worklog',tx('worklog'))+item('notes',tx('notes'))+
-    '<span class="side-section">'+tx('設定')+'</span>'+item('more',tx('more'))+
-    '<button class="app-nav-item nav-feature-tour" data-act="feature-tour" title="'+tx('功能解說')+'" aria-label="'+tx('功能解說')+'"><b>'+NAV_IC.help+'</b><span>'+tx('功能解說')+'</span></button>'+
+    '<button class="app-nav-item nav-today" data-act="today" aria-pressed="'+(!UI.drawer&&!UI.page)+'"><b>'+NAV_IC.today+'</b><span>'+tx('today')+'</span></button>'+item('orders',tx('orders'))+
+    '<span class="side-section">'+tx('現場回報')+'</span>'+item('people',tx('people'),'mobile-hidden')+item('output',tx('output'))+item('worklog',tx('worklog'),'mobile-hidden')+item('notes',tx('notes'),'mobile-hidden')+
+    '<span class="side-section">'+tx('設定')+'</span>'+item('more',tx('more'),'mobile-hidden')+item('more',tx('more'),'nav-more-mobile')+
+    '<button class="app-nav-item nav-feature-tour mobile-hidden" data-act="feature-tour" title="'+tx('功能解說')+'" aria-label="'+tx('功能解說')+'"><b>'+NAV_IC.help+'</b><span>'+tx('功能解說')+'</span></button>'+
     '<div class="side-footer">'+sideHealthHTML()+'</div></nav>';
 }
 function isoWeek(ds){const d=parseD(ds);d.setUTCDate(d.getUTCDate()+4-(d.getUTCDay()||7));const y=new Date(Date.UTC(d.getUTCFullYear(),0,1));return Math.ceil(((d-y)/864e5+1)/7);}
@@ -1014,10 +1018,12 @@ async function saveOwnProfile(button){
 
 function moreDrawerHTML(){
   const btn=(act,label,extra='')=>'<button class="more-action" data-act="'+act+'" '+extra+'>'+label+'</button>';
+  const displaced=btn('drawer',tx('people'),'data-v="people"')+btn('drawer',tx('worklog'),'data-v="worklog"')+btn('drawer',tx('notes'),'data-v="notes"')+btn('feature-tour',tx('功能解說'));
   // 名冊與工作資料待確認時，整段排程入口不出現（不只是停用）
   const schedGate=S.setupPending?"":btn('manual-add',tx('＋手動排班'),readOnly?'disabled':'')+btn('auto',tx('⚡ 自動排班'),readOnly?'disabled':'')+btn('incident',tx('故障／請假'),!canIncidents()?'disabled':'');
   return '<section class="more-group"><h3>'+tx('班表')+'</h3><div class="more-grid"><div class="seg" role="group" aria-label="'+tx('檢視')+'"><button data-act="view" data-v="day" aria-pressed="'+(UI.view==='day')+'">'+tx('日班表')+'</button><button data-act="view" data-v="week" aria-pressed="'+(UI.view==='week')+'">'+tx('週班表')+'</button></div><div class="seg" role="group" aria-label="'+tx('查看方式')+'"><button data-act="layout" data-v="resource" aria-pressed="'+(UI.layout==='resource')+'">'+tx('按設備')+'</button><button data-act="layout" data-v="work" aria-pressed="'+(UI.layout==='work')+'">'+tx('按工作')+'</button></div>'+schedGate+btn('undo',tx('復原上一步'),readOnly||!undoStack.length?'disabled':'')+'</div></section>'+
     '<section class="more-group"><h3>'+tx('工作與人員')+'</h3><div class="more-grid">'+btn('work-queue',tx('未排工作'))+btn('execution',tx('現場回報'))+btn('resource-load',tx('當日負荷'))+btn('rosters',tx('輪班表'))+btn('work-contents',tx('工作內容'))+btn('transfers',tx('跨廠加工'))+btn('rush',tx('欠缺品項'))+btn('groups',tx('員工分組'))+(STORE.role==='boss'?btn('access',tx('權限管理')):'')+(canScenarios()?btn('scenarios',tx('試排情境')):'')+'</div></section>'+
+    '<section class="more-group"><h3>'+tx('其他入口')+'</h3><div class="more-grid">'+displaced+'</div></section>'+
     '<section class="more-group"><h3>'+tx('資料與設定')+'</h3><div class="more-grid">'+btn('settings',tx('⚙ 設定'))+btn('master',tx('員工、設備與工單'))+(canArchive()?btn('history',tx('歷史班表')):'')+btn('export',tx('匯出／匯入 Excel'))+btn('log',tx('全部紀錄'))+btn('tv',UI.tv?tx('管理模式'):tx('大螢幕'))+btn('help',tx('操作說明'))+btn('feedback',tx('意見反饋'))+btn('analytics',tx('產能分析'))+btn('schedule-diff',tx('排程比對'))+btn('line-notify',tx('LINE 通知'))+(STORE.role==='boss'?btn('feedback-list',tx('查看反饋')):'')+btn('tour',tx('新手導覽'))+(STORE.kind==='supabase'?btn('account',STORE.userName?STORE.userName.split('@')[0]+' · '+tx('登出'):'帳號與登出'):'')+'</div></section>';
 }
 function statusTag(o){
@@ -1031,6 +1037,38 @@ function logRow(l){const dt=new Date(l.t);
   return '<button class="lrow" data-act="logone" data-id="'+l.id+'"><span class="ic '+l.kind+'">'+tx(LOGIC[l.kind]||"・")+'</span><span class="tx">'+esc(l.title)+'<small>'+(dt.getMonth()+1)+"/"+dt.getDate()+" "+pad(dt.getHours())+":"+pad(dt.getMinutes())+(l.lines&&l.lines.length?" · "+tx('{n} 項調整',{n:l.lines.length}):"")+'</small></span></button>';}
 
 /* ----- 日檢視：像 Excel 的時間 × 機台表 ----- */
+function scheduleEmptyHTML(ms,blocks,di,testDataDate){
+  if(blocks.length)return '';
+  const button=(act,label,attrs='')=>'<button class="btn primary" data-act="'+act+'" '+attrs+'>'+tx(label)+'</button>';
+  const employees=S.employees.filter(e=>inFactory(e,UI.factory));
+  const visibleEmployees=shownEmployees();
+  const scope=esc(UI.factory==='all'?tx('全部廠別'):factoryName(UI.factory))+' · '+esc(mdw(UI.date));
+  let reason='',action='';
+  if(S.setupPending){
+    reason=tx('名冊與工作資料仍待核對；原始安排可在歷史排程查看。');
+    action=button('catalog','核對資料');
+  }else if(ms.length&&UI.group!=='all'&&employees.length&&!visibleEmployees.length){
+    reason=tx('目前分組沒有員工；分組不會隱藏機台排程。');
+    action=button('empty-clear-group','查看全部分組');
+  }else if(!ms.length||!visibleEmployees.length){
+    reason=!ms.length&&!visibleEmployees.length?tx('此範圍沒有機台與員工。'):!ms.length?tx('此範圍沒有機台。'):tx('此範圍沒有員工。');
+    const alternatives=FACTORIES.filter(f=>f!==UI.factory).map(f=>({
+      factory:f,machines:S.machines.filter(m=>factoryOf(m)===f),employees:S.employees.filter(e=>factoryOf(e)===f)
+    })).filter(f=>f.machines.length&&f.employees.length);
+    const other=alternatives.find(f=>S.blocks.some(x=>f.machines.some(m=>m.id===x.m)))||alternatives[0];
+    action=other?button('factory','切換至有資源的廠別','data-v="'+other.factory+'"'):
+      !readOnly&&canMaster()?button('empty-resources','設定此廠資源'):button('drawer','查看工單','data-v="orders"');
+  }else{
+    const nextDate=testDataDate||nearestScheduleDate(S.blocks,ms.map(m=>m.id),UI.date);
+    reason=di.open?tx('這天還沒有排程。'):tx('這天停工，沒有排程。');
+    if(testDataDate){
+      reason+='<span>'+tx('現有測試資料在 {date}',{date:mdw(testDataDate)})+'</span>';
+      action='<button class="btn primary" data-act="goto" data-d="'+testDataDate+'">'+tx('前往測試資料')+'</button>';
+    }else if(nextDate)action=button('goto','查看有排程的日期','data-d="'+nextDate+'"');
+    else action=!readOnly&&S.orders.length?button('work-queue','查看未排工作'):button('drawer','查看工單','data-v="orders"');
+  }
+  return '<div class="empty schedule-empty'+(testDataDate?' test-data-empty':'')+'"><strong>'+scope+'</strong><p>'+reason+'</p><div class="schedule-empty-actions">'+action+'</div></div>';
+}
 function dayHTML(ctx={}){
   const d=UI.date,di=dayInfo(d),H=hourPx(),px=m=>(m-DAY0)/60*H;
   const mk=b=>{if(!ctx.mark||!ctx.mark.has(keyB(b)))return "";return typeof ctx.markCls==="function"?ctx.markCls(b):ctx.markCls;};
@@ -1061,15 +1099,18 @@ function dayHTML(ctx={}){
   const leave=shownEmployees().filter(e=>e.leaves.includes(d));
   const otBtn=!canCalendar()?"":(di.open?'<button class="btn admin" data-act="ot">'+(di.ot?tx('調整加班'):tx('開加班'))+'</button>':"")+'<button class="btn admin" data-act="cal">'+tx('上班日設定')+'</button>';
   const zday=SZ.day,zw=Math.round(170*Math.min(1.15,Math.max(.45,zday)));
-  return '<section class="board szoom" style="--hour:'+hourPx()+'px" aria-label="'+tx('排程表')+'"><div class="board-h"><h2>'+esc(UI.factory==="all"?tx('跨廠'):factoryName(UI.factory))+' · '+mdw(d)+(ctx.pv?(PV.mode==="orig"?" "+tx('原本的排程'):PV.mode==="new"?" "+tx('調整後'):" "+tx('對照')):" "+tx('排程'))+'</h2>'+szoomBarHTML('day')+
+  const first=blocks.reduce((a,b)=>!a||b.s<a.s?b:a,null);
+  const firstWork=!ctx.pv&&first?(()=>{const M=ms.find(m=>m.id===first.m),E=emp(first.emp),O=order(first.oid);
+    return '<button class="mobile-first-work" data-act="blk-open" data-v="'+esc(first.id)+'"><strong>'+esc((O?O.code:'')+' '+stepName(first))+'</strong><span>'+esc(first.m+' · '+M.label+' · '+(E?E.name:tx('未指定')))+'</span><time>'+esc(hm(first.s)+'–'+hm(first.e))+'</time></button>';})():'';
+  return '<section class="board szoom day-board" style="--hour:'+hourPx()+'px" aria-label="'+tx('排程表')+'"><div class="board-h"><h2>'+esc(UI.factory==="all"?tx('跨廠'):factoryName(UI.factory))+' · '+mdw(d)+(ctx.pv?(PV.mode==="orig"?" "+tx('原本的排程'):PV.mode==="new"?" "+tx('調整後'):" "+tx('對照')):" "+tx('排程'))+'</h2>'+
+    (readOnly||ctx.pv||S.setupPending?'':'<div class="schedule-primary-actions"><button class="btn primary" data-act="manual-add">'+tx('＋手動排班')+'</button><button class="btn primary" data-act="auto">'+tx('⚡ 自動排班')+'</button></div>')+
     (leave.length?'<span class="tag bad" style="font-size:15px;padding:4px 10px">請假：'+esc(leave.map(e=>e.name).join("、"))+'</span>':"")+
     (nBad?'<button class="btn danger" data-act="issues">'+nBad+' 個問題</button>':(blocks.length?'<span class="tag ok" style="font-size:15px;padding:4px 10px">'+tx('沒有衝突')+'</span>':""))+
-    '<div class="spacer"></div><div class="legend"><span><i style="background:var(--lunch)"></i>'+tx('午休')+'</span><span><i style="background:var(--ot)"></i>'+tx('加班')+'</span><span><i style="background:var(--bad-bg);border-color:var(--bad)"></i>'+tx('故障')+'</span><span>'+tx('顏色 = 員工')+'</span><span>'+tx('上班日／加班開關目前兩廠共用')+'</span>'+(readOnly||S.setupPending?"":"<span>"+tx('拖動方塊可改時段，拉底邊可改工作長度')+"</span>")+'</div>'+(readOnly||ctx.pv||S.setupPending?"":'<button class="btn primary" data-act="manual-add">'+tx('＋手動排班')+'</button>')+otBtn+'</div>'+
+    '<details class="day-board-tools"><summary>'+tx('更多')+'</summary><div class="day-board-tools-content">'+szoomBarHTML('day')+'<div class="legend"><span><i style="background:var(--lunch)"></i>'+tx('午休')+'</span><span><i style="background:var(--ot)"></i>'+tx('加班')+'</span><span><i style="background:var(--bad-bg);border-color:var(--bad)"></i>'+tx('故障')+'</span><span>'+tx('顏色 = 員工')+'</span><span>'+tx('上班日／加班開關目前兩廠共用')+'</span>'+(readOnly||S.setupPending?"":"<span>"+tx('拖動方塊可改時段，拉底邊可改工作長度')+"</span>")+'</div>'+otBtn+'</div></details></div>'+firstWork+
     (!ctx.pv&&blocks.length?'<div class="board-locate" hidden><span>'+tx('{n} 段排班在其他機台',{n:blocks.length})+'</span><button class="btn" data-act="board-locate">'+tx('查看排班')+'</button></div>':'')+
+    (ctx.pv?'':scheduleEmptyHTML(ms,blocks,di,testDataDate))+
     (ms.length?'<div class="scroller"><div class="grid" style="grid-template-columns:64px repeat('+ms.length+',minmax('+zw+'px,1fr))">'+
-    '<div class="corner"></div>'+heads+'<div class="times">'+times+'</div>'+cols+'</div></div>':
-    '<div class="empty factory-empty">'+tx('此廠尚未設定機台與員工；「歷史排程」是獨立的唯讀原表，不會自動變成正式排程。')+'</div>')+
-    (ms.length&&!blocks.length&&di.win.length?'<div class="empty'+(testDataDate?' test-data-empty':'')+'">'+(S.setupPending?tx('名冊已匯入，工作仍待確認；原始安排可在「歷史排程」按日期查看。'):testDataDate?'<b>'+tx('這天沒有測試排程')+'</b><span>'+tx('現有測試資料在 {date}',{date:mdw(testDataDate)})+'</span><button class="btn primary" data-act="goto" data-d="'+testDataDate+'">'+tx('前往測試資料')+'</button>':tx('這天還沒有排程。可按「＋手動排班」安排未排入的工作，或使用「自動排程」。'))+'</div>':"")+
+    '<div class="corner"></div>'+heads+'<div class="times">'+times+'</div>'+cols+'</div></div>':'')+
     '</section>';
 }
 function blkHTML(b,px,bad,cls=""){
@@ -1484,7 +1525,9 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "master":{if(PV){toast("預覽中：先按「用這套」或「取消」");break;}UI.page='catalog';UI.drawer=null;UI.focus=null;setUrlView("catalog");render();window.scrollTo(0,0);break;}
     case "pick":{const p=$("#datepick");try{p.showPicker();}catch(_){p.style.pointerEvents="auto";p.focus();p.click();}break;}
     case "view":zoomWheel.cancel();applyPinch.cancel();pinch0=null;pinchActive=false;UI.wkFit=false;UI.view=a.dataset.v;render();break;
-    case "factory":{const v=a.dataset.v==="all"?"all":Number(a.dataset.v);setFactory(v);render();if(v==="all")openModal({t:'transfer-board'});break;}
+    case "factory":{const v=a.dataset.v==="all"?"all":Number(a.dataset.v);setFactory(v);render();break;}
+    case "empty-clear-group":UI.group='all';render();break;
+    case "empty-resources":if(canMaster()){if(UI.factory==='all')setFactory(FACTORIES[0]);UI.page='catalog';UI.drawer=null;UI.focus=null;setUrlView('catalog');render();window.scrollTo(0,0);}break;
     case "groups":openModal({t:'groups'});break;
     case "tour":{closeModal();UI.drawer=null;render();setTimeout(()=>startTour(TOUR_STEPS,{tx}),350);break;}
     case "logout":(async a=>{if(STORE.kind!=="supabase"){toast(tx('本機模式沒有登入帳號'));return;}
@@ -1637,7 +1680,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
       let i=ZOOMS.indexOf(UI.zoom);if(i<0)i=ZOOMS.indexOf(1);
       i=act==="zoom0"?ZOOMS.indexOf(1):Math.max(0,Math.min(ZOOMS.length-1,i+(act==="zoom+"?1:-1)));
       setUiZoom(ZOOMS[i]);render();break;}
-    case "auto":if(!readOnly)openModal({t:"auto"});break;
+    case "auto":if(!readOnly&&!S.setupPending)openModal({t:"auto"});break;
     case "manual-add":if(!readOnly&&!S.setupPending)openModal({t:"manual-add"});break;
     case "incident":if(canIncidents())openModal({t:"incident"});break;
     case "help":openModal({t:"help",sec:0});break;
@@ -1892,6 +1935,15 @@ function syncInputs(){
   document.querySelectorAll("#modal-root [data-bind]").forEach(el=>{
     const v=el.type==="number"?(el.value===""?0:+el.value):el.value;setPath(m.draft,el.dataset.bind,v);});
 }
+function sizeBlockDetailModal(){
+  const overlay=document.querySelector('#ov'),modal=overlay?.querySelector('.block-detail');
+  if(!modal)return;
+  const style=getComputedStyle(overlay),zoom=Number(UI.zoom)||1;
+  const height=((typeof visualViewport!=='undefined'&&visualViewport?.height)||innerHeight)-parseFloat(style.paddingTop)-parseFloat(style.paddingBottom)-2;
+  const width=overlay.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight);
+  modal.style.setProperty('--block-detail-height',Math.max(180,Math.floor(height/zoom))+'px');
+  modal.style.width=Math.max(200,Math.min(680,Math.floor(width/zoom)))+'px';
+}
 function renderModal(){
   globalThis.__fsRenderMemo=null;
   let root=$("#modal-root");
@@ -1901,14 +1953,14 @@ function renderModal(){
   const f=MODALS[m.t];if(!f){closeModal();return;}
   const c=f(m);if(!c){closeModal();return;}
   const keep=root.querySelector(".overlay"),focusToken=keep&&root.contains(document.activeElement)?modalFocusToken(document.activeElement):null;
-  const st=keep?keep.scrollTop:0;
+  const st=keep?keep.scrollTop:0,bodyScroll=keep?.querySelector('.modal-b')?.scrollTop||0;
   const importBusy=m.t==='import-preview'&&m.saving;
-  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!(m.viewLoading||m.t==='scenario-list'&&m.loading||m.confirmBusy||m.planBusy||importBusy||m.t==='legacy-preview'&&m.saving||['memo-edit','leave-request','scenario-save'].includes(m.t)&&m.saving||m.t==='execution-report'&&m.busy||m.t==='legacy-history'&&m.loading)+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close"'+(importBusy?' disabled':'')+' aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
+  root.innerHTML='<div class="overlay'+(m.t==='blk'?' block-detail-overlay':'')+'" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+(m.t==='blk'?' block-detail':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!(m.viewLoading||m.t==='scenario-list'&&m.loading||m.confirmBusy||m.planBusy||importBusy||m.t==='legacy-preview'&&m.saving||['memo-edit','leave-request','scenario-save'].includes(m.t)&&m.saving||m.t==='execution-report'&&m.busy||m.t==='legacy-history'&&m.loading)+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close"'+(importBusy?' disabled':'')+' aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
   if(importBusy)root.querySelectorAll('input,select,textarea,button').forEach(el=>el.disabled=true);
   if(['memo-edit','leave-request'].includes(m.t)&&m.saving)root.querySelectorAll('input,select,textarea').forEach(el=>el.disabled=true);
   if(m.t==='execution-report'&&m.busy)root.querySelectorAll('input,select,textarea,button:not([data-act="close"])').forEach(el=>el.disabled=true);
   if(m.viewLoading||m.confirmBusy||m.planBusy||m.t==='scenario-save'&&m.saving)root.querySelectorAll('input,select,textarea,button:not([data-act="close"])').forEach(el=>el.disabled=true);
-  const ov=$("#ov");ov.scrollTop=st;
+  const ov=$("#ov");ov.scrollTop=st;sizeBlockDetailModal();ov.querySelector('.modal-b').scrollTop=bodyScroll;
   const cb=$("#cbx"),modal=ov.querySelector(".modal");
   const restore=modalFocusFromToken(modal,focusToken);
   if(cb){cb.focus();cb.select();}
@@ -2144,8 +2196,9 @@ blk(m){
    '<div class="field"><label for="f-be">'+tx('結束時間')+'</label><select class="inp num" id="f-be">'+endOpts+'</select></div></div>'+
    '<div class="hint">調整時段後請按「預覽調整」。工作長度改變會依工序速率重估這段的件數，未排入的剩餘件數仍留在工單中。</div>'+
    '<div class="field"><span class="lab">'+tx('固定')+'</span><div class="toggles">'+tg("b-pin","1",b.pin,b.pin?"已固定（系統不會動）":"未固定（系統可調整）")+'</div></div>')+
-   (others.length?'<div class="field"><span class="lab">'+tx('同一張工單的其他段')+'</span><div class="result">'+others.map(x=>'<button class="rline" data-act="goto" data-d="'+x.date+'" style="border:0;text-align:left;width:100%"><span class="k info">'+esc(stepName(x))+'</span><span class="num">'+mdw(x.date)+" "+hm(x.s)+"–"+hm(x.e)+"　"+esc(x.m)+"　"+esc(emp(x.emp)?emp(x.emp).name:"")+'</span></button>').join("")+'</div></div>':"");
-  const foot=ro?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':'<button class="btn danger" data-act="b-del">'+(m.confirmDel?"再按一次確認刪除":"刪除這段")+'</button><div class="spacer"></div><button class="btn" data-act="b-fix">'+tx('交給系統重排')+'</button><button class="btn" data-act="close">'+tx('關閉')+'</button><button class="btn primary" data-act="b-preview">'+tx('預覽調整')+'</button>';
+   (ro?'':'<details class="block-secondary"'+(m.confirmDel?' open':'')+'><summary>'+tx('其他操作')+'</summary><div class="block-secondary-actions"><button class="btn" data-act="b-fix">'+tx('交給系統重排')+'</button><button class="btn danger" data-act="b-del">'+(m.confirmDel?tx('再按一次確認刪除'):tx('刪除這段'))+'</button></div></details>')+
+   (others.length?'<details class="block-related"><summary>'+tx('同一張工單的其他段')+' · '+others.length+'</summary><div class="result">'+others.map(x=>'<button class="rline" data-act="goto" data-d="'+x.date+'" style="border:0;text-align:left;width:100%"><span class="k info">'+esc(stepName(x))+'</span><span class="num">'+mdw(x.date)+" "+hm(x.s)+"–"+hm(x.e)+"　"+esc(x.m)+"　"+esc(emp(x.emp)?emp(x.emp).name:"")+'</span></button>').join("")+'</div></details>':"");
+  const foot='<button class="btn" data-act="close">'+tx('關閉')+'</button>'+(ro?'':'<button class="btn primary" data-act="b-preview">'+tx('預覽調整')+'</button>');
   return {title:esc(o.code+" "+p.name+" · "+p.steps[b.step].proc),body,foot};
 },
 /* ---------- 紀錄 ---------- */
@@ -2557,14 +2610,22 @@ function dpBodyHTML(){
   const pins=!P.problems.length&&P.unpinned.length?'<div class="issues">'+P.unpinned.map(x=>'<div class="issue">'+esc(x.label)+' 已固定（釘）。確認後會解除固定並移動它；取消則保持原樣。</div>').join("")+'</div>':'';
   return sugSec+impSec+dueSec+pins;
 }
-// Keep mobile actions outside the scrolling sheet body, even when collapsed.
-// The existing guarded handlers remain the only way to apply or cancel.
+function samePreviewState(a,b){
+  if(a===b)return true;
+  if(!a||!b||typeof a!=="object"||typeof b!=="object"||Array.isArray(a)!==Array.isArray(b))return false;
+  if(Array.isArray(a))return a.length===b.length&&a.every((v,i)=>samePreviewState(v,b[i]));
+  const keys=Object.keys(a);
+  return keys.length===Object.keys(b).length&&keys.every(k=>Object.hasOwn(b,k)&&samePreviewState(a[k],b[k]));
+}
+function autoOptionUnchanged(o){
+  return PV.kind==="auto"&&!PV.savedScenario&&o.applicable!==false&&!!PV.B&&samePreviewState(PV.B,o.A);
+}
 function pvDrawerActionsHTML(o){
-  const manual=PV.kind==="manual",bad=manual?!o.applicable:o.applicable===false;
+  const manual=PV.kind==="manual",bad=manual?!o.applicable:o.applicable===false,unchanged=autoOptionUnchanged(o);
   return '<div class="pv-drawer-actions">'+(PV.applying?
     '<button class="btn primary" disabled>'+tx('正在儲存，請稍候…')+'</button>':
-    '<button class="btn" data-act="pv-cancel">'+tx('取消')+'</button>'+
-    (PV.savedScenario?'':'<button class="btn primary" data-act="pv-apply"'+(bad?' disabled':'')+'>'+tx(manual?'確認套用':'用這套')+'</button>'))+'</div>';
+    '<button class="btn" data-act="pv-cancel">'+tx(unchanged?'返回班表':'取消')+'</button>'+
+    (PV.savedScenario||unchanged?'':'<button class="btn primary" data-act="pv-apply"'+(bad?' disabled':'')+'>'+tx(manual?'確認套用':'用這套')+'</button>'))+'</div>';
 }
 function manualDrawerHTML(o){
   const P=PV.P,nav=PV.nav;
@@ -2588,6 +2649,16 @@ function fmtDelta(m){
 // 一句話總結（寫給老闆與員工看，也寫進紀錄）
 function pvSummary(o){
   const mt=o.mt,d=diffOf(o),parts=[];
+  if(autoOptionUnchanged(o))return tx('無需調整');
+  if(PV.kind==="auto"&&!PV.savedScenario&&!samePreviewState(PV.B,o.A)){
+    if(!d.gone.length&&!d.added.length)parts.push(tx('時間與人機安排不變，另有資料調整'));
+    else{
+      const ids=blocks=>{const counts=new Map();for(const b of blocks)if(b.id)counts.set(b.id,(counts.get(b.id)||0)+1);return counts;};
+      const before=ids(PV.B.blocks),after=ids(o.A.blocks),addedIds=new Set(d.added.map(b=>b.id));
+      const moved=d.gone.filter(b=>b.id&&before.get(b.id)===1&&after.get(b.id)===1&&addedIds.has(b.id)).length;
+      parts.push(tx('新增 {added} 段 · 搬動 {moved} 段 · 移除 {removed} 段 · 影響 {days} 天',{added:d.added.length-moved,moved,removed:d.gone.length-moved,days:Object.keys(d.dates).length}));
+    }
+  }
   const later=mt.shifts.filter(s=>s.a>s.b),earlier=mt.shifts.filter(s=>s.a<s.b);
   if(later.length){const mx=later.reduce((p,s)=>s.a-s.b>p.a-p.b?s:p);parts.push(later.length+" 張工單完成時間變晚（最多 "+mx.code+" 晚 "+fmtDelta(mx.a-mx.b)+"）");}
   if(earlier.length)parts.push(earlier.length+" 張工單提早完成");
@@ -2696,11 +2767,13 @@ function rerunHTML(){
 }
 function pvPanelHTML(o){
   if(PV.kind==="manual")return manualStripHTML(o)+manualDrawerHTML(o);
+  if(PV.opts.length&&PV.opts.every(autoOptionUnchanged))return '<section class="pv pv-noop" aria-label="'+tx('預覽')+'"><div class="pv-t" role="status"><b>'+tx('目前班表無需調整')+'</b><small>'+tx('所有方案與目前班表相同，無需套用。')+'</small></div><div><button class="btn primary" data-act="pv-cancel">'+tx('返回班表')+'</button></div></section>';
+  const unchanged=autoOptionUnchanged(o);
   const d=diffOf(o),dates=Object.keys(d.dates).sort();
-  const cards=PV.opts.map(x=>{const ai=PV.ai&&PV.ai.pick===x.id,m=planCardMetrics(x);
+  const cards=PV.opts.map(x=>{const same=autoOptionUnchanged(x),ai=PV.ai&&PV.ai.pick===x.id,m=planCardMetrics(x);
     return '<button class="pv-opt'+(x.id===o.id?' sel':'')+'" data-act="pv-pick" data-v="'+x.id+'" aria-pressed="'+(x.id===o.id)+'"><b>'+esc(x.name)+'</b>'+
     '<small>會晚 '+m.late+' 張'+(m.maxLate?' · 最晚延遲 '+m.maxLate+' 天':'')+' · 換 '+m.people+' 人 · '+(m.ot?'要加班':'不加班')+'</small>'+
-    '<span>'+(x.hint?'<span class="tag">'+tx('照你的條件')+'</span>':'')+(x.applicable===false?'<span class="tag bad">'+tx('不可套用')+'</span>':"")+(x.best?'<span class="tag ok">'+tx('系統推薦')+'</span>':"")+(ai?'<span class="tag ai">'+tx('AI 推薦')+'</span>':"")+'</span></button>';}).join("");
+    '<span>'+(same?'<span class="tag">'+tx('無需調整')+'</span>':'')+(x.hint?'<span class="tag">'+tx('照你的條件')+'</span>':'')+(x.applicable===false?'<span class="tag bad">'+tx('不可套用')+'</span>':"")+(x.best&&!same?'<span class="tag ok">'+tx('系統推薦')+'</span>':"")+(ai&&!same?'<span class="tag ai">'+tx('AI 推薦')+'</span>':"")+'</span></button>';}).join("");
   const sub=[["gantt","跨日影響圖"],["people","每個人的變動"],["lines","系統怎麼調"]];
   const body=PV.tab==="people"?peopleHTML(o):PV.tab==="lines"?'<div class="hint">'+esc(o.desc)+'</div>'+resultHTML(o.lines):ganttHTML(o);
   let ai="";
@@ -2714,7 +2787,7 @@ function pvPanelHTML(o){
   const strip='<section class="pv" aria-label="'+tx('預覽')+'">'+
    '<div class="pv-h"><span class="pv-badge">'+(PV.savedScenario?'保存情境':'預覽中')+'</span><div class="pv-t"><b>'+esc(PV.title)+'</b><small>'+(PV.savedScenario?'只讀比較；正式班表與現場進度不會變更。':'還沒套用，排程不會變。左邊甘特表＝選中的那套；差異色塊＝綠新增／黃搬動／虛線會移走。　計算：'+planEngineLabel(o.solverMethod,PV.engine))+'</small></div><div class="spacer"></div>'+
    (canPermissionRaw('scenarios.manage')&&!PV.savedScenario?'<button class="btn" data-act="scenario-save">'+tx('保存試排情境')+'</button>':'')+
-   '<div class="pv-strip-actions">'+(PV.applying?'<button class="btn primary" disabled>'+tx('正在儲存，請稍候…')+'</button>':'<button class="btn" data-act="pv-cancel">'+(PV.savedScenario?'結束查看':'取消')+'</button>'+(PV.savedScenario?'':'<button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+tx('用這套')+'</button>'))+'</div></div>'+
+   '<div class="pv-strip-actions">'+(PV.applying?'<button class="btn primary" disabled>'+tx('正在儲存，請稍候…')+'</button>':'<button class="btn" data-act="pv-cancel">'+(PV.savedScenario?'結束查看':tx(unchanged?'返回班表':'取消'))+'</button>'+(PV.savedScenario||unchanged?'':'<button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+tx('用這套')+'</button>'))+'</div></div>'+
    '<div class="pv-row"><div class="seg" role="group" aria-label="'+tx('預覽圖與下方排程表顯示')+'"><button data-act="pv-mode" data-v="cmp" aria-pressed="'+(PV.mode==="cmp")+'">'+tx('對照')+'</button><button data-act="pv-mode" data-v="new" aria-pressed="'+(PV.mode==="new")+'">'+tx('調整後')+'</button><button data-act="pv-mode" data-v="orig" aria-pressed="'+(PV.mode==="orig")+'">'+tx('原本')+'</button></div>'+
    '<span class="hint">'+(PV.mode==="cmp"?"灰虛線＝原本位置，彩色＝調整後（綠新增、黃搬動）":PV.mode==="new"?"只看調整後：綠框＝新增的工作，黃框＝搬動的工作":"只看原本；紅虛線＝會被移走的工作")+'</span><div class="spacer"></div>'+
    '<div class="pv-dates"><span class="hint">'+tx('影響的日期')+'</span>'+(dates.map(ds=>'<button class="pv-date" data-act="pv-date" data-v="'+ds+'" aria-pressed="'+(ds===UI.date)+'"><b class="num">'+md(ds)+'</b><small>'+WD[parseD(ds).getUTCDay()]+' · '+d.dates[ds]+' 處</small></button>').join("")||'<span class="hint">'+tx('無')+'</span>')+'</div></div>'+
@@ -2854,6 +2927,7 @@ async function pvApply(){
   try{assertExecutionProtected(S,o.A);}catch(e){toast(e.message);return;}
   const P=PV,noteEl=$("#pv-note");if(noteEl)P.note=noteEl.value.trim();
   if(P.previewId&&STORE.applyPlan){
+    if(autoOptionUnchanged(o)){toast(tx('目前班表無需調整'));return;}
     const store=STORE,user=store.session?.user?.id,epoch=store.authEpoch,state=S,version=store.version,base=JSON.stringify(S);
     const sameSession=()=>STORE===store&&store.session?.user?.id===user&&store.authEpoch===epoch;
     const current=()=>sameSession()&&PV===P&&S===state&&JSON.stringify(S)===base&&store.version===version;
@@ -2877,6 +2951,7 @@ async function pvApply(){
   const permission=["fault","leave","recover"].includes(P.kind)?"incidents.manage":P.kind==="order"?"orders.manage":"schedule.manage";
   if(!canPermissionRaw(permission)){toast(tx('目前沒有修改排程的權限'));return;}
   if(JSON.stringify(S)!==P.base){toast(tx('排程已更新，請重新計算方案'));return;}
+  if(autoOptionUnchanged(o)){toast(tx('目前班表無需調整'));return;}
   const sumTxt=withState(o.A,()=>pvSummary(o));
   const people=withState(o.A,()=>peopleOf(o).map(p=>({name:p.name,items:p.items.map(x=>(x.t==="in"?"新增 ":"拿掉 ")+itemTxt(x.b))})));
   const shifts=o.mt.shifts.map(s=>({code:s.code,b:s.b,a:s.a}));

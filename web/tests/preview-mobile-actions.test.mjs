@@ -5,7 +5,7 @@ import {readFileSync} from 'node:fs';
 import {SaxesParser} from 'saxes';
 
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
-const start=source.indexOf('function pvDrawerActionsHTML(');
+const start=source.indexOf('function samePreviewState(');
 const implementation=source.slice(start,source.indexOf('function manualDrawerHTML(',start));
 function controls(preview,option){
   const ctx={PV:preview,tx:x=>x};vm.createContext(ctx);vm.runInContext(implementation,ctx);
