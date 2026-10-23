@@ -36,14 +36,17 @@ test('mobile navigation has four destinations and More links to each displaced d
   vm.createContext(env);
   vm.runInContext(between('function appNavHTML(', 'function isoWeek(')+between('function moreDrawerHTML(', 'function statusTag('),env);
   const nav=buttons(env.appNavHTML());
-  assert.equal(nav.filter(b=>b.class?.includes('app-nav-item')).length,8,'desktop keeps every destination');
+  const desktop=nav.filter(b=>b.class?.includes('app-nav-item')&&!/mobile-only/.test(b.class));
+  assert.equal(desktop.length,8,'desktop keeps every destination');
+  assert.deepEqual(desktop.filter(b=>b['aria-pressed']==='true').map(b=>b['data-v']),['people']);
   const mobile=nav.filter(b=>b.class?.includes('app-nav-item')&&!/mobile-hidden/.test(b.class));
   assert.deepEqual(mobile.map(b=>b['data-v']||b['data-act']),['today','orders','output','more']);
   assert.equal(mobile.at(-1)['aria-pressed'],'true');
   env.UI.drawer=null;env.UI.page='worklog';
   const worklogNav=buttons(env.appNavHTML());
-  assert.equal(worklogNav.find(b=>b.class?.includes('nav-more'))['aria-pressed'],'true');
+  assert.equal(worklogNav.find(b=>b.class?.includes('nav-more')&&b.class.includes('mobile-only'))['aria-pressed'],'true');
   assert.equal(worklogNav.find(b=>b.class?.includes('nav-today'))['aria-pressed'],'false');
+  assert.deepEqual(worklogNav.filter(b=>b.class?.includes('app-nav-item')&&!b.class.includes('mobile-only')&&b['aria-pressed']==='true').map(b=>b['data-v']),['worklog']);
   const more=buttons(env.moreDrawerHTML());
   for(const [label,act,value] of [['請假日曆','drawer','people'],['工作紀錄','drawer','worklog'],['備忘','drawer','notes'],['功能解說','feature-tour',undefined]]){
     const button=more.find(b=>b['data-act']===act&&b['data-v']===value);
