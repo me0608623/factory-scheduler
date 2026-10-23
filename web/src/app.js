@@ -2564,14 +2564,22 @@ function dpBodyHTML(){
   const pins=!P.problems.length&&P.unpinned.length?'<div class="issues">'+P.unpinned.map(x=>'<div class="issue">'+esc(x.label)+' 已固定（釘）。確認後會解除固定並移動它；取消則保持原樣。</div>').join("")+'</div>':'';
   return sugSec+impSec+dueSec+pins;
 }
-// Keep mobile actions outside the scrolling sheet body, even when collapsed.
-// The existing guarded handlers remain the only way to apply or cancel.
+function samePreviewState(a,b){
+  if(a===b)return true;
+  if(!a||!b||typeof a!=="object"||typeof b!=="object"||Array.isArray(a)!==Array.isArray(b))return false;
+  if(Array.isArray(a))return a.length===b.length&&a.every((v,i)=>samePreviewState(v,b[i]));
+  const keys=Object.keys(a);
+  return keys.length===Object.keys(b).length&&keys.every(k=>Object.hasOwn(b,k)&&samePreviewState(a[k],b[k]));
+}
+function autoOptionUnchanged(o){
+  return PV.kind==="auto"&&!PV.savedScenario&&o.applicable!==false&&!!PV.B&&samePreviewState(PV.B,o.A);
+}
 function pvDrawerActionsHTML(o){
-  const manual=PV.kind==="manual",bad=manual?!o.applicable:o.applicable===false;
+  const manual=PV.kind==="manual",bad=manual?!o.applicable:o.applicable===false,unchanged=autoOptionUnchanged(o);
   return '<div class="pv-drawer-actions">'+(PV.applying?
     '<button class="btn primary" disabled>'+tx('正在儲存，請稍候…')+'</button>':
-    '<button class="btn" data-act="pv-cancel">'+tx('取消')+'</button>'+
-    (PV.savedScenario?'':'<button class="btn primary" data-act="pv-apply"'+(bad?' disabled':'')+'>'+tx(manual?'確認套用':'用這套')+'</button>'))+'</div>';
+    '<button class="btn" data-act="pv-cancel">'+tx(unchanged?'返回班表':'取消')+'</button>'+
+    (PV.savedScenario||unchanged?'':'<button class="btn primary" data-act="pv-apply"'+(bad?' disabled':'')+'>'+tx(manual?'確認套用':'用這套')+'</button>'))+'</div>';
 }
 function manualDrawerHTML(o){
   const P=PV.P,nav=PV.nav;
@@ -2595,6 +2603,16 @@ function fmtDelta(m){
 // 一句話總結（寫給老闆與員工看，也寫進紀錄）
 function pvSummary(o){
   const mt=o.mt,d=diffOf(o),parts=[];
+  if(autoOptionUnchanged(o))return tx('無需調整');
+  if(PV.kind==="auto"&&!PV.savedScenario&&!samePreviewState(PV.B,o.A)){
+    if(!d.gone.length&&!d.added.length)parts.push(tx('時間與人機安排不變，另有資料調整'));
+    else{
+      const ids=blocks=>{const counts=new Map();for(const b of blocks)if(b.id)counts.set(b.id,(counts.get(b.id)||0)+1);return counts;};
+      const before=ids(PV.B.blocks),after=ids(o.A.blocks),addedIds=new Set(d.added.map(b=>b.id));
+      const moved=d.gone.filter(b=>b.id&&before.get(b.id)===1&&after.get(b.id)===1&&addedIds.has(b.id)).length;
+      parts.push(tx('新增 {added} 段 · 搬動 {moved} 段 · 移除 {removed} 段 · 影響 {days} 天',{added:d.added.length-moved,moved,removed:d.gone.length-moved,days:Object.keys(d.dates).length}));
+    }
+  }
   const later=mt.shifts.filter(s=>s.a>s.b),earlier=mt.shifts.filter(s=>s.a<s.b);
   if(later.length){const mx=later.reduce((p,s)=>s.a-s.b>p.a-p.b?s:p);parts.push(later.length+" 張工單完成時間變晚（最多 "+mx.code+" 晚 "+fmtDelta(mx.a-mx.b)+"）");}
   if(earlier.length)parts.push(earlier.length+" 張工單提早完成");
@@ -2703,11 +2721,13 @@ function rerunHTML(){
 }
 function pvPanelHTML(o){
   if(PV.kind==="manual")return manualStripHTML(o)+manualDrawerHTML(o);
+  if(PV.opts.length&&PV.opts.every(autoOptionUnchanged))return '<section class="pv pv-noop" aria-label="'+tx('預覽')+'"><div class="pv-t" role="status"><b>'+tx('目前班表無需調整')+'</b><small>'+tx('所有方案與目前班表相同，無需套用。')+'</small></div><div><button class="btn primary" data-act="pv-cancel">'+tx('返回班表')+'</button></div></section>';
+  const unchanged=autoOptionUnchanged(o);
   const d=diffOf(o),dates=Object.keys(d.dates).sort();
-  const cards=PV.opts.map(x=>{const ai=PV.ai&&PV.ai.pick===x.id,m=planCardMetrics(x);
+  const cards=PV.opts.map(x=>{const same=autoOptionUnchanged(x),ai=PV.ai&&PV.ai.pick===x.id,m=planCardMetrics(x);
     return '<button class="pv-opt'+(x.id===o.id?' sel':'')+'" data-act="pv-pick" data-v="'+x.id+'" aria-pressed="'+(x.id===o.id)+'"><b>'+esc(x.name)+'</b>'+
     '<small>會晚 '+m.late+' 張'+(m.maxLate?' · 最晚延遲 '+m.maxLate+' 天':'')+' · 換 '+m.people+' 人 · '+(m.ot?'要加班':'不加班')+'</small>'+
-    '<span>'+(x.hint?'<span class="tag">'+tx('照你的條件')+'</span>':'')+(x.applicable===false?'<span class="tag bad">'+tx('不可套用')+'</span>':"")+(x.best?'<span class="tag ok">'+tx('系統推薦')+'</span>':"")+(ai?'<span class="tag ai">'+tx('AI 推薦')+'</span>':"")+'</span></button>';}).join("");
+    '<span>'+(same?'<span class="tag">'+tx('無需調整')+'</span>':'')+(x.hint?'<span class="tag">'+tx('照你的條件')+'</span>':'')+(x.applicable===false?'<span class="tag bad">'+tx('不可套用')+'</span>':"")+(x.best&&!same?'<span class="tag ok">'+tx('系統推薦')+'</span>':"")+(ai&&!same?'<span class="tag ai">'+tx('AI 推薦')+'</span>':"")+'</span></button>';}).join("");
   const sub=[["gantt","跨日影響圖"],["people","每個人的變動"],["lines","系統怎麼調"]];
   const body=PV.tab==="people"?peopleHTML(o):PV.tab==="lines"?'<div class="hint">'+esc(o.desc)+'</div>'+resultHTML(o.lines):ganttHTML(o);
   let ai="";
@@ -2721,7 +2741,7 @@ function pvPanelHTML(o){
   const strip='<section class="pv" aria-label="'+tx('預覽')+'">'+
    '<div class="pv-h"><span class="pv-badge">'+(PV.savedScenario?'保存情境':'預覽中')+'</span><div class="pv-t"><b>'+esc(PV.title)+'</b><small>'+(PV.savedScenario?'只讀比較；正式班表與現場進度不會變更。':'還沒套用，排程不會變。左邊甘特表＝選中的那套；差異色塊＝綠新增／黃搬動／虛線會移走。　計算：'+planEngineLabel(o.solverMethod,PV.engine))+'</small></div><div class="spacer"></div>'+
    (canPermissionRaw('scenarios.manage')&&!PV.savedScenario?'<button class="btn" data-act="scenario-save">'+tx('保存試排情境')+'</button>':'')+
-   '<div class="pv-strip-actions">'+(PV.applying?'<button class="btn primary" disabled>'+tx('正在儲存，請稍候…')+'</button>':'<button class="btn" data-act="pv-cancel">'+(PV.savedScenario?'結束查看':'取消')+'</button>'+(PV.savedScenario?'':'<button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+tx('用這套')+'</button>'))+'</div></div>'+
+   '<div class="pv-strip-actions">'+(PV.applying?'<button class="btn primary" disabled>'+tx('正在儲存，請稍候…')+'</button>':'<button class="btn" data-act="pv-cancel">'+(PV.savedScenario?'結束查看':tx(unchanged?'返回班表':'取消'))+'</button>'+(PV.savedScenario||unchanged?'':'<button class="btn primary" data-act="pv-apply"'+(o.applicable===false?' disabled':'')+'>'+tx('用這套')+'</button>'))+'</div></div>'+
    '<div class="pv-row"><div class="seg" role="group" aria-label="'+tx('預覽圖與下方排程表顯示')+'"><button data-act="pv-mode" data-v="cmp" aria-pressed="'+(PV.mode==="cmp")+'">'+tx('對照')+'</button><button data-act="pv-mode" data-v="new" aria-pressed="'+(PV.mode==="new")+'">'+tx('調整後')+'</button><button data-act="pv-mode" data-v="orig" aria-pressed="'+(PV.mode==="orig")+'">'+tx('原本')+'</button></div>'+
    '<span class="hint">'+(PV.mode==="cmp"?"灰虛線＝原本位置，彩色＝調整後（綠新增、黃搬動）":PV.mode==="new"?"只看調整後：綠框＝新增的工作，黃框＝搬動的工作":"只看原本；紅虛線＝會被移走的工作")+'</span><div class="spacer"></div>'+
    '<div class="pv-dates"><span class="hint">'+tx('影響的日期')+'</span>'+(dates.map(ds=>'<button class="pv-date" data-act="pv-date" data-v="'+ds+'" aria-pressed="'+(ds===UI.date)+'"><b class="num">'+md(ds)+'</b><small>'+WD[parseD(ds).getUTCDay()]+' · '+d.dates[ds]+' 處</small></button>').join("")||'<span class="hint">'+tx('無')+'</span>')+'</div></div>'+
@@ -2861,6 +2881,7 @@ async function pvApply(){
   try{assertExecutionProtected(S,o.A);}catch(e){toast(e.message);return;}
   const P=PV,noteEl=$("#pv-note");if(noteEl)P.note=noteEl.value.trim();
   if(P.previewId&&STORE.applyPlan){
+    if(autoOptionUnchanged(o)){toast(tx('目前班表無需調整'));return;}
     const store=STORE,user=store.session?.user?.id,epoch=store.authEpoch,state=S,version=store.version,base=JSON.stringify(S);
     const sameSession=()=>STORE===store&&store.session?.user?.id===user&&store.authEpoch===epoch;
     const current=()=>sameSession()&&PV===P&&S===state&&JSON.stringify(S)===base&&store.version===version;
@@ -2884,6 +2905,7 @@ async function pvApply(){
   const permission=["fault","leave","recover"].includes(P.kind)?"incidents.manage":P.kind==="order"?"orders.manage":"schedule.manage";
   if(!canPermissionRaw(permission)){toast(tx('目前沒有修改排程的權限'));return;}
   if(JSON.stringify(S)!==P.base){toast(tx('排程已更新，請重新計算方案'));return;}
+  if(autoOptionUnchanged(o)){toast(tx('目前班表無需調整'));return;}
   const sumTxt=withState(o.A,()=>pvSummary(o));
   const people=withState(o.A,()=>peopleOf(o).map(p=>({name:p.name,items:p.items.map(x=>(x.t==="in"?"新增 ":"拿掉 ")+itemTxt(x.b))})));
   const shifts=o.mt.shifts.map(s=>({code:s.code,b:s.b,a:s.a}));

@@ -476,6 +476,7 @@ body.pvmode .wrap{padding-right:min(420px,30vw)}
   .pv-drawer.collapsed{max-height:none}
   .pv-drawer.collapsed .pv-drawer-b{display:none}
 }
+body.pvmode .wrap:has(>.pv-noop){padding-right:0;padding-bottom:0}
 /* 跨廠通知總表 / 特別趕貨表 */
 .tf-board{overflow-x:auto;border:1px solid var(--line2);border-radius:12px}
 .tf-board table{border-collapse:collapse;width:100%;min-width:720px;font-size:14px}

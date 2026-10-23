@@ -11,6 +11,11 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "目前班表無需調整": { en: "No schedule changes needed", vi: "Lịch hiện tại không cần điều chỉnh", th: "ไม่จำเป็นต้องปรับตารางปัจจุบัน" },
+  "無需調整": { en: "No changes needed", vi: "Không cần điều chỉnh", th: "ไม่ต้องปรับเปลี่ยน" },
+  "所有方案與目前班表相同，無需套用。": { en: "Every option matches the current schedule. There is nothing to apply.", vi: "Mọi phương án đều giống lịch hiện tại. Không cần áp dụng.", th: "ทุกแผนตรงกับตารางปัจจุบัน จึงไม่ต้องนำไปใช้" },
+  "時間與人機安排不變，另有資料調整": { en: "Times, people and machines stay the same; other data changes", vi: "Thời gian, nhân sự và máy không đổi; có thay đổi dữ liệu khác", th: "เวลา บุคลากร และเครื่องจักรคงเดิม แต่มีการปรับข้อมูลอื่น" },
+  "新增 {added} 段 · 搬動 {moved} 段 · 移除 {removed} 段 · 影響 {days} 天": { en: "Add {added} blocks · Move {moved} blocks · Remove {removed} blocks · Affect {days} days", vi: "Thêm {added} khối · Dời {moved} khối · Xóa {removed} khối · Ảnh hưởng {days} ngày", th: "เพิ่ม {added} ช่วง · ย้าย {moved} ช่วง · ลบ {removed} ช่วง · กระทบ {days} วัน" },
   "正在讀取情境，可取消。": {en:"Loading the scenario. You can cancel.",vi:"Đang đọc tình huống. Bạn có thể hủy.",th:"กำลังอ่านสถานการณ์ คุณสามารถยกเลิกได้"},
   "正在保存情境；關閉視窗不會取消已送出的保存。": {en:"Saving the scenario. Closing this dialog does not cancel a submitted save.",vi:"Đang lưu tình huống. Đóng cửa sổ không hủy yêu cầu đã gửi.",th:"กำลังบันทึกสถานการณ์ การปิดหน้าต่างไม่ยกเลิกคำขอที่ส่งแล้ว"},
   "情境保存結果待核對；請查看保存的情境，或用相同名稱重試同一筆。": {en:"Scenario save is unconfirmed. Check saved scenarios, or retry the same entry with the same name.",vi:"Chưa xác nhận kết quả lưu. Kiểm tra tình huống đã lưu hoặc thử lại cùng mục với cùng tên.",th:"ยังไม่ยืนยันผลการบันทึก ตรวจสอบสถานการณ์ที่บันทึกหรือส่งรายการเดิมด้วยชื่อเดิมอีกครั้ง"},
