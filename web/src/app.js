@@ -833,7 +833,7 @@ function topHTML(){
 
 function appNavHTML(){
   const moreSelected=UI.drawer==='more'||['people','notes'].includes(UI.drawer)||UI.page==='worklog';
-  const item=(page,label,mobileClass='')=>'<button class="app-nav-item nav-'+page+(mobileClass?' '+mobileClass:'')+'" data-act="drawer" data-v="'+page+'" aria-pressed="'+(page==='more'&&mobileClass==='mobile-only'?moreSelected:UI.drawer===page||UI.page===page)+'" title="'+esc(label)+'"><b>'+NAV_IC[page]+'</b><span>'+label+'</span></button>';
+  const item=(page,label,mobileClass='')=>'<button class="app-nav-item nav-'+page+(mobileClass?' '+mobileClass:'')+'" data-act="drawer" data-v="'+page+'" aria-pressed="'+(page==='more'&&mobileClass==='nav-more-mobile'?moreSelected:UI.drawer===page||UI.page===page)+'" title="'+esc(label)+'"><b>'+NAV_IC[page]+'</b><span>'+label+'</span></button>';
   const account=STORE&&STORE.kind==='supabase'?(STORE.userName||STORE.session?.user?.email||tx('帳號')):tx('本機模式');
   const role=roleName(STORE?.role);
   return '<nav class="app-nav" aria-label="'+tx('主要功能')+'">'+
@@ -843,7 +843,7 @@ function appNavHTML(){
     '<span class="side-section">'+tx('排程表')+'</span>'+
     '<button class="app-nav-item nav-today" data-act="today" aria-pressed="'+(!UI.drawer&&!UI.page)+'"><b>'+NAV_IC.today+'</b><span>'+tx('today')+'</span></button>'+item('orders',tx('orders'))+
     '<span class="side-section">'+tx('現場回報')+'</span>'+item('people',tx('people'),'mobile-hidden')+item('output',tx('output'))+item('worklog',tx('worklog'),'mobile-hidden')+item('notes',tx('notes'),'mobile-hidden')+
-    '<span class="side-section">'+tx('設定')+'</span>'+item('more',tx('more'),'mobile-hidden')+item('more',tx('more'),'mobile-only')+
+    '<span class="side-section">'+tx('設定')+'</span>'+item('more',tx('more'),'mobile-hidden')+item('more',tx('more'),'nav-more-mobile')+
     '<button class="app-nav-item nav-feature-tour mobile-hidden" data-act="feature-tour" title="'+tx('功能解說')+'" aria-label="'+tx('功能解說')+'"><b>'+NAV_IC.help+'</b><span>'+tx('功能解說')+'</span></button>'+
     '<div class="side-footer">'+sideHealthHTML()+'</div></nav>';
 }
