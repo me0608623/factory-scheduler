@@ -97,7 +97,7 @@ export function startTour(steps, { tx = (k) => k, onFinish, markDone = true, lab
 
 // 導覽步驟（title/text 為 i18n 鍵，以中文原文進 UI_TEXT）
 export const TOUR_STEPS = [
-  { sel: ".workspace-heading", title: "步驟：今天排程", text: "這裡是機器 × 時間的排程看板：每台機器一列，色塊是工作，顏色代表員工。" },
+  { sel: ".day-board .board-h", title: "步驟：今天排程", text: "每台機台一欄，時間由上往下。每個色塊是一段工作，點色塊查看工單、時間與人員。" },
   { sel: ".datenav", title: "步驟：切換日期", text: "用 ‹ › 前後切換日期；點中間可以跳到任何一天。" },
   { sel: ".factory-switch", title: "步驟：切換廠別", text: "一廠／二廠分開看，跨廠可以看到全部。" },
   { sel: ".pagelink.shortage", title: "步驟：欠缺品項", text: "記錄一廠欠什麼貨、二廠要趕什麼。" },
@@ -121,7 +121,7 @@ export const FEATURE_TOUR_TOPICS = [
 ];
 export const FEATURE_TOURS = {
   board: [
-    { sel: ".workspace-heading", title: "排程看板", text: "每台機器一列、時間由左到右；彩色方塊代表員工的工作。" },
+    { sel: ".day-board .board-h", title: "排程看板", text: "每台機台一欄，時間由上往下。每個色塊是一段工作，點色塊查看工單、時間與人員。" },
     { sel: ".datenav", title: "切換日期", text: "‹ › 前後換天，點中間可直接選日期；「今天」一键回今天。" },
     { sel: ".factory-switch", title: "切換廠別", text: "一廠、二廠分開看，或選跨廠看全部。" },
   ],

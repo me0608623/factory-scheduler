@@ -733,7 +733,7 @@ body.pvmode ~ *{}
 .page-links{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto}
 .pagelink{min-height:44px;font-weight:800}
 .pagelink.shortage{background:var(--pg-f1-head);border-color:#d9c900}
-.pagelink.transfer{background:var(--pg-f2-head);border-color:#1fa33a;color:#06340f}
+.pagelink.transfer{background:var(--pg-f2-head);border-color:#1fa33a;color:var(--ink)}
 .return-chip{background:#fff;border:2px solid var(--ink)}
 .fullpage{display:flex;flex-direction:column;gap:10px;padding:0 0 90px}
 .page-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--pg-line);border-radius:12px;padding:10px 12px}
@@ -987,8 +987,8 @@ body.pagemode .banner.pending{font-size:14px;padding:6px 12px;white-space:nowrap
 /* —— TV 大螢幕模式：品牌藍靜態漸層背景（無動畫，適合長時間顯示）—— */
 body.tv{background:radial-gradient(130% 100% at 18% 0%,#24406F 0%,#182C4E 48%,#101828 100%)}
 body.tv .wrap{background:transparent}
-/* 抽屜玻璃化後，原實心底色由 vg-glass 的半透明規則接手 */
-.ops-drawer.vg-glass{background:color-mix(in srgb,var(--surface,#fff) 82%,transparent)}
+#app .ops-drawer.vg-glass{background:var(--surface)}
+.ops-drawer.vg-glass::before{content:none}
 
 /* —— 新手導覽：spotlight 聚光＋箭頭＋卡片 —— */
 .tour-spot{position:fixed;z-index:210;border-radius:12px;pointer-events:none;
