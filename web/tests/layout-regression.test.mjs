@@ -83,15 +83,15 @@ test('分割窗格：app.js 有 drawer-zoom、分隔線與寬度保存', () => {
   assert.ok(app.includes('has-drawer'), '缺少 wrap.has-drawer 容器 class');
 });
 
-test('聊天面板尺寸與浮動按鈕分離（不以 100% 繼承根容器寬）', () => {
+test('聊天面板以可視區域定位，寬度不受工具列內按鈕限制', () => {
   const m = css.match(/\.chat-panel\{([^}]*)\}/);
   assert.ok(m, '缺少 .chat-panel 規則');
   assert.doesNotMatch(m[1], /width:min\(430px,100%\)/, '面板寬度不可用 100%（會繼承縮小後的根容器）');
   assert.match(m[1], /width:400px/, '預設寬 400px');
-  assert.match(m[1], /min-width:320px/, '最小寬 320px');
-  assert.match(m[1], /height:min\(550px,80vh\)/, '預設高 550px、最大 80vh');
-  assert.match(css, /#schedule-chat\.panel-left \.chat-panel\{left:0;right:auto\}/, '缺少左緣錨定規則');
-  assert.ok(chatUI.includes('positionPanel'), '缺少 positionPanel 邊緣調整');
+  assert.match(m[1], /position:fixed/, '面板以 viewport 定位，不繼承按鈕尺寸');
+  assert.match(m[1], /min-width:0/, '窄視窗不可被最小寬度撐出畫面');
+  assert.match(m[1], /max-width:calc\(100% - 24px\)/, '可視區域扣除左右間距與捲軸');
+  assert.match(m[1], /height:min\(550px,80dvh\)/, '以動態可視高度限制面板');
 });
 
 test('員工、設備與工單：更多選單走 master 動作（不再誤導核對頁）', () => {
@@ -208,11 +208,6 @@ test('桌面抽屜高度：pane sticky 且以可視高度為準（不被排程�
   assert.ok(!/\.ops-drawer\.pane \.ops-drawer-b\{max-height:calc\(100dvh - 190px\)/.test(css), '不得殘留舊 max-height');
   assert.ok(app.includes('updateHeaderVar') && app.includes('ResizeObserver'), '缺少 --hdr-h 動態量測');
   assert.ok(app.includes('try{sp.setPointerCapture'), 'setPointerCapture 需容錯（合成指標會拋錯中斷拖曳）');
-});
-
-test('缺陷#11 回歸：聊天室安裝當下必須呼叫 positionPanel（手機沿用桌機浮動座標會讓藥丸跑到畫面外且無法點擊補救）', () => {
-  const block = chatUI.slice(chatUI.indexOf('addEventListener(\'resize\',()=>positionPanel())'), chatUI.indexOf('addEventListener(\'resize\',()=>positionPanel())') + 400);
-  assert.match(block, /addEventListener\('resize',\(\)=>positionPanel\(\)\);[\s\S]*?positionPanel\(\);/, '安裝浮動定位後必須立即 positionPanel() 一次（清除手機上的桌機殘留座標）');
 });
 
 test('缺陷#12 回歸：廠區平面圖 page-top 必須在說明後關閉、內容包 fullpage（原本整頁塞在 sticky row-flex 容器內，畫布只剩 ~322px、桌機永遠 3 欄）', () => {

@@ -158,12 +158,8 @@ body.nav-collapsed .side-health span{display:none}
 @media (max-width:800px){.pane-splitter{display:none}}
 .win-titlebtn{flex:none;width:34px;height:34px;border:1px solid var(--line);border-radius:8px;background:var(--surface2);color:var(--muted);font-size:15px;font-weight:900;cursor:pointer;display:grid;place-items:center;margin-left:6px}
 .win-titlebtn:hover{color:var(--ink);border-color:var(--accent)}
-/* 排程助理浮動（win.js moveOnly）：自由拖曳，位置保存 */
 .float-win{touch-action:none}
-#schedule-chat.float-win{pointer-events:none;width:auto}
 #schedule-chat .chat-launch{width:fit-content}
-#schedule-chat.float-win .chat-launch{cursor:grab;touch-action:none}
-#schedule-chat.float-win .chat-panel header{cursor:grab;touch-action:none}
 .ops-drawer-h{min-height:72px;padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line2)}
 .ops-drawer-h h2{margin:0;font-size:27px}.ops-drawer-h .iconbtn{margin-left:auto}
 .ops-drawer-b{padding:16px;overflow:auto;overscroll-behavior:contain;flex:1}
@@ -641,7 +637,6 @@ body.tv .blk .d{font-size:16px}
   .memo-grid{grid-template-columns:1fr}.memo-card{min-height:118px}
   .catalog-review{width:100%;max-width:none;min-height:calc(100dvh - 32px);margin:0}.catalog-review .cards{grid-template-columns:1fr}
   body.has-app-nav .toast{bottom:92px}
-  body.has-app-nav #schedule-chat{bottom:92px}
   /* A closed assistant must not intercept the sheet's calendar/report controls.
      Keep an already-open conversation visible; the launcher returns on close. */
   body:has(.ops-drawer) #schedule-chat:has(.chat-launch[aria-expanded="false"]){display:none}
@@ -683,15 +678,12 @@ body.tv .blk .d{font-size:16px}
 .roster-grid .rs-regular{background:#593144}.roster-grid .rs-rest{background:#283d56}.roster-grid .rs-leave{background:#674324}
 .roster-grid .rs-error{outline:2px solid #ef6969;outline-offset:-2px}
 .modal:has(.roster-scroll){width:min(1200px,96vw);max-width:96vw}
-#schedule-chat{position:fixed;left:max(18px,env(safe-area-inset-left));right:max(18px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));z-index:90;font-size:14px;pointer-events:none}
-.chat-launch{display:block;margin-left:auto;pointer-events:auto;border:1px solid var(--line);border-radius:28px;background:var(--accent);color:var(--accent-ink);padding:14px 20px;box-shadow:var(--shadow)}
-/* Percentage uses the fixed inset box, excluding the page scrollbar unlike vw. */
-/* 聊天面板尺寸明確與浮動按鈕分離：以 viewport 為基準（100% 會繼承縮小後的根容器寬，造成窄視窗） */
-.chat-panel{position:absolute;right:0;bottom:60px;width:400px;min-width:320px;max-width:min(430px,calc(100vw - 24px));height:min(550px,80vh);pointer-events:auto;background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden}
-#schedule-chat.panel-left .chat-panel{left:0;right:auto}
+.schedule-chat-slot{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 24px 0 268px}
+#schedule-chat{position:static;font-size:14px}
+.chat-launch{display:block;min-height:44px;border:1px solid var(--line);border-radius:12px;background:var(--accent);color:var(--accent-ink);padding:8px 16px}
+.chat-panel{position:fixed;z-index:90;right:12px;bottom:18px;width:400px;min-width:0;max-width:calc(100% - 24px);height:min(550px,80dvh);background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden}
 @media (max-width:800px){
-  /* 手機：根容器回到 CSS 全寬錨定，面板改用百分比確保不超出（100vw 會忽略捲軸寬） */
-  .chat-panel{width:min(400px,100%);max-width:100%;height:min(550px,80vh)}
+  .chat-panel{width:400px;height:min(550px,calc(100dvh - 112px))}
 }
 .chat-panel header{display:flex;flex-shrink:0;gap:8px;align-items:center;padding:12px;border-bottom:1px solid var(--line)}
 
@@ -704,7 +696,7 @@ body.tv .blk .d{font-size:16px}
 .chat-message details{font-size:12px;border-top:1px solid var(--line);margin-top:8px;padding-top:6px}.chat-message details p{margin:6px 0}
 .chat-panel form{flex-shrink:0;padding:10px 12px;border-top:1px solid var(--line);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;background:var(--surface)}
 .chat-panel form label{grid-column:1/-1;font-size:12px}.chat-panel textarea{width:100%;resize:none;border:1px solid var(--line);border-radius:8px;background:var(--surface2);padding:8px;font-size:16px}
-body:has(#ov:not([hidden])) #schedule-chat{z-index:15}
+body:has(#ov:not([hidden])) .chat-panel{z-index:15}
 @media print{#schedule-chat{display:none}}
 @media(max-height:600px){.chat-panel header{padding:8px}.chat-panel form{padding:6px 12px}}
 .permission-row{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line2);border-radius:10px;padding:12px;margin:8px 0;background:var(--surface2);cursor:pointer}
@@ -719,7 +711,7 @@ body:has(#ov:not([hidden])) #schedule-chat{z-index:15}
 @media print{
   @page{size:landscape;margin:8mm}
   html,body{background:#fff!important;color:#000!important;font-size:10pt!important}
-  .app-nav,.top,.banner,.summary,.ops-drawer,.overlay,#schedule-chat,.toast,.board-h .btn,.board-h .legend{display:none!important}
+  .app-nav,.top,.banner,.summary,.ops-drawer,.overlay,#schedule-chat,.schedule-chat-slot,.toast,.board-h .btn,.board-h .legend{display:none!important}
   body.has-app-nav .wrap,.wrap{margin:0!important;padding:0!important;max-width:none!important}
   main.wrap>section:not(.board){display:none!important}
   .board{display:block!important;border:1px solid #444!important;box-shadow:none!important;break-inside:avoid}
@@ -998,11 +990,6 @@ body.tv .wrap{background:transparent}
 /* 抽屜玻璃化後，原實心底色由 vg-glass 的半透明規則接手 */
 .ops-drawer.vg-glass{background:color-mix(in srgb,var(--surface,#fff) 82%,transparent)}
 
-/* 手機：三頁表格（有「＋加一列」FAB）時隱藏聊天列，避免右下兩顆按鈕重疊 */
-@media(max-width:800px){
-  body.pagemode #schedule-chat{display:none}
-}
-
 /* —— 新手導覽：spotlight 聚光＋箭頭＋卡片 —— */
 .tour-spot{position:fixed;z-index:210;border-radius:12px;pointer-events:none;
   border:3px solid var(--accent,#315FA7);box-shadow:0 0 0 9999px rgba(10,16,28,.55);
@@ -1133,4 +1120,44 @@ tr.mk-noted>td:first-child::after{content:"✎";position:absolute}
   .prog.indet>i{left:32%}
   .prog>i{transition:none}
   .dots i{opacity:.6}.dots i:nth-child(2){opacity:.8}.dots i:nth-child(3){opacity:1}
+}
+.schedule-primary-actions{display:flex;gap:8px;flex-wrap:wrap}
+.day-board-tools{flex-basis:100%}
+.day-board-tools>summary{display:none}
+.day-board-tools:not([open])>.day-board-tools-content,.day-board-tools-content{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px}
+.mobile-first-work{display:none}
+body.nav-collapsed .schedule-chat-slot{margin-left:100px}
+@media(min-width:681px){.day-board-tools::details-content{content-visibility:visible}}
+@media(max-width:680px){
+  .schedule-chat-slot,body.nav-collapsed .schedule-chat-slot{margin:4px 8px 0}
+  .chat-panel{bottom:90px}
+  .top{padding:4px 8px}
+  .top-main{padding:2px 0;gap:6px}
+  .top .brand{font-size:15px}
+  .top .brand-mark{width:24px;height:24px}
+  .top-main>.environment-banner{padding:6px 8px;font-size:14px;gap:4px}
+  .environment-banner small{font-size:12px}
+  .top-main .page-links{width:100%;flex-wrap:nowrap;gap:4px}
+  .top-main .page-links .pagelink{flex:1 1 0;min-width:0;padding:0 6px;font-size:13px}
+  .top-status{gap:4px}
+  .top-status .sync-chip{padding:4px 8px;font-size:12px}
+  .top-status .btn{padding:0 8px}
+  .datenav{gap:4px}
+  .datebox{padding:4px 8px}
+  .datebox b{font-size:18px}
+  .datebox small{font-size:12px}
+  body.has-app-nav .wrap{padding-top:8px;gap:8px}
+  .banner{padding:6px 10px;font-size:14px;gap:6px}
+  .day-board .board-h{padding:8px;gap:6px}
+  .day-board .board-h h2{width:100%;font-size:17px}
+  .day-board .schedule-primary-actions{flex:1 1 100%;flex-wrap:nowrap}
+  .schedule-primary-actions>.btn{flex:1;padding:0 8px}
+  .day-board-tools>summary{display:list-item;cursor:pointer;min-height:44px;align-content:center;font-size:14px}
+  .day-board-tools:not([open])>.day-board-tools-content{display:none}
+  .day-board-tools{flex-basis:auto;margin-left:auto}
+  .day-board-tools[open]{flex-basis:100%}
+  .mobile-first-work{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 8px;width:calc(100% - 16px);margin:0 8px 8px;padding:9px 10px;text-align:left;background:var(--accent-soft);border:1px solid var(--accent);border-radius:8px;color:var(--ink);min-height:64px}
+  .mobile-first-work strong{grid-column:1/-1;font-size:15px;overflow-wrap:anywhere}
+  .mobile-first-work span{font-size:13px;overflow-wrap:anywhere}
+  .mobile-first-work time{font:700 13px var(--mono);align-self:center}
 }

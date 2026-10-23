@@ -689,6 +689,7 @@ function baseHourPx(){return parseFloat(getComputedStyle(document.body).getPrope
 function hourPx(){return baseHourPx()*(UI.view==="week"?SZ.week:SZ.day);}
 
 function render(){ I18N.lang=UI.prefs.language; globalThis.__fsRenderMemo=null; ensureVisualStyles();
+  const chatFocus=document.activeElement?.closest?.('#schedule-chat')?document.activeElement:null;
   const sc=$(".scroller"),sl=sc?sc.scrollLeft:0,sy=window.scrollY;
   document.body.classList.toggle("tv",!!UI.tv);
   document.body.classList.toggle("pvmode",!!PV);
@@ -727,6 +728,7 @@ function render(){ I18N.lang=UI.prefs.language; globalThis.__fsRenderMemo=null; 
   if(UI.modal)renderModal();
   if(UI.editCell){const el=$(".cellinp");if(el){el.focus();if(el.select)el.select();}}
   scheduleChat?.refresh();
+  if(chatFocus?.isConnected&&chatFocus.getClientRects().length&&!UI.modal&&!UI.editCell)chatFocus.focus({preventScroll:true});
 }
 let _hdrRO=null;
 function updateHeaderVar(){
@@ -825,7 +827,8 @@ function topHTML(){
   (S.setupPending?'<button class="btn primary verify-entry" data-act="catalog">'+tx('初次核對資料')+'</button>':'')+
   (UI.returnTo?'<button class="btn pagelink return-chip" data-act="page-return">↩ '+tx('返回')+(UI.returnTo.page==='shortage'?tx('欠缺品項'):UI.returnTo.page==='worklog'?tx('工作紀錄'):tx('給二廠／回一廠'))+'</button>':'')+
   '<div class="top-status">'+syncChipHTML()+
-  '<button class="btn" data-act="settings" title="'+esc(tx('settings'))+'">'+IC.user+'<span class="lbl">'+esc(STORE&&STORE.kind==="supabase"?(STORE.userName||tx('帳號')):tx('本機'))+'</span></button></div></div></div></header>';
+  '<button class="btn" data-act="settings" title="'+esc(tx('settings'))+'">'+IC.user+'<span class="lbl">'+esc(STORE&&STORE.kind==="supabase"?(STORE.userName||tx('帳號')):tx('本機'))+'</span></button></div></div></div></header><div class="schedule-chat-slot">'+
+  (!PV&&!UI.page&&!readOnly&&!S.setupPending&&(wk||UI.layout==='work')?'<div class="schedule-primary-actions"><button class="btn primary" data-act="manual-add">'+tx('＋手動排班')+'</button><button class="btn primary" data-act="auto">'+tx('⚡ 自動排班')+'</button></div>':'')+'</div>';
 }
 
 function appNavHTML(){
@@ -1061,10 +1064,14 @@ function dayHTML(ctx={}){
   const leave=shownEmployees().filter(e=>e.leaves.includes(d));
   const otBtn=!canCalendar()?"":(di.open?'<button class="btn admin" data-act="ot">'+(di.ot?tx('調整加班'):tx('開加班'))+'</button>':"")+'<button class="btn admin" data-act="cal">'+tx('上班日設定')+'</button>';
   const zday=SZ.day,zw=Math.round(170*Math.min(1.15,Math.max(.45,zday)));
-  return '<section class="board szoom" style="--hour:'+hourPx()+'px" aria-label="'+tx('排程表')+'"><div class="board-h"><h2>'+esc(UI.factory==="all"?tx('跨廠'):factoryName(UI.factory))+' · '+mdw(d)+(ctx.pv?(PV.mode==="orig"?" "+tx('原本的排程'):PV.mode==="new"?" "+tx('調整後'):" "+tx('對照')):" "+tx('排程'))+'</h2>'+szoomBarHTML('day')+
+  const first=blocks.reduce((a,b)=>!a||b.s<a.s?b:a,null);
+  const firstWork=!ctx.pv&&first?(()=>{const M=ms.find(m=>m.id===first.m),E=emp(first.emp),O=order(first.oid);
+    return '<button class="mobile-first-work" data-act="blk-open" data-v="'+esc(first.id)+'"><strong>'+esc((O?O.code:'')+' '+stepName(first))+'</strong><span>'+esc(first.m+' · '+M.label+' · '+(E?E.name:tx('未指定')))+'</span><time>'+esc(hm(first.s)+'–'+hm(first.e))+'</time></button>';})():'';
+  return '<section class="board szoom day-board" style="--hour:'+hourPx()+'px" aria-label="'+tx('排程表')+'"><div class="board-h"><h2>'+esc(UI.factory==="all"?tx('跨廠'):factoryName(UI.factory))+' · '+mdw(d)+(ctx.pv?(PV.mode==="orig"?" "+tx('原本的排程'):PV.mode==="new"?" "+tx('調整後'):" "+tx('對照')):" "+tx('排程'))+'</h2>'+
+    (readOnly||ctx.pv||S.setupPending?'':'<div class="schedule-primary-actions"><button class="btn primary" data-act="manual-add">'+tx('＋手動排班')+'</button><button class="btn primary" data-act="auto">'+tx('⚡ 自動排班')+'</button></div>')+
     (leave.length?'<span class="tag bad" style="font-size:15px;padding:4px 10px">請假：'+esc(leave.map(e=>e.name).join("、"))+'</span>':"")+
     (nBad?'<button class="btn danger" data-act="issues">'+nBad+' 個問題</button>':(blocks.length?'<span class="tag ok" style="font-size:15px;padding:4px 10px">'+tx('沒有衝突')+'</span>':""))+
-    '<div class="spacer"></div><div class="legend"><span><i style="background:var(--lunch)"></i>'+tx('午休')+'</span><span><i style="background:var(--ot)"></i>'+tx('加班')+'</span><span><i style="background:var(--bad-bg);border-color:var(--bad)"></i>'+tx('故障')+'</span><span>'+tx('顏色 = 員工')+'</span><span>'+tx('上班日／加班開關目前兩廠共用')+'</span>'+(readOnly||S.setupPending?"":"<span>"+tx('拖動方塊可改時段，拉底邊可改工作長度')+"</span>")+'</div>'+(readOnly||ctx.pv||S.setupPending?"":'<button class="btn primary" data-act="manual-add">'+tx('＋手動排班')+'</button>')+otBtn+'</div>'+
+    '<details class="day-board-tools"><summary>'+tx('更多')+'</summary><div class="day-board-tools-content">'+szoomBarHTML('day')+'<div class="legend"><span><i style="background:var(--lunch)"></i>'+tx('午休')+'</span><span><i style="background:var(--ot)"></i>'+tx('加班')+'</span><span><i style="background:var(--bad-bg);border-color:var(--bad)"></i>'+tx('故障')+'</span><span>'+tx('顏色 = 員工')+'</span><span>'+tx('上班日／加班開關目前兩廠共用')+'</span>'+(readOnly||S.setupPending?"":"<span>"+tx('拖動方塊可改時段，拉底邊可改工作長度')+"</span>")+'</div>'+otBtn+'</div></details></div>'+firstWork+
     (!ctx.pv&&blocks.length?'<div class="board-locate" hidden><span>'+tx('{n} 段排班在其他機台',{n:blocks.length})+'</span><button class="btn" data-act="board-locate">'+tx('查看排班')+'</button></div>':'')+
     (ms.length?'<div class="scroller"><div class="grid" style="grid-template-columns:64px repeat('+ms.length+',minmax('+zw+'px,1fr))">'+
     '<div class="corner"></div>'+heads+'<div class="times">'+times+'</div>'+cols+'</div></div>':
@@ -1637,7 +1644,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
       let i=ZOOMS.indexOf(UI.zoom);if(i<0)i=ZOOMS.indexOf(1);
       i=act==="zoom0"?ZOOMS.indexOf(1):Math.max(0,Math.min(ZOOMS.length-1,i+(act==="zoom+"?1:-1)));
       setUiZoom(ZOOMS[i]);render();break;}
-    case "auto":if(!readOnly)openModal({t:"auto"});break;
+    case "auto":if(!readOnly&&!S.setupPending)openModal({t:"auto"});break;
     case "manual-add":if(!readOnly&&!S.setupPending)openModal({t:"manual-add"});break;
     case "incident":if(canIncidents())openModal({t:"incident"});break;
     case "help":openModal({t:"help",sec:0});break;

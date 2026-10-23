@@ -13,7 +13,8 @@ function day(blocks,ctx={}){
     shownMachines:()=>machines,shownEmployees:()=>[],todayStr:()=> '2026-10-14',tx:(s,p)=>s.replace('{n}',p?.n),
     RUNTIME:{mode:'prod'},scheduledMachinesFirst:machines=>machines,
     esc:x=>String(x),factoryName:()=> '1',mdw:x=>x,hm:x=>String(x),szoomBarHTML:()=>'',
-    issuesOf:()=>[],blkHTML:()=>'<div class="blk"></div>',canCalendar:()=>false};
+    issuesOf:()=>[],blkHTML:()=>'<div class="blk"></div>',canCalendar:()=>false,
+    emp:()=>({name:'Worker'}),order:()=>({code:'ORDER'}),stepName:()=> 'Work'};
   vm.createContext(env);vm.runInContext(source.slice(source.indexOf('function dayHTML('),source.indexOf('function blkHTML(')),env);
   return env.dayHTML(ctx);
 }
