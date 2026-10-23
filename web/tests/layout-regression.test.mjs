@@ -46,7 +46,7 @@ test('可收合側欄：app.js 有切換動作與 localStorage 保存', () => {
 });
 
 test('導覽項目有 title 提示（收合時仍可辨識）', () => {
-  assert.ok(app.includes("aria-pressed=\"'+(UI.drawer===page)+'\" title=\""), 'nav item 缺少 title 屬性');
+  assert.ok(app.includes('title="\'+esc(label)+\'"'), 'nav item 缺少 title 屬性');
 });
 
 test('不變量：與 vg-glass 併用且依賴定位的基底 class 必須有特異度防護（防同類回歸）', () => {
@@ -115,7 +115,7 @@ test('核對流程：員工卡有「編輯資料」入口', () => {
 });
 
 test('功能解說：左側導覽獨立入口（更多正下方、同層級）', () => {
-  assert.ok(app.includes('class="app-nav-item nav-feature-tour" data-act="feature-tour"'), '缺少獨立導覽按鈕');
+  assert.ok(app.includes('class="app-nav-item nav-feature-tour mobile-hidden" data-act="feature-tour"'), '缺少獨立導覽按鈕');
   const moreIdx = app.indexOf("item('more',tx('more'))");
   const tourIdx = app.indexOf('nav-feature-tour');
   assert.ok(moreIdx > 0 && tourIdx > moreIdx && tourIdx - moreIdx < 200, '功能解說應緊跟在更多之後');

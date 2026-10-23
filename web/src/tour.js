@@ -20,7 +20,7 @@ export function tourDone() { try { return !!localStorage.getItem(TOUR_DONE_KEY);
 
 export function startTour(steps, { tx = (k) => k, onFinish, markDone = true, label } = {}) {
   document.querySelectorAll(".tour-spot,.tour-card").forEach((e) => e.remove());
-  const visible = (sel) => { const el = document.querySelector(sel); return el && el.offsetParent !== null ? el : null; };
+  const visible = (sel) => [...document.querySelectorAll(sel)].find(el => el.offsetParent !== null) || null;
   // 有 pre（前置動作）的步驟保留——目標由 pre 開抽屜／切頁後才出現；其餘隱藏中自動跳過
   const list = steps.filter((s) => s.pre || visible(s.sel));
   let i = 0;
@@ -112,7 +112,7 @@ export const TOUR_STEPS = [
 const navTo = (v) => () => { document.querySelector('[data-act="drawer"][data-v="' + v + '"]')?.click(); };
 export const FEATURE_TOUR_TOPICS = [
   { key: "board",  icon: "today",   title: "排程表觀看" },
-  { key: "people", icon: "people",  title: "員工設定" },
+  { key: "people", icon: "people",  title: "請假日曆" },
   { key: "orders", icon: "orders",  title: "工單設定" },
   { key: "output", icon: "output",  title: "產量" },
   { key: "worklog",icon: "worklog", title: "工作紀錄" },
@@ -126,7 +126,7 @@ export const FEATURE_TOURS = {
     { sel: ".factory-switch", title: "切換廠別", text: "一廠、二廠分開看，或選跨廠看全部。" },
   ],
   people: [
-    { sel: '[data-act="drawer"][data-v="people"]', title: "員工設定入口", text: "點左側「人」開啟員工面板。" },
+    { sel: '[data-act="drawer"][data-v="people"], .nav-more', title: "請假日曆入口", text: "在側邊欄或「更多」開啟請假日曆。" },
     { sel: ".people-pills", title: "人員與狀態", text: "綠＝在班、紅＝請假、黃＝未確定；點人名看當月班表。", pre: navTo("people") },
     { sel: ".people-calendar", title: "月曆式排班", text: "選「上班／休假／未確定」筆刷後點日期即可套用。", pre: navTo("people") },
   ],
@@ -141,12 +141,12 @@ export const FEATURE_TOURS = {
     { sel: ".output-row", title: "機器產量", text: "計畫件數與現場回報的實際件數對照；點列可聚焦機器。", pre: navTo("output") },
   ],
   worklog: [
-    { sel: '[data-act="drawer"][data-v="worklog"]', title: "工作紀錄入口", text: "點左側「工作紀錄」開啟完整紀錄頁。" },
+    { sel: '[data-act="drawer"][data-v="worklog"], .nav-more', title: "工作紀錄入口", text: "在側邊欄或「更多」開啟工作紀錄。" },
     { sel: ".sheettable", title: "紀錄表格", text: "日期、加工編號、合格與不良、工時都可線上編輯。", pre: navTo("worklog") },
     { sel: ".pageback", title: "返回看板", text: "看完按「回今天」回到排程看板。", pre: navTo("worklog") },
   ],
   notes: [
-    { sel: '[data-act="drawer"][data-v="notes"]', title: "備忘入口", text: "點左側「備忘」張貼便條。" },
+    { sel: '[data-act="drawer"][data-v="notes"], .nav-more', title: "備忘入口", text: "在側邊欄或「更多」開啟備忘。" },
     { sel: ".memo-grid", title: "便條牆", text: "點便條編輯；右上圓釘可釘選重要事項。", pre: navTo("notes") },
   ],
   chat: [

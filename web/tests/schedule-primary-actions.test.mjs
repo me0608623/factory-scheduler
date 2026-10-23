@@ -11,7 +11,7 @@ function renderDay({readOnly=false,pending=false,preview=false,blocks=[]}={}){
     dayInfo:()=>({open:true,win:[[480,1020]]}),shownMachines:()=>[{id:'M1',label:'Press',proc:'Cut',faults:[]}],shownEmployees:()=>[],
     issuesOf:()=>[],blkHTML:()=>'',emp:()=>({name:'Lin'}),order:()=>({code:'ORDER42'}),stepName:()=> 'Cut',
     todayStr:()=> '2026-10-23',tx:x=>x,RUNTIME:{mode:'production'},esc:String,factoryName:String,
-    mdw:String,hm:String,szoomBarHTML:()=>'',canCalendar:()=>!readOnly};
+    mdw:String,hm:String,szoomBarHTML:()=>'',canCalendar:()=>!readOnly,scheduleEmptyHTML:()=>''};
   vm.createContext(env);
   vm.runInContext(source.slice(source.indexOf('function dayHTML('),source.indexOf('function blkHTML(')),env);
   const buttons=[];
