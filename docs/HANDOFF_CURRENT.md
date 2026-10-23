@@ -1,8 +1,15 @@
 # Factory Scheduler — current handoff
 
-Last updated: 2026-10-15 (Asia/Taipei)
+Last updated: 2026-10-23 (Asia/Taipei)
 
 This is the first file a replacement agent should read. It records the current repository, production environment, verified state, and the next safe actions. Do not put passwords, Supabase service-role keys, anon keys, or AI provider keys in this file.
+
+## UI work checkpoint (2026-10-23; not deployed)
+
+- Branch `codex/test-schedule-display-20261023` contains the three P1 mobile scheduling fixes and follow-up UI audit fixes. Read [UI_UX_FIXES_2026-10-23.md](UI_UX_FIXES_2026-10-23.md) for behavior, screenshots and verification limits.
+- Source commit `295b9a1` passed all 986 web tests and the production build. Browser checks used isolated synthetic data at desktop and mobile sizes. They do not establish authenticated cloud sync or native phone keyboard behavior.
+- Production 1023 data was not written. No migration or deployment was run. Keep this work unmerged while deployment remains unauthorized: the active main-branch workflow deploys these web changes after Tests pass. Do not disable that workflow or arm auto-merge.
+- The checkout is `C:/Users/me060/Downloads/factory-scheduler-test-display-20261023`. The original checkout and existing local audit artifacts were preserved. Inspect the current branch and PR status before continuing.
 
 ## Latest release checkpoint (2026-10-15; supersedes the historical notes below)
 
