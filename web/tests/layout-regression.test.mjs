@@ -83,17 +83,6 @@ test('分割窗格：app.js 有 drawer-zoom、分隔線與寬度保存', () => {
   assert.ok(app.includes('has-drawer'), '缺少 wrap.has-drawer 容器 class');
 });
 
-test('聊天面板以可視區域定位，寬度不受工具列內按鈕限制', () => {
-  const m = css.match(/\.chat-panel\{([^}]*)\}/);
-  assert.ok(m, '缺少 .chat-panel 規則');
-  assert.doesNotMatch(m[1], /width:min\(430px,100%\)/, '面板寬度不可用 100%（會繼承縮小後的根容器）');
-  assert.match(m[1], /width:400px/, '預設寬 400px');
-  assert.match(m[1], /position:fixed/, '面板以 viewport 定位，不繼承按鈕尺寸');
-  assert.match(m[1], /min-width:0/, '窄視窗不可被最小寬度撐出畫面');
-  assert.match(m[1], /max-width:calc\(100% - 24px\)/, '可視區域扣除左右間距與捲軸');
-  assert.match(m[1], /height:min\(550px,80dvh\)/, '以動態可視高度限制面板');
-});
-
 test('員工、設備與工單：更多選單走 master 動作（不再誤導核對頁）', () => {
   assert.ok(app.includes("btn('master',tx('員工、設備與工單'))"), '更多選單應用 master 動作');
   assert.ok(app.includes("case \"master\":"), '缺少 master 動作');

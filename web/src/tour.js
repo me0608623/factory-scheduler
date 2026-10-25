@@ -150,8 +150,8 @@ export const FEATURE_TOURS = {
     { sel: ".memo-grid", title: "便條牆", text: "點便條編輯；右上圓釘可釘選重要事項。", pre: navTo("notes") },
   ],
   chat: [
-    { sel: ".chat-launch", title: "排程助理", text: "點右下角藥丸展開助理，可直接用問的。" },
-    { sel: ".chat-panel header", title: "聊天視窗", text: "可拖曳標題列移動位置；語音鈕可自動唸出回答。", pre: () => { document.querySelector(".chat-launch")?.click(); } },
+    { sel: ".chat-launch", title: "排程助理", text: "點「排程助理」按鈕展開對話，可直接詢問排程。" },
+    { sel: ".chat-panel header", title: "聊天視窗", text: "對話會在班表上方展開；點「×」收合後繼續查看班表，語音鈕可自動唸出回答。", pre: () => { document.querySelector(".chat-launch")?.click(); } },
     { sel: ".chat-quick", title: "快捷提問", text: "「誰請假？」「哪台機器故障？」一鍵送出。", pre: () => { document.querySelector(".chat-launch")?.click(); } },
   ],
 };
