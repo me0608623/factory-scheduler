@@ -793,9 +793,10 @@ function initFloatWins(){
     sp.addEventListener("keydown",e=>{
       if(e.key!=="ArrowLeft"&&e.key!=="ArrowRight")return;
       e.preventDefault();
-      const wrap=sp.closest(".wrap");
-      UI.paneW=Math.min(Math.max((UI.paneW||470)+(e.key==="ArrowLeft"?40:-40),280),Math.min(900,Math.max(320,innerWidth-420)));
-      wrap?.style.setProperty("--pane-w",UI.paneW+"px");
+      const wrap=sp.closest(".wrap");if(!wrap)return;
+      const aside=wrap.querySelector(".ops-drawer");
+      UI.paneW=Math.min(Math.max(aside.getBoundingClientRect().width+(e.key==="ArrowLeft"?40:-40),280),Math.min(900,Math.max(320,innerWidth-420)));
+      wrap.style.setProperty("--pane-w",UI.paneW+"px");
       try{localStorage.setItem("fsched-pane-w",String(UI.paneW));}catch(err){}
     });
   }
