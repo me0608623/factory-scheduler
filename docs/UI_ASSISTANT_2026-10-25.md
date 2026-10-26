@@ -31,3 +31,18 @@ npm.cmd run build
 本輪使用完整實際 SIM 快照的本機唯讀 UI，沒有雲端 session。手機驗證是瀏覽器尺寸測試，未操作實體 iPhone 或原生鍵盤，也未驗證 AI 服務端到端。原快照 SHA256 保持 `595439DEF53C16F29F4502A3DCFD532E55D1FCD9DD05191769A4F29007F161E8`。
 
 本次提交包含助理版面、導覽與翻譯、過時測試移除，以及本紀錄與 handoff。沒有存取或修改正式 1023，沒有資料庫操作、migration、合併或部署。無關的未提交素材保留在本機，完整快照、驗證頁與原始日誌均未加入提交。
+
+## PR CI 與審查追蹤（2026-10-26）
+
+2026-10-26 10:21（Asia/Taipei）使用 pstack Babysit 的 `check` 模式檢查 PR #50，執行官方 `watch-pr --owner me0608623 --repo factory-scheduler --pr 50 --status-only`。Origin CLI 不存在，因此使用 GitHub CLI。查驗的遠端與本機提交皆為 `24071da98c7589f4b4761139f1d281d63518ee7e`。
+
+同一提交的 4 次工作流程全部成功，共 10 項檢查。每個事件分別有 Tests 的 frontend、database、solver，以及 Deployment smoke test 的 web、solver；push 與 pull_request 各執行一次。
+
+| 事件 | Tests | Deployment smoke test |
+| --- | --- | --- |
+| pull_request | [40169446809：成功](https://github.com/me0608623/factory-scheduler/actions/runs/40169446809) | [40169446835：成功](https://github.com/me0608623/factory-scheduler/actions/runs/40169446835) |
+| push | [40169444167：成功](https://github.com/me0608623/factory-scheduler/actions/runs/40169444167) | [40169444170：成功](https://github.com/me0608623/factory-scheduler/actions/runs/40169444170) |
+
+watcher 回報 `ci-clean`、零失敗、零待執行、零審查討論，GitHub 狀態為 `MERGEABLE` / `CLEAN`。另讀取 GitHub reviews、一般留言與行內留言，三者皆為空；沒有正在執行的審查自動化。這表示目前沒有已提交的 GitHub 審查意見，不代表已取得人工核准。前輪本機獨立審查結果仍見上方紀錄。
+
+PR 維持 `OPEN`、未合併，`autoMergeRequest` 為 `null`。本輪只讀取既有 CI 結果，沒有重新觸發 CI、執行測試或 migration，也沒有存取正式 1023 或操作部署。Deployment smoke test 是 CI 容器測試，並非部署。因沒有失敗或待處理審查意見，本輪沒有程式修正，只更新本紀錄與 handoff；先前 SIM 瀏覽器驗證沒有重跑。

@@ -1,11 +1,12 @@
 # Factory Scheduler — current handoff
 
-Last updated: 2026-10-25 (Asia/Taipei)
+Last updated: 2026-10-26 (Asia/Taipei)
 
 This is the first file a replacement agent should read. It records the current repository, production environment, verified state, and the next safe actions. Do not put passwords, Supabase service-role keys, anon keys, or AI provider keys in this file.
 
 ## Expanded assistant checkpoint (2026-10-25; PR #50, not merged or deployed)
 
+- On 2026-10-26 at 10:21 Asia/Taipei, pstack's status-only watcher confirmed head `24071da98c7589f4b4761139f1d281d63518ee7e` has all 10 CI checks passing, no review threads, and GitHub state `MERGEABLE` / `CLEAN`. GitHub has no submitted reviews or comments; this is not reviewer approval. No source fix or test rerun was needed. See the dated follow-up in the verification record below. Keep auto-merge off.
 - The expanded assistant now occupies normal document flow above the schedule. Real SIM snapshot checks passed at five desktop/mobile sizes, including short-height and long-content cases. Read [UI_ASSISTANT_2026-10-25.md](UI_ASSISTANT_2026-10-25.md) for evidence, 82-test regression command and limits.
 - The assistant fix and verification record belong to [PR #50](https://github.com/me0608623/factory-scheduler/pull/50) on `codex/test-schedule-display-20261023`. Preserve the unrelated, untracked `web/.audit/` artifacts; the full SIM snapshot and local test page are not part of the commit. Keep the PR unmerged and auto-merge off.
 - This UI work made no database change, migration or deployment. The earlier separately authorized two-function staging fix is recorded in the local `Factory-Scheduler-P1-testmode-20261025/RESULTS.md` evidence folder. Do not reapply it as part of UI work.
