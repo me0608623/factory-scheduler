@@ -1377,7 +1377,12 @@ document.addEventListener("keydown",e=>{
   }
   if(e.key==="Escape"&&UI.editCell){UI.editCell=null;render();return;}
   if(e.key==="Escape"&&UI.modal){closeModal();return;}
-  if(e.key==="Escape"&&UI.drawer){UI.drawer=null;UI.focus=null;render();return;}
+  if(e.key==="Escape"&&UI.drawer){
+    const drawer=UI.drawer;UI.drawer=null;UI.focus=null;render();
+    const selector=drawer==='settings'?'[data-act="settings"]':'.app-nav [data-act="drawer"][data-v="'+drawer+'"]'+(['people','notes'].includes(drawer)?',.app-nav [data-act="drawer"][data-v="more"]':'');
+    [...document.querySelectorAll(selector)].find(el=>el.getClientRects().length)?.focus();
+    return;
+  }
   if(e.key==="Tab"&&UI.modal){
     const modal=$("#modal-root .modal"),items=modalFocusable(modal);
     if(!modal||!items.length){e.preventDefault();modal?.focus();return;}
@@ -1409,9 +1414,17 @@ document.addEventListener("click",e=>{
     case "prev":UI.date=addDays(UI.date,-step);render();break;
     case "next":UI.date=addDays(UI.date,step);render();break;
     case "today":UI.date=todayStr();UI.view='day';UI.drawer=null;UI.page=null;UI.focus=null;render();break;
-    case "drawer":if(a.dataset.v==="worklog"){UI.page="worklog";UI.drawer=null;setUrlView("worklog");render();window.scrollTo(0,0);flashReturnRow();break;}UI.drawer=UI.drawer===a.dataset.v?null:a.dataset.v;UI.page=null;UI.focus=null;render();requestAnimationFrame(()=>$('.ops-drawer')?.focus());break;
+    case "drawer":if(a.dataset.v==="worklog"){UI.page="worklog";UI.drawer=null;setUrlView("worklog");render();window.scrollTo(0,0);flashReturnRow();break;}UI.drawer=UI.drawer===a.dataset.v?null:a.dataset.v;UI.page=null;UI.focus=null;render();
+      if(UI.drawer)requestAnimationFrame(()=>$('.ops-drawer')?.focus());
+      else [...document.querySelectorAll('.app-nav [data-act="drawer"][data-v="'+a.dataset.v+'"]')].find(el=>el.getClientRects().length)?.focus();
+      break;
     case "settings":UI.drawer='settings';UI.page=null;UI.focus=null;render();requestAnimationFrame(()=>$('.ops-drawer')?.focus());break;
-    case "drawer-close":UI.drawer=null;UI.drawerZoom=false;UI.focus=null;render();break;
+    case "drawer-close":{
+      const drawer=UI.drawer;UI.drawer=null;UI.drawerZoom=false;UI.focus=null;render();
+      const selector=drawer==='settings'?'[data-act="settings"]':'.app-nav [data-act="drawer"][data-v="'+drawer+'"]'+(['people','notes'].includes(drawer)?',.app-nav [data-act="drawer"][data-v="more"]':'');
+      [...document.querySelectorAll(selector)].find(el=>el.getClientRects().length)?.focus();
+      break;
+    }
     case "drawer-zoom":UI.drawerZoom=!UI.drawerZoom;render();requestAnimationFrame(()=>{try{document.querySelector(".ops-drawer")?.scrollIntoView({block:"start"});}catch(e){}});break;
     case "sort-col":{const t=a.dataset.t,k=a.dataset.k;const cols=t==="tf"?TF_SORT:t==="rush"?RUSH_SORT:WL_SORT;const st=UI.tableSort[t];UI.tableSort[t]=(st&&st.key===k)?{key:k,dir:st.dir==="asc"?"desc":"asc"}:{key:k,dir:"asc"};saveTableSort();render();break;}
     case "sort-reset":{UI.tableSort[a.dataset.t]=null;saveTableSort();render();break;}
