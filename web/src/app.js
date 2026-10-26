@@ -1445,7 +1445,7 @@ document.addEventListener("click",e=>{
     case "profile-save":saveOwnProfile(a);break;
     case "settings-reset":UI.prefs=structuredClone(DEFAULT_PREFERENCES);persistPreferences();render();toast('已恢復這台裝置的預設設定');break;
     case "focus-order":UI.focus={type:'order',id};UI.drawer=null;render();requestAnimationFrame(()=>$('.board')?.scrollIntoView({behavior:'smooth',block:'start'}));break;
-    case "focus-person":UI.focus={type:'employee',id};render();break;
+    case "focus-person":UI.focus={type:'employee',id};render();document.querySelector('.people-pills [data-act="focus-person"][aria-pressed="true"]')?.focus();break;
     case "person-day":{
       if(!canIncidents()){toast('設定需要「故障與請假」權限；員工可從下方「＋新增詢問」提出');break;}
       if(UI.leaveBrushSaving){toast(tx('正在儲存排班狀態，請稍候。'));break;}
