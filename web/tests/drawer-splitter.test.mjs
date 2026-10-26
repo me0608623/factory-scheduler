@@ -5,18 +5,18 @@ import {readFileSync} from 'node:fs';
 
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const init=source.slice(source.indexOf('function initFloatWins(){'),source.indexOf('function environmentHTML(){'));
-function fixture(){
+function fixture({storedWidth=470,displayWidth=storedWidth,viewportWidth=1440}={}){
   const listeners=new Map(),globalListeners=new Map(),classes=new Set(),storage=new Map();
   const add=(map,type,fn)=>{if(!map.has(type))map.set(type,new Set());map.get(type).add(fn);};
-  let width=470;
-  const aside={getBoundingClientRect:()=>({width,left:1440-width,right:1440})};
+  let width=displayWidth;
+  const aside={getBoundingClientRect:()=>({width,left:viewportWidth-width,right:viewportWidth})};
   const wrap={querySelector:selector=>selector==='.ops-drawer'?aside:null,
     style:{setProperty(name,value){assert.equal(name,'--pane-w');width=parseFloat(value);}}};
   const splitter={dataset:{},closest:selector=>selector==='.wrap'?wrap:null,
     classList:{add:name=>classes.add(name),remove:name=>classes.delete(name)},
     setPointerCapture(){},addEventListener:(type,fn)=>add(listeners,type,fn)};
   const document={activeElement:splitter};
-  const env={UI:{paneW:470},innerWidth:1440,_winResizeBound:false,document,
+  const env={UI:{paneW:storedWidth},innerWidth:viewportWidth,_winResizeBound:false,document,
     $:selector=>selector==='.pane-splitter'?splitter:null,
     addEventListener:(type,fn)=>add(globalListeners,type,fn),
     removeEventListener:(type,fn)=>globalListeners.get(type)?.delete(fn),
@@ -62,6 +62,22 @@ test('arrow keys move the divider in their named direction and retain focus',()=
   assert.equal(f.storage.get('fsched-pane-w'),'470');
   assert.equal(f.document.activeElement,f.splitter);
 });
+
+for(const [storedWidth,displayWidth,viewportWidth] of [[900,680,1100],[600,470,1440]]){
+  test('keyboard starts from the displayed width when saved width is '+storedWidth,()=>{
+    const f=fixture({storedWidth,displayWidth,viewportWidth}),left=f.left;
+    assert.equal(f.local('keydown',{key:'ArrowRight'}),true);
+    assert.equal(f.width,displayWidth-40,'the first press moves the visible divider');
+    assert.equal(f.left,left+40);
+    assert.equal(f.storage.get('fsched-pane-w'),String(displayWidth-40));
+    assert.equal(f.document.activeElement,f.splitter);
+    assert.equal(f.local('keydown',{key:'ArrowLeft'}),true);
+    assert.equal(f.width,displayWidth);
+    assert.equal(f.left,left);
+    assert.equal(f.storage.get('fsched-pane-w'),String(displayWidth));
+    assert.equal(f.document.activeElement,f.splitter);
+  });
+}
 
 for(const input of ['pointer','keyboard']){
   test(input+' resizing respects the existing drawer width limits',()=>{
