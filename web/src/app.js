@@ -1371,6 +1371,22 @@ document.addEventListener("mousedown",e=>{
   UI.editCell={table:btn.dataset.cell,id:btn.dataset.id,key:btn.dataset.key};
   render();
 });
+document.addEventListener("focusin",e=>{
+  const target=e.target;
+  if(!target.matches?.('.wgrid > .wh,.wgrid > .wcell'))return;
+  requestAnimationFrame(()=>{
+    if(!target.isConnected||document.activeElement!==target)return;
+    const scroller=target.closest('.scroller'),corner=scroller?.querySelector('.corner');
+    if(!corner||scroller.scrollWidth<=scroller.clientWidth)return;
+    const viewport=scroller.getBoundingClientRect(),rect=target.getBoundingClientRect();
+    const innerLeft=viewport.left+scroller.clientLeft;
+    const left=Math.max(innerLeft,corner.getBoundingClientRect().right),right=innerLeft+scroller.clientWidth;
+    if(right<=left)return;
+    const delta=rect.left<left?rect.left-left:rect.right>right?Math.min(rect.right-right,rect.left-left):0;
+    const next=Math.max(0,Math.min(scroller.scrollWidth-scroller.clientWidth,scroller.scrollLeft+delta));
+    if(next!==scroller.scrollLeft)scroller.scrollLeft=next;
+  });
+});
 document.addEventListener("keydown",e=>{
   if(e.key==="Enter"&&e.target.dataset?.cell){e.preventDefault();e.target.blur();return;}
   if(e.key==="Escape"&&!UI.modal&&PV&&PV.kind==="manual"){
