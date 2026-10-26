@@ -1674,7 +1674,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case 'exec-unconfirm':changeExecutionConfirmation(a,false);break;
     case "group-edit":openModal({t:'staff-group',id});break;
     case "group-new":if(canGroups())openModal({t:'staff-group'});break;
-    case "goto":zoomWheel.cancel();applyPinch.cancel();pinch0=null;pinchActive=false;UI.wkFit=false;UI.date=a.dataset.d;UI.view="day";render();window.scrollTo(0,0);break;
+    case "goto":if(UI.modal)closeModal();zoomWheel.cancel();applyPinch.cancel();pinch0=null;pinchActive=false;UI.wkFit=false;UI.date=a.dataset.d;UI.view="day";UI.page=null;setUrlView(null);render();window.scrollTo(0,0);break;
     case "tv":UI.tv=!UI.tv;render();break;
     case "theme":{setTheme(THEMES[(THEMES.indexOf(UI.theme)+1)%THEMES.length]);render();
       toast(UI.theme==="auto"?"跟著電腦的系統設定":UI.theme==="light"?"已切換為淺色":"已切換為深色");break;}
