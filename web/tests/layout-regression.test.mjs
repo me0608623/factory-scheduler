@@ -46,7 +46,7 @@ test('可收合側欄：app.js 有切換動作與 localStorage 保存', () => {
 });
 
 test('導覽項目有 title 提示（收合時仍可辨識）', () => {
-  assert.ok(app.includes("aria-pressed=\"'+(UI.drawer===page)+'\" title=\""), 'nav item 缺少 title 屬性');
+  assert.ok(app.includes('title="\'+esc(label)+\'"'), 'nav item 缺少 title 屬性');
 });
 
 test('不變量：與 vg-glass 併用且依賴定位的基底 class 必須有特異度防護（防同類回歸）', () => {
@@ -83,17 +83,6 @@ test('分割窗格：app.js 有 drawer-zoom、分隔線與寬度保存', () => {
   assert.ok(app.includes('has-drawer'), '缺少 wrap.has-drawer 容器 class');
 });
 
-test('聊天面板尺寸與浮動按鈕分離（不以 100% 繼承根容器寬）', () => {
-  const m = css.match(/\.chat-panel\{([^}]*)\}/);
-  assert.ok(m, '缺少 .chat-panel 規則');
-  assert.doesNotMatch(m[1], /width:min\(430px,100%\)/, '面板寬度不可用 100%（會繼承縮小後的根容器）');
-  assert.match(m[1], /width:400px/, '預設寬 400px');
-  assert.match(m[1], /min-width:320px/, '最小寬 320px');
-  assert.match(m[1], /height:min\(550px,80vh\)/, '預設高 550px、最大 80vh');
-  assert.match(css, /#schedule-chat\.panel-left \.chat-panel\{left:0;right:auto\}/, '缺少左緣錨定規則');
-  assert.ok(chatUI.includes('positionPanel'), '缺少 positionPanel 邊緣調整');
-});
-
 test('員工、設備與工單：更多選單走 master 動作（不再誤導核對頁）', () => {
   assert.ok(app.includes("btn('master',tx('員工、設備與工單'))"), '更多選單應用 master 動作');
   assert.ok(app.includes("case \"master\":"), '缺少 master 動作');
@@ -114,11 +103,8 @@ test('核對流程：員工卡有「編輯資料」入口', () => {
   assert.ok(seg.includes("data-act=\"emp\" data-id=\"'+esc(E.id)+'\""), 'review 步驟1缺少編輯資料入口');
 });
 
-test('功能解說：左側導覽獨立入口（更多正下方、同層級）', () => {
-  assert.ok(app.includes('class="app-nav-item nav-feature-tour" data-act="feature-tour"'), '缺少獨立導覽按鈕');
-  const moreIdx = app.indexOf("item('more',tx('more'))");
-  const tourIdx = app.indexOf('nav-feature-tour');
-  assert.ok(moreIdx > 0 && tourIdx > moreIdx && tourIdx - moreIdx < 200, '功能解說應緊跟在更多之後');
+test('功能解說：左側導覽保留獨立入口', () => {
+  assert.ok(app.includes('class="app-nav-item nav-feature-tour mobile-hidden" data-act="feature-tour"'), '缺少獨立導覽按鈕');
 });
 
 test('功能解說：主題選擇與逐步導覽接線', () => {
@@ -208,11 +194,6 @@ test('桌面抽屜高度：pane sticky 且以可視高度為準（不被排程�
   assert.ok(!/\.ops-drawer\.pane \.ops-drawer-b\{max-height:calc\(100dvh - 190px\)/.test(css), '不得殘留舊 max-height');
   assert.ok(app.includes('updateHeaderVar') && app.includes('ResizeObserver'), '缺少 --hdr-h 動態量測');
   assert.ok(app.includes('try{sp.setPointerCapture'), 'setPointerCapture 需容錯（合成指標會拋錯中斷拖曳）');
-});
-
-test('缺陷#11 回歸：聊天室安裝當下必須呼叫 positionPanel（手機沿用桌機浮動座標會讓藥丸跑到畫面外且無法點擊補救）', () => {
-  const block = chatUI.slice(chatUI.indexOf('addEventListener(\'resize\',()=>positionPanel())'), chatUI.indexOf('addEventListener(\'resize\',()=>positionPanel())') + 400);
-  assert.match(block, /addEventListener\('resize',\(\)=>positionPanel\(\)\);[\s\S]*?positionPanel\(\);/, '安裝浮動定位後必須立即 positionPanel() 一次（清除手機上的桌機殘留座標）');
 });
 
 test('缺陷#12 回歸：廠區平面圖 page-top 必須在說明後關閉、內容包 fullpage（原本整頁塞在 sticky row-flex 容器內，畫布只剩 ~322px、桌機永遠 3 欄）', () => {

@@ -6,7 +6,7 @@ import {SupabaseStore} from '../src/store/supabase.js';
 import {requestQuery} from './request-query.mjs';
 
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
-const implementation=source.slice(source.indexOf('async function pvApply(){'),source.indexOf('\nObject.assign(MODAL_ACT,{',source.indexOf('async function pvApply(){')));
+const implementation=source.slice(source.indexOf('function samePreviewState('),source.indexOf('function pvDrawerActionsHTML('))+source.slice(source.indexOf('async function pvApply(){'),source.indexOf('\nObject.assign(MODAL_ACT,{',source.indexOf('async function pvApply(){')));
 const receipt='11111111-1111-4111-8111-111111111111';
 function harness(){
   let resolve,reject;const log=[];
