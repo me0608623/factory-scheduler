@@ -1784,7 +1784,7 @@ document.addEventListener("change",e=>{
   if(e.target.dataset?.actChange==="rush-showarchived"){UI.shortageShowArchived=e.target.checked;render();return;}
   if(e.target.id==='tf-toFactory'&&UI.modal?.t==='transfer-edit'){syncInputs();UI.modal.draft.workIds=UI.modal.draft.workIds.filter(id=>workCatalog(S).some(w=>w.id===id&&w.factory===Number(e.target.value)));renderModal();return;}
   if(e.target.id?.startsWith('gw-')){generalChange(e.target);return;}
-  if(e.target.id==='staff-group-filter'){UI.group=e.target.value;render();return;}
+  if(e.target.id==='staff-group-filter'){UI.group=e.target.value;render();$('#staff-group-filter')?.focus();return;}
   if(e.target.id==="datepick"&&e.target.value){UI.date=e.target.value;render();}
   const D=UI.modal?.t==="manual-add"&&UI.modal.draft;
   if(D&&e.target.id?.startsWith("manual-")){
