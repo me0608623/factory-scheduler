@@ -1909,7 +1909,15 @@ function closeModal(){
   cancelPlanCalculation();
   UI.modal=null;const r=$("#modal-root");if(r)r.innerHTML="";maybeReload();
   const target=modalReturnFocus;modalReturnFocus=null;
-  requestAnimationFrame(()=>{if(!UI.modal&&target?.isConnected&&!target.matches?.(":disabled"))target.focus();});
+  requestAnimationFrame(()=>{
+    if(UI.modal||!target?.isConnected||target.matches?.(":disabled"))return;
+    let focusTarget=target;
+    if(target.matches('.mobile-first-work[data-act="blk-open"]')&&!target.getClientRects().length){
+      focusTarget=document.querySelector('.blk[data-bid="'+CSS.escape(target.dataset.v)+'"]');
+      if(!focusTarget?.isConnected||!focusTarget.getClientRects().length||focusTarget.matches(":disabled"))return;
+    }
+    focusTarget.focus();
+  });
 }
 function ownsLegacyRequest(request,store,user,epoch){
   return UI.modal===request&&STORE===store&&store?.session?.user?.id===user&&store?.authEpoch===epoch&&canArchive();
