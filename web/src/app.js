@@ -780,7 +780,7 @@ function initFloatWins(){
       const startX=ev.clientX,startW=aside.getBoundingClientRect().width;
       sp.classList.add("dragging");try{sp.setPointerCapture?.(ev.pointerId);}catch(e){}
       const move=e=>{
-        const w=Math.min(Math.max(startW+(e.clientX-startX),280),Math.min(900,Math.max(320,innerWidth-420)));
+        const w=Math.min(Math.max(startW-(e.clientX-startX),280),Math.min(900,Math.max(320,innerWidth-420)));
         wrap.style.setProperty("--pane-w",w+"px");UI.paneW=w;
       };
       const up=()=>{
@@ -794,7 +794,7 @@ function initFloatWins(){
       if(e.key!=="ArrowLeft"&&e.key!=="ArrowRight")return;
       e.preventDefault();
       const wrap=sp.closest(".wrap");
-      UI.paneW=Math.min(Math.max((UI.paneW||470)+(e.key==="ArrowLeft"?-40:40),280),Math.min(900,Math.max(320,innerWidth-420)));
+      UI.paneW=Math.min(Math.max((UI.paneW||470)+(e.key==="ArrowLeft"?40:-40),280),Math.min(900,Math.max(320,innerWidth-420)));
       wrap?.style.setProperty("--pane-w",UI.paneW+"px");
       try{localStorage.setItem("fsched-pane-w",String(UI.paneW));}catch(err){}
     });
