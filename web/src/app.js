@@ -690,6 +690,7 @@ function hourPx(){return baseHourPx()*(UI.view==="week"?SZ.week:SZ.day);}
 
 function render(){ I18N.lang=UI.prefs.language; globalThis.__fsRenderMemo=null; ensureVisualStyles();
   const chatFocus=document.activeElement?.closest?.('#schedule-chat')?document.activeElement:null;
+  const dayToolsOpen=$('.day-board-tools')?.open??false;
   const sc=$(".scroller"),sl=sc?sc.scrollLeft:0,sy=window.scrollY;
   document.body.classList.toggle("tv",!!UI.tv);
   document.body.classList.toggle("pvmode",!!PV);
@@ -717,6 +718,7 @@ function render(){ I18N.lang=UI.prefs.language; globalThis.__fsRenderMemo=null; 
       (UI.page==='shortage'?shortagePageHTML():UI.page==='transferflow'?transferFlowPageHTML():UI.page==='worklog'?workLogPageHTML():UI.page==='review'?reviewPageHTML():UI.page==='catalog'?catalogPageHTML():UI.page==='analytics'?analyticsPageHTML():UI.page==='floor'?floorPageHTML():UI.page==='visual-demo'?visualDemoPageHTML():boards)+'</main>'+drawerHTML();
   }
   $("#app").innerHTML=html;
+  const dayTools=$('.day-board-tools');if(dayTools)dayTools.open=dayToolsOpen;
   const sc2=$(".scroller");if(sc2)sc2.scrollLeft=sl;
   window.scrollTo(0,sy);
   initScheduleLocator(document.querySelector('.board.szoom'));

@@ -4,6 +4,12 @@ Last updated: 2026-10-26 (Asia/Taipei)
 
 This is the first file a replacement agent should read. It records the current repository, production environment, verified state, and the next safe actions. Do not put passwords, Supabase service-role keys, anon keys, or AI provider keys in this file.
 
+## Actual SIM interaction checkpoint (2026-10-26; PR #50, not merged or deployed)
+
+- Proactive mobile inspection found that zoom and wheel-toggle collapsed the day board's More tools and lost keyboard focus. The two-line render fix preserves native disclosure state across redraws, with no new stored preference or data operation.
+- Four new behavior tests first reproduced three failures; the scoped regression suite then passed all 93 tests, and the web build passed. Actual SIM checks passed at 390×844, 360×800, 740×900 and 1440×900; manual/automatic entry dialogs and assistant non-overlap were also rechecked. Independent review found no actionable issue. See [UI_SIM_UX_2026-10-26.md](UI_SIM_UX_2026-10-26.md) for commands, evidence and limits.
+- Continue proactive actual-SIM exploration as well as checking the current PR head. The existing 10-minute automation ends at 2026-10-27 11:53:47 Asia/Taipei. Preserve unrelated changes and `web/.audit/`; do not access production 1023, execute migrations, merge, deploy, or enable auto-merge. Historical CI results below do not establish the new head's status.
+
 ## Expanded assistant checkpoint (2026-10-25; PR #50, not merged or deployed)
 
 - On 2026-10-26 at 10:21 Asia/Taipei, pstack's status-only watcher confirmed head `24071da98c7589f4b4761139f1d281d63518ee7e` has all 10 CI checks passing, no review threads, and GitHub state `MERGEABLE` / `CLEAN`. GitHub has no submitted reviews or comments; this is not reviewer approval. No source fix or test rerun was needed. See the dated follow-up in the verification record below. Keep auto-merge off.
