@@ -98,6 +98,7 @@ button{cursor:pointer}
 /* ---------- 固定左側選單／班表工作區 ---------- */
 body.has-app-nav .wrap{margin-left:244px}
 .app-nav{position:fixed;z-index:42;left:0;top:0;bottom:0;width:244px;background:color-mix(in srgb,var(--surface) 58%,var(--bg));color:var(--ink);border-right:1px solid var(--line);padding:16px 13px 14px;display:flex;flex-direction:column;gap:4px;box-shadow:inset -1px 0 rgba(255,255,255,.45)}
+@media (min-width:681px){.app-nav{overflow-y:auto;overflow-x:hidden;scrollbar-width:thin}}
 .side-brand{display:flex;align-items:center;gap:10px;margin:8px 2px 10px;padding:8px}.side-brand .brand-mark{width:38px;height:38px;background:linear-gradient(145deg,#2A3B4D,#17212B);box-shadow:0 5px 12px #2b354230}.side-brand>span:last-child{min-width:0}.side-brand b,.side-brand small{display:block}.side-brand b{font-size:19px}.side-brand small{color:var(--muted);font-size:12px;font-weight:700}
 .side-profile{width:100%;min-height:62px;display:grid;grid-template-columns:40px minmax(0,1fr) 16px;align-items:center;gap:10px;margin-bottom:11px;padding:9px;border:1px solid var(--line);border-radius:13px;background:var(--surface);text-align:left;box-shadow:0 3px 12px rgba(54,65,83,.04)}.side-profile>span:nth-child(2){min-width:0}.side-profile b,.side-profile small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.side-profile b{font-size:14px}.side-profile small{color:var(--muted);font-size:11px;margin-top:2px}.side-profile>i{font-style:normal;color:var(--muted);font-size:20px}.side-avatar{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(145deg,#4196F4,#1668CA);color:white;font-size:17px;font-weight:900}
 .side-profile[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
@@ -113,7 +114,7 @@ body.has-app-nav .wrap{margin-left:244px}
 .nav-collapse:hover{color:var(--ink);border-color:var(--accent)}
 body.nav-collapsed .app-nav{width:78px;padding-inline:11px}
 body.nav-collapsed.has-app-nav .wrap{margin-left:78px}
-body.nav-collapsed .side-brand{padding:8px 2px}
+body.nav-collapsed .side-brand{padding:8px 2px;gap:2px}
 body.nav-collapsed .side-brand>span:nth-child(2){display:none}
 body.nav-collapsed .side-brand .nav-collapse{margin-left:auto}
 body.nav-collapsed .app-nav-item{justify-content:center;padding:6px}
