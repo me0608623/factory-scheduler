@@ -1877,7 +1877,7 @@ const MODAL_ACT={};
 let modalReturnFocus=null;
 function modalFocusable(root){
   if(!root)return [];
-  return [...root.querySelectorAll('button:not([disabled]),a[href],input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')]
+  return [...root.querySelectorAll('button:not([disabled]),summary:not([tabindex="-1"]),a[href],input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')]
     .filter(el=>!el.hidden&&el.getClientRects().length);
 }
 function modalFocusToken(el){
