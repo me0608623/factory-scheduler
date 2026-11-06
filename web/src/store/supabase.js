@@ -1,5 +1,6 @@
 // Supabase 模式：資料在雲端資料庫，登入後依角色決定能不能改；別人的變更會即時推過來
 
+import { assertOrderReductions } from '../manual.js';
 import { fromSnapshot, blockToDb } from "../convert.js";
 import { rowsOf, diffRows, UPSERT_ORDER, DELETE_ORDER, TABLE_KEYS, blocksKey } from "./diff.js";
 import { groupCatalog } from "../groups.js";
@@ -396,7 +397,7 @@ export class SupabaseStore {
   // ---------- 寫：只寫有變的列；排程方塊整批用 save_blocks（有版本號檢查） ----------
   async sync(S, entry) {
     const client=this.sb,assertWriter=this.requestOwnerGuard(()=>new UnconfirmedWriteError());
-    try{validateRosters(S);}catch(e){e.permission=true;throw e;}
+    try{assertOrderReductions(this.transferBase,S);validateRosters(S);}catch(e){e.permission=true;throw e;}
     try{validateTransfers(S,{before:this.transferBase});}catch(e){e.permission=true;throw e;}
     try{validateGeneralWork(S,{today:new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Taipei'}).format(new Date()),baseAssignments:JSON.parse(this.baseGeneral||'{}').assignments||[]});if(this.protectedBase){assertExecutionProtected(this.protectedBase,S);
       if(JSON.stringify(this.protectedBase.execution)!==JSON.stringify(S.execution||[]))throw new Error('現場進度只能由回報流程更新');}}

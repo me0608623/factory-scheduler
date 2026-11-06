@@ -1,3 +1,4 @@
+import {assertOrderReductions} from '../src/manual.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -18,7 +19,7 @@ function harness(){
   const P={base:JSON.stringify(before),B:before,after,move:{...after.blocks[0]},oldId:'b1',ops:[],problems:[],unpinned:[],lines:[],movedLabel:'A01',source:'old',target:'new'};
   const ctx={...nav,...previewContext,acceptManualPreview,S:before,UI:{date:'2026-10-12',view:'day',modal:null},PV:{kind:'manual',P,opts:[{id:'manual',applicable:true}],cur:'manual',nav:nav.newNav()},
     STORE:{kind:'local'},SYNC:{state:'ok'},pvOpt:()=>ctx.PV?.opts[0],readOnly:false,undoStack:[],pushUndo:()=>ctx.undoStack.push(JSON.stringify(ctx.S)),
-    assertExecutionProtected:()=>{},validateGeneralWork:()=>{},assignments:()=>[],todayStr:()=> '2026-10-11',
+    assertOrderReductions,assertExecutionProtected:()=>{},validateGeneralWork:()=>{},assignments:()=>[],todayStr:()=> '2026-10-11',
     commit:async()=>{log.push('commit');return true;},render:()=>log.push('render'),renderModal:()=>{},closeModal:()=>{},
     toast:msg=>log.push(msg),maybeReload:()=>{},document:{addEventListener:(t,f)=>events[t]=f,querySelector:()=>null,activeElement:null},
     window:{scrollY:0,scrollTo:()=>{}},history:{go:()=>{}},addEventListener:()=>{},setTimeout:fn=>timers.push(fn),
