@@ -561,7 +561,11 @@ function restoreOrig(ev){
     if(qty>0){
       let from=Math.max(now,readyAbs(g.oid,g.step));if(!isFinite(from))from=now;
       const nb=placeJob(g.oid,g.step,qty,from,{onlyM:ev.mid})||placeJob(g.oid,g.step,qty,from,{});
-      if(!nb){S.blocks.push(...g.cur);lines.push({k:"fail",t:order(g.oid).code+" 排不回去，維持原樣"});continue;}
+      if(!nb){
+        // Roll back this group's provisional original slots before restoring its current work.
+        S.blocks=S.blocks.filter(b=>!placed.includes(b));
+        S.blocks.push(...g.cur);lines.push({k:"fail",t:order(g.oid).code+" 排不回去，維持原樣"});continue;
+      }
       S.blocks.push(...nb);placed.push(...nb);
     }
     const O=order(g.oid),af=Math.max(...placed.map(bEnd));
