@@ -11,6 +11,7 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "排程儲存結果待核對，已暫停後續儲存。請完整重新整理網頁並核對雲端結果；未存的本機調整可能需要重做。只更新班表或按重試不會解除暫停。": {en:"Schedule saving is unconfirmed, so further saves are paused. Reload the entire web page and check the cloud result; unsaved local changes may need to be redone. Refreshing the schedule or tapping Retry will not lift this pause.",vi:"Chưa xác nhận kết quả lưu lịch nên các lần lưu tiếp theo đã tạm dừng. Hãy tải lại toàn bộ trang web và kiểm tra kết quả trên đám mây; có thể cần làm lại các thay đổi cục bộ chưa lưu. Cập nhật lịch hoặc nhấn Thử lại không bỏ tạm dừng này.",th:"ยังยืนยันผลการบันทึกตารางไม่ได้ จึงพักการบันทึกถัดไป กรุณาโหลดหน้าเว็บทั้งหมดใหม่และตรวจสอบผลบนคลาวด์ การแก้ไขในเครื่องที่ยังไม่บันทึกอาจต้องทำใหม่ การอัปเดตเฉพาะตารางหรือกดลองใหม่จะไม่ยกเลิกการพักนี้"},
   "正在讀取情境，可取消。": {en:"Loading the scenario. You can cancel.",vi:"Đang đọc tình huống. Bạn có thể hủy.",th:"กำลังอ่านสถานการณ์ คุณสามารถยกเลิกได้"},
   "正在保存情境；關閉視窗不會取消已送出的保存。": {en:"Saving the scenario. Closing this dialog does not cancel a submitted save.",vi:"Đang lưu tình huống. Đóng cửa sổ không hủy yêu cầu đã gửi.",th:"กำลังบันทึกสถานการณ์ การปิดหน้าต่างไม่ยกเลิกคำขอที่ส่งแล้ว"},
   "情境保存結果待核對；請查看保存的情境，或用相同名稱重試同一筆。": {en:"Scenario save is unconfirmed. Check saved scenarios, or retry the same entry with the same name.",vi:"Chưa xác nhận kết quả lưu. Kiểm tra tình huống đã lưu hoặc thử lại cùng mục với cùng tên.",th:"ยังไม่ยืนยันผลการบันทึก ตรวจสอบสถานการณ์ที่บันทึกหรือส่งรายการเดิมด้วยชื่อเดิมอีกครั้ง"},

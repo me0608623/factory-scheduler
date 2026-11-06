@@ -166,7 +166,7 @@ test('valid save_blocks receipts confirm one write; retry does not issue a dupli
     await h.store.sync(h.candidate);assert.equal(h.calls.length,1);
   }
 });
-test('real save_blocks commit with a lost UUID receipt is recovered without a duplicate block or change-set',async()=>{
+test('real save_blocks lost receipt requires a fresh page store; ordinary retry stays gated without duplicate data',async()=>{
   const {db,sb}=await realClient();
   try{
     const store=new SupabaseStore(sb);await store.init();const state=await store.load();state.blocks.push(structuredClone(block));
@@ -174,8 +174,14 @@ test('real save_blocks commit with a lost UUID receipt is recovered without a du
     sb.rpc=(name,args)=>requestQuery(async()=>{const response=await rpc(name,args);if(name==='save_blocks'&&drop){drop=false;assert.equal(response.error,null);actualReceipt=response.data;return {data:null,error:null};}return response;});
     const h=queueHarness();h.ctx.STORE=store;h.ctx.S=state;h.ctx.reloadFromStore=async()=>{h.ctx.S=await store.load();return 'applied';};
     assert.equal(await h.ctx.queueSync({kind:'move',title:'TEST-SAVE-ACK'}),false);
-    assert.match(actualReceipt,/^[0-9a-f-]{36}$/);assert.equal(store.version,0);assert.equal(h.ctx.SYNC.state,'error');assert.match(h.messages.at(-1),/結果待確認/);
-    assert.equal(await h.ctx.queueSync(null),false);assert.equal(store.version,1);assert.equal(h.ctx.SYNC.state,'ok');assert.equal(h.ctx.S.blocks.length,1);
+    assert.match(actualReceipt,/^[0-9a-f-]{36}$/);assert.equal(store.version,0);assert.equal(h.ctx.SYNC.state,'error');assert.match(h.messages.at(-1),/完整重新整理網頁/);
+    // Conservative contract: unlike versioned domain RPC retries above, an
+    // uncertain save_blocks gates every same-session sync, even after load.
+    assert.equal(await h.ctx.queueSync(null),false);assert.equal(store.version,0);assert.equal(h.ctx.SYNC.state,'error');assert.equal(store.hasPendingConfirmations(),true);
+    const observed=await store.load();assert.equal(observed.blocks.length,1);assert.equal(store.version,1);
+    assert.equal(await h.ctx.queueSync(null),false);assert.equal(h.ctx.SYNC.state,'error');
+    const fresh=new SupabaseStore(sb);await fresh.init();const recovered=await fresh.load();
+    assert.equal(fresh.hasPendingConfirmations(),false);assert.equal(recovered.blocks.length,1);await fresh.sync(recovered);
     assert.equal((await db.query("select count(*)::int as n from change_sets where title='TEST-SAVE-ACK'")).rows[0].n,1);
     assert.equal((await db.query("select count(*)::int as n from schedule_blocks")).rows[0].n,1);
   }finally{await db.close();}
