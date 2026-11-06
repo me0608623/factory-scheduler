@@ -24,6 +24,7 @@ const jsAbs = (date, min) => {
 
 const rushKey = (S) => JSON.stringify(S.rushOrders || []);
 const workLogKey = (S) => JSON.stringify(S.workLog || []);
+const schedulePendingMessage='排程儲存結果待核對，已暫停後續儲存。請完整重新整理網頁並核對雲端結果；未存的本機調整可能需要重做。只更新班表或按重試不會解除暫停。';
 
 const TABLE_NAME = { processes: "工序", employees: "員工", employee_skills: "員工技能", leaves: "請假",
   employee_overtime_days: "單日加班意願", machines: "機台",
@@ -87,7 +88,8 @@ export class SupabaseStore {
   }
   // Page-session only. A fresh read is not proof that an uncertain RPC ended.
   hasPendingConfirmation(blockId) {return this.#confirmationState().blocks.has(String(blockId).toLowerCase());}
-  hasPendingConfirmations() {return this.#confirmationState().blocks.size>0;}
+  hasPendingConfirmations() {const state=this.#confirmationState();return state.blocks.size>0||!!state.saveBlocks;}
+  pendingScheduleSaveMessage() {return this.#confirmationState().saveBlocks?.uncertain?schedulePendingMessage:'';}
 
   constructor(client) {
     this.sb = client;
@@ -395,6 +397,10 @@ export class SupabaseStore {
 
   // ---------- 寫：只寫有變的列；排程方塊整批用 save_blocks（有版本號檢查） ----------
   async sync(S, entry) {
+    // An uncertain save_blocks may still commit after any snapshot read. Keep
+    // every sync path (including no-op/log-only) closed for this page/session.
+    const confirmation=this.#confirmationState();
+    if(confirmation.saveBlocks)throw new UnconfirmedWriteError(confirmation.saveBlocks.uncertain?schedulePendingMessage:'操作儲存中，請稍候。');
     const client=this.sb,assertWriter=this.requestOwnerGuard(()=>new UnconfirmedWriteError());
     try{validateRosters(S);}catch(e){e.permission=true;throw e;}
     try{validateTransfers(S,{before:this.transferBase});}catch(e){e.permission=true;throw e;}
@@ -465,16 +471,40 @@ export class SupabaseStore {
       if (error) throw writeError(t, error, "修改");
     }
     if (blocksKey(S) !== this.baseBlocks) {
-      const { data, error } = await assertWriter.authorize(client.rpc("save_blocks", {
-        p_base_version: this.version, p_blocks: S.blocks.map(blockToDb),
+      const version=this.version;
+      // Authorize before setting the gate: a request that cannot be dispatched
+      // must not leave an uncertain write behind.
+      const request=assertWriter.authorize(client.rpc("save_blocks", {
+        p_base_version: version, p_blocks: S.blocks.map(blockToDb),
         p_title: entry?.title || "調整排程", p_detail: detailOf(entry), p_kind: KIND_TO_DB[entry?.kind] || "edit",
       }));
+      const attempt={};confirmation.saveBlocks=attempt;
+      const clear=()=>{if(this.#confirmationLedger===confirmation&&confirmation.saveBlocks===attempt)delete confirmation.saveBlocks;};
+      const unconfirmed=()=>{attempt.uncertain=true;return new UnconfirmedWriteError(schedulePendingMessage);};
+      let result;
+      try{result=await request;}catch{throw unconfirmed();}
+      assertWriter();
+      if(!result||typeof result!=='object'||Array.isArray(result))throw unconfirmed();
+      const {data,error,status}=result;
       if (error) {
-        if (error.code === "40001") throw new ConflictError();
-        throw new Error("儲存排程失敗：" + error.message);
+        // PostgREST maps serialization/deadlock rollbacks to HTTP 500. Only
+        // its complete error shape is accepted there; gateway failures remain
+        // uncertain, even if their bodies happen to contain a SQLSTATE.
+        const rollback500=status===500&&['40001','40P01'].includes(error.code)&&
+          typeof error.message==='string'&&error.message.trim().length>0&&
+          ['details','hint'].every(k=>Object.hasOwn(error,k)&&(error[k]===null||typeof error[k]==='string'));
+        const rejected=status==null||Number.isInteger(status)&&status>=400&&status<500||rollback500;
+        if(error.code==='40001'&&rejected){clear();throw new ConflictError();}
+        if(error.code==='PGRST202'&&status===404||
+          ['42501','P0001','P0002','23502','23503','23505','23514','21000','22P02','22003','22007','22008','40P01'].includes(error.code)&&rejected){
+          clear();throw new Error("儲存排程失敗：" + error.message);
+        }
+        throw unconfirmed();
       }
-      confirmedReceipt(data,assertWriter);
-      this.version += 1;
+      if(error!=null||status!=null&&(!Number.isInteger(status)||status<200||status>=300))throw unconfirmed();
+      try{confirmedReceipt(data,assertWriter,schedulePendingMessage);}catch(error){attempt.uncertain=true;throw error;}
+      clear();
+      this.version = version+1;
       S.version = this.version;
     } else if (entry) {
       const { error } = await assertWriter.authorize(client.rpc("log_change", { p_kind: KIND_TO_DB[entry.kind] || "edit", p_title: entry.title, p_detail: detailOf(entry) }));

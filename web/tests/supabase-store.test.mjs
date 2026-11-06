@@ -310,7 +310,7 @@ test("套用方案時排程已被別人更新 → 整份拒絕（版本衝突不
   assert.equal(fresh.version, 1, "版本停在老闆那一版");
 });
 
-test('儲存失敗（服務無回應）不留部分寫入，重新讀取仍是原版', async () => {
+test('服務無回應視為未確認：即使讀回原版，同頁儲存仍暫停', async () => {
   const { store, count } = await setup();
   const lead = await store('lead@x');
   const S = await lead.load();
@@ -318,12 +318,16 @@ test('儲存失敗（服務無回應）不留部分寫入，重新讀取仍是�
   // 模擬網路層故障：rpc 直接丟例外（非衝突、非權限）
   const orig = lead.sb.rpc.bind(lead.sb);
   lead.sb.rpc = () => requestQuery(() => { throw new Error('network down'); });
-  await assert.rejects(lead.sync(S, { kind: 'move', title: '組長的調整' }), /network down/);
+  await assert.rejects(lead.sync(S, { kind: 'move', title: '組長的調整' }), e=>e.unconfirmed&&/完整重新整理網頁/.test(e.message));
+  assert.equal(lead.hasPendingConfirmations(),true);
   lead.sb.rpc = orig;
   assert.equal(await count('select count(*)::int n from schedule_blocks'), 0, '資料庫沒有任何新方塊');
   const fresh = await lead.load();
   assert.equal(fresh.blocks.length, 0, '重新讀取仍是原版');
   assert.equal(fresh.version, 0, '版本不變');
+  assert.equal(lead.hasPendingConfirmations(),true,'讀回原版不代表原請求已結束');
+  await assert.rejects(lead.sync(fresh),e=>e.unconfirmed===true);
+  assert.equal(await count('select count(*)::int n from schedule_blocks'),0);
 });
 
 test('套用後立即復原（同使用者）不被自己的版本鎖擋住', async () => {
