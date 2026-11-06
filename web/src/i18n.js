@@ -11,6 +11,7 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "{product}：每分鐘件數須為 0.001–99999.999，最多 3 位小數": { en: "{product}: units per minute must be 0.001–99999.999 with at most 3 decimal places", vi: "{product}: số lượng mỗi phút phải từ 0.001 đến 99999.999, tối đa 3 chữ số thập phân", th: "{product}: จำนวนชิ้นต่อนาทีต้องอยู่ระหว่าง 0.001–99999.999 โดยมีทศนิยมไม่เกิน 3 ตำแหน่ง" },
   "正在讀取情境，可取消。": {en:"Loading the scenario. You can cancel.",vi:"Đang đọc tình huống. Bạn có thể hủy.",th:"กำลังอ่านสถานการณ์ คุณสามารถยกเลิกได้"},
   "正在保存情境；關閉視窗不會取消已送出的保存。": {en:"Saving the scenario. Closing this dialog does not cancel a submitted save.",vi:"Đang lưu tình huống. Đóng cửa sổ không hủy yêu cầu đã gửi.",th:"กำลังบันทึกสถานการณ์ การปิดหน้าต่างไม่ยกเลิกคำขอที่ส่งแล้ว"},
   "情境保存結果待核對；請查看保存的情境，或用相同名稱重試同一筆。": {en:"Scenario save is unconfirmed. Check saved scenarios, or retry the same entry with the same name.",vi:"Chưa xác nhận kết quả lưu. Kiểm tra tình huống đã lưu hoặc thử lại cùng mục với cùng tên.",th:"ยังไม่ยืนยันผลการบันทึก ตรวจสอบสถานการณ์ที่บันทึกหรือส่งรายการเดิมด้วยชื่อเดิมอีกครั้ง"},

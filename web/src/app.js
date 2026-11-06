@@ -6,6 +6,7 @@ import { ALL_WEEKDAYS, overtimeAllowed, overtimeDefault, overtimeWeekdays } from
 import { capacityIntervals as occupiedCapacityIntervals } from "./capacity.js";
 import { FACTORIES, factoryOf, factoryPreference, factoryName, inFactory, orderRoute, orderInFactory, compatible } from "./factory.js";
 import { batchReadyMinute, effectiveBlockQty, materialFlowIssue, remainingQty, quantityForMinutes } from "./manual.js";
+import { productRate } from "./product-rate.js";
 import { translateImportError } from "./import-errors.js";
 import { acceptManualPreview, placementConflicts } from "./manual-apply.js";
 import { employeeGroups, groupedEmployees, memberStatus } from "./groups.js";
@@ -1890,7 +1891,9 @@ function setPath(o,path,v){const k=path.split(".");let t=o;for(let i=0;i<k.lengt
 function syncInputs(){
   const m=UI.modal;if(!m||!m.draft)return;
   document.querySelectorAll("#modal-root [data-bind]").forEach(el=>{
-    const v=el.type==="number"?(el.value===""?0:+el.value):el.value;setPath(m.draft,el.dataset.bind,v);});
+    // Product rate text must survive add/delete-step rerenders until validation.
+    const rawRate=m.t==="products"&&el.hasAttribute("data-product-rate");
+    const v=el.type==="number"&&!rawRate?(el.value===""?0:+el.value):el.value;setPath(m.draft,el.dataset.bind,v);});
 }
 function renderModal(){
   globalThis.__fsRenderMemo=null;
@@ -2117,7 +2120,7 @@ products(m){
     '<div class="steps">'+p.steps.map((s,si)=>'<div class="step"><span class="no">'+(si+1)+'</span>'+
       '<input class="inp" data-bind="'+pi+'.steps.'+si+'.proc" aria-label="'+tx('工序')+'" value="'+esc(s.proc)+'" '+(ro?'disabled':'')+' placeholder="'+tx('自行輸入工序名稱')+'">'+
       '<select class="inp" data-bind="'+pi+'.steps.'+si+'.factory" aria-label="'+tx('第 {n} 站廠別',{n:si+1})+'" '+(ro?"disabled":"")+'>'+FACTORIES.map(f=>'<option value="'+f+'"'+(factoryOf(s)===f?' selected':'')+'>'+factoryName(f)+'</option>').join('')+'</select>'+
-      '<label class="field" style="gap:2px"><span class="hint">'+tx('件/分')+'</span><input class="inp num" type="number" step="0.1" min="0.1" data-bind="'+pi+'.steps.'+si+'.rate" value="'+s.rate+'" '+(ro?"disabled":"")+'></label>'+
+      '<label class="field" style="gap:2px"><span class="hint">'+tx('件/分')+'</span><input class="inp num" type="number" step="0.001" min="0.001" max="99999.999" data-product-rate data-bind="'+pi+'.steps.'+si+'.rate" value="'+esc(s.rate)+'" '+(ro?"disabled":"")+'></label>'+
       '<label class="field" style="gap:2px"><span class="hint">'+tx('幾件可傳下站')+'</span><input class="inp num" type="number" min="0" data-bind="'+pi+'.steps.'+si+'.batch" value="'+s.batch+'" '+(ro?"disabled":"")+'></label>'+
       (ro?"":'<button class="iconbtn x" data-act="p-delstep" data-v="'+pi+'.'+si+'" aria-label="'+tx('刪除這站')+'">×</button>')+'</div>').join("")+'</div>'+
     (ro?"":'<button class="more" data-act="p-addstep" data-v="'+pi+'">'+tx('＋加一站')+'</button>')+'</div>').join("")+
@@ -3302,6 +3305,8 @@ Object.assign(MODAL_ACT,{
   "p-add":()=>{syncInputs();UI.modal.draft.push({id:uid(),name:"新產品",steps:[{proc:'',factory:UI.factory==="all"?1:UI.factory,rate:0,batch:0}]});rerender();},
   "p-save":()=>{
     syncInputs();const D=UI.modal.draft;
+    // Reject the whole edit before changing state, undo history, or sending writes.
+    for(const p of D)for(const s of p.steps)if(productRate(s.rate)===null){toast(tx("{product}：每分鐘件數須為 0.001–99999.999，最多 3 位小數",{product:p.name}));return;}
     for(const p of D){p.name=String(p.name).trim();if(!p.name||p.name.length>80){toast('產品名稱須為 1–80 字');return;}for(const s of p.steps){s.proc=String(s.proc).trim();if(!s.proc||s.proc.length>80){toast('工序名稱須為 1–80 字');return;}s.factory=factoryOf(s);s.rate=+s.rate;s.batch=Math.max(0,Math.round(+s.batch||0));if(!(s.rate>0)){toast(p.name+"：每分鐘件數要大於 0");return;}}}
     if(new Set(D.map(p=>p.name)).size!==D.length){toast('產品名稱重複，請用明確品號區分');return;}
     for(const p of D){const old=prod(p.id);if(old&&S.orders.some(o=>o.pid===p.id)&&JSON.stringify(old.steps)!==JSON.stringify(p.steps)){toast('已有工單的產品只能改名稱；工序／產能變更請新增產品版本，以保留原排程');return;}}
