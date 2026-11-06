@@ -11,7 +11,7 @@ import {capacityIntervals as occupiedCapacityIntervals} from '../src/capacity.js
 import {factoryOf,compatible} from '../src/factory.js';
 import {assignments,occupiedWork} from '../src/general-work.js';
 import {overtimeAllowed} from '../src/overtime.js';
-import {effectiveBlockQty,batchReadyMinute,quantityForMinutes} from '../src/manual.js';
+import * as manual from '../src/manual.js';
 
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const day='2026-11-09';
@@ -28,7 +28,7 @@ function harness({qty=9,rate=.15}={}){
   try{imported=parseImportWorkbook(wb);}finally{if(!old)delete globalThis.crypto;}
   equal(imported.errors,[]);
   const S={...imported.data,blocks:[],cal:{week:[false,true,true,true,true,true,true],over:{}},dayOT:{},execution:[]};
-  const ctx={S,occupiedCapacityIntervals,factoryOf,compatible,assignments,occupiedWork,overtimeAllowed,effectiveBlockQty,batchReadyMinute,quantityForMinutes,uid:()=>webcrypto.randomUUID()};
+  const ctx={S,occupiedCapacityIntervals,factoryOf,compatible,assignments,occupiedWork,overtimeAllowed,...manual,uid:()=>webcrypto.randomUUID()};
   vm.createContext(ctx);
   // Run the actual app engine, rather than a second implementation of it.
   vm.runInContext(`const DAY0=480,LUNCH_S=720,LUNCH_E=780,REG_END=1020,DAY1=1200,HORIZON=60,HOLI={};const pad=n=>String(n).padStart(2,'0');const sum=(a,f)=>a.reduce((t,x)=>t+f(x),0);`+
