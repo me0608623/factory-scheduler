@@ -221,18 +221,20 @@ function freeSegs(ds,mid,E,fromMin,ex){
   }
   return out;
 }
-// 模擬：從 fromAbs 開始，這台機器＋這個人要花 dur 分鐘，會切成哪些段
-function simulate(mid,E,fromAbs,dur,ex){
-  let need=dur;const segs=[];
+// 模擬：每段只能分配整件產能，剩餘件數須在後續空檔完成。
+function simulate(mid,E,fromAbs,qty,rate,ex){
+  let left=qty;const segs=[];
   const d0=dateOfAbs(fromAbs),m0=Math.ceil((fromAbs-dayNum(d0)*1440)/10)*10;
-  for(let i=0;i<HORIZON&&need>0;i++){
+  for(let i=0;i<HORIZON&&left>0;i++){
     const ds=addDays(d0,i);
     for(const [s,e] of freeSegs(ds,mid,E,i===0?m0:0,ex)){
-      const len=e-s;if(len<30&&len<need)continue;       // 太碎的空檔不排
-      const take=Math.min(need,len);segs.push({date:ds,s,e:s+take});need-=take;if(need<=0)break;
+      const need=durOf(left,rate),len=e-s;if(len<30&&len<need)continue;       // 太碎的空檔不排
+      const take=Math.min(need,len),q=quantityForMinutes(take,rate,left);
+      if(q<=0)continue;
+      segs.push({date:ds,s,e:s+take,qty:q});left-=q;if(left<=0)break;
     }
   }
-  if(need>0)return null;
+  if(left>0||!segs.length)return null;
   const L=segs[segs.length-1];
   return {segs,start:absOf(segs[0].date,segs[0].s),end:absOf(L.date,L.e)};
 }
@@ -264,7 +266,7 @@ function prevEndAbs(oid,k){
 }
 // 找最早完成的「機台＋人」組合，回傳新的時段方塊
 function placeJob(oid,k,qty,fromAbs,opt={}){
-  const o=order(oid),st=prod(o.pid).steps[k],dur=durOf(qty,st.rate),ex=opt.ex||new Set();
+  const o=order(oid),st=prod(o.pid).steps[k],ex=opt.ex||new Set();
   const tail=durOf(Math.min(st.batch||qty,qty),st.rate);
   const pe=prevEndAbs(oid,k);
   let best=null;
@@ -272,7 +274,7 @@ function placeJob(oid,k,qty,fromAbs,opt={}){
     if(opt.onlyM&&M.id!==opt.onlyM)continue;
     let from=fromAbs,r=null;
     for(let t=0;t<4;t++){                       // 下站不能比前站先做完
-      r=simulate(M.id,E,from,dur,ex);if(!r)break;
+      r=simulate(M.id,E,from,qty,st.rate,ex);if(!r)break;
       if(k===0||st.batch<=0||r.end>=pe+tail)break;
       from=r.start+(pe+tail-r.end);
     }
@@ -282,11 +284,7 @@ function placeJob(oid,k,qty,fromAbs,opt={}){
     if(!best||cmp(sc,best.sc)<0)best={...r,m:M.id,emp:E.id,sc};
   }
   if(!best)return null;
-  let left=qty;
-  return best.segs.map((g,i)=>{
-    const q=i===best.segs.length-1?left:Math.min(left,Math.round((g.e-g.s)*st.rate));left-=q;
-    return {id:uid(),oid,step:k,m:best.m,emp:best.emp,date:g.date,s:g.s,e:g.e,qty:q,pin:false};
-  }).filter(b=>b.qty>0);
+  return best.segs.map(g=>({id:uid(),oid,step:k,m:best.m,emp:best.emp,date:g.date,s:g.s,e:g.e,qty:g.qty,pin:false}));
 }
 function cmp(a,b){for(let i=0;i<a.length;i++){if(a[i]!==b[i])return a[i]-b[i];}return 0;}
 
