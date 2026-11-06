@@ -11,6 +11,10 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "正在儲存產品工序，請稍候；此時無法取消。": {en:"Saving product steps. Please wait; cancellation is unavailable while saving.",vi:"Đang lưu công đoạn sản phẩm. Vui lòng đợi; không thể hủy khi đang lưu.",th:"กำลังบันทึกขั้นตอนผลิต กรุณารอ ไม่สามารถยกเลิกระหว่างบันทึกได้"},
+  "產品工序尚未確認儲存；已保留本次內容且暫停編輯，請重試儲存。關閉不會撤銷本次修改。": {en:"Product save is unconfirmed. Your submitted content is preserved and editing is paused. Retry saving. Closing will not undo these changes.",vi:"Chưa xác nhận lưu sản phẩm. Nội dung đã gửi vẫn được giữ và tạm ngừng chỉnh sửa. Hãy thử lưu lại. Đóng sẽ không hoàn tác thay đổi này.",th:"ยังยืนยันการบันทึกผลิตภัณฑ์ไม่ได้ เนื้อหาที่ส่งยังคงอยู่และหยุดแก้ไขชั่วคราว กรุณาลองบันทึกใหม่ การปิดจะไม่ย้อนการเปลี่ยนแปลงนี้"},
+  "產品資料或登入狀態已變更，請關閉後重新開啟產品工序。": {en:"Product data or sign-in state changed. Close and reopen product steps.",vi:"Dữ liệu sản phẩm hoặc trạng thái đăng nhập đã thay đổi. Hãy đóng rồi mở lại công đoạn sản phẩm.",th:"ข้อมูลผลิตภัณฑ์หรือสถานะเข้าสู่ระบบเปลี่ยนแล้ว กรุณาปิดและเปิดขั้นตอนผลิตใหม่"},
+
   "正在讀取情境，可取消。": {en:"Loading the scenario. You can cancel.",vi:"Đang đọc tình huống. Bạn có thể hủy.",th:"กำลังอ่านสถานการณ์ คุณสามารถยกเลิกได้"},
   "正在保存情境；關閉視窗不會取消已送出的保存。": {en:"Saving the scenario. Closing this dialog does not cancel a submitted save.",vi:"Đang lưu tình huống. Đóng cửa sổ không hủy yêu cầu đã gửi.",th:"กำลังบันทึกสถานการณ์ การปิดหน้าต่างไม่ยกเลิกคำขอที่ส่งแล้ว"},
   "情境保存結果待核對；請查看保存的情境，或用相同名稱重試同一筆。": {en:"Scenario save is unconfirmed. Check saved scenarios, or retry the same entry with the same name.",vi:"Chưa xác nhận kết quả lưu. Kiểm tra tình huống đã lưu hoặc thử lại cùng mục với cùng tên.",th:"ยังไม่ยืนยันผลการบันทึก ตรวจสอบสถานการณ์ที่บันทึกหรือส่งรายการเดิมด้วยชื่อเดิมอีกครั้ง"},
