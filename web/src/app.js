@@ -264,6 +264,27 @@ function prevEndAbs(oid,k){
 }
 // 找最早完成的「機台＋人」組合，回傳新的時段方塊
 function placeJob(oid,k,qty,fromAbs,opt={}){
+  if(k===0)return placeJobCandidate(oid,k,qty,fromAbs,opt);
+  const o=order(oid),st=prod(o.pid).steps[k],ex=opt.ex||new Set();
+  const retained=S.blocks.filter(b=>!ex.has(b.id)),execution=S.execution||[];
+  const ready=batchReadyMinute(o.qty,st.batch,retained,oid,k,absOf,new Set(),execution);
+  if(!isFinite(ready))return null;
+  const previous=retained.filter(b=>b.oid===oid&&b.step===k-1);
+  const previousEnd=Math.max(...previous.map(bEnd));
+  let from=Math.max(fromAbs,ready);
+  // Keep valid batch overlap. A late finish alone cannot prove material safety:
+  // an intervening fault can hide an earlier downstream production overtake.
+  for(let attempt=0;attempt<2;attempt++){
+    const candidate=placeJobCandidate(oid,k,qty,from,opt);
+    if(!candidate)return null;
+    if(!materialFlowIssue([...retained,...candidate],oid,k,absOf,execution))return candidate;
+    // One conservative retry after upstream completion; never return the last
+    // invalid candidate (including violations in retained/pinned work).
+    from=Math.max(from,previousEnd);
+  }
+  return null;
+}
+function placeJobCandidate(oid,k,qty,fromAbs,opt={}){
   const o=order(oid),st=prod(o.pid).steps[k],dur=durOf(qty,st.rate),ex=opt.ex||new Set();
   const tail=durOf(Math.min(st.batch||qty,qty),st.rate);
   const pe=prevEndAbs(oid,k);
@@ -290,13 +311,25 @@ function placeJob(oid,k,qty,fromAbs,opt={}){
 }
 function cmp(a,b){for(let i=0;i<a.length;i++){if(a[i]!==b[i])return a[i]-b[i];}return 0;}
 
+// A retained, already-full downstream step is skipped by the placement loop.
+// Check those edges too; discard only this order's newly proposed work on failure.
+function rejectUnsafeOrder(oid,before,fails){
+  const o=order(oid),p=prod(o.pid);
+  for(let k=1;k<p.steps.length;k++){
+    if(!materialFlowIssue(S.blocks,oid,k,absOf,S.execution||[]))continue;
+    S.blocks=before;
+    fails.push(o.code+" "+p.steps[k].proc+"：前站累積產量不足，請調整保留的排程");
+    return;
+  }
+}
+
 // 全部重排：保留已過去與「釘選」的方塊，其餘依優先順序→交期重新安排
 function autoPlan(fromAbs,seq){
   S.blocks=S.blocks.filter(b=>b.pin||bAbs(b)<fromAbs);
   const fails=[];
   const list=seq?seq.map(order).filter(Boolean):[...S.orders].sort((a,b)=>a.pri-b.pri||a.due.localeCompare(b.due));
   for(const o of list){
-    const p=prod(o.pid);
+    const p=prod(o.pid),before=[...S.blocks];
     for(let k=0;k<p.steps.length;k++){
       const rem=o.qty-sum(S.blocks.filter(b=>b.oid===o.id&&b.step===k),b=>effectiveBlockQty(b,S.execution||[]));
       if(rem<=0)continue;
@@ -306,13 +339,14 @@ function autoPlan(fromAbs,seq){
       if(!nb){fails.push(o.code+" "+p.steps[k].proc+"：沒有可用的機台或人員");break;}
       S.blocks.push(...nb);
     }
+    rejectUnsafeOrder(o.id,before,fails);
   }
   return fails;
 }
 // 只重排一張工單
 function planOrder(oid,fromAbs){
   S.blocks=S.blocks.filter(b=>b.oid!==oid||b.pin||bAbs(b)<fromAbs);
-  const o=order(oid),p=prod(o.pid),fails=[];
+  const o=order(oid),p=prod(o.pid),fails=[],before=[...S.blocks];
   for(let k=0;k<p.steps.length;k++){
     const rem=o.qty-sum(S.blocks.filter(b=>b.oid===oid&&b.step===k),b=>effectiveBlockQty(b,S.execution||[]));if(rem<=0)continue;
     const from=Math.max(fromAbs,readyAbs(oid,k));
@@ -320,6 +354,7 @@ function planOrder(oid,fromAbs){
     if(!nb){fails.push(o.code+" "+p.steps[k].proc+"：排不進去");break;}
     S.blocks.push(...nb);
   }
+  rejectUnsafeOrder(oid,before,fails);
   return fails;
 }
 
