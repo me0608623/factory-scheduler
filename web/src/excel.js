@@ -130,6 +130,21 @@ function positive(value, place, errors, integer = false, allowZero = false) {
   }
   return n;
 }
+// Check text cells before Number conversion can discard significant decimal digits.
+// Use digit counts and the exponent only; never expand a potentially huge exponent.
+function exactRateText(value) {
+  if (typeof value !== "string") return true;
+  const match = /^\+?(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/.exec(value.trim());
+  if (!match || !(match[1] || match[2])) return false;
+  const fraction = match[2] || "";
+  const digits = (match[1] + fraction).replace(/^0+/, "");
+  if (!digits) return false;
+  const significant = digits.replace(/0+$/, "");
+  const exponent = Number(match[3] || 0);
+  const scale = exponent - fraction.length + digits.length - significant.length;
+  // Positive numeric(8,3): at most five integer and three fractional digits.
+  return Number.isFinite(exponent) && scale >= -3 && significant.length + scale <= 5;
+}
 function dateValue(value, place, errors) {
   let s = text(value);
   if (value instanceof Date) s = `${value.getUTCFullYear()}-${pad(value.getUTCMonth() + 1)}-${pad(value.getUTCDate())}`;
@@ -199,6 +214,12 @@ export function parseImportWorkbook(workbook) {
     const stepNo = positive(v[2], `${place}工序順序`, errors, true);
     if (!PROCS.has(text(v[3]))) errors.push(`${place}：工序須為裁切、沖壓、焊接、組裝或包裝`);
     const rate = positive(v[4], `${place}每分鐘件數`, errors);
+    // Match product_steps.rate numeric(8,3) without silently rounding the import.
+    // Compare decimal roundtrips, not rate * 1000: valid decimals such as 1.001
+    // need not produce an integer when scaled in binary floating point.
+    if (rate > 0 && (!exactRateText(v[4]) || rate > 99999.999 || Number(rate.toFixed(3)) !== rate)) {
+      errors.push(`${place}每分鐘件數：須為 0.001–99999.999，最多 3 位小數`);
+    }
     const batch = positive(v[5] === "" ? 0 : v[5], `${place}幾件可傳下站`, errors, true, true);
     if (!productsByCode.has(id)) productsByCode.set(id, { id, name, numbered: [] });
     const product = productsByCode.get(id);
