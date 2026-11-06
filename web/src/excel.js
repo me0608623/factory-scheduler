@@ -122,10 +122,28 @@ function cellValue(cell, errors, place) {
 }
 function text(value) { return String(value ?? "").trim(); }
 function list(value) { return text(value).split(/[,，、;；]/).map(x => x.trim()).filter(Boolean); }
-function positive(value, place, errors, integer = false, allowZero = false) {
+// Inspect text before Number can round fractional digits or underflow to zero.
+// Compare the decimal scale with trailing coefficient zeros; never expand an exponent.
+function integerText(value) {
+  if (typeof value === "number") return true; // Numeric cells have already been decoded by ExcelJS.
+  const raw = text(value);
+  if (!raw || /^0(?:x[\da-f]+|b[01]+|o[0-7]+)$/i.test(raw)) return true;
+  const match = /^[-+]?(?:(\d+)(?:\.(\d*))?|\.(\d+))(?:e([-+]?\d+))?$/i.exec(raw);
+  if (!match) return false;
+  const fraction = match[2] ?? match[3] ?? "";
+  const coefficient = (match[1] || "") + fraction;
+  if (!/[1-9]/.test(coefficient)) return true;
+  const trailingZeros = coefficient.length - coefficient.replace(/0+$/, "").length;
+  return Number(match[4] || 0) >= fraction.length - trailingZeros;
+}
+function positive(value, place, errors, integer = false, allowZero = false, max = Infinity) {
   const n = typeof value === "number" ? value : Number(text(value));
-  if (!Number.isFinite(n) || (integer && !Number.isInteger(n)) || (allowZero ? n < 0 : n <= 0)) {
+  if (!Number.isFinite(n) || (integer && (!Number.isInteger(n) || !integerText(value))) || (allowZero ? n < 0 : n <= 0)) {
     errors.push(`${place}：請填${allowZero ? "非負" : "正"}${integer ? "整" : ""}數`);
+    return 0;
+  }
+  if (n > max) {
+    errors.push(`${place}：不得超過 2147483647`);
     return 0;
   }
   return n;
@@ -199,7 +217,7 @@ export function parseImportWorkbook(workbook) {
     const stepNo = positive(v[2], `${place}工序順序`, errors, true);
     if (!PROCS.has(text(v[3]))) errors.push(`${place}：工序須為裁切、沖壓、焊接、組裝或包裝`);
     const rate = positive(v[4], `${place}每分鐘件數`, errors);
-    const batch = positive(v[5] === "" ? 0 : v[5], `${place}幾件可傳下站`, errors, true, true);
+    const batch = positive(v[5] === "" ? 0 : v[5], `${place}幾件可傳下站`, errors, true, true, 2147483647);
     if (!productsByCode.has(id)) productsByCode.set(id, { id, name, numbered: [] });
     const product = productsByCode.get(id);
     if (product.name !== name) errors.push(`${place}：同一產品代號的名稱須一致`);
@@ -213,7 +231,7 @@ export function parseImportWorkbook(workbook) {
   const orders = orderRows.map(({ n, values: v }) => {
     const place = `工單 第 ${n} 列`;
     if (!text(v[0]) || !text(v[1])) errors.push(`${place}：工單號與產品代號必填`);
-    const qty = positive(v[2], `${place}數量`, errors, true);
+    const qty = positive(v[2], `${place}數量`, errors, true, false, 2147483647);
     const due = dateValue(v[3], `${place}期限`, errors);
     const pri = positive(v[4], `${place}優先級`, errors, true, true);
     if (pri > 3) errors.push(`${place}：優先級須為 0–3`);
