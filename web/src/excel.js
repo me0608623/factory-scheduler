@@ -137,7 +137,7 @@ function dateValue(value, place, errors) {
   if (!m) { errors.push(`${place}：日期須為 YYYY-MM-DD`); return ""; }
   const normalized = `${m[1]}-${pad(+m[2])}-${pad(+m[3])}`;
   const d = new Date(`${normalized}T00:00:00Z`);
-  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== normalized) {
+  if (+m[1] === 0 || Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== normalized) {
     errors.push(`${place}：日期不存在`); return "";
   }
   return normalized;
