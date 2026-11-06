@@ -38,9 +38,11 @@ export function toSnapshot(S, holidays = {}) {
     calendar: {
       week: [...S.cal.week],
       overrides: Object.fromEntries(Object.entries(S.cal.over || {}).map(([d, v]) => [d, v === "work"])),
-      overtime: { ...(S.dayOT || {}) },
+      overtime: Object.fromEntries(Object.entries(S.dayOT || {}).map(([d, v]) => [d, !!v])),
       holidays: { ...holidays },
     },
+    // Match schedule_snapshot(): enabled flags and per-day endpoints are separate.
+    ot_ends: Object.fromEntries(Object.entries(S.dayOT || {}).filter(([, v]) => typeof v === 'number')),
     employees: S.employees.map((e) => ({ id: e.id, name: e.name, factory: e.factory || 1, color: e.color || 0, skills: [...e.skills],
       max_concurrent_machines: e.maxMachines || 1, review_status: e.reviewStatus || 'confirmed', source_ref: e.sourceRef || null,
       source_employee_code: e.sourceCode || null, source_notes: e.sourceNotes || null,
@@ -81,7 +83,7 @@ export function fromSnapshot(snap) {
     groups: (snap.staff_groups || []).map(g=>({id:g.id,name:g.name,department:g.department||null,homeFactory:g.home_factory??null,sourceRef:g.source_ref||null})),
     groupMembers: (snap.staff_group_members || []).map(m=>({groupId:m.group_id,employeeId:m.employee_id,reviewStatus:m.review_status,sourceRef:m.source_ref||null})),
     cal: { week: c.week || [false, true, true, true, true, true, true], over },
-    dayOT: Object.fromEntries(Object.entries(c.overtime || {}).map(([d, v]) => [d, (snap.ot_ends && snap.ot_ends[d] != null) ? snap.ot_ends[d] : v])), // ot_ends（0032）在快照頂層；缺時退 true
+    dayOT: Object.fromEntries(Object.entries(c.overtime || {}).map(([d, v]) => [d, (v && snap.ot_ends && snap.ot_ends[d] != null) ? snap.ot_ends[d] : v])), // ot_ends（0032）在快照頂層；缺時退 true
     holidays: { ...(c.holidays || {}) },
     employees: (snap.employees || []).map((e) => ({ id: e.id, name: e.name, factory: e.factory || 1, color: e.color || 0, skills: [...e.skills],
       maxMachines: e.max_concurrent_machines || 1, reviewStatus: e.review_status || 'confirmed', sourceRef: e.source_ref || null,
