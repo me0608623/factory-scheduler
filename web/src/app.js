@@ -5,7 +5,7 @@ import { toSnapshot, applyOption, newId } from "./convert.js";
 import { ALL_WEEKDAYS, overtimeAllowed, overtimeDefault, overtimeWeekdays } from "./overtime.js";
 import { capacityIntervals as occupiedCapacityIntervals } from "./capacity.js";
 import { FACTORIES, factoryOf, factoryPreference, factoryName, inFactory, orderRoute, orderInFactory, compatible } from "./factory.js";
-import { batchReadyMinute, effectiveBlockQty, materialFlowIssue, remainingQty, quantityForMinutes } from "./manual.js";
+import { batchReadyMinute, effectiveBlockQty, assertOrderReductions, materialFlowIssue, remainingQty, quantityForMinutes } from "./manual.js";
 import { translateImportError } from "./import-errors.js";
 import { acceptManualPreview, placementConflicts } from "./manual-apply.js";
 import { employeeGroups, groupedEmployees, memberStatus } from "./groups.js";
@@ -2811,7 +2811,7 @@ function openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra={},job){
 }
 function enterPreview({title,logTitle,kind,base,B,opts,ev,extra}){
   const returnContext=PV?.returnContext||capturePreviewContext(UI);
-  for(const o of opts){try{assertExecutionProtected(B,o.A);validateGeneralWork(o.A,{today:todayStr(),baseAssignments:assignments(B)});}catch(e){o.applicable=false;o.diagnostics=[...(o.diagnostics||[]),e.message];}}
+  for(const o of opts){try{assertOrderReductions(B,o.A);assertExecutionProtected(B,o.A);validateGeneralWork(o.A,{today:todayStr(),baseAssignments:assignments(B)});}catch(e){o.applicable=false;o.diagnostics=[...(o.diagnostics||[]),e.message];}}
   {
     const best=opts.find(o=>o.best)||opts[0];
     const fk=f=>[f.date,f.s,f.e].join("|"),faultsNew=[];
@@ -2851,7 +2851,7 @@ async function pvApply(){
   if(!PV||PV.applying||PV.savedScenario)return;
   const o=pvOpt();if(!o)return;
   if(o.applicable===false){toast('這個方案尚無法套用，請查看原因與建議');return;}
-  try{assertExecutionProtected(S,o.A);}catch(e){toast(e.message);return;}
+  try{assertOrderReductions(S,o.A);assertExecutionProtected(S,o.A);}catch(e){toast(e.message);return;}
   const P=PV,noteEl=$("#pv-note");if(noteEl)P.note=noteEl.value.trim();
   if(P.previewId&&STORE.applyPlan){
     const store=STORE,user=store.session?.user?.id,epoch=store.authEpoch,state=S,version=store.version,base=JSON.stringify(S);
@@ -2970,7 +2970,7 @@ async function runRerun(){
     if(!fresh.length){R.busy=false;render();toast("照這些條件算不出新的排法；可以放寬一個條件再試");return;}
     const B=P.B,ev={date:plan.date,oid:P.event&&P.event.order?P.event.order.id:undefined};
     const newOpts=fresh.map(x=>{const A=applyOption(B,x);return {id:x.id,name:x.name,desc:x.desc,lines:x.lines||[],mt:measure(B,A,ev),score:x.score,best:false,applicable:x.applicable!==false,diagnostics:x.diagnostics||[],state:JSON.stringify(A),A,sec:x.solve_seconds,solverMethod:x.solver_method,previewId:plan.preview_id||null,hint:true};});
-    for(const x of newOpts){try{assertExecutionProtected(B,x.A);validateGeneralWork(x.A,{today:todayStr(),baseAssignments:assignments(B)});}catch(e){x.applicable=false;x.diagnostics=[...(x.diagnostics||[]),e.message];}}
+    for(const x of newOpts){try{assertOrderReductions(B,x.A);assertExecutionProtected(B,x.A);validateGeneralWork(x.A,{today:todayStr(),baseAssignments:assignments(B)});}catch(e){x.applicable=false;x.diagnostics=[...(x.diagnostics||[]),e.message];}}
     P.opts=P.opts.filter(x=>!x.hint).concat(newOpts);   // 換掉上一輪的條件方案，原本 A～D 保留
     P.cur=newOpts[0].id;
     P.ai=null;

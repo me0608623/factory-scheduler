@@ -4,6 +4,25 @@ export function effectiveBlockQty(block, execution = []) {
   return report ? Number(report.qtyDone) || 0 : Number(block.qty) || 0;
 }
 
+// Only quantity reductions are checked: unrelated legacy over-allocation must not
+// prevent other edits. Completed blocks retain nominal history but count actuals.
+export function assertOrderReductions(before, after) {
+  const oldQty = new Map((before?.orders || []).map(o => [o.id, Number(o.qty)]));
+  const reduced = new Map((after.orders || []).filter(o => oldQty.has(o.id) && Number(o.qty) < oldQty.get(o.id)).map(o => [o.id, o]));
+  if (!reduced.size) return;
+  const totals = new Map();
+  for (const b of after.blocks || []) {
+    const order = reduced.get(b.oid);
+    if (!order) continue;
+    let steps = totals.get(b.oid);
+    if (!steps) totals.set(b.oid, steps = new Map());
+    const step = Number(b.step);
+    const qty = (steps.get(step) || 0) + effectiveBlockQty(b, after.execution || []);
+    steps.set(step, qty);
+    if (qty > Number(order.qty)) throw new Error('工單 ' + (order.code || order.id) + ' 第 ' + (step + 1) + ' 道工序：實際完成加待做件數超過工單件數');
+  }
+}
+
 // 手動排班：預估件數與工單剩餘量。時間以分鐘計，未排入或完工短少的件數不會憑空消失。
 export function remainingQty(orderQty, blocks, orderId, step, exceptId = null, execution = []) {
   const scheduled = blocks.reduce((total, b) => total +
