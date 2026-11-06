@@ -2092,7 +2092,7 @@ ord(m){
       (bl.map(b=>'<button class="rline" data-act="goto" data-d="'+b.date+'" style="border:0;text-align:left;width:100%"><span class="k info">'+esc(stepName(b))+'</span><span class="num">'+mdw(b.date)+" "+hm(b.s)+"–"+hm(b.e)+"　"+esc(b.m)+"　"+esc(emp(b.emp)?emp(b.emp).name:"")+"　"+b.qty+'件</span></button>').join("")||'<div class="empty">'+tx('尚未排入')+'</div>')+'</div></div>';}
   const body=
    '<div class="row2"><div class="field"><label for="f-code">'+tx('工單號')+'</label><input class="inp num" id="f-code" data-bind="code" value="'+esc(D.code)+'" '+(ro?"disabled":"")+'></div>'+
-   '<div class="field"><label for="f-qty">'+tx('數量（件）')+'</label><input class="inp num" type="number" min="1" id="f-qty" data-bind="qty" value="'+D.qty+'" '+(ro?"disabled":"")+'></div></div>'+
+   '<div class="field"><label for="f-qty">'+tx('數量（件）')+'</label><input class="inp num" type="number" min="1" max="2147483647" step="1" id="f-qty" data-bind="qty" value="'+D.qty+'" '+(ro?"disabled":"")+'></div></div>'+
    '<div class="field"><span class="lab">'+tx('產品')+'</span><div class="toggles">'+S.products.filter(x=>x.id===D.pid||UI.factory==="all"||x.steps.some(s=>factoryOf(s)===UI.factory)).map(x=>tg("o-prod",x.id,D.pid===x.id,esc(x.name),"",ro)).join("")+'</div></div>'+
    '<div class="row2"><div class="field"><label for="f-due">'+tx('最晚完成日（硬性期限）')+'</label><input class="inp num" type="date" id="f-due" data-bind="due" value="'+D.due+'" '+(ro?"disabled":"")+'></div>'+
    '<div class="field"><span class="lab">'+tx('優先順序')+'</span><div class="toggles">'+[[0,"特急"],[1,"急"],[2,"一般"],[3,"不急"]].map(([v,t])=>tg("o-pri",v,D.pri===v,t,"",ro)).join("")+'</div></div></div>'+
@@ -2118,7 +2118,7 @@ products(m){
       '<input class="inp" data-bind="'+pi+'.steps.'+si+'.proc" aria-label="'+tx('工序')+'" value="'+esc(s.proc)+'" '+(ro?'disabled':'')+' placeholder="'+tx('自行輸入工序名稱')+'">'+
       '<select class="inp" data-bind="'+pi+'.steps.'+si+'.factory" aria-label="'+tx('第 {n} 站廠別',{n:si+1})+'" '+(ro?"disabled":"")+'>'+FACTORIES.map(f=>'<option value="'+f+'"'+(factoryOf(s)===f?' selected':'')+'>'+factoryName(f)+'</option>').join('')+'</select>'+
       '<label class="field" style="gap:2px"><span class="hint">'+tx('件/分')+'</span><input class="inp num" type="number" step="0.1" min="0.1" data-bind="'+pi+'.steps.'+si+'.rate" value="'+s.rate+'" '+(ro?"disabled":"")+'></label>'+
-      '<label class="field" style="gap:2px"><span class="hint">'+tx('幾件可傳下站')+'</span><input class="inp num" type="number" min="0" data-bind="'+pi+'.steps.'+si+'.batch" value="'+s.batch+'" '+(ro?"disabled":"")+'></label>'+
+      '<label class="field" style="gap:2px"><span class="hint">'+tx('幾件可傳下站')+'</span><input class="inp num" type="number" min="0" max="2147483647" step="1" data-bind="'+pi+'.steps.'+si+'.batch" value="'+s.batch+'" '+(ro?"disabled":"")+'></label>'+
       (ro?"":'<button class="iconbtn x" data-act="p-delstep" data-v="'+pi+'.'+si+'" aria-label="'+tx('刪除這站')+'">×</button>')+'</div>').join("")+'</div>'+
     (ro?"":'<button class="more" data-act="p-addstep" data-v="'+pi+'">'+tx('＋加一站')+'</button>')+'</div>').join("")+
    (ro?"":'<button class="btn" data-act="p-add">'+tx('＋新增產品')+'</button>');
@@ -3261,7 +3261,9 @@ Object.assign(MODAL_ACT,{
   "o-save":()=>{
     if(!canOrders())return;
     syncInputs();const m=UI.modal,D=m?.draft;if(!D)return;
-    D.code=String(D.code).trim();D.qty=Math.round(+D.qty);
+    const qty=Math.round(+D.qty);
+    if(!Number.isFinite(qty)||qty>2147483647){toast(tx("工單數量不可超過 2147483647，且須為有限數值"));return;}
+    D.code=String(D.code).trim();D.qty=qty;
     if(!D.code||!(D.qty>0)||!D.due||!prod(D.pid)){toast("請填好工單號、數量、期限與產品");return;}
     const isNew=!order(D.id),snap={...D};
     const ev=()=>{
@@ -3302,6 +3304,8 @@ Object.assign(MODAL_ACT,{
   "p-add":()=>{syncInputs();UI.modal.draft.push({id:uid(),name:"新產品",steps:[{proc:'',factory:UI.factory==="all"?1:UI.factory,rate:0,batch:0}]});rerender();},
   "p-save":()=>{
     syncInputs();const D=UI.modal.draft;
+    // Keep existing rounding/clamping, but reject int32 overflow before any writes.
+    for(const p of D)for(const s of p.steps){const batch=Math.max(0,Math.round(+s.batch||0));if(!Number.isFinite(batch)||batch>2147483647){toast(tx("{product}：交接批量不可超過 2147483647，且須為有限數值",{product:p.name}));return;}}
     for(const p of D){p.name=String(p.name).trim();if(!p.name||p.name.length>80){toast('產品名稱須為 1–80 字');return;}for(const s of p.steps){s.proc=String(s.proc).trim();if(!s.proc||s.proc.length>80){toast('工序名稱須為 1–80 字');return;}s.factory=factoryOf(s);s.rate=+s.rate;s.batch=Math.max(0,Math.round(+s.batch||0));if(!(s.rate>0)){toast(p.name+"：每分鐘件數要大於 0");return;}}}
     if(new Set(D.map(p=>p.name)).size!==D.length){toast('產品名稱重複，請用明確品號區分');return;}
     for(const p of D){const old=prod(p.id);if(old&&S.orders.some(o=>o.pid===p.id)&&JSON.stringify(old.steps)!==JSON.stringify(p.steps)){toast('已有工單的產品只能改名稱；工序／產能變更請新增產品版本，以保留原排程');return;}}

@@ -11,6 +11,8 @@ export const SETTINGS_TEXT = {
 };
 
 export const UI_TEXT = {
+  "工單數量不可超過 2147483647，且須為有限數值": {en:"Order quantity must be finite and no greater than 2147483647.",vi:"Số lượng đơn hàng phải hữu hạn và không vượt quá 2147483647.",th:"จำนวนในใบสั่งต้องเป็นค่าจำกัดและไม่เกิน 2147483647"},
+  "{product}：交接批量不可超過 2147483647，且須為有限數值": {en:"{product}: Transfer batch must be finite and no greater than 2147483647.",vi:"{product}: Số lượng chuyển giao phải hữu hạn và không vượt quá 2147483647.",th:"{product}: จำนวนส่งต่อต้องเป็นค่าจำกัดและไม่เกิน 2147483647"},
   "正在讀取情境，可取消。": {en:"Loading the scenario. You can cancel.",vi:"Đang đọc tình huống. Bạn có thể hủy.",th:"กำลังอ่านสถานการณ์ คุณสามารถยกเลิกได้"},
   "正在保存情境；關閉視窗不會取消已送出的保存。": {en:"Saving the scenario. Closing this dialog does not cancel a submitted save.",vi:"Đang lưu tình huống. Đóng cửa sổ không hủy yêu cầu đã gửi.",th:"กำลังบันทึกสถานการณ์ การปิดหน้าต่างไม่ยกเลิกคำขอที่ส่งแล้ว"},
   "情境保存結果待核對；請查看保存的情境，或用相同名稱重試同一筆。": {en:"Scenario save is unconfirmed. Check saved scenarios, or retry the same entry with the same name.",vi:"Chưa xác nhận kết quả lưu. Kiểm tra tình huống đã lưu hoặc thử lại cùng mục với cùng tên.",th:"ยังไม่ยืนยันผลการบันทึก ตรวจสอบสถานการณ์ที่บันทึกหรือส่งรายการเดิมด้วยชื่อเดิมอีกครั้ง"},
