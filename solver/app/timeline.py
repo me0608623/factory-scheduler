@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, timedelta
 
-from .schemas import Calendar
+from .schemas import Calendar, DEFAULT_WINDOWS
 
 
 def s2d(s: str) -> date:
@@ -51,17 +51,28 @@ class Timeline:
         self.wins: list[Win] = []
         t = 0
         wdefs = sorted(cal.windows, key=lambda w: w.start)
+        standard_windows = wdefs == DEFAULT_WINDOWS
         for i in range(days):
             ds = add_days(start, i)
             if not self.is_open(ds):
                 continue
             ot = cal.overtime.get(ds, False) or ds in extra_overtime
             special = self.day_type(ds) != "work"
+            # Extra overtime opens a previously disabled day with its normal
+            # window; it does not override a cutoff on already-enabled overtime.
+            cutoff = cal.overtime_ends.get(ds) if cal.overtime.get(ds, False) else None
             for w in wdefs:
                 if w.overtime and not ot:
                     continue
-                self.wins.append(Win(ds, w.start, w.end, w.overtime, special, t))
-                t += w.end - w.start
+                end = w.end
+                if w.overtime and cutoff is not None:
+                    # Only the standard evening window may expand. Custom shift
+                    # windows retain their breaks and never overlap other shifts.
+                    end = cutoff if standard_windows else min(end, cutoff)
+                if end <= w.start:
+                    continue
+                self.wins.append(Win(ds, w.start, end, w.overtime, special, t))
+                t += end - w.start
         self.horizon = t
 
     # ---------- 日曆 ----------
