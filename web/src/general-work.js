@@ -10,7 +10,8 @@ export function workWindows(S,date){
   const dow=new Date(date+'T00:00:00Z').getUTCDay(),open=S.cal.over[date]?S.cal.over[date]==='work':S.cal.week[dow];
   if(!open)return [];
   const ot=dow===0||dow===6||!!S.holidays?.[date];
-  return [{s:480,e:720,ot},{s:780,e:1020,ot},...(S.dayOT[date]?[{s:1020,e:1200,ot:true}]:[])];
+  const overtimeEnd=typeof S.dayOT[date]==='number'?S.dayOT[date]:1200;
+  return [{s:480,e:720,ot},{s:780,e:1020,ot},...(S.dayOT[date]?[{s:1020,e:overtimeEnd,ot:true}]:[])];
 }
 export function validateGeneralWork(S,{today=null,baseAssignments=[]}={}){
   assertWorkCatalog(S);const ids=new Set(),byDay=new Map(),base=new Map(baseAssignments.map(a=>[a.id,JSON.stringify(assignmentToDb(a))]));

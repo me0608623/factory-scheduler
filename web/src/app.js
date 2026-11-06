@@ -1795,6 +1795,16 @@ function saveDailyOT(m){
   if(readOnly&&blocksInOvertime.some(b=>!m.open||!(m.overrides[b.emp]??overtimeDefault(emp(b.emp),d)))){
     toast("這天已有加班排程；縮短加班並順延工作還需要「調整與自動排程」權限");return;
   }
+  if(assignments(S).some(a=>a.date===d&&a.date>=todayStr())){
+    const candidate={...S,dayOT:{...S.dayOT},employees:S.employees.map(e=>{
+      const otOverrides={...e.otOverrides};
+      if(m.overrides[e.id]===null)delete otOverrides[d];else otOverrides[d]=m.overrides[e.id];
+      return {...e,otOverrides};
+    })};
+    if(m.open)candidate.dayOT[d]=m.otEnd;else delete candidate.dayOT[d];
+    try{validateGeneralWork(candidate,{today:todayStr(),baseAssignments:assignments(S)});}
+    catch(e){toast('加班設定會使一般工作排班失效，請先調整一般工作：'+e.message);return;}
+  }
   pushUndo();
   if(m.open){const sel=$("#ot-end");m.otEnd=sel?+sel.value:m.otEnd||DAY1;S.dayOT[d]=m.otEnd;}else delete S.dayOT[d];
   for(const e of S.employees){
