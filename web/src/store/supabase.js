@@ -24,6 +24,7 @@ const jsAbs = (date, min) => {
 
 const rushKey = (S) => JSON.stringify(S.rushOrders || []);
 const workLogKey = (S) => JSON.stringify(S.workLog || []);
+const atomicPendingMessage='工單與排程儲存結果待確認，已暫停後續儲存以避免重複送出；請完整重新整理網頁，再核對雲端結果（不是只更新班表）。';
 
 const TABLE_NAME = { processes: "工序", employees: "員工", employee_skills: "員工技能", leaves: "請假",
   employee_overtime_days: "單日加班意願", machines: "機台",
@@ -87,7 +88,7 @@ export class SupabaseStore {
   }
   // Page-session only. A fresh read is not proof that an uncertain RPC ended.
   hasPendingConfirmation(blockId) {return this.#confirmationState().blocks.has(String(blockId).toLowerCase());}
-  hasPendingConfirmations() {return this.#confirmationState().blocks.size>0;}
+  hasPendingConfirmations() {const state=this.#confirmationState();return state.blocks.size>0||!!state.atomic;}
 
   constructor(client) {
     this.sb = client;
@@ -395,6 +396,10 @@ export class SupabaseStore {
 
   // ---------- 寫：只寫有變的列；排程方塊整批用 save_blocks（有版本號檢查） ----------
   async sync(S, entry) {
+    // A snapshot read cannot prove that an uncertain HTTP request has finished.
+    // Only a new page/session clears an unresolved compound-write gate.
+    const confirmation=this.#confirmationState();
+    if(confirmation.atomic)throw new UnconfirmedWriteError(atomicPendingMessage);
     const client=this.sb,assertWriter=this.requestOwnerGuard(()=>new UnconfirmedWriteError());
     try{validateRosters(S);}catch(e){e.permission=true;throw e;}
     try{validateTransfers(S,{before:this.transferBase});}catch(e){e.permission=true;throw e;}
@@ -449,6 +454,34 @@ export class SupabaseStore {
       const {data,error}=await assertWriter.authorize(client.rpc('save_staff_groups',{p_base_version:this.version,p_groups:catalog.groups,p_members:catalog.members,p_title:entry?.title||'更新員工分組'}));
       if(error){if(error.code==='40001')throw new ConflictError();throw writeError('員工分組',error,'修改');}
       S.version=this.version=confirmedVersion(data,this.version,assertWriter);this._remember(S);return;
+    }
+    // A changed order and replacement blocks must share one database transaction.
+    // Never fall back to per-table writes when this RPC is unavailable.
+    if(d.orders && blocksKey(S)!==this.baseBlocks){
+      if(d.orders.del.length || Object.keys(d).some(t=>t!=='orders'))
+        throw Object.assign(new Error('請將工單與排程調整和其他基本資料／刪除分開儲存'),{permission:true});
+      const version=this.version;
+      let result;
+      try{
+        const request=assertWriter.authorize(client.rpc('save_orders_and_blocks',{
+          p_base_version:version,p_orders:d.orders.upsert,p_blocks:S.blocks.map(blockToDb),
+          p_title:entry?.title||'調整工單與排程',p_detail:detailOf(entry),p_kind:KIND_TO_DB[entry?.kind]||'edit',
+        }));
+        confirmation.atomic=true;
+        result=await request;
+      }catch{throw new UnconfirmedWriteError(atomicPendingMessage);}
+      assertWriter();
+      const {data,error,status}=result||{};
+      if(error){
+        if(error.code==='40001'&&(status==null||status>=400&&status<500)){confirmation.atomic=false;throw new ConflictError();}
+        if(error.code==='PGRST202'&&status===404){confirmation.atomic=false;throw new Error('雲端尚未支援工單與排程一起儲存，請更新資料庫後再試');}
+        if(['42501','P0001','P0002','23502','23503','23505','23514','21000','22P02','22003','22007','22008','40P01'].includes(error.code)&&(status==null||status>=400&&status<500))
+          {confirmation.atomic=false;throw new Error('儲存工單與排程失敗：'+error.message);}
+        throw new UnconfirmedWriteError(atomicPendingMessage);
+      }
+      confirmedReceipt(data,assertWriter,atomicPendingMessage);
+      confirmation.atomic=false;
+      S.version=this.version=version+1;this._remember(S);return;
     }
     // 基本資料逐表寫入，若排程版本已過期，應在第一筆寫入前先拒絕；
     // 否則後續 save_blocks 才報衝突時，工單等列可能已部分留下。
