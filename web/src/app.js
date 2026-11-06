@@ -1845,8 +1845,8 @@ function openModal(m){
   UI.modal=m;renderModal();
 }
 function closeModal(){
-  // An import already writing cannot be cancelled by Escape, the overlay or X.
-  if(UI.modal?.t==='import-preview'&&UI.modal.saving)return;
+  // An import or product save in flight cannot be cancelled by Escape, overlay or X.
+  if(['import-preview','products'].includes(UI.modal?.t)&&UI.modal.saving)return;
   cancelPlanCalculation();
   UI.modal=null;const r=$("#modal-root");if(r)r.innerHTML="";maybeReload();
   const target=modalReturnFocus;modalReturnFocus=null;
@@ -1902,7 +1902,7 @@ function renderModal(){
   const c=f(m);if(!c){closeModal();return;}
   const keep=root.querySelector(".overlay"),focusToken=keep&&root.contains(document.activeElement)?modalFocusToken(document.activeElement):null;
   const st=keep?keep.scrollTop:0;
-  const importBusy=m.t==='import-preview'&&m.saving;
+  const importBusy=['import-preview','products'].includes(m.t)&&m.saving;
   root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!(m.viewLoading||m.t==='scenario-list'&&m.loading||m.confirmBusy||m.planBusy||importBusy||m.t==='legacy-preview'&&m.saving||['memo-edit','leave-request','scenario-save'].includes(m.t)&&m.saving||m.t==='execution-report'&&m.busy||m.t==='legacy-history'&&m.loading)+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close"'+(importBusy?' disabled':'')+' aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
   if(importBusy)root.querySelectorAll('input,select,textarea,button').forEach(el=>el.disabled=true);
   if(['memo-edit','leave-request'].includes(m.t)&&m.saving)root.querySelectorAll('input,select,textarea').forEach(el=>el.disabled=true);
@@ -2110,7 +2110,8 @@ orders(){
 /* ---------- 產品工序（標準公式） ---------- */
 products(m){
   if(!m.draft)m.draft=JSON.parse(JSON.stringify(S.products));
-  const ro=!canMaster();
+  if(!m.productOwner){m.productOwner={store:STORE,writer:STORE?.session?.user?.id,epoch:STORE?.authEpoch};m.productBase=JSON.stringify(S);}
+  const ro=!canMaster()||!!m.productCandidate||!!m.saving;
   const body=(S.demo?'<div class="issue">目前包含示範產品，不是 1023 已核定的品號／模具。請自行新增現場產品與工序；速率必須由使用者確認。</div>':'')+'<div class="hint">工序名稱可自行輸入。已有工單的產品可改名稱；變更工序／產能請新增產品版本，以保留原排程。此為原生產品工序模型，跨廠加工單與點收紀錄另行管理，尚未自動串接；原生模型的跨廠運送／交接時間仍未設定，不能將它的預測當成實際到料。</div>'+
    m.draft.map((p,pi)=>'<div class="field" style="border:1px solid var(--line2);border-radius:12px;padding:12px">'+
     '<input class="inp" data-bind="'+pi+'.name" value="'+esc(p.name)+'" aria-label="'+tx('產品名稱')+'" '+(ro?"disabled":"")+'>'+
@@ -2122,7 +2123,10 @@ products(m){
       (ro?"":'<button class="iconbtn x" data-act="p-delstep" data-v="'+pi+'.'+si+'" aria-label="'+tx('刪除這站')+'">×</button>')+'</div>').join("")+'</div>'+
     (ro?"":'<button class="more" data-act="p-addstep" data-v="'+pi+'">'+tx('＋加一站')+'</button>')+'</div>').join("")+
    (ro?"":'<button class="btn" data-act="p-add">'+tx('＋新增產品')+'</button>');
-  return {title:tx('產品工序（標準公式）'),body,foot:ro?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="p-save">'+tx('儲存')+'</button>'};
+  const status=m.saving?'<div class="hint" role="status">'+tx('正在儲存產品工序，請稍候；此時無法取消。')+'</div>':m.productError?'<div class="issue" role="alert">'+esc(m.productError)+'</div>':'';
+  const close='<button class="btn" data-act="close"'+(m.saving?' disabled':'')+'>'+tx(m.productCandidate?'關閉':'取消')+'</button>';
+  const save=canMaster()&&(!m.productCandidate||m.productRetryable)?'<button class="btn primary" data-act="p-save"'+(m.saving?' disabled':'')+'>'+tx(m.saving?'正在儲存，請稍候…':m.productCandidate?'重試儲存':'儲存')+'</button>':'';
+  return {title:tx('產品工序（標準公式）'),body:body+status,foot:close+save};
 },
 /* ---------- 單一方塊 ---------- */
 blk(m){
@@ -3297,18 +3301,41 @@ Object.assign(MODAL_ACT,{
     S.employees.forEach(E=>E.leaves=[]);S.machines.forEach(M=>M.faults=[]);
     commit({kind:"edit",title:tx('清除示範工單，開始使用'),lines:[]});closeModal();
   },
-  "p-addstep":a=>{syncInputs();UI.modal.draft[+a.dataset.v].steps.push({proc:'',factory:UI.factory==="all"?1:UI.factory,rate:0,batch:0});rerender();},
-  "p-delstep":a=>{syncInputs();const [pi,si]=a.dataset.v.split(".").map(Number);const st=UI.modal.draft[pi].steps;if(st.length>1)st.splice(si,1);rerender();},
-  "p-add":()=>{syncInputs();UI.modal.draft.push({id:uid(),name:"新產品",steps:[{proc:'',factory:UI.factory==="all"?1:UI.factory,rate:0,batch:0}]});rerender();},
-  "p-save":()=>{
-    syncInputs();const D=UI.modal.draft;
+  "p-addstep":a=>{if(UI.modal?.t!=="products"||UI.modal.saving||UI.modal.productCandidate||!canMaster())return;syncInputs();UI.modal.draft[+a.dataset.v].steps.push({proc:'',factory:UI.factory==="all"?1:UI.factory,rate:0,batch:0});rerender();},
+  "p-delstep":a=>{if(UI.modal?.t!=="products"||UI.modal.saving||UI.modal.productCandidate||!canMaster())return;syncInputs();const [pi,si]=a.dataset.v.split(".").map(Number);const st=UI.modal.draft[pi].steps;if(st.length>1)st.splice(si,1);rerender();},
+  "p-add":()=>{if(UI.modal?.t!=="products"||UI.modal.saving||UI.modal.productCandidate||!canMaster())return;syncInputs();UI.modal.draft.push({id:uid(),name:"新產品",steps:[{proc:'',factory:UI.factory==="all"?1:UI.factory,rate:0,batch:0}]});rerender();},
+  "p-save":async()=>{
+    const m=UI.modal;if(m?.t!=="products"||m.saving||!canMaster()||!m.productOwner)return;
+    const {store,writer,epoch}=m.productOwner;
+    const owner=()=>STORE===store&&store?.session?.user?.id===writer&&store?.authEpoch===epoch;
+    const retry=!!m.productCandidate;
+    if(!retry)syncInputs(); // Preserve unbound fields even when a newer baseline rejects this draft.
+    const current=()=>S===m.productCandidate&&JSON.stringify(S)===m.productExpected;
+    if(!owner()||(store?.kind==='supabase'&&!writer)||JSON.stringify(S)!==(retry?m.productExpected:m.productBase)||(retry&&(!m.productRetryable||!current()))){
+      m.productRetryable=false;m.productError=tx('產品資料或登入狀態已變更，請關閉後重新開啟產品工序。');renderModal();return;
+    }
+    if(!retry){
+      const D=structuredClone(m.draft);
     for(const p of D){p.name=String(p.name).trim();if(!p.name||p.name.length>80){toast('產品名稱須為 1–80 字');return;}for(const s of p.steps){s.proc=String(s.proc).trim();if(!s.proc||s.proc.length>80){toast('工序名稱須為 1–80 字');return;}s.factory=factoryOf(s);s.rate=+s.rate;s.batch=Math.max(0,Math.round(+s.batch||0));if(!(s.rate>0)){toast(p.name+"：每分鐘件數要大於 0");return;}}}
     if(new Set(D.map(p=>p.name)).size!==D.length){toast('產品名稱重複，請用明確品號區分');return;}
     for(const p of D){const old=prod(p.id);if(old&&S.orders.some(o=>o.pid===p.id)&&JSON.stringify(old.steps)!==JSON.stringify(p.steps)){toast('已有工單的產品只能改名稱；工序／產能變更請新增產品版本，以保留原排程');return;}}
-    pushUndo();S.products=D;
-    S.blocks=S.blocks.filter(b=>{const o=order(b.oid);return o&&prod(o.pid)&&b.step<prod(o.pid).steps.length;});
-    commit({kind:"edit",title:tx('修改產品工序'),lines:[]},"master.manage");closeModal();
-    toast("工序已更新。要依新公式重新排程嗎？","重新排程",runAuto);
+      pushUndo();S={...S,products:D};
+      S.blocks=S.blocks.filter(b=>{const o=order(b.oid);return o&&prod(o.pid)&&b.step<prod(o.pid).steps.length;});
+      m.productCandidate=S;
+    }
+    // Freeze the submitted draft while this exact candidate is pending/retryable.
+    // Never alias editable modal fields to the live state or duplicate its undo/log.
+    m.saving=true;m.productError='';m.productRetryable=true;renderModal();
+    let saved=false;
+    try{
+      const writing=commit(retry?null:{kind:"edit",title:tx('修改產品工序'),lines:[]},"master.manage");
+      m.productExpected=JSON.stringify(S);saved=await writing;
+    }catch{saved=false;}
+    m.saving=false;
+    if(UI.modal!==m)return;
+    m.productRetryable=owner()&&current()&&canMaster();
+    if(saved&&m.productRetryable){closeModal();toast("工序已更新。要依新公式重新排程嗎？","重新排程",()=>{if(owner()&&current()&&canMaster()&&SYNC.state==='ok')runAuto();else toast(tx('產品資料或登入狀態已變更，請關閉後重新開啟產品工序。'));});return;}
+    m.productError=tx(m.productRetryable?'產品工序尚未確認儲存；已保留本次內容且暫停編輯，請重試儲存。關閉不會撤銷本次修改。':'產品資料或登入狀態已變更，請關閉後重新開啟產品工序。');renderModal();
   },
   "b-emp":a=>{const b=UI.modal&&S.blocks.find(x=>x.id===UI.modal.id);if(!b||b.emp===a.dataset.v)return;pushUndo();const from=emp(b.emp);b.emp=a.dataset.v;b.pin=true;
     commit({kind:"move",title:label(b)+"：改由 "+emp(b.emp).name+" 做"+(from?"（原 "+from.name+"）":""),lines:[]});},
