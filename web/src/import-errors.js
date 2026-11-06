@@ -50,6 +50,7 @@ const PATTERNS = [
 
 // 列位錯誤：place＝「表 第 N 列」＋可選欄位後綴＋「：訊息」
 const ROW_MESSAGES = [
+  [/^：須為 0\.001–99999\.999，最多 3 位小數$/, (f, m) => tx("{place}{field}：須為 0.001–99999.999，最多 3 位小數", { place: m.place, field: m.field })],
   [/^：請填入值，不要使用公式或連結$/, (f, m) => tx("{place}：請填入值，不要使用公式或連結", { place: m.place })],
   [/^：請填正數$/, (f, m) => tx("{place}{field}：請填正數", { place: m.place, field: m.field })],
   [/^：請填正整數$/, (f, m) => tx("{place}{field}：請填正整數", { place: m.place, field: m.field })],

@@ -274,6 +274,7 @@ export const UI_TEXT = {
   "產生檔案中…": { en: "Generating the file…", vi: "Đang tạo file…", th: "กำลังสร้างไฟล์…" },
   "{table} 第 {n} 列": { en: "{table} row {n}", vi: "{table} hàng {n}", th: "{table} แถว {n}" },
   "{place}：請填入值，不要使用公式或連結": { en: "{place}: enter a value, not a formula or link", vi: "{place}: nhập giá trị, không dùng công thức hoặc liên kết", th: "{place}: กรอกค่า ไม่ใช่สูตรหรือลิงก์" },
+  "{place}{field}：須為 0.001–99999.999，最多 3 位小數": { en: "{place}{field}: enter 0.001–99999.999 with at most 3 decimal places", vi: "{place}{field}: nhập từ 0.001 đến 99999.999, tối đa 3 chữ số thập phân", th: "{place}{field}: กรอกค่า 0.001–99999.999 โดยมีทศนิยมไม่เกิน 3 ตำแหน่ง" },
   "{place}{field}：請填正數": { en: "{place}{field}: enter a positive number", vi: "{place}{field}: nhập số dương", th: "{place}{field}: กรอกเลขบวก" },
   "{place}{field}：請填正整數": { en: "{place}{field}: enter a positive whole number", vi: "{place}{field}: nhập số nguyên dương", th: "{place}{field}: กรอกจำนวนเต็มบวก" },
   "{place}{field}：請填非負數": { en: "{place}{field}: enter a non-negative number", vi: "{place}{field}: nhập số không âm", th: "{place}{field}: กรอกเลขไม่ติดลบ" },
