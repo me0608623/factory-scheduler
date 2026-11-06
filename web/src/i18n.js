@@ -275,6 +275,7 @@ export const UI_TEXT = {
   "{table} 第 {n} 列": { en: "{table} row {n}", vi: "{table} hàng {n}", th: "{table} แถว {n}" },
   "{place}：請填入值，不要使用公式或連結": { en: "{place}: enter a value, not a formula or link", vi: "{place}: nhập giá trị, không dùng công thức hoặc liên kết", th: "{place}: กรอกค่า ไม่ใช่สูตรหรือลิงก์" },
   "{place}{field}：請填正數": { en: "{place}{field}: enter a positive number", vi: "{place}{field}: nhập số dương", th: "{place}{field}: กรอกเลขบวก" },
+  "{place}{field}：不得超過 2147483647": { en: "{place}{field}: must not exceed 2147483647", vi: "{place}{field}: không được vượt quá 2147483647", th: "{place}{field}: ต้องไม่เกิน 2147483647" },
   "{place}{field}：請填正整數": { en: "{place}{field}: enter a positive whole number", vi: "{place}{field}: nhập số nguyên dương", th: "{place}{field}: กรอกจำนวนเต็มบวก" },
   "{place}{field}：請填非負數": { en: "{place}{field}: enter a non-negative number", vi: "{place}{field}: nhập số không âm", th: "{place}{field}: กรอกเลขไม่ติดลบ" },
   "{place}{field}：請填非負整數": { en: "{place}{field}: enter a non-negative whole number", vi: "{place}{field}: nhập số nguyên không âm", th: "{place}{field}: กรอกจำนวนเต็มไม่ติดลบ" },
