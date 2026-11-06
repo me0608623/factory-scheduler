@@ -58,7 +58,7 @@ test('輪43 棘輪：EN 掃描發現的缺譯呼叫點必須走 tx（抽屜鈕/�
   assert.match(app, /btn\('auto',tx\('⚡ 自動排班'\)/, '⚡ 自動排班須 tx');
   assert.match(app, /btn\('undo',tx\('復原上一步'\)/, '復原上一步須 tx');
   // 空狀態與一般工作區
-  assert.match(app, /tx\('這天還沒有排程。可按「＋手動排班」安排未排入的工作，或使用「自動排程」。'\)/, '看板空狀態須 tx');
+  assert.match(app, /tx\('這天還沒有排程。'\)/, '看板空狀態須 tx');
   assert.match(app, /workGridHTML\(tx\('一般工作／純人工排班'\)/, '一般工作區標題須 tx');
   assert.match(app, /workGridHTML\(tx\('依工作內容查看'\)/, '依工作內容查看標題須 tx');
   // 廠別：中央 factoryName 走 tx；頂欄/平面圖/分組 select 同

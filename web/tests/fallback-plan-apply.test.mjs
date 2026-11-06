@@ -5,7 +5,7 @@ import {readFileSync} from 'node:fs';
 import {LocalStore} from '../src/store/local.js';
 
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
-const applyCode=source.slice(source.indexOf('async function pvApply(){'),source.indexOf('\nObject.assign(MODAL_ACT,{',source.indexOf('async function pvApply(){')));
+const applyCode=source.slice(source.indexOf('function samePreviewState('),source.indexOf('function pvDrawerActionsHTML('))+source.slice(source.indexOf('async function pvApply(){'),source.indexOf('\nObject.assign(MODAL_ACT,{',source.indexOf('async function pvApply(){')));
 const commitCode=source.slice(source.indexOf('function commit('),source.indexOf('\nasync function undo('));
 function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
 function harness(){
