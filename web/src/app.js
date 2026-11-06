@@ -1557,7 +1557,16 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "master":{if(PV){toast("預覽中：先按「用這套」或「取消」");break;}UI.page='catalog';UI.drawer=null;UI.focus=null;setUrlView("catalog");render();window.scrollTo(0,0);break;}
     case "pick":{const p=$("#datepick");try{p.showPicker();}catch(_){p.style.pointerEvents="auto";p.focus();p.click();}break;}
     case "view":zoomWheel.cancel();applyPinch.cancel();pinch0=null;pinchActive=false;UI.wkFit=false;UI.view=a.dataset.v;render();break;
-    case "factory":{const v=a.dataset.v==="all"?"all":Number(a.dataset.v);setFactory(v);render();break;}
+    case "factory":{
+      const groupIndex=document.activeElement===a?[...document.querySelectorAll('.factory-switch')].indexOf(a.closest('.factory-switch')):-1;
+      const v=a.dataset.v==="all"?"all":Number(a.dataset.v);setFactory(v);render();
+      if(groupIndex>=0&&!UI.modal&&!UI.editCell&&document.activeElement===document.body){
+        const group=document.querySelectorAll('.factory-switch')[groupIndex];
+        const target=group?.querySelector('[data-act="factory"][data-v="'+v+'"]');
+        if(target?.getClientRects().length)target.focus({preventScroll:true});
+      }
+      break;
+    }
     case "empty-clear-group":UI.group='all';render();break;
     case "empty-resources":if(canMaster()){if(UI.factory==='all')setFactory(FACTORIES[0]);UI.page='catalog';UI.drawer=null;UI.focus=null;setUrlView('catalog');render();window.scrollTo(0,0);}break;
     case "groups":openModal({t:'groups'});break;

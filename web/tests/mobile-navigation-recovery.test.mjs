@@ -19,12 +19,12 @@ function buttons(html){
 }
 
 test('all factories is a filter and does not open transfer management',()=>{
-  const action=app.match(/case "factory":\{([\s\S]*?)break;\}/)?.[1];
+  const action=between('case "factory":','case "empty-clear-group":');
   assert.ok(action);
   const calls=[];
-  const env={a:{dataset:{v:'all'}},setFactory:v=>calls.push(['factory',v]),render:()=>calls.push(['render']),openModal:m=>calls.push(['modal',m])};
+  const env={a:{dataset:{v:'all'}},document:{activeElement:null},setFactory:v=>calls.push(['factory',v]),render:()=>calls.push(['render']),openModal:m=>calls.push(['modal',m])};
   vm.createContext(env);
-  vm.runInContext(action,env);
+  vm.runInContext('switch("factory"){'+action+'}',env);
   assert.deepEqual(calls,[['factory','all'],['render']]);
   assert.match(between('function topHTML(', 'function appNavHTML('),/tx\('全部廠別'\)/);
 });
