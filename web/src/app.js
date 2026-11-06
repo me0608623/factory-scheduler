@@ -1983,6 +1983,17 @@ function sizeBlockDetailModal(){
   const width=overlay.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight);
   modal.style.setProperty('--block-detail-height',Math.max(180,Math.floor(height/zoom))+'px');
   modal.style.width=Math.max(200,Math.min(680,Math.floor(width/zoom)))+'px';
+  const body=modal.querySelector('.modal-b'),active=document.activeElement;
+  if(!body||active===body||!body.contains(active)||!active.getClientRects().length)return;
+  const clip=body.getBoundingClientRect(),target=active.getBoundingClientRect();
+  const clipHeight=clip.bottom-clip.top,targetHeight=target.bottom-target.top;
+  if(clipHeight<=0||targetHeight<=0)return;
+  if(target.top>=clip.top-1&&target.bottom<=clip.bottom+1)return;
+  if(targetHeight>clipHeight&&target.top<=clip.top&&target.bottom>=clip.bottom)return;
+  const inset=Math.min(6*zoom,Math.max(0,(clipHeight-targetHeight)/2));
+  const topDelta=target.top-clip.top-inset,bottomDelta=target.bottom-clip.bottom+inset;
+  const delta=Math.abs(topDelta)<=Math.abs(bottomDelta)?topDelta:bottomDelta;
+  if(Math.abs(delta)>1)body.scrollTop+=delta/zoom;
 }
 function renderModal(){
   globalThis.__fsRenderMemo=null;

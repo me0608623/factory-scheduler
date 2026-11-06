@@ -1,8 +1,15 @@
 # Factory Scheduler — current handoff
 
-Last updated: 2026-10-26 (Asia/Taipei)
+Last updated: 2026-11-07 (Asia/Taipei)
 
 This is the first file a replacement agent should read. It records the current repository, production environment, verified state, and the next safe actions. Do not put passwords, Supabase service-role keys, anon keys, or AI provider keys in this file.
+
+## Actual SIM viewport-focus checkpoint (2026-11-06; PR #50, not merged or deployed)
+
+- Shrinking an open work-detail dialog could retain focus below its scrolling body. A scoped adjustment in the existing sizing function now reveals that control without refocusing, rerendering or writing background scroll. Actual SIM portrait, landscape, short desktop, repeated resize and header/footer counterexamples pass. P1 coverage confirms mobile first-screen work, assistant non-overlap after scrolling, and manual/automatic entry, open and Escape cancellation; it does not cover submissions. See [UI_SIM_MODAL_FOCUS_2026-11-06.md](UI_SIM_MODAL_FOCUS_2026-11-06.md) for reproduction, screenshots and limits.
+- Seven new tests first produced five failures. The final scoped suite passed 156/156, the web build passed and independent comment/correctness review found no actionable issue. Baseline `94ecaa7` had ten passing CI checks; verify the follow-up head separately. No submitted GitHub review is not approval.
+- Native calendar interaction remains limited by browser tooling. Manual-entry fields/errors cannot be exercised with this unchanged SIM snapshot because neither factory has a step with positive remaining quantity. Preserve these limits; do not invent work or weaken the fixture's guards. Next safe coverage is cross-flow navigation and keyboard transitions on existing actual SIM work.
+- Continue only in `C:/Users/me060/Downloads/factory-scheduler-test-display-20261023` on `codex/test-schedule-display-20261023`. Preserve `web/.audit/` and unrelated edits. Production 1023, database writes, migrations, accounts, merges and deployments remain prohibited. The old `factory-scheduler-ui` heartbeat is paused. The separately active goal has no filled-in deadline or token budget; do not infer a new one from the expired October timer.
 
 ## Actual SIM interaction checkpoint (2026-10-26; PR #50, not merged or deployed)
 
@@ -18,7 +25,7 @@ This is the first file a replacement agent should read. It records the current r
 - Follow-up SIM navigation: related-segment and catalog-order links left the original modal/page hiding the destination. The shared date-navigation action now closes the modal through its existing lifecycle and returns to the board. Five new tests first produced four failures; all 98 scoped tests and the build then passed. Eight actual-SIM desktop/mobile navigation checks passed, with limitations recorded in [UI_SIM_NAVIGATION_2026-10-26.md](UI_SIM_NAVIGATION_2026-10-26.md). The original snapshot fixture remains unchanged; a separate local navigation harness retains all write/network blocks.
 - Proactive mobile inspection found that zoom and wheel-toggle collapsed the day board's More tools and lost keyboard focus. The two-line render fix preserves native disclosure state across redraws, with no new stored preference or data operation.
 - Four new behavior tests first reproduced three failures; the scoped regression suite then passed all 93 tests, and the web build passed. Actual SIM checks passed at 390×844, 360×800, 740×900 and 1440×900; manual/automatic entry dialogs and assistant non-overlap were also rechecked. Independent review found no actionable issue. See [UI_SIM_UX_2026-10-26.md](UI_SIM_UX_2026-10-26.md) for commands, evidence and limits.
-- Continue proactive actual-SIM exploration as well as checking the current PR head. The existing 10-minute automation ends at 2026-10-27 11:53:47 Asia/Taipei. Preserve unrelated changes and `web/.audit/`; do not access production 1023, execute migrations, merge, deploy, or enable auto-merge. Historical CI results below do not establish the new head's status.
+- The former 10-minute automation had a deadline of 2026-10-27 11:53:47 Asia/Taipei and was subsequently paused at the user's request. It is not authorization to resume that timer. Preserve unrelated changes and `web/.audit/`; do not access production 1023, execute migrations, merge, deploy, or enable auto-merge. Historical CI results below do not establish the new head's status.
 
 ## Expanded assistant checkpoint (2026-10-25; PR #50, not merged or deployed)
 
