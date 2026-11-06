@@ -336,7 +336,9 @@ function slotFree(ds,mid,E,s,e,exId){
 }
 function canDo(E,M,pid,k){const p=prod(pid);return compatible(E,M,p,p.steps[k]);}
 function trySwap(b,mode){
-  const o=order(b.oid);
+  const o=order(b.oid),st=prod(o.pid).steps[b.step];
+  // A split remainder may need more time than its original interval.
+  if(b.qty>Math.floor((b.e-b.s)*st.rate+1e-8))return null;
   const tries=[];
   const sameM=mach(b.m);
   const E0=emp(b.emp);
@@ -353,7 +355,9 @@ function trySwap(b,mode){
 function label(b){const o=order(b.oid);return o.code+" "+stepName(b)+" "+b.qty+"件";}
 function splitAt(b,t){
   if(t<=b.s||t>=b.e)return null;
-  const q1=Math.round(b.qty*(t-b.s)/(b.e-b.s));
+  // Split planned pieces conservatively; this does not record actual production.
+  const q1=Math.floor(b.qty*(t-b.s)/(b.e-b.s));
+  if(q1===0){b.s=t;return b;} // Keep the whole remainder, not an invalid empty prefix.
   const nb={...b,id:uid(),s:t,qty:b.qty-q1};
   b.e=t;b.qty=q1;S.blocks.push(nb);return nb;
 }
