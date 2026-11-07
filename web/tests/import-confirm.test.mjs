@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {LocalStore} from '../src/store/local.js';
+import {pendingCalendarStore} from './pending-calendar-store.mjs';
+import {requestQuery} from './request-query.mjs';
 import {SaxesParser} from 'saxes';
 
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
@@ -77,7 +79,7 @@ test('actual commit, queueSync and LocalStore quota failure keep import unconfir
     const queue=source.indexOf('function queueSync(entry){'),commit=source.indexOf('function commit(');
     vm.runInContext(source.slice(queue,source.indexOf('// ---------- 別人改了',queue))+source.slice(commit,source.indexOf('\nasync function undo(',commit)),f.ctx);
     await f.ctx.confirm();assert.equal(successes(f).length,0);assert.equal(f.ctx.SYNC.state,'error');
-    assert.match(f.ctx.SYNC.msg,/儲存空間不足/);assert.equal(f.ctx.UI.modal,f.modal);assert.equal(f.modal.saving,false);
+    assert.match(f.ctx.SYNC.msg,/儲存空間不足/);assert.equal(f.modal.importError,'匯入尚未確認儲存；資料仍保留，請重試儲存。');assert.equal(f.ctx.UI.modal,f.modal);assert.equal(f.modal.saving,false);
   }finally{if(old===undefined)delete globalThis.localStorage;else globalThis.localStorage=old;}
 });
 test('normal close, Escape and overlay close share a guard that cannot discard a saving import',()=>{
@@ -137,4 +139,33 @@ test('actual LocalStore failure followed by retry persists once and keeps one im
     const stored=JSON.parse(value);assert.equal(stored.employees[0].id,'new');assert.equal(stored.log.length,1);
     assert.equal(f.ctx.undoStack.length,1);assert.equal(f.ctx.SYNC.state,'ok');
   }finally{if(old===undefined)delete globalThis.localStorage;else globalThis.localStorage=old;}
+});
+
+test('pre-existing pending schedule blocks import before replacing state or showing retry',async()=>{
+  const f=fixture(),p=await pendingCalendarStore();f.ctx.STORE=p.store;const before=JSON.stringify(f.ctx.S);
+  await f.ctx.confirm();assert.equal(JSON.stringify(f.ctx.S),before);assert.equal(f.ctx.undoStack.length,0);
+  assert.equal(f.modal.importError,p.store.pendingScheduleSaveMessage());assert.equal(f.events.filter(e=>e.type==='commit').length,0);
+  assert.equal(f.modal.importCandidate,undefined);assert.ok(!preview(f).foot.includes('x-import-confirm'),'uncertainty hides confirmation even before an import candidate exists');
+});
+
+for(const unknown of [false,true])test('real deferred save keeps ordinary waiting UI until its outcome is uncertain: '+unknown,async()=>{
+  const f=fixture(),p=await pendingCalendarStore({pending:false}),reply=deferred(),entered=deferred();f.ctx.STORE=p.store;
+  p.store.sb.rpc=()=>requestQuery(()=>{entered.resolve();return reply.promise;});
+  const saving=p.store.sync(p.candidate).then(()=>null,error=>error);await entered.promise;
+  assert.equal(p.store.hasPendingConfirmations(),true);assert.equal(p.store.pendingScheduleSaveMessage(),'');
+  assert.ok(preview(f).foot.includes('x-import-confirm'),'healthy waiting does not blanket-disable import');
+  Object.assign(f.ctx,{syncPending:1,executionRetries:{has:()=>false},showLogin:()=>assert.fail('must not log out during a write')});
+  const start=source.indexOf('case "logout":'),end=source.indexOf('break;',start);
+  vm.runInContext('switch("logout"){'+source.slice(start,end+6)+'}',f.ctx);
+  assert.equal(f.events.filter(e=>e.type==='toast').at(-1).text,'有變更尚未確認儲存；請先按上方儲存狀態重試，確認後再登出。');
+  reply.resolve({data:unknown?null:'11111111-1111-4111-8111-111111111111',error:null});const result=await saving;
+  if(unknown){
+    assert.equal(result.unconfirmed,true);assert.match(p.store.pendingScheduleSaveMessage(),/完整重新整理網頁/);
+    assert.ok(!preview(f).foot.includes('x-import-confirm'));await f.ctx.confirm();assert.equal(f.modal.importError,p.store.pendingScheduleSaveMessage());
+    vm.runInContext('switch("logout"){'+source.slice(start,end+6)+'}',f.ctx);
+    assert.equal(f.events.filter(e=>e.type==='toast').at(-1).text,p.store.pendingScheduleSaveMessage());
+  }else{
+    assert.equal(result,null);assert.equal(p.store.hasPendingConfirmations(),false);assert.equal(p.store.pendingScheduleSaveMessage(),'');
+    assert.ok(preview(f).foot.includes('x-import-confirm'),'a healthy acknowledgement keeps ordinary import available');
+  }
 });

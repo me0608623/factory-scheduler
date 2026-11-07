@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {LocalStore} from '../src/store/local.js';
+import {pendingCalendarStore} from './pending-calendar-store.mjs';
 import {SaxesParser} from 'saxes';
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const at=source.indexOf('case "person-day":{'),end=source.indexOf('case "person-month":',at);
@@ -119,4 +120,11 @@ test('actual people drawer announces saving, disables date cells and escapes the
   parser.write(html.replace(/ disabled(?=[ >])/g,' disabled="disabled"')).close();assert.equal(dates.length,2);assert.ok(dates.every(d=>'disabled' in d));
   f.ctx.UI.leaveBrushSaving=null;f.ctx.UI.leaveBrushError='<script>unsafe</script>';html=f.ctx.peopleDrawerHTML();
   assert.match(html,/role="alert"/);assert.ok(!html.includes('<script>'));assert.ok(html.includes('&lt;script&gt;'));
+});
+
+for(const pending of [true,false])test('brush failure preserves real pending guidance when present: '+pending,async()=>{
+  const f=fixture(),p=await pendingCalendarStore({pending});f.ctx.STORE=p.store;
+  f.click();await tick();f.pending.resolve(false);await tick();
+  assert.equal(f.ctx.UI.leaveBrushError,pending?p.store.pendingScheduleSaveMessage():'排班狀態尚未確認儲存；請按上方儲存狀態重試。');
+  assert.equal(success(f).length,0);assert.equal(reloads(f).length,0);
 });

@@ -211,3 +211,17 @@ test('real manual preview enter/exit restores context on cancel, not while accep
     assert.equal(JSON.stringify(h.ctx.S),before);assert.ok(!h.log.includes('commit'));
   }
 });
+
+import {pendingCalendarStore} from './pending-calendar-store.mjs';
+
+for(const mode of ['full-screen','drag-dialog'])for(const pending of [true,false])test(mode+' manual failure uses the real Store pending message or its ordinary fallback',async()=>{
+  const f=await pendingCalendarStore({pending}),h=harness();h.ctx.STORE=f.store;
+  h.ctx.commit=async()=>{h.ctx.SYNC.state='error';return false;};
+  if(mode==='drag-dialog'){
+    h.ctx.UI.modal={t:'drag-preview',proposal:h.P};
+    const at=source.indexOf('  "drag-confirm":async()=>{'),end=source.indexOf('  "c-week":',at);
+    vm.runInContext('Object.assign(MODAL_ACT,{'+source.slice(at,end)+'});',h.ctx);
+    await h.ctx.MODAL_ACT['drag-confirm']();
+  }else await h.ctx.pvApplyManual();
+  assert.equal(h.log.at(-1),pending?f.store.pendingScheduleSaveMessage():'調整尚未確認儲存；內容已保留，請按上方儲存狀態重試。');
+});

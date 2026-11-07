@@ -1458,7 +1458,7 @@ document.addEventListener("click",e=>{
             const saving=commit({kind:"leave",title:E.name+" "+brushName+" "+md(lo)+"～"+md(hi)+"（"+cnt+" 天）",lines:[]},"incidents.manage");
             const expected=JSON.stringify(S),saved=await saving;
             if(!current()||!sameView()||JSON.stringify(S)!==expected)return;
-            if(!saved){UI.leaveBrushError=tx('排班狀態尚未確認儲存；請按上方儲存狀態重試。');return;}
+            if(!saved){UI.leaveBrushError=tx(STORE.pendingScheduleSaveMessage?.()||'排班狀態尚未確認儲存；請按上方儲存狀態重試。');return;}
             // Release our edit guard only after acknowledgment; the read itself
             // must still refuse newer drafts, previews and in-flight writes.
             if(UI.leaveBrushSaving===operation)UI.leaveBrushSaving=null;
@@ -1489,7 +1489,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "tour":{closeModal();UI.drawer=null;render();setTimeout(()=>startTour(TOUR_STEPS,{tx}),350);break;}
     case "logout":(async a=>{if(STORE.kind!=="supabase"){toast(tx('本機模式沒有登入帳號'));return;}
       // 與 beforeunload 同風險：未確認儲存的變更只在本機，登出即丟失
-      if(syncPending>0||SYNC.state!=="ok"||executionRetries.has(STORE)||STORE.hasPendingConfirmations?.()){toast(tx('有變更尚未確認儲存；請先按上方儲存狀態重試，確認後再登出。'));return;}
+      if(syncPending>0||SYNC.state!=="ok"||executionRetries.has(STORE)||STORE.hasPendingConfirmations?.()){toast(tx(STORE.pendingScheduleSaveMessage?.()||'有變更尚未確認儲存；請先按上方儲存狀態重試，確認後再登出。'));return;}
       closeModal();
       try{await STORE.logout();toast("已登出");}catch(e){toast("登出失敗："+e.message);}
       showLogin();})();break;
@@ -2208,7 +2208,7 @@ export(){
     !m.errors.length?'<div class="issues"><div class="issue">'+tx('確認後將以 Excel 內容取代現有員工、機台、產品工序與工單，並清空現有 {n} 段排程；上班日設定保留。匯入後再按「自動排程」建立新班表。',{n:S.blocks.length})+'</div></div>':'';
   return {title:tx(m.errors.length?'Excel 匯入 · 請修正檔案':'Excel 匯入 · 確認取代資料'),
     body:'<div class="hint">'+tx('檔案：')+esc(m.filename)+'</div>'+summary+problems+(m.importCandidate?'':warning)+(m.saving?'<div class="hint" role="status">'+tx('正在儲存匯入資料，請稍候；此時無法取消。')+'</div>':'')+(m.importError?'<div class="issues" role="alert"><div class="issue">'+esc(m.importError)+'</div></div>':''),
-    foot:'<button class="btn" data-act="close"'+(m.saving?' disabled':'')+'>'+tx(m.importCandidate?'關閉':'取消')+'</button>'+(m.errors.length||!m.data||hasSecondFactory||hasGroups||hasGeneral||(m.importCandidate&&!m.importRetryable)?'':'<button class="btn primary" data-act="x-import-confirm"'+(m.saving?' disabled':'')+'>'+(m.saving?'<span class="spin" aria-hidden="true"></span>'+tx('儲存中…'):m.importCandidate?tx('重試儲存'):tx('確認匯入並清空舊排程'))+'</button>')};
+    foot:'<button class="btn" data-act="close"'+(m.saving?' disabled':'')+'>'+tx(m.importCandidate?'關閉':'取消')+'</button>'+(STORE.pendingScheduleSaveMessage?.()||m.errors.length||!m.data||hasSecondFactory||hasGroups||hasGeneral||(m.importCandidate&&!m.importRetryable)?'':'<button class="btn primary" data-act="x-import-confirm"'+(m.saving?' disabled':'')+'>'+(m.saving?'<span class="spin" aria-hidden="true"></span>'+tx('儲存中…'):m.importCandidate?tx('重試儲存'):tx('確認匯入並清空舊排程'))+'</button>')};
 },
 "legacy-preview"(m){
   const legacy=m.legacy,day=legacy.days[m.date]||{"1廠":[],"2廠":[],overtime:{}};
@@ -2270,7 +2270,7 @@ Object.assign(MODAL_ACT,{
     await applyManualPreview(P,{
       accepting(){m.applying=true;renderModal();},
       close(e){closeModal();render();if(e)toast(e.message);},
-      fail(pending){render();closeModal();toast(tx(pending?'調整尚未確認儲存；內容已保留，請按上方儲存狀態重試。':'排程未套用，請重新預覽。'));},
+      fail(pending){render();closeModal();toast(tx(STORE.pendingScheduleSaveMessage?.()||(pending?'調整尚未確認儲存；內容已保留，請按上方儲存狀態重試。':'排程未套用，請重新預覽。')));},
       done(moved,P){closeModal();dpApplied(moved,P);}
     });
   },
@@ -2315,7 +2315,8 @@ async function applyManualPreview(P,ui){
   const saved=await commit({kind:"move",title:(P.isNew?"手動排入 ":"手動調整 ")+P.movedLabel+(shifted?"，連帶調整 "+shifted+" 道工序":""),lines});
   if(STORE!==activeStore||STORE.session?.user?.id!==user||(STORE.authEpoch||0)!==authEpoch||S!==next)return;
   if(!saved){
-    // queueSync retries the current S. Rolling it back here silently retries the old board.
+    // Keep the candidate for review or ordinary retry; the Store decides whether
+    // cloud uncertainty instead requires a full page reload.
     // A conflict/permission recovery has already replaced S and returned above.
     if(SYNC.state==='error'){ui.fail(true);return;}
     undoStack.pop();
@@ -2341,7 +2342,7 @@ async function pvApplyManual(){
   await applyManualPreview(P,{
     accepting(){exitManualPreview(false);toast("套用中…");},
     close(e){exitManualPreview(false);if(e)toast(e.message);},
-    fail(pending){render();toast(tx(pending?'調整尚未確認儲存；內容已保留，請按上方儲存狀態重試。':'排程未套用，請重新預覽。'));},
+    fail(pending){render();toast(tx(STORE.pendingScheduleSaveMessage?.()||(pending?'調整尚未確認儲存；內容已保留，請按上方儲存狀態重試。':'排程未套用，請重新預覽。')));},
     done:dpApplied
   });
 }
@@ -3361,9 +3362,12 @@ Object.assign(MODAL_ACT,{
     const store=STORE,writer=store?.session?.user?.id,epoch=store?.authEpoch;
     const owner=()=>STORE===store&&store?.session?.user?.id===writer&&store?.authEpoch===epoch;
     const retry=!!m.importCandidate;
-    if(retry&&(!m.importRetryable||m.importOwner.store!==store||m.importOwner.writer!==writer||m.importOwner.epoch!==epoch||S!==m.importCandidate||JSON.stringify(S)!==m.importExpected)){
+    if(retry&&(m.importOwner.store!==store||m.importOwner.writer!==writer||m.importOwner.epoch!==epoch||S!==m.importCandidate||JSON.stringify(S)!==m.importExpected)){
       m.importRetryable=false;m.importError=tx('排程已更新，請重新選擇 Excel 檔案預覽');renderModal();return;
     }
+    const pendingMessage=store.pendingScheduleSaveMessage?.();
+    if(pendingMessage){m.importRetryable=false;m.importError=tx(pendingMessage);renderModal();return;}
+    if(retry&&!m.importRetryable){m.importError=tx('排程已更新，請重新選擇 Excel 檔案預覽');renderModal();return;}
     if(workCatalog(S).length||assignments(S).length||transferOrders(S).length){toast(tx('匯入範本不含一般工作／跨廠加工資料，不能覆蓋目前名冊'));return;}
     if((S.groups||[]).length){toast(tx('目前匯入範本不含分組，不能覆蓋已有分組的正式名冊'));return;}
     if(S.employees.some(e=>factoryOf(e)===2)||S.machines.some(x=>factoryOf(x)===2)||S.products.some(p=>p.steps.some(s=>factoryOf(s)===2))){
@@ -3385,7 +3389,9 @@ Object.assign(MODAL_ACT,{
     if(UI.modal!==m||!owner())return;
     m.importRetryable=S===m.importCandidate&&JSON.stringify(S)===m.importExpected;
     if(saved&&m.importRetryable){closeModal();toast(tx('Excel 匯入完成。請建立新排程'),tx('自動排程'),runAuto);return;}
-    m.importError=tx(m.importRetryable?'匯入尚未確認儲存；資料仍保留，請重試儲存。':'排程已更新，請重新選擇 Excel 檔案預覽');renderModal();
+    const pendingAfterSave=store.pendingScheduleSaveMessage?.();
+    if(pendingAfterSave)m.importRetryable=false;
+    m.importError=tx(pendingAfterSave||(m.importRetryable?'匯入尚未確認儲存；資料仍保留，請重試儲存。':'排程已更新，請重新選擇 Excel 檔案預覽'));renderModal();
   },
   "legacy-save":async()=>{
     const m=UI.modal;if(m?.t!=="legacy-preview"||m.saving||!canArchive())return;
@@ -3577,7 +3583,11 @@ function queueSync(entry){
           toast(e.conflict?"別人剛更新過排程，已載入最新版本，請再做一次你的調整":e.message+"，已還原");
         }else{SYNC.msg=tx('無法載入最新版本，尚未確認儲存；請重試。');toast(SYNC.msg,"重試",()=>queueSync(null));}
       }
-      else toast(e.unconfirmed?tx(e.message):"沒存到："+e.message,"重試",()=>queueSync(null));
+      else{
+        const pendingMessage=activeStore.pendingScheduleSaveMessage?.();
+        if(pendingMessage)toast(tx(pendingMessage));
+        else toast(e.unconfirmed?tx(e.message):"沒存到："+e.message,"重試",()=>queueSync(null));
+      }
       return false;
     }
     finally{
