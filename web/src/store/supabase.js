@@ -58,6 +58,7 @@ function confirmedReceipt(value,verifyWriter,message){
   // cannot confirm persistence; leave the optimistic state/baseline untouched.
   if(typeof value!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value))throw new UnconfirmedWriteError(message);
 }
+const calendarPendingMessage='排程儲存結果待核對，已暫停後續儲存。請完整重新整理網頁並核對雲端結果；未存的本機調整可能需要重做。只更新班表或按重試不會解除暫停。';
 const receiptUuid=value=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const receiptBlock=(value,expected)=>receiptUuid(value)&&typeof expected==='string'&&value.toLowerCase()===expected.toLowerCase();
 const receiptTime=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}T/.test(value)&&Number.isFinite(Date.parse(value));
@@ -87,7 +88,9 @@ export class SupabaseStore {
   }
   // Page-session only. A fresh read is not proof that an uncertain RPC ended.
   hasPendingConfirmation(blockId) {return this.#confirmationState().blocks.has(String(blockId).toLowerCase());}
-  hasPendingConfirmations() {return this.#confirmationState().blocks.size>0;}
+  hasPendingConfirmations() {const s=this.#confirmationState();return s.blocks.size>0||!!s.calendarSave;}
+
+  pendingScheduleSaveMessage() {return this.#confirmationState().calendarSave?.uncertain?calendarPendingMessage:'';}
 
   constructor(client) {
     this.sb = client;
@@ -395,6 +398,8 @@ export class SupabaseStore {
 
   // ---------- 寫：只寫有變的列；排程方塊整批用 save_blocks（有版本號檢查） ----------
   async sync(S, entry) {
+    const confirmation=this.#confirmationState();
+    if(confirmation.calendarSave)throw new UnconfirmedWriteError(confirmation.calendarSave.uncertain?calendarPendingMessage:'操作儲存中，請稍候。');
     const client=this.sb,assertWriter=this.requestOwnerGuard(()=>new UnconfirmedWriteError());
     try{validateRosters(S);}catch(e){e.permission=true;throw e;}
     try{validateTransfers(S,{before:this.transferBase});}catch(e){e.permission=true;throw e;}
@@ -449,6 +454,49 @@ export class SupabaseStore {
       const {data,error}=await assertWriter.authorize(client.rpc('save_staff_groups',{p_base_version:this.version,p_groups:catalog.groups,p_members:catalog.members,p_title:entry?.title||'更新員工分組'}));
       if(error){if(error.code==='40001')throw new ConflictError();throw writeError('員工分組',error,'修改');}
       S.version=this.version=confirmedVersion(data,this.version,assertWriter);this._remember(S);return;
+    }
+    // Only calendar + changed blocks belongs to this atomic route. Calendar-only
+    // saves deliberately retain the existing permissions/path and guarantee.
+    const calendarTables=['calendar_weekly','calendar_days','employee_overtime_days'];
+    if(blocksKey(S)!==this.baseBlocks&&calendarTables.some(t=>d[t])){
+      if(Object.keys(d).some(t=>!calendarTables.includes(t))||d.calendar_weekly?.del.length)
+        throw Object.assign(new Error('請將上班日與排程調整和其他基本資料分開儲存'),{permission:true});
+      const version=this.version;
+      const request=assertWriter.authorize(client.rpc('save_calendar_and_blocks',{
+        p_base_version:version,p_calendar:{
+          weekly:d.calendar_weekly?.upsert||[],days:d.calendar_days?.upsert||[],
+          delete_days:(d.calendar_days?.del||[]).map(({date})=>({date})),
+          employee_days:d.employee_overtime_days?.upsert||[],
+          delete_employee_days:(d.employee_overtime_days?.del||[]).map(({employee_id,date})=>({employee_id,date})),
+        },p_blocks:S.blocks.map(blockToDb),p_title:entry?.title||'調整上班日與排程',
+        p_detail:detailOf(entry),p_kind:KIND_TO_DB[entry?.kind]||'edit',
+      }));
+      // Set before awaiting the lazy SDK request. Never clear a newer owner's
+      // ledger in response to an old operation's late acknowledgement.
+      const attempt={};confirmation.calendarSave=attempt;
+      const clear=()=>{if(this.#confirmationLedger===confirmation&&confirmation.calendarSave===attempt)delete confirmation.calendarSave;};
+      const uncertain=()=>{attempt.uncertain=true;return new UnconfirmedWriteError(calendarPendingMessage);};
+      let result;try{result=await request;}catch{throw uncertain();}
+      try{assertWriter();}catch(e){attempt.uncertain=true;throw e;}
+      if(!result||typeof result!=='object'||Array.isArray(result))throw uncertain();
+      const {data,error,status}=result;
+      if(error){
+        // PostgREST uses 500 for SQL serialization/deadlock rollbacks. A partial
+        // gateway body is not proof that the transaction was rolled back.
+        const rollback500=status===500&&['40001','40P01'].includes(error.code)&&
+          typeof error.message==='string'&&error.message.trim().length>0&&
+          ['details','hint'].every(k=>Object.hasOwn(error,k)&&(error[k]===null||typeof error[k]==='string'));
+        const rejected=status==null||Number.isInteger(status)&&status>=400&&status<500||rollback500;
+        if(error.code==='40001'&&rejected){clear();throw new ConflictError();}
+        if(error.code==='PGRST202'&&status===404){clear();throw new Error('雲端尚未支援上班日與排程一起儲存，請更新資料庫後再試');}
+        if(['42501','P0001','P0002','23502','23503','23505','23514','21000','22P02','22003','22007','22008','40P01'].includes(error.code)&&rejected){
+          clear();throw new Error('儲存上班日與排程失敗：'+error.message);
+        }
+        throw uncertain();
+      }
+      if(error!=null||status!=null&&(!Number.isInteger(status)||status<200||status>=300))throw uncertain();
+      try{confirmedReceipt(data,assertWriter,calendarPendingMessage);}catch(e){attempt.uncertain=true;throw e;}
+      clear();S.version=this.version=version+1;this._remember(S);return;
     }
     // 基本資料逐表寫入，若排程版本已過期，應在第一筆寫入前先拒絕；
     // 否則後續 save_blocks 才報衝突時，工單等列可能已部分留下。
