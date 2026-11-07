@@ -3944,8 +3944,8 @@ function flashReturnRow(){
   if(el){el.scrollIntoView({block:"center"});el.classList.add("flash-row");setTimeout(()=>el.classList.remove("flash-row"),2600);}
   UI.returnTo={page:UI.returnTo.page};
 }
-function pageShell(title,subtitle,bodyHtml,ro,addAct,extraHead){
-  return '<div class="fullpage">'+
+function pageShell(title,subtitle,bodyHtml,ro,addAct,page){
+  return '<div class="fullpage" data-tour-page="'+esc(page||"")+'">'+
     '<div class="page-top">'+
     '<div class="page-top-row"><button class="btn pageback" data-act="page" data-v="board">'+tx('backToday')+'</button>'+
     '<div class="page-title"><h1>'+esc(title)+'</h1><span class="savestate '+SYNC.state+'">'+pageSaveState()+'</span></div>'+
@@ -4015,7 +4015,7 @@ function shortagePageHTML(){
         '</tr>';
     }).join("")||'<tr><td colspan="12"><div class="empty">'+tx('還沒有資料，按「＋加一列」開始記')+'</div></td></tr>')+
     '</tbody></table></div>';
-  return pageShell(tx('欠缺品項'),tx('左邊一廠欠貨，右邊二廠何時補。同一列同一張單。'),head+bar+table,ro,"rush-addrow");
+  return pageShell(tx('欠缺品項'),tx('左邊一廠欠貨，右邊二廠何時補。同一列同一張單。'),head+bar+table,ro,"rush-addrow","shortage");
 }
 const pendingDate=v=>v&&!/^\d{4}-\d{2}-\d{2}$/.test(String(v));
 // 有原始文字（08\16 這類）的日期格：只顯示該文字、不再多一個「—」；點它仍可改選真日期
@@ -4065,7 +4065,7 @@ function transferFlowPageHTML(){
         '</tr>';
     }).join("")||'<tr><td colspan="12"><div class="empty">'+tx('還沒有資料，按「＋加一列」開始記')+'</div></td></tr>')+
     '</tbody></table></div>';
-  return pageShell(tx('給二廠／回一廠'),tx('料送二廠加工，何時要回一廠。與欠缺品項分開。'),bar+table,ro,"tf-addrow");
+  return pageShell(tx('給二廠／回一廠'),tx('料送二廠加工，何時要回一廠。與欠缺品項分開。'),bar+table,ro,"tf-addrow","transferflow");
 }
 /* ---------- 日班表列印（A4 公佈欄格式） ---------- */
 function printDaySchedule(){
@@ -4429,7 +4429,7 @@ function workLogPageHTML(){
     }).join("")||'<tr><td colspan="10"><div class="empty">'+tx('還沒有資料，按下方加一列')+'</div></td></tr>')+
     '</tbody></table></div>';
   const filterBar='<div class="wl-filter"><label for="wl-date">'+tx('依日期篩')+'</label><input type="date" id="wl-date" value="'+esc(filter)+'" data-act-change="wl-filter"><button class="btn" data-act="wl-clearfilter">'+tx('清除')+'</button></div>';
-  return pageShell(tx('工作紀錄'),"",filterBar+table,ro,"wl-addrow");
+  return pageShell(tx('工作紀錄'),"",filterBar+table,ro,"wl-addrow","worklog");
 }
 
 MODALS['memo-edit']=m=>{const d=m.memoDraft||{text:m.text||''};return {title:tx('新增備忘'),body:
