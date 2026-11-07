@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
+from starlette.responses import JSONResponse
 
 from .db import Supabase, SupabaseError
 from .model import PRESETS, solve
@@ -225,23 +226,39 @@ async def notify_line(req: LineNotifyRequest, authorization: str = Header(...)):
         uid = await supa.user_id(jwt)
     except Exception:
         raise HTTPException(401, "無效的登入狀態")
-    # 取得使用者設定的 LINE ID
-    rows = await supa._post("rest/v1/rpc/exec_sql", json={
-        "query": f"select line_user_id, line_group_id from line_notify_settings where user_id='{uid}' and enabled limit 1"
-    })
+    try:
+        settings = await supa.line_notify_settings(jwt, uid)
+    except SupabaseError:
+        raise HTTPException(502, "無法讀取 LINE 通知設定")
+    if not settings or not settings.get("enabled"):
+        return {"ok": True, "sent": 0, "reason": "disabled"}
+    # Match the existing UI: known event checkboxes are checked unless false.
+    # The DB default explicitly opts out of daily_summary. Unknown names do not
+    # create subscriptions; this endpoint does not schedule daily summaries.
+    events = settings.get("events") or {}
+    known_events = {"schedule_change", "leave_request", "rush_order", "fault", "daily_summary"}
+    if req.event not in known_events or events.get(req.event) is False:
+        return {"ok": True, "sent": 0, "reason": "event disabled"}
     targets = []
-    if rows:
-        if rows[0].get("line_user_id"): targets.append(rows[0]["line_user_id"])
-        if rows[0].get("line_group_id"): targets.append(rows[0]["line_group_id"])
+    for key in ("line_user_id", "line_group_id"):
+        target = settings.get(key)
+        # Skip blank destinations and duplicate pushes without rewriting IDs.
+        if target and target.strip() and target not in targets:
+            targets.append(target)
     if not targets:
         return {"ok": True, "sent": 0, "reason": "no targets"}
     import httpx
+    sent = 0
     async with httpx.AsyncClient() as client:
         for target in targets:
             try:
                 r = await client.post("https://api.line.me/v2/bot/message/push", headers={
                     "Authorization": f"Bearer {token}", "Content-Type": "application/json"
                 }, json={"to": target, "messages": [{"type": "text", "text": f"[排程系統] {req.message}"}]})
-            except Exception:
+                if r.is_success:
+                    sent += 1
+            except httpx.RequestError:
                 pass
-    return {"ok": True, "sent": len(targets)}
+    if sent != len(targets):
+        return JSONResponse(status_code=502, content={"ok": False, "sent": sent, "failed": len(targets)-sent})
+    return {"ok": True, "sent": sent}
