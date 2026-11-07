@@ -7,6 +7,7 @@ import { I18N } from "../src/i18n.js";
 
 // 樣本＝excel.js 全部錯誤類別各一（zh 輸入 → en 期望輸出）
 const SAMPLES = [
+  ["產品工序 第 2 列每分鐘件數：須為 0.001–99999.999，最多 3 位小數", "Product steps row 2 pieces per minute: enter 0.001–99999.999 with at most 3 decimal places"],
   ["缺少「工單」工作表", "Missing the “工單” sheet"],
   ["工單：第 2 欄應為「期限(YYYY-MM-DD)」", "Orders: column 2 should be “期限(YYYY-MM-DD)”"],
   ["員工：最多 1000 列資料", "Employees: at most 1000 data rows"],
