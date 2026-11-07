@@ -47,9 +47,10 @@ function sheetCells(xml, strings) {
   });
   return rows;
 }
-function dateOf(value) {
+function dateOf(value, date1904) {
   if (/^\d{4}-\d{2}-\d{2}/.test(value || "")) return value.slice(0, 10);
-  const serial = Number(value);
+  // Normalize to the 1900 system before applying the existing calendar range.
+  const serial = Number(value) + (date1904 ? 1462 : 0);
   if (!Number.isInteger(serial) || serial < 40000 || serial > 80000) return "";
   return new Date(Date.UTC(1899, 11, 30) + serial * 86400000).toISOString().slice(0, 10);
 }
@@ -90,7 +91,7 @@ export function legacyCatalog(first, second) {
   for (const col of ["A", "B", "N", "AC"]) add("2廠", "notes", col, 1, twoTop.get(col));
   return catalog;
 }
-function factoryDays(rows, factory, days) {
+function factoryDays(rows, factory, days, date1904) {
   const headers = rows.get(factory === "1廠" ? 2 : 3) || new Map();
   const upper = rows.get(2) || new Map();
   const sides = rows.get(4) || new Map();
@@ -119,7 +120,7 @@ function factoryDays(rows, factory, days) {
   let date = "";
   for (const [rowNo, cells] of [...rows].sort((a, b) => a[0] - b[0])) {
     if (rowNo < (factory === "1廠" ? 3 : 5)) continue;
-    const nextDate = dateOf(cells.get("A"));
+    const nextDate = dateOf(cells.get("A"), date1904);
     if (nextDate) {
       date = nextDate;
       if (!days[date]) days[date] = { "1廠": [], "2廠": [], overtime: {}, notes: { "1廠": [], "2廠": [] } };
@@ -138,7 +139,9 @@ function factoryDays(rows, factory, days) {
 export async function readLegacyXlsx(arrayBuffer, filename = "") {
   const zip = await JSZip.loadAsync(arrayBuffer);
   const sheets = new Map(), targets = new Map();
+  let date1904 = false;
   scan(await safeXml(zip, "xl/workbook.xml"), (name, attr) => {
+    if (name === "workbookPr") date1904 = ["1", "true"].includes((attr.date1904 || "").trim());
     if (name === "sheet") sheets.set(attr.name, attr["r:id"]);
   });
   if (!sheets.has("1廠") || !sheets.has("2廠")) return null;
@@ -153,7 +156,7 @@ export async function readLegacyXlsx(arrayBuffer, filename = "") {
     if (!target || target.includes("..")) throw new Error(`找不到「${factory}」工作表`);
     const path = target.startsWith("/") ? target.slice(1) : `xl/${target}`;
     sourceRows[factory] = sheetCells(await safeXml(zip, path), strings);
-    factoryDays(sourceRows[factory], factory, days);
+    factoryDays(sourceRows[factory], factory, days, date1904);
   }
   const dates = Object.keys(days).sort();
   const match = /(?:^|\D)(\d{1,2})(\d{2})(?:\D|$)/.exec(filename);
