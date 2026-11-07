@@ -85,9 +85,9 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
   root.querySelector('.chat-close').onclick=hide;
   panel.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();hide();}});
   root.querySelector('.chat-clear').onclick=()=>{generation++;log.replaceChildren();messages=[];lastStamp='';busy=false;submit.disabled=false;submit.textContent=tx('送出');input.value='';input.focus();};
-  async function send(question){
-    const q=question.trim();if(!q||busy)return;refresh();if(!enabled())return;
-    const v={...view(),date:from.value,end_date:to.value,question:q},base=scopeStamp(),token=++generation;busy=true;submit.disabled=true;
+  async function send(question,query=question){
+    const q=question.trim(),queryText=query.trim();if(!q||busy)return;refresh();if(!enabled())return;
+    const v={...view(),date:from.value,end_date:to.value,question:queryText},base=scopeStamp(),token=++generation;busy=true;submit.disabled=true;
     // 送出鈕載入態：轉圈＋鎖住防止連點；等待回覆期間顯示打字點點（長度未知）
     submit.innerHTML='<span class="spin" aria-hidden="true"></span>';
     if(lastStamp&&lastStamp!==base){messages=[];add('notice','排程或查看範圍已更新；本題重新讀取目前資料，不沿用舊資料判斷。');}
@@ -96,8 +96,8 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
     const dots=document.createElement('span');dots.className='dots';dots.setAttribute('aria-hidden','true');dots.innerHTML='<i></i><i></i><i></i>';pending.append(dots);
     try{
       let result;
-      if(store().kind==='local'){const context=chatContext(snapshot(),v);result={...answerFromFacts(q,context),context};}
-      else result=await SOLVER.chat({question:q,date:v.date,end_date:v.end_date,factory:v.factory,generate:false,history:[],...(store().kind==='local'?{snapshot:snapshot()}: {})},store().jwt());
+      if(store().kind==='local'){const context=chatContext(snapshot(),v);result={...answerFromFacts(queryText,context),context};}
+      else result=await SOLVER.chat({question:queryText,date:v.date,end_date:v.end_date,factory:v.factory,generate:false,history:[],...(store().kind==='local'?{snapshot:snapshot()}: {})},store().jwt());
       if(token!==generation)return;
       if(base!==scopeStamp()){pending.textContent='回答期間排程或日期／廠別已改變。這份結果已捨棄，請重新提問。';return;}
       pending.textContent=result.engine+'\n'+result.answer;
@@ -136,6 +136,8 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
       rec.start();
     };
   }
-  for(const button of root.querySelectorAll('.chat-quick button'))button.onclick=()=>send(button.textContent);
+  // Only built-in shortcuts use canonical queries understood by local/server
+  // topic filters. Keep translated labels in the conversation and free text as-is.
+  root.querySelectorAll('.chat-quick button').forEach((button,i)=>{button.onclick=()=>send(button.textContent,QUICK[i]);});
   refresh();return {refresh,destroy:()=>{generation++;root.remove();}};
 }
