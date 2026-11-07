@@ -211,8 +211,8 @@ test('桌面抽屜高度：pane sticky 且以可視高度為準（不被排程�
 });
 
 test('缺陷#11 回歸：聊天室安裝當下必須呼叫 positionPanel（手機沿用桌機浮動座標會讓藥丸跑到畫面外且無法點擊補救）', () => {
-  const block = chatUI.slice(chatUI.indexOf('addEventListener(\'resize\',()=>positionPanel())'), chatUI.indexOf('addEventListener(\'resize\',()=>positionPanel())') + 400);
-  assert.match(block, /addEventListener\('resize',\(\)=>positionPanel\(\)\);[\s\S]*?positionPanel\(\);/, '安裝浮動定位後必須立即 positionPanel() 一次（清除手機上的桌機殘留座標）');
+  const block = chatUI.slice(chatUI.indexOf('chatFloat=floatWindow('), chatUI.indexOf('// 語音播報'));
+  assert.match(block, /addEventListener\('resize',positionPanel,\{signal:lifetime.signal\}\);[\s\S]*?positionPanel\(\);/, '安裝浮動定位後必須立即 positionPanel() 一次，且 resize listener 隨聊天室清除');
 });
 
 test('缺陷#12 回歸：廠區平面圖 page-top 必須在說明後關閉、內容包 fullpage（原本整頁塞在 sticky row-flex 容器內，畫布只剩 ~322px、桌機永遠 3 欄）', () => {
