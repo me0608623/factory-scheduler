@@ -1433,8 +1433,8 @@ document.addEventListener("click",e=>{
           if(req){(S.leaveRequests||=[]).push(req);changed=true;}
           return changed?1:0;
         };
-        // 範圍框選
-        if(!UI.brushStart){
+        // 範圍框選：切換人員（含廠別篩選的備選人員）後須重新選起點。
+        if(!UI.brushStart||UI.brushStart.eid!==eid){
           UI.brushStart={eid,d:dd};
           render();
           toast("起點 "+md(dd)+"；再點最後一天框選範圍，或繼續單點");
