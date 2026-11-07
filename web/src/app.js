@@ -1,6 +1,7 @@
 // 產線排程看板（正式版）：畫面沿用原型，資料層與排程服務可替換
 import { SOLVER } from "./solver.js";
 import { planTimeLimit, planEngineLabel } from "./plan-budget.js";
+import { assertPlanSource } from "./plan-source.js";
 import { toSnapshot, applyOption, newId } from "./convert.js";
 import { ALL_WEEKDAYS, overtimeAllowed, overtimeDefault, overtimeWeekdays } from "./overtime.js";
 import { capacityIntervals as occupiedCapacityIntervals } from "./capacity.js";
@@ -2908,7 +2909,7 @@ function pvPanelHTML(o){
    '<div class="pv-drawer-h"><h3>'+tx("方案比較　{n} 套",{n:PV.opts.length})+'</h3><button class="iconbtn" data-act="pv-sheet" aria-label="'+(PV.sheetCollapsed?tx('展開'):tx('收合'))+'">'+(PV.sheetCollapsed?'▴':'▾')+'</button></div>'+
    '<div class="pv-drawer-b">'+
    '<div class="pv-opts">'+cards+'</div>'+
-   (o.applicable===false?'<div class="pv-sum"><b>'+tx('目前不能套用：')+'</b>'+o.diagnostics.map(esc).join('；')+'</div>':'')+
+   (o.applicable===false?'<div class="pv-sum"><b>'+tx('目前不能套用：')+'</b>'+o.diagnostics.map(t=>esc(tx(t))).join('；')+'</div>':'')+
    '<div class="pv-sum"><b>'+esc(o.name)+'：</b>'+esc(pvSummary(o))+'</div>'+
    '<div class="pv-tabs">'+sub.map(([k,t])=>'<button class="tg" data-act="pv-tab" data-v="'+k+'" aria-pressed="'+(PV.tab===k)+'">'+t+'</button>').join("")+'</div>'+body+
    (PV.savedScenario?'<div class="hint">保存時的說明：'+esc(o.desc||'—')+'</div>':ai+'<div class="field"><label for="pv-note">'+tx('備註（會寫進紀錄）')+'</label><input class="inp" id="pv-note" value="'+esc(PV.note)+'" placeholder="'+tx('例：馬達燒掉，廠商下午來修')+'" autocomplete="off"></div>')+
@@ -2975,7 +2976,10 @@ async function openPlansSolver(title,logTitle,kind,applyEvent,strategies,extra,j
   }
   if(!planCalculationReady(job))return;
   if(!plan.options||!plan.options.length){toast("算不出可行的排法，請手動處理");return;}
-  const B=JSON.parse(job.base),ev={date:plan.date,oid:extra.event.order?extra.event.order.id:undefined};
+  const B=JSON.parse(job.base);
+  try{if(STORE.kind==="supabase")assertPlanSource(plan,B,S);}
+  catch(e){if(e.stale)pendingReload=true;toast(tx(e.message));return;}
+  const ev={date:plan.date,oid:extra.event.order?extra.event.order.id:undefined};
   const opts=plan.options.map(o=>{const A=applyOption(B,o);return {id:o.id,name:o.name,desc:o.desc,lines:o.lines||[],mt:measure(B,A,ev),score:o.score,best:!!o.recommended,applicable:o.applicable!==false,diagnostics:o.diagnostics||[],state:JSON.stringify(A),A,sec:o.solve_seconds,solverMethod:o.solver_method,previewId:plan.preview_id||null};});
   const fi=plan.options[0].effects&&plan.options[0].effects.faults_insert;
   enterPreview({title,logTitle,kind,base:JSON.stringify(B),B,opts,ev,extra:{...extra,fid:fi&&fi[0]?fi[0].id:extra.fid,previewId:plan.preview_id||null,engine:"OR-Tools"}});
@@ -3034,6 +3038,7 @@ async function askAI(){
 }
 async function pvApply(){
   if(!PV||PV.applying||PV.savedScenario)return;
+  if(PV.sourceError){toast(tx(PV.sourceError));return;}
   const o=pvOpt();if(!o)return;
   if(o.applicable===false){toast('這個方案尚無法套用，請查看原因與建議');return;}
   try{assertOrderReductions(S,o.A);assertExecutionProtected(S,o.A);}catch(e){toast(e.message);return;}
@@ -3132,9 +3137,10 @@ Object.assign(MODAL_ACT,{
 // 把口語條件送給現有求解器，多算一輪預覽（R1/R2…）；不套用、不覆蓋原有方案
 async function runRerun(){
   const P=PV,R=P&&P.rerun;
-  if(!P||!R||R.busy||P.savedScenario)return;
+  if(!P||!R||R.busy||P.applying||P.savedScenario)return;
+  if(P.sourceError){toast(tx(P.sourceError));return;}
   const store=STORE,user=store?.session?.user?.id,epoch=store?.authEpoch;
-  const current=()=>PV===P&&P.rerun===R&&STORE===store&&store?.session?.user?.id===user&&store?.authEpoch===epoch;
+  const current=()=>PV===P&&!P.applying&&P.rerun===R&&STORE===store&&store?.session?.user?.id===user&&store?.authEpoch===epoch;
   const orderCode=($("#pv-r-order")?.value||R.order||"").trim();
   const machine=($("#pv-r-machine")?.value||R.machine||"").trim();
   const text=($("#pv-r-text")?.value||R.text||"").trim();
@@ -3153,6 +3159,7 @@ async function runRerun(){
     const timeLimit=planTimeLimit(S);
     const plan=STORE.kind==="supabase"?await SOLVER.plansDb(P.event,now,STORE.jwt(),timeLimit,hints):await SOLVER.plans(toSnapshot(S,HOLI),P.event,now,timeLimit,hints);
     if(!current()){R.busy=false;return;}
+    if(STORE.kind==="supabase")assertPlanSource(plan,P.B,S);
     const fresh=(plan.options||[]).filter(x=>String(x.id).startsWith("R"));
     if(!fresh.length){R.busy=false;render();toast("照這些條件算不出新的排法；可以放寬一個條件再試");return;}
     const B=P.B,ev={date:plan.date,oid:P.event&&P.event.order?P.event.order.id:undefined};
@@ -3165,7 +3172,14 @@ async function runRerun(){
     render();
     toast("已新增 "+newOpts.length+" 套「照你的條件」的方案；比較後按「用這套」才會生效");
   }catch(e){
-    R.busy=false;if(!current())return;render();
+    R.busy=false;if(!current())return;
+    if(e.planSource){
+      P.sourceError=e.message;
+      for(const o of P.opts){o.applicable=false;o.diagnostics=[...(o.diagnostics||[]),e.message];}
+      if(e.stale)pendingReload=true;
+      render();toast(tx(e.message));return;
+    }
+    render();
     if(e.status&&e.status<500)toast(e.message);
     else toast("重排沒有成功（"+(e.message||"服務沒有回應")+"）；正式班表沒有改變");
   }

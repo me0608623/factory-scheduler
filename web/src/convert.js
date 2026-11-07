@@ -37,6 +37,7 @@ export function toSnapshot(S, holidays = {}) {
     staff_group_members: groupCatalog(S).members,
     calendar: {
       week: [...S.cal.week],
+      ...(S.cal.windows !== undefined ? {windows: structuredClone(S.cal.windows)} : {}),
       overrides: Object.fromEntries(Object.entries(S.cal.over || {}).map(([d, v]) => [d, v === "work"])),
       overtime: Object.fromEntries(Object.entries(S.dayOT || {}).map(([d, v]) => [d, !!v])),
       holidays: { ...holidays },
@@ -82,7 +83,8 @@ export function fromSnapshot(snap) {
     memos:(snap.schedule_memos||[]).map(x=>({id:x.id,text:x.text,machineId:(x.machine_id??x.machineId)||null,employeeId:(x.employee_id??x.employeeId)||null,pinned:!!x.pinned,author:x.author||'',createdAt:(x.created_at??x.createdAt)||null})),
     groups: (snap.staff_groups || []).map(g=>({id:g.id,name:g.name,department:g.department||null,homeFactory:g.home_factory??null,sourceRef:g.source_ref||null})),
     groupMembers: (snap.staff_group_members || []).map(m=>({groupId:m.group_id,employeeId:m.employee_id,reviewStatus:m.review_status,sourceRef:m.source_ref||null})),
-    cal: { week: c.week || [false, true, true, true, true, true, true], over },
+    cal: { week: c.week || [false, true, true, true, true, true, true], over,
+      ...(c.windows !== undefined ? {windows: structuredClone(c.windows)} : {}) },
     dayOT: Object.fromEntries(Object.entries(c.overtime || {}).map(([d, v]) => [d, (v && snap.ot_ends && snap.ot_ends[d] != null) ? snap.ot_ends[d] : v])), // ot_ends（0032）在快照頂層；缺時退 true
     holidays: { ...(c.holidays || {}) },
     employees: (snap.employees || []).map((e) => ({ id: e.id, name: e.name, factory: e.factory || 1, color: e.color || 0, skills: [...e.skills],
