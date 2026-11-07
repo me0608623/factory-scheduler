@@ -3924,7 +3924,7 @@ function saveCellEdit(input){
   let list,find,validate,permission,title;
   if(table==="rush"){list=S.rushOrders;validate=()=>validateRush(S.rushOrders);permission="rush.manage";title="'+tx('更新欠缺品項的一個欄位')+'";}
   else if(table==="tf"){list=S.transferOrders;validate=()=>validateTransfers(S,{before:S});permission="transfers.manage";title="'+tx('更新跨廠加工的一個欄位')+'";}
-  else if(table==="wl"){list=S.workLog;validate=()=>validateWorkLog(S.workLog);permission="worklog.manage";title="'+tx('更新工作紀錄的一個欄位')+'";}
+  else if(table==="wl"){list=S.workLog;validate=()=>validateWorkLog(S.workLog);permission="worklog.manage";title=tx("更新工作紀錄的一個欄位");}
   else return;
   const row=list.find(r=>r.id===id);if(!row)return;
   const before=getPath(row,key);
