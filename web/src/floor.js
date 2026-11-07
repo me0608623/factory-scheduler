@@ -31,7 +31,12 @@ export function floorCells(S, factory, date, cols = 9) {
   const free = (x, y, w, h) => !used.some((r) => x < r.x + r.w && x + w > r.x && y < r.y + r.h && y + h > r.y);
   for (const c of cells) {
     const l = layout.get(c.id);
-    if (l) { c.x = +l.x; c.y = +l.y; used.push({ x: c.x, y: c.y, w: c.w, h: c.h }); }
+    if (l) {
+      // 0–100 含右邊界；只調整顯示位置，讓完整格寬留在畫布內。
+      // 高度由 renderFloor 隨 y + h 擴展，不改動原始 y 或已儲存的佈局。
+      c.x = Math.max(0, Math.min(+l.x, 100 - c.w)); c.y = +l.y;
+      used.push({ x: c.x, y: c.y, w: c.w, h: c.h });
+    }
   }
   let cursor = 0;
   const auto = cells.filter((c) => c.x == null)
