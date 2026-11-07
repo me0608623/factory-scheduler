@@ -18,7 +18,9 @@ function excerpt(start,end){
   assert.ok(at>=0&&to>at,`Missing app excerpt: ${start}`);
   return source.slice(at,to);
 }
-const handlers=source.split('\n').filter(line=>/case "(focus-person|factory)":/.test(line)).join('\n')+
+// Navigation cases may span several lines after accessibility updates.
+const handlers=excerpt('case "focus-person":','case "person-day":')+
+  excerpt('case "factory":','case "groups":')+
   excerpt('case "person-day":{','case "person-month":');
 // Include the occupancy guard when this fix is composed with the general-work fix.
 const generalWorkGuard=source.includes('function personDayGeneralWork(')?
@@ -44,6 +46,7 @@ async function fixture(t,{brush,cloud=false,factory=false}){
     STORE:cloud?{kind:'supabase',session:{user:{id:'synthetic-user'}},authEpoch:1,
       createLeaveRequest:async request=>events.push({type:'create',request:copy(request)}),
       resolveLeaveRequest:async(id,status)=>events.push({type:'resolve',id,status})}:localStore,
+    document:{activeElement:null,querySelector:()=>null,querySelectorAll:()=>[]},
     localStorage:globalThis.localStorage,FACTORIES,inFactory,groupedEmployees,leaveState,I18N:{lang:'en'},WD:'日一二三四五六',
     pad:n=>String(n).padStart(2,'0'),emp:id=>ctx.S.employees.find(e=>e.id===id),canIncidents:()=>true,
     uid:()=>`synthetic-${++ids}`,futureOf:()=>true,tx:x=>x,esc:x=>String(x??''),directWriteStatus:()=>'',
