@@ -6,7 +6,9 @@ import {LocalStore} from '../src/store/local.js';
 import {SaxesParser} from 'saxes';
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const at=source.indexOf('case "person-day":{'),end=source.indexOf('case "person-month":',at);
-const code='this.click=a=>{switch(a.dataset.act){'+source.slice(at,end)+'}};';
+const generalAt=source.indexOf('function personDayGeneralWork(');
+const generalCode=source.slice(generalAt,source.indexOf('function applyPersonDay(',generalAt));
+const code=generalCode+'this.click=a=>{switch(a.dataset.act){'+source.slice(at,end)+'}};';
 const tick=()=>new Promise(r=>setImmediate(r));
 function deferred(){let resolve;const promise=new Promise(r=>{resolve=r;});return {promise,resolve};}
 function fixture(){

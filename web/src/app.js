@@ -1447,11 +1447,11 @@ document.addEventListener("click",e=>{
         const operation={};UI.leaveBrushOperation=operation;UI.leaveBrushSaving=operation;UI.leaveBrushError='';render();
         (async()=>{
           try{
-            let cnt=0;
+            let cnt=0;const blocked=[];
             pushUndo();   // 快照必須在 applyBrush 變更 S 之前——否則「復原上一步」還原的已是套用後的狀態（無效復原）
             for(let x=lo;x<=hi&&cnt<62;x=addDays(x,1)){
               if(!current())return;
-              if(brush==="leave"&&S.blocks.some(b=>b.emp===eid&&b.date===x&&futureOf(b)))continue;
+              if(brush==="leave"&&(S.blocks.some(b=>b.emp===eid&&b.date===x&&futureOf(b))||!E.leaves.includes(x)&&personDayGeneralWork(eid,x))){blocked.push(x);continue;}
               const r=await applyBrush(eid,x);if(r!==0)cnt++;
             }
             if(!current())return;
@@ -1465,7 +1465,7 @@ document.addEventListener("click",e=>{
             const loaded=await reloadFromStore({background:true});
             if(UI.leaveBrushOperation!==operation||!sameOwner()||!sameView()||!canIncidents())return;
             if(loaded!=='applied'){UI.leaveBrushError=tx('已儲存')+'；'+tx('無法讀取最新班表，請稍後再試。');return;}
-            toast("已套用"+brushName+" "+md(lo)+"～"+md(hi)+"（"+cnt+" 天）");
+            toast("已套用"+brushName+" "+md(lo)+"～"+md(hi)+"（"+cnt+" 天）"+(blocked.length?"；"+tx('{dates} 當天有排工作，已先跳過；一般工作請先手動調整',{dates:blocked.map(md).join("、")}):""));
           }catch(e){if(!e.staleBrush&&sameOwner()&&sameView()){UI.leaveBrushError=tx('排班狀態未全部完成；部分日期可能已儲存，請更新班表核對。');toast("沒存到："+e.message);}}
           finally{if(UI.leaveBrushSaving===operation)UI.leaveBrushSaving=null;if(UI.leaveBrushOperation===operation)UI.leaveBrushOperation=null;if(sameOwner()&&sameView())render();maybeReload();}
         })();
@@ -3013,9 +3013,10 @@ MODALS.leaveq=m=>{
   if(!m.date)m.date=UI.date;
   let days="";for(let i=0;i<14;i++){const d=addDays(UI.date<todayStr()?todayStr():UI.date,i),di=dayInfo(d);
     days+=tg("lq-date",d,m.date===d,'<span class="num">'+md(d)+'</span><small>'+WD[di.w]+(di.open?"":" 停工")+'</small>',"leave");}
+  const fixed=personDayGeneralWork(E.id,m.date);
   const n=S.blocks.filter(b=>b.emp===E.id&&b.date===m.date&&futureOf(b)).length;  // 與 lq-go 同口徑：過去時段不計（避免 hint 說有工作、按下卻說沒有）
   return {title:tx("{name} 請假",{name:esc(E.name)}),body:'<div class="field"><span class="lab">'+tx('哪一天？')+'</span><div class="toggles">'+days+'</div></div>'+
-    (E.leaves.includes(m.date)?'<div class="okbox">'+tx('這天已經登記請假')+'</div>':'<div class="hint">'+mdw(m.date)+" "+esc(E.name)+" 有 "+n+" 段工作要調整</div>"),
+    (E.leaves.includes(m.date)?'<div class="okbox">'+tx('這天已經登記請假')+'</div>':fixed?'<div class="issue">'+tx('這天已有固定的一般工作，無法直接請假；請先手動調整一般工作，再登記休假。')+'</div>':'<div class="hint">'+mdw(m.date)+" "+esc(E.name)+" 有 "+n+" 段工作要調整</div>"),
     foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="lq-go" '+(E.leaves.includes(m.date)?"disabled":"")+'>'+tx('看調整方案')+'</button>'};
 };
 Object.assign(MODAL_ACT,{
@@ -3028,6 +3029,8 @@ Object.assign(MODAL_ACT,{
   "lq-go":()=>{
     if(!canIncidents()||UI.modal?.t!=="leaveq")return;
     const eid=UI.modal.id,d=UI.modal.date,E=emp(eid);
+    if(!E||E.leaves.includes(d))return;
+    if(personDayGeneralWork(eid,d)){toast(tx('這天已有固定的一般工作，無法直接請假；請先手動調整一般工作，再登記休假。'));return;}
     const n=S.blocks.filter(b=>b.emp===eid&&b.date===d&&futureOf(b)).length;
     if(!n){pushUndo();E.leaves.push(d);commit({kind:"leave",title:E.name+" "+md(d)+" 請假（當天沒有排工作）",lines:[]},"incidents.manage");closeModal();toast("已登記，當天沒有他的工作");return;}
     const ev=()=>{const X=emp(eid);X.leaves.push(d);return {date:d,mode:"leave",aff:S.blocks.filter(b=>b.emp===eid&&b.date===d&&futureOf(b))};};
@@ -3816,7 +3819,7 @@ MODALS['person-day']=m=>{
   const n=S.blocks.filter(b=>b.emp===E.id&&b.date===m.d&&futureOf(b)).length;
   return {title:esc(E.name)+' · '+mdw(m.d),body:
     '<div class="toggles">'+tg("pd-set","leave",!!m.leave,"休假（整天）")+tg("pd-set","work",!m.leave,"上班")+'</div>'+
-    '<div class="hint">'+(m.leave&&n?'這天他有 '+n+' 段工作；儲存後系統會先給你調整方案預覽，確認前不會動正式班表。':'臨時休假只記這一天；其他日期不受影響。')+'</div>',
+    '<div class="hint">'+(m.leave&&!E.leaves.includes(m.d)&&personDayGeneralWork(E.id,m.d)?tx('這天已有固定的一般工作，無法直接請假；請先手動調整一般工作，再登記休假。'):m.leave&&n?'這天他有 '+n+' 段工作；儲存後系統會先給你調整方案預覽，確認前不會動正式班表。':'臨時休假只記這一天；其他日期不受影響。')+'</div>',
     foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="pd-save">'+tx('儲存')+'</button>'};
 };
 MODALS['person-month']=m=>{
@@ -3855,7 +3858,7 @@ Object.assign(MODAL_ACT,{
     for(const d of days){
       const wantOff=m.off.has(parseD(d).getUTCDay()),has=E.leaves.includes(d);
       if(wantOff===has)continue;
-      if(wantOff&&S.blocks.some(b=>b.emp===E.id&&b.date===d&&futureOf(b))){blocked.push(d);continue;}
+      if(wantOff&&(S.blocks.some(b=>b.emp===E.id&&b.date===d&&futureOf(b))||personDayGeneralWork(E.id,d))){blocked.push(d);continue;}
       if(wantOff){if(!E.leaves.includes(d))E.leaves.push(d);added++;}
       else{E.leaves=E.leaves.filter(x=>x!==d);removed++;}
     }
@@ -3867,6 +3870,13 @@ Object.assign(MODAL_ACT,{
 });
 
 /* ---------- 員工單日休假：筆刷與小視窗共用的套用邏輯 ---------- */
+function personDayGeneralWork(eid,d){
+  // Match store validation: unchanged prior dates are history, but even elapsed
+  // work earlier today still conflicts with a new full-day leave. These fixed
+  // assignments require manual adjustment and must never enter product repair.
+  const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Taipei'}).format(new Date());
+  return d>=today&&(S.workAssignments||[]).some(a=>a.emp===eid&&a.date===d);
+}
 function applyPersonDay(eid,d,want){
   const E=emp(eid);if(!E)return;
   const already=E.leaves.includes(d);
@@ -3878,6 +3888,7 @@ function applyPersonDay(eid,d,want){
     return;  // 已是上班日就安靜返回，不跳 toast
   }
   if(already)return;  // 已是休假就安靜返回
+  if(personDayGeneralWork(eid,d)){toast(tx('這天已有固定的一般工作，無法直接請假；請先手動調整一般工作，再登記休假。'));return;}
   const n=S.blocks.filter(b=>b.emp===E.id&&b.date===d&&futureOf(b)).length;
   if(!n){
     pushUndo();if(!E.leaves.includes(d))E.leaves.push(d);
