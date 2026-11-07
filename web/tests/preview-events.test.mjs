@@ -41,7 +41,7 @@ test('selected new view has no original ghosts; cmp keeps them',()=>{
 test('keyboard Enter/Space on preview block opens detail, never editing modal',()=>{
   for(const key of ['Enter',' ']){
     const h=harness();h.ctx.openModal=()=>h.log.push('edit-modal');h.ctx.pvClickBlock=id=>h.log.push(id);
-    const start=source.indexOf('document.addEventListener("keydown",e=>{\n  if(e.key==="Enter"');
+    const start=source.indexOf('document.addEventListener("keydown",e=>{');
     vm.runInContext(source.slice(start,source.indexOf('\n\n/* ===== 8.',start)),h.ctx);
     h.events.keydown({key,target:{closest:()=>({dataset:{bid:'b1'}})},preventDefault(){}});
     assert.deepEqual(h.log,['b1']);
@@ -175,7 +175,7 @@ test('mobile target scroll places block between sticky actions and bottom drawer
   h.ctx.dpScrollTarget({id:'b1'});h.timers.shift()();assert.deepEqual(h.log,['into',375]);
 });
 test('Escape at root cancels without writes; modal Escape is not hijacked by navigation',()=>{
-  const h=harness(),start=source.indexOf('document.addEventListener("keydown",e=>{\n  if(e.key==="Enter"');
+  const h=harness(),start=source.indexOf('document.addEventListener("keydown",e=>{');
   vm.runInContext(source.slice(start,source.indexOf('\n\n/* ===== 8.',start)),h.ctx);
   const before=JSON.stringify(h.ctx.S);
   h.events.keydown({key:'Escape',target:{},preventDefault(){}});
