@@ -6,7 +6,7 @@ const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 function fixture(){
   let resolve,reject,calls=0,renders=0;const promise=new Promise((a,b)=>{resolve=a;reject=b;}),messages=[];
   const P={rerun:{noLate:true,order:'O'},opts:[{id:'A'}],event:{},B:{blocks:[]}},store={kind:'supabase',authEpoch:1,session:{user:{id:'u'}},jwt:()=> 'synthetic'};
-  const ctx={PV:P,STORE:store,S:{blocks:[]},$:()=>null,todayStr:()=> '2026-10-16',nowMin:()=>480,planTimeLimit:()=>3,
+  const ctx={assertPlanSource(){},PV:P,STORE:store,S:{blocks:[]},$:()=>null,todayStr:()=> '2026-10-16',nowMin:()=>480,planTimeLimit:()=>3,
     render:()=>renders++,toast:m=>messages.push(m),SOLVER:{up:true,plansDb:()=>{calls++;return promise;}},
     applyOption:(base,opt)=>({...base,option:opt.id}),measure:()=>({}),assertExecutionProtected(){},validateGeneralWork(){},assignments:()=>[]};
   vm.createContext(ctx);const start=source.indexOf('async function runRerun(');

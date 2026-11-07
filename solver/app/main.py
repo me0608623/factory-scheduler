@@ -199,11 +199,15 @@ async def plans_db(req: DbPlanRequest, authorization: str = Header(...)):
                       'orders.manage' if req.event.type == 'order' else 'schedule.manage')
         if not await supa.permission(jwt,permission):
             raise HTTPException(403, "目前沒有計算這類方案的權限")
-        snap = Snapshot(**await supa.snapshot(jwt))
+        source_snapshot = await supa.snapshot(jwt)
+        snap = Snapshot(**source_snapshot)
         require_catalog_ready(snap)
         with computation_slot():
             plan = await run_in_threadpool(make_plans, PlanRequest(snapshot=snap, event=req.event, now=req.now, time_limit=req.time_limit, hints=req.hints))
         plan["preview_id"] = await supa.save_preview(plan, uid)
+        # Bind the response to the exact read used above, including metadata
+        # intentionally omitted by the solver model. Do not read again here.
+        plan["source_snapshot"] = source_snapshot
         return plan
     except SupabaseError as e:
         raise HTTPException(502, str(e))

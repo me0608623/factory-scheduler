@@ -49,3 +49,26 @@
 1. 先完成新一份完整備份及還原可用性檢查，保留舊回報與正式排程；不能因本機測試通過就直接套用。
 2. 先在非正式 Supabase 驗證 `0021`、帳號權限、員工綁定、多人同時開始、重送及實際即時推送。
 3. 確認使用範圍後才套用正式 migration 與部署前端；原有 `setup_pending` 保護繼續有效，不因此啟用 1023 待確認資料的 OR-Tools 排程。
+
+## Solver preview source binding
+
+`POST /plans/db` now returns `source_snapshot`: the exact raw `schedule_snapshot`
+read used for that calculation, including metadata ignored by the solver model.
+The web app compares it with the displayed base before accepting either an
+initial plan or a conditional rerun. A schedule version alone is insufficient:
+order-only metadata edits do not necessarily increment it.
+
+- Deploy compatible solver and web versions together (solver first is compatible
+  with the old web app). This change does not deploy either service automatically.
+- A new web app connected to an old server, or one returning a malformed source,
+  blocks the preview and asks for compatible service/web versions. Repeated
+  refreshes alone cannot repair that protocol mismatch.
+- A changed source asks the user to close/cancel, refresh, and calculate again.
+  A rejected rerun invalidates all options until that preview is canceled.
+- No migration, permission change, or new database write is required.
+- Explicit `calendar.windows` values now survive snapshot conversion and are
+  forwarded by local snapshot solver requests. Old local snapshots without this
+  field remain unchanged. Browser work-window rendering/planning is not changed.
+- This binds the solver read and its response to the displayed base. It is not a
+  catalog lock between the accepted response and a later Apply click; edits in
+  that later interval remain outside this fix.
