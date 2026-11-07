@@ -52,20 +52,20 @@ export const SOLVER = {
   },
 
   // 本機模式：把整份快照送過去算；hints = 「再給條件重排」的限制（沒有就不傳）
-  async plans(snapshot, event, now, timeLimit = 3, hints = null) {
+  async plans(snapshot, event, now, timeLimit = 3, hints = null, {isCurrent} = {}) {
     if(snapshot.work_assignments?.length&&!this.capabilities.includes('work_assignments_v1')){
       const err=new Error('排程服務尚未支援一般工作占用，請先更新服務');err.status=409;throw err;
     }
-    return post("/plans", { snapshot, event, now, time_limit: timeLimit, ...(hints?{hints}:{}) });
+    return post("/plans", { snapshot, event, now, time_limit: timeLimit, ...(hints?{hints}:{}) }, {}, isCurrent);
   },
 
   // 資料庫模式：伺服器自己讀資料庫，算完存成預覽（回傳 preview_id）
-  async plansDb(event, now, jwt, timeLimit = 3, hints = null) {
-    return post("/plans/db", { event, now, time_limit: timeLimit, ...(hints?{hints}:{}) }, { Authorization: "Bearer " + jwt });
+  async plansDb(event, now, jwt, timeLimit = 3, hints = null, {isCurrent} = {}) {
+    return post("/plans/db", { event, now, time_limit: timeLimit, ...(hints?{hints}:{}) }, { Authorization: "Bearer " + jwt }, isCurrent);
   },
 };
 
-async function post(path, body, headers = {}) {
+async function post(path, body, headers = {}, isCurrent) {
   if(RUNTIME.error)throw RUNTIME.error;
   const h = { "Content-Type": "application/json", ...headers };
   if (KEY) h["X-API-Key"] = KEY;
@@ -83,7 +83,9 @@ async function post(path, body, headers = {}) {
     });
   } catch (e) {
     if (e.status) throw e;
-    SOLVER.up = false;
+    // Abandoned plan work still rejects, but no longer owns shared service status.
+    // This does not cancel or roll back server-side /plans/db preview creation.
+    if(!isCurrent||isCurrent())SOLVER.up = false;
     throw new Error("排程服務沒有回應");
   }
 }
