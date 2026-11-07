@@ -3343,9 +3343,12 @@ Object.assign(MODAL_ACT,{
     // 按鈕載入態只在匯出對話框內生效（按鈕只存在於此）；無對話框情境行為不變
     const m=UI.modal;
     if(m&&m.t==="export"){if(m.exporting)return;m.exporting=true;renderModal();}
-    try{const {scheduleXlsx}=await import("./excel.js");const machines=shownMachines(),ids=new Set(machines.map(m=>m.id)),date=UI.date,factory=UI.factory;
+    try{const machines=shownMachines(),ids=new Set(machines.map(m=>m.id)),date=UI.date,factory=UI.factory;
       const filename="產線排程_"+(factory==="all"?"跨廠":factoryName(factory))+"_"+date+".xlsx";
-      const bytes=await scheduleXlsx({...S,machines,blocks:S.blocks.filter(b=>ids.has(b.m)),workAssignments:assignments(S).filter(a=>inFactory(workCatalog(S).find(w=>w.id===a.workId)||{},factory))},date);
+      // Capture nested records too: navigation or edits can happen while the module loads.
+      const snapshot=structuredClone({...S,machines,blocks:S.blocks.filter(b=>ids.has(b.m)),workAssignments:assignments(S).filter(a=>inFactory(workCatalog(S).find(w=>w.id===a.workId)||{},factory))});
+      const {scheduleXlsx}=await import("./excel.js");
+      const bytes=await scheduleXlsx(snapshot,date);
       saveFile(filename,new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));}
     catch(e){toast("Excel 匯出失敗："+e.message);}
     finally{if(m&&UI.modal===m){m.exporting=false;renderModal();}}
