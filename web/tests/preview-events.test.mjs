@@ -8,6 +8,7 @@ import * as previewContext from '../src/preview-context.js';
 import {SupabaseStore} from '../src/store/supabase.js';
 import {createClient} from '@supabase/supabase-js';
 import {makeDb,FakeSupabase} from './fake-supabase.mjs';
+import {workingDate} from './working-date.mjs';
 
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8').replace(/\r\n/g,'\n');
 const manual=source.slice(source.indexOf('async function applyManualPreview('),source.indexOf('\nfunction diffOf('));
@@ -95,7 +96,7 @@ test('actual SDK SQL manual apply retries the retained candidate once after an o
     await db.query("update profiles set role='boss' where user_id=$1",[actor]);
     const fake=new FakeSupabase(db,{});fake.uid=actor;
     const reader=new SupabaseStore(fake);await reader.init();const before=await reader.load();
-    const date=new Date(Date.now()+86400000).toISOString().slice(0,10);
+    const date=await workingDate(db);
     before.blocks=[{id:'55555555-5555-4555-8555-555555555555',oid:'00000000-0000-4000-8000-0000000000b1',step:0,m:'a',emp:'00000000-0000-4000-8000-0000000000e1',date,s:480,e:540,qty:120,pin:false}];
     await reader.sync(before,{kind:'move',title:'Synthetic baseline'});
     const base=await reader.load(),after=structuredClone(base);after.blocks[0].s=540;after.blocks[0].e=600;
