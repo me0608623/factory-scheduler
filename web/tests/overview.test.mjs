@@ -12,6 +12,25 @@ test('工單燈號不把缺資料或未排誤判為準時',()=>{
   assert.deepEqual([c.unfinished,c.late,c.dueToday],[1,1,0]);
 });
 
+test('工單燈號：全部排程狀態保留期限緊迫度、完成與缺資料優先順序',()=>{
+  const today='2026-11-07';
+  const dates=['2026-11-06',today,'2026-11-08','2026-11-30'];
+  const expected={
+    none:['red','yellow','yellow','yellow'],
+    part:['red','yellow','yellow','yellow'],
+    elapsed:['red','yellow','yellow','yellow'],
+    late:['red','red','red','red'],
+    ok:['red','yellow','yellow','green'],
+    done:['green','green','green','green'],
+  };
+  for(const [k,signals] of Object.entries(expected)){
+    dates.forEach((due,i)=>assert.equal(orderSignal({pid:'p',due},{k},today),signals[i],`${k}: ${due}`));
+    for(const order of [{pid:null,due:today},{pid:'p',due:null},{pid:null,due:null}]){
+      assert.equal(orderSignal(order,{k},today),'gray',`${k}: missing product or due date`);
+    }
+  }
+});
+
 test('產量沒有回報時保留缺值狀態，不產生假實績',()=>{
   const s=productionSummary({machines:[{id:'a'},{id:'b'}],blocks:[{id:'x',m:'a',date:'2026-09-30',qty:20},{id:'y',m:'b',date:'2026-09-30',qty:30}],execution:[{blockId:'x',qtyDone:12}]},'2026-09-30',['a','b']);
   assert.equal(s.planned,50);
