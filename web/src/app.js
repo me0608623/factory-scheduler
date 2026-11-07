@@ -715,6 +715,7 @@ function render(){ I18N.lang=UI.prefs.language; globalThis.__fsRenderMemo=null; 
     }else html=topHTML()+appNavHTML()+'<main class="wrap">'+
       (UI.page==='shortage'?shortagePageHTML():UI.page==='transferflow'?transferFlowPageHTML():UI.page==='worklog'?workLogPageHTML():UI.page==='review'?reviewPageHTML():UI.page==='catalog'?catalogPageHTML():UI.page==='analytics'?analyticsPageHTML():UI.page==='floor'?floorPageHTML():UI.page==='visual-demo'?visualDemoPageHTML():boards)+'</main>'+drawerHTML();
   }
+  stopLoginViz(); // Dispose owned effects before replacing their DOM.
   $("#app").innerHTML=html;
   const sc2=$(".scroller");if(sc2)sc2.scrollLeft=sl;
   window.scrollTo(0,sy);
@@ -4597,25 +4598,36 @@ function visualDemoPageHTML(){
 }
 function initVisualDemo(){
   const stage=document.getElementById("vd-stage");
-  if(stage){ mountBackdrop(stage,{interactive:true}); mountViz3D(stage); }
+  if(stage) mountViz3D(stage);
 }
 
 
 // 3D 場景實例管理：頁面重繪時停掉舊的，避免背景 rAF 洩漏
 let viz3d = null;
 let vizBg = null;
+let vizGeneration = 0;
 function stopLoginViz() {
-  try { viz3d?.stop?.(); } catch (e) {}
-  try { vizBg?.stop?.(); } catch (e) {}
+  ++vizGeneration; // Invalidate pending lazy 3D mounts, even without a live handle.
+  const old3d = viz3d, oldBg = vizBg;
   viz3d = null; vizBg = null;
+  try { old3d?.stop?.(); } catch (e) {}
+  try { oldBg?.stop?.(); } catch (e) {}
 }
 async function mountViz3D(el) {
   stopLoginViz();
-  viz3d = await mount3D(el);
+  if (!el) return;
+  const generation = vizGeneration;
+  vizBg = mountBackdrop(el, {interactive:true});
+  try {
+    const instance = await mount3D(el);
+    if (generation !== vizGeneration) { instance?.stop?.(); return; }
+    viz3d = instance;
+  } catch (e) { /* Keep the backdrop when optional 3D is unavailable. */ }
 }
 
 // ---------- 登入畫面 ----------
 function showLogin(err="",email="",signup=false){
+  stopLoginViz();
   ensureVisualStyles();
   $("#app").innerHTML='<main class="login" style="position:relative;min-height:100vh"><div id="login-bg" style="position:absolute;inset:0;z-index:0"></div>'+
     '<form class="login-card vg-glass" id="loginf" style="position:relative;z-index:1">'+environmentHTML()+
@@ -4628,7 +4640,6 @@ function showLogin(err="",email="",signup=false){
     '<button class="btn" type="button" id="lg-signup">'+tx('註冊新帳號')+'</button>'+
     (signup?'<div class="hint">註冊後為「檢視」身分；要排程權限請找老闆在「權限管理」開放。若本站採邀請制，註冊被拒時請找管理者邀請。</div>':'')+
     '<div class="hint">'+tx(RUNTIME.mode==='test'?'請用測試帳號登入；正式帳號與測試帳號不共用。':'帳號由管理者邀請。收到邀請信，先開啟信中的連結，再到「帳號與連線」設定密碼。')+'</div></form></main>';
-  vizBg = mountBackdrop(document.getElementById("login-bg"),{interactive:true});
   mountViz3D(document.getElementById("login-bg"));
   $("#loginf").addEventListener("submit",async e=>{
     e.preventDefault();const btn=e.target.querySelector('button[type=submit]'),email=$("#lg-email").value.trim();btn.disabled=true;
