@@ -4995,6 +4995,7 @@ document.addEventListener('keydown',e=>{if(PV)return;const el=e.target.closest?.
 async function start(){
   stopLoginViz(); // 登入成功→停掉背景動畫 rAF（防洩漏）
   const r=await STORE.init();
+  loadPreferencesForDevice(); // 裝置偏好也適用於尚未登入的畫面
   if(r.needLogin){showLogin();return;}
   readOnly=STORE.kind==="supabase"&&!STORE.can("schedule.manage");
   let s=null;
@@ -5003,7 +5004,7 @@ async function start(){
   if(madeDemo)makeDemo();else S=s;
   normalizeState();
   if(madeDemo&&STORE.kind==="local")queueSync(null);
-  loadPreferencesForDevice();loadFactory();
+  loadFactory();
   if(!UI.date)UI.date=todayStr();
   // ?view=shortage|transfer|worklog：重新整理仍停在該頁
   try{const v=new URLSearchParams(location.search).get("view");UI.page={shortage:"shortage",transfer:"transferflow",worklog:"worklog",review:"review",catalog:"catalog",analytics:"analytics",floor:"floor","visual-demo":"visual-demo"}[v]||null;if(UI.page==="review")UI.reviewStep ??= 1;}catch{}
