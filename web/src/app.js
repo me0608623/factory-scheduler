@@ -1834,6 +1834,7 @@ function modalFocusFromToken(root,token){
 }
 function openModal(m){
   if(UI.modal!==m)cancelPlanCalculation();
+  UI.faultSaveNotice=null;   // A newer dialog owns feedback even if it closes before the fault ACK.
   if(m.t==='execution-report'){
     const pending=executionRetries.get(STORE,m.id);
     if(pending)m={...m,...pending,error:tx(UI.executionSaving?'回報處理中；關閉視窗不會取消已送出的回報。':'尚未確認儲存這筆回報；請按「重試上一筆回報」，不要另送新的一筆。')};
@@ -3130,6 +3131,23 @@ function nextCode(){let n=S.orders.length+1;const used=new Set(S.orders.map(o=>o
 function confirmStep(a,act){const m=UI.modal;if(!m)return false;if(m.confirm===act)return true;m.confirm=act;a.textContent="再按一次確認";return false;}
 function toggleIn(arr,v){const i=arr.indexOf(v);if(i>=0)arr.splice(i,1);else arr.push(v);}
 function showResult(){openModal({t:"logone",id:S.log[0].id});}
+async function saveFaultWithNotice(entry){
+  const store=STORE,client=store?.sb,user=store?.session?.user?.id,epoch=store?.authEpoch,sync=syncEpoch,state=S,preview=PV;
+  const viewKey=()=>JSON.stringify([UI.date,UI.view,UI.layout,UI.factory,UI.group,UI.page,UI.drawer,UI.focus,UI.returnTo,UI.editCell,UI.leaveBrush,UI.brushStart]);
+  const operation={};UI.faultSaveNotice=operation;
+  let json=JSON.stringify(state),modal=UI.modal,view=viewKey();
+  const current=()=>UI.faultSaveNotice===operation&&STORE===store&&store?.sb===client&&
+    store?.session?.user?.id===user&&store?.authEpoch===epoch&&syncEpoch===sync&&canPermissionRaw('incidents.manage')&&
+    S===state&&JSON.stringify(S)===json&&UI.modal===modal&&PV===preview&&viewKey()===view;
+  try{
+    const pending=commit(entry,"incidents.manage");
+    json=JSON.stringify(state);   // commit adds the log before queuing its snapshot.
+    closeModal();modal=UI.modal;view=viewKey();
+    // Keep the optimistic fault and existing queueSync failure/retry flow.
+    if(await pending&&current())toast("已記錄故障，這段時間沒有工作受影響");
+  }catch(e){if(current())toast("沒存到："+e.message);}
+  finally{if(UI.faultSaveNotice===operation)UI.faultSaveNotice=null;}
+}
 function captureFault(m){const fs=$("#f-fs"),nt=$("#f-note");if(fs)m.fs=+fs.value;if(nt)m.note=nt.value;}
 Object.assign(MODAL_ACT,{
   "ot-day":a=>{if(!canCalendar()||!UI.modal)return;UI.modal.open=a.dataset.v==="1";rerender();},
@@ -3206,7 +3224,7 @@ Object.assign(MODAL_ACT,{
     };
     const title=mid+" 機台故障 "+mdw(d)+" "+hm(s)+"–"+hm(e);
     const n=S.blocks.filter(b=>b.m===mid&&b.date===d&&b.e>s&&b.s<e).length;
-    if(!n){pushUndo();ev();commit({kind:"fault",title:title+"（這段時間沒有排工作）",lines:[]},"incidents.manage");closeModal();toast("已記錄故障，這段時間沒有工作受影響");return;}
+    if(!n){pushUndo();ev();return saveFaultWithNotice({kind:"fault",title:title+"（這段時間沒有排工作）",lines:[]});}
     if(STORE&&STORE.kind==="supabase"&&SOLVER?.url)sendLineNotify(SOLVER.url,STORE.jwt(),"fault",mid+" 機台故障 "+mdw(d)+" "+hm(s)+"–"+hm(e)).catch(()=>{});
     openPlans(title+"，"+n+" 段工作受影響",title,"fault",ev,STRAT_EVENT,{fid,event:{type:"fault",machine:mid,date:d,start:s,end:e,note}});
   },
