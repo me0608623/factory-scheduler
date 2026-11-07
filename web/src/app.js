@@ -1442,6 +1442,11 @@ document.addEventListener("click",e=>{
         }
         const st=UI.brushStart.d;UI.brushStart=null;
         const [lo,hi]=st<=dd?[st,dd]:[dd,st];
+        // ISO date-only strings use UTC: bound inclusive calendar days before any undo or write.
+        if(Date.parse(hi)-Date.parse(lo)>61*864e5){
+          UI.leaveBrushError=tx('一次最多可選取 62 個日曆天（含起訖日）；未變更任何日期，請重新選取起點與終點。');
+          render();toast(UI.leaveBrushError);break;
+        }
         const E=emp(eid);
         const brushName={leave:"休假",work:"上班",uncertain:"未確定"}[brush]||brush;
         const operation={};UI.leaveBrushOperation=operation;UI.leaveBrushSaving=operation;UI.leaveBrushError='';render();
