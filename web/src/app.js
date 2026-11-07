@@ -191,6 +191,7 @@ function commit(entry,permission="schedule.manage"){
 async function undo(){
   if(!undoStack.length){toast("沒有可以復原的動作");return;}
   S=JSON.parse(undoStack.pop());
+  if(UI.group!=='all'&&UI.group!=='ungrouped'&&!(S.groups||[]).some(g=>g.id===UI.group))UI.group='all';
   const saved=await commit({kind:"edit",title:tx('復原上一步'),lines:[]});
   if(saved)toast("已復原上一步");
 }

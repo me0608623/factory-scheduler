@@ -22,7 +22,7 @@ import vm2 from 'node:vm';
 const src2=_rf(new URL('../src/app.js',import.meta.url),'utf8');
 test('undo pops exactly one snapshot per invocation even when clicked twice rapidly',async()=>{
   const events=[];
-  const ctx={undoStack:['{"v":1}','{"v":2}'],S:{v:1,log:[]},commit:async()=>{events.push('commit');return true;},
+  const ctx={UI:{group:'all'},undoStack:['{"v":1}','{"v":2}'],S:{v:1,log:[]},commit:async()=>{events.push('commit');return true;},
     toast:t=>events.push('toast:'+t),tx:x=>x,uid:()=> 'u1'};
   vm2.createContext(ctx);
   const at=src2.indexOf('async function undo(){');

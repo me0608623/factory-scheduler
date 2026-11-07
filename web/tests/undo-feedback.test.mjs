@@ -9,7 +9,7 @@ const undoCode=source.slice(start,source.indexOf('/* ===== 5.',start));
 function harness({empty=false}={}){
   let finish,commits=0;
   const messages=[],before={blocks:[{id:'TEST-B',s:480,e:540}]};
-  const ctx={S:{blocks:[{id:'TEST-B',s:490,e:550}]},undoStack:empty?[]:[JSON.stringify(before)],tx:x=>x,toast:t=>messages.push(t),
+  const ctx={UI:{group:'all'},S:{blocks:[{id:'TEST-B',s:490,e:550}]},undoStack:empty?[]:[JSON.stringify(before)],tx:x=>x,toast:t=>messages.push(t),
     commit:()=>{commits++;return new Promise(resolve=>{finish=resolve;});}};
   vm.createContext(ctx);vm.runInContext(undoCode,ctx);
   return {ctx,before,messages,commits:()=>commits,finish:value=>finish(value)};
@@ -38,7 +38,7 @@ test('actual undo, commit and queueSync keep loading/offline feedback aligned wi
   const commitCode=source.slice(commitStart,start),queueCode=source.slice(queueStart,source.indexOf('// ---------- 別人改了',queueStart));
   for(const offline of [false,true]){
     let resolveWrite,rejectWrite;const messages=[],writes=[];
-    const ctx={S:{blocks:[{id:'TEST-B',s:490,e:550}],log:[]},undoStack:[JSON.stringify({blocks:[{id:'TEST-B',s:480,e:540}],log:[]})],
+    const ctx={UI:{group:'all'},S:{blocks:[{id:'TEST-B',s:490,e:550}],log:[]},undoStack:[JSON.stringify({blocks:[{id:'TEST-B',s:480,e:540}],log:[]})],
       SYNC:{state:'ok',msg:''},syncPending:0,syncChain:Promise.resolve(),syncEpoch:0,lastSyncState:'ok',lastLocalWrite:0,structuredClone,
       STORE:{kind:'supabase',session:{user:{id:'TEST-USER'}},sync:s=>{writes.push(s);return new Promise((resolve,reject)=>{resolveWrite=resolve;rejectWrite=reject;});},jwt:()=>assert.fail('undo must not send notifications')},
       SOLVER:{url:'https://example.invalid'},sendLineNotify:()=>assert.fail('undo must not send notifications'),
