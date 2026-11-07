@@ -1903,7 +1903,7 @@ function renderModal(){
   const keep=root.querySelector(".overlay"),focusToken=keep&&root.contains(document.activeElement)?modalFocusToken(document.activeElement):null;
   const st=keep?keep.scrollTop:0;
   const importBusy=m.t==='import-preview'&&m.saving;
-  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!(m.viewLoading||m.t==='scenario-list'&&m.loading||m.confirmBusy||m.planBusy||importBusy||m.t==='legacy-preview'&&m.saving||['memo-edit','leave-request','scenario-save'].includes(m.t)&&m.saving||m.t==='execution-report'&&m.busy||m.t==='legacy-history'&&m.loading)+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close"'+(importBusy?' disabled':'')+' aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
+  root.innerHTML='<div class="overlay" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!(m.viewLoading||m.t==='scenario-list'&&m.loading||m.confirmBusy||m.planBusy||importBusy||m.t==='legacy-preview'&&m.saving||['memo-edit','leave-request','scenario-save'].includes(m.t)&&m.saving||m.t==='execution-report'&&m.busy||m.t==='legacy-history'&&m.loading)+'" aria-label="'+esc(c.ariaLabel??c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close"'+(importBusy?' disabled':'')+' aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
   if(importBusy)root.querySelectorAll('input,select,textarea,button').forEach(el=>el.disabled=true);
   if(['memo-edit','leave-request'].includes(m.t)&&m.saving)root.querySelectorAll('input,select,textarea').forEach(el=>el.disabled=true);
   if(m.t==='execution-report'&&m.busy)root.querySelectorAll('input,select,textarea,button:not([data-act="close"])').forEach(el=>el.disabled=true);
@@ -4768,7 +4768,7 @@ MODALS.execution=m=>{
   const line=worker?workerTimeline(S,STORE.employeeId,UI.date,UI.date===todayStr()?nowMin():DAY0):null;
   const workerBody=worker?'<section class="worker-console"><div class="worker-machine">'+tx('我的設備')+'　<b>'+esc(line?.machineId?(mach(line.machineId)?.label||line.machineId):'尚未指定')+'</b></div>'+ticket(line?.current,'現在')+ticket(line?.next,'下一件')+'</section>':'';
   const managerBody=!worker?blocks.map(b=>{const r=executionOf(S,b.id);return '<article class="load-row"><b>'+esc((order(b.oid)?.code||'?')+' · '+stepName(b))+'</b>'+
-      '<div class="hint">'+tx('{who} · {what} · 原定 {s}–{e} · {q} 件',{who:emp(b.emp)?.name||tx('未指定'),what:mach(b.m)?.label||b.m,s:hm(b.s),e:hm(b.e),q:b.qty})+'</div>'+
+      '<div class="hint">'+tx('{who} · {what} · 原定 {s}–{e} · {q} 件',{who:esc(emp(b.emp)?.name||tx('未指定')),what:esc(mach(b.m)?.label||b.m),s:hm(b.s),e:hm(b.e),q:b.qty})+'</div>'+
       '<div class="hint">'+reportStatus(r)+(r?' · 累計 '+r.qtyDone+' 件 · 差異 '+(r.qtyDone-b.qty)+' 件':'')+'</div>'+
       (canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending?'<button class="btn" data-act="report-open" data-id="'+esc(b.id)+'">'+tx('查看／回報進度')+'</button>':'')+
       (r?.status==='done'?'<div class="hint">'+tx(r.confirmed?'已確認完工':'完工待確認')+'</div>'+(!S.setupPending&&canPermission('execution.manage')?
@@ -4788,7 +4788,8 @@ MODALS['execution-report']=m=>{
   const b=S.blocks.find(b=>b.id===m.id);if(!b)return {title:tx('現場回報'),body:'<div class="issue">'+tx('工作已變動，請重新載入。')+'</div>'};
   const r=executionOf(S,b.id),allowed=canReport(reportingRole(),STORE.employeeId,b)&&!S.setupPending&&!PV;
   const actual=t=>t?new Date(t).toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}):'—';
-  return {title:tx('回報')+' '+(order(b.oid)?.code||'?')+' · '+stepName(b),body:
+  return {title:tx('回報')+' '+esc(order(b.oid)?.code||'?')+' · '+esc(stepName(b)),
+    ariaLabel:tx('回報')+' '+(order(b.oid)?.code||'?')+' · '+stepName(b),body:
     '<dl class="kv"><dt>'+tx('原定')+'</dt><dd>'+mdw(b.date)+' '+hm(b.s)+'–'+hm(b.e)+' · '+b.qty+' 件</dd><dt>'+tx('狀態')+'</dt><dd>'+reportStatus(r)+'</dd><dt>'+tx('實際開始')+'</dt><dd>'+esc(actual(r?.startedAt))+'</dd><dt>'+tx('實際完成')+'</dt><dd>'+esc(actual(r?.finishedAt))+'</dd></dl>'+
     '<div class="hint">'+(r?'已鎖定排程，不可拖曳、改量、解除固定或刪除。':'按開始後會鎖定此段工作。')+' 件數填累計，不是這次增加量；完成會記錄實際時間，不用原定結束時間代替。</div>'+
     (m.busy?'<div class="hint" role="status">'+tx('回報處理中；關閉視窗不會取消已送出的回報。')+'</div>':'')+
