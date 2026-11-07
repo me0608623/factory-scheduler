@@ -1378,7 +1378,11 @@ document.addEventListener("click",e=>{
     case "mk-save":{const d=UI.modal;const n=($("#mk-note")?.value||"").trim().slice(0,200);const c=d.draft.c;if(!c&&!n){toast("請選顏色或填寫標註");break;}if(!setMark(d.tb,d.id,{c,n}))toast("這台裝置無法保存標記（已套用於本次畫面）");closeModal();render();break;}
     case "sz-in":{const v=UI.view==="week"?"week":"day";applyZoom(v,(v==="week"?SZ.week:SZ.day)*1.25);break;}
     case "sz-out":{const v=UI.view==="week"?"week":"day";applyZoom(v,(v==="week"?SZ.week:SZ.day)/1.25);break;}
-    case "sz-reset":{const v=UI.view==="week"?"week":"day";applyZoom(v,1);break;}
+    case "sz-reset":{
+      // The explicit reset supersedes queued frames and the active pinch baseline.
+      zoomWheel.cancel();applyPinch.cancel();pinch0=null;pinchActive=false;
+      const v=UI.view==="week"?"week":"day";applyZoom(v,1);break;
+    }
     case "sz-fitweek":{UI.view="week";UI.wkFit=true;applyZoom("week",.3,null,null,true);break;}
     case "sz-fitday":{UI.view="day";UI.wkFit=false;if(SZ.day<1)applyZoom("day",1);else render();break;}
     case "sz-wheeltoggle":{zoomWheel.cancel();setWheelZoom(!SZ.wheelZoom);SZ=schedZoomState();render();document.querySelector('[data-act="sz-wheeltoggle"]')?.focus();toast(SZ.wheelZoom?"滾輪縮放已開啟（在排程表上滾動即可縮放）":"滾輪縮放已關閉（排程表恢復一般捲動）");break;}
