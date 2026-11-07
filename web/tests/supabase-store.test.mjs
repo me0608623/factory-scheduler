@@ -5,6 +5,7 @@ import { makeDb, FakeSupabase } from "./fake-supabase.mjs";
 import { SupabaseStore } from "../src/store/supabase.js";
 import { toSnapshot, fromSnapshot, applyOption } from "../src/convert.js";
 import { requestQuery } from './request-query.mjs';
+import { workingDate } from './working-date.mjs';
 
 const BOSS = "11111111-1111-4111-8111-111111111111";
 const LEAD = "22222222-2222-4222-8222-222222222222";
@@ -26,11 +27,31 @@ async function setup() {
     return s;
   };
   const count = async (sql, p = []) => (await db.query(sql, p)).rows[0].n;
-  return { db, store, count };
+  const workDate = await workingDate(db);
+  const blk = (o) => ({ id: crypto.randomUUID(), oid: A01, step: 0, m: "a", emp: E1, date: workDate, s: 480, e: 540, qty: 120, pin: false, ...o });
+  return { db, store, count, workDate, blk };
 }
 // 日期一律相對今天（schedule_snapshot 視窗＝current_date-7～+90，寫死日期會讓測試在日期滾過後爆紅）
 const dayISO = n => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
-const blk = (o) => ({ id: crypto.randomUUID(), oid: A01, step: 0, m: "a", emp: E1, date: dayISO(1), s: 480, e: 540, qty: 120, pin: false, ...o });
+
+test('calendar fixture controls still reject Sunday and unconsented holiday work atomically', async () => {
+  const { db, store, count, blk, workDate } = await setup();
+  try {
+    const sunday = (await db.query(`select (current_date+n)::text as date
+      from generate_series(1,7) n where extract(dow from current_date+n)=0`)).rows[0].date;
+    const boss = await store('boss@x');
+    const before = await boss.load();
+    const closed = structuredClone(before);closed.blocks.push(blk({date:sunday}));
+    await assert.rejects(boss.sync(closed, {kind:'move',title:'Closed Sunday control'}), /停工日/);
+    await db.query("insert into holidays(date,name) values ($1,'Synthetic holiday')", [workDate]);
+    await db.query('insert into employee_overtime_days(employee_id,date,available) values ($1,$2,false)', [E1,workDate]);
+    const holiday = await boss.load();holiday.blocks.push(blk());
+    await assert.rejects(boss.sync(holiday, {kind:'move',title:'Holiday consent control'}), /不可加班或假日出勤/);
+    assert.equal(await count('select count(*)::int n from schedule_blocks'), 0);
+    assert.equal(await count('select version::int n from schedule_state'), before.version);
+    assert.equal(await count('select count(*)::int n from change_sets'), 0);
+  } finally { await db.close(); }
+});
 
 test("登入：密碼錯誤、角色", async () => {
   const { store, db } = await setup();
@@ -142,7 +163,7 @@ test("老闆設定 2 廠人員、機台與工序後可存回快照", async () =>
 });
 
 test("讀取、只寫有變的列、紀錄", async () => {
-  const { db,store, count } = await setup();
+  const { db,store, count, blk } = await setup();
   // Snapshot defaults to DB today - 7 through today + 90. Keep windowed
   // leaves/faults/overtime in that range instead of expiring at host midnight.
   const fixtureDay=(await db.query('select current_date::text as date')).rows[0].date;
@@ -193,7 +214,7 @@ test("讀取、只寫有變的列、紀錄", async () => {
 });
 
 test("兩個人同時改：後存的人收到衝突", async () => {
-  const { store } = await setup();
+  const { store, blk } = await setup();
   const boss = await store("boss@x"), lead = await store("lead@x");
   const Sb = await boss.load(), Sl = await lead.load();
   Sb.blocks.push(blk());
@@ -205,7 +226,7 @@ test("兩個人同時改：後存的人收到衝突", async () => {
 });
 
 test("排程版本已變時，不得先把同次修改的工單寫入資料庫", async () => {
-  const { store, count } = await setup();
+  const { store, count, blk } = await setup();
   const boss = await store("boss@x"), lead = await store("lead@x");
   const Sb = await boss.load(), Sl = await lead.load();
   Sb.blocks.push(blk());
@@ -256,16 +277,16 @@ test("每週加班設定僅老闆可改，單日臨時意願組長可改", async
 });
 
 test("套用排程服務的方案（apply_plan）", async () => {
-  const { db, store, count } = await setup();
+  const { db, store, count, workDate } = await setup();
   const lead = await store("lead@x");
   const S = await lead.load();
   const opt = { id: "A", name: "少動為主", summary: "測試方案", lines: [], blocks: [
-    { order_id: A01, step_seq: 0, machine_id: "a", employee_id: E1, date: dayISO(1), start_min: 480, end_min: 540, qty: 120 }],
-    effects: { overtime_on: [dayISO(1)] } };
+    { order_id: A01, step_seq: 0, machine_id: "a", employee_id: E1, date: workDate, start_min: 480, end_min: 540, qty: 120 }],
+    effects: { overtime_on: [workDate] } };
   // 預覽就是方案套用後的畫面資料
   const A = applyOption(S, opt);
   assert.equal(A.blocks.length, 1);
-  assert.equal(A.dayOT[dayISO(1)], true);
+  assert.equal(A.dayOT[workDate], true);
   const pv = (await db.query("insert into plan_previews (kind,title,event,base_version,options) values ('auto','重新排程','{}',0,$1) returning id",
     [JSON.stringify([opt])])).rows[0].id;
   await lead.applyPlan(pv, "A", "備註", { pick: "A", reason: "少動" });
@@ -278,9 +299,9 @@ test("套用排程服務的方案（apply_plan）", async () => {
 });
 
 test('apply_plan committed with lost UUID receipt is unconfirmed until a real read, without resubmit',async()=>{
-  const {db,store,count}=await setup(),lead=await store('lead@x');
+  const {db,store,count, workDate }=await setup(),lead=await store('lead@x');
   await lead.load();const baseline=lead.base;
-  const opt={id:'A',name:'少動',lines:[],blocks:[{order_id:A01,step_seq:0,machine_id:'a',employee_id:E1,date:'2026-10-05',start_min:480,end_min:540,qty:120}],effects:{}};
+  const opt={id:'A',name:'少動',lines:[],blocks:[{order_id:A01,step_seq:0,machine_id:'a',employee_id:E1,date:workDate,start_min:480,end_min:540,qty:120}],effects:{}};
   const pv=(await db.query("insert into plan_previews (kind,title,event,base_version,options) values ('auto','回條測試','{}',0,$1) returning id",[JSON.stringify([opt])])).rows[0].id;
   const rpc=lead.sb.rpc.bind(lead.sb);let applyCalls=0;
   lead.sb.rpc=(fn,args)=>requestQuery(async()=>{const r=await rpc(fn,args);if(fn==='apply_plan'){applyCalls++;assert.equal(r.error,null);return {...r,data:null};}return r;});
@@ -292,12 +313,12 @@ test('apply_plan committed with lost UUID receipt is unconfirmed until a real re
 });
 
 test("套用方案時排程已被別人更新 → 整份拒絕（版本衝突不留半套）", async () => {
-  const { db, store, count } = await setup();
+  const { db, store, count, blk, workDate } = await setup();
   const lead = await store("lead@x"), boss = await store("boss@x");
   const S = await lead.load();
   const opt = { id: "A", name: "少動為主", summary: "測試方案", lines: [], blocks: [
-    { order_id: A01, step_seq: 0, machine_id: "a", employee_id: E1, date: dayISO(1), start_min: 480, end_min: 540, qty: 120 }],
-    effects: { overtime_on: [dayISO(1)] } };
+    { order_id: A01, step_seq: 0, machine_id: "a", employee_id: E1, date: workDate, start_min: 480, end_min: 540, qty: 120 }],
+    effects: { overtime_on: [workDate] } };
   const pv = (await db.query("insert into plan_previews (kind,title,event,base_version,options) values ('auto','重新排程','{}',0,$1) returning id",
     [JSON.stringify([opt])])).rows[0].id;
   // 預覽建立後、套用前，老闆先存了一版 → base_version 過期
@@ -310,24 +331,28 @@ test("套用方案時排程已被別人更新 → 整份拒絕（版本衝突不
   assert.equal(fresh.version, 1, "版本停在老闆那一版");
 });
 
-test('儲存失敗（服務無回應）不留部分寫入，重新讀取仍是原版', async () => {
-  const { store, count } = await setup();
+test('服務無回應視為未確認：即使讀回原版，同頁儲存仍暫停', async () => {
+  const { store, count, blk } = await setup();
   const lead = await store('lead@x');
   const S = await lead.load();
   S.blocks.push(blk());
   // 模擬網路層故障：rpc 直接丟例外（非衝突、非權限）
   const orig = lead.sb.rpc.bind(lead.sb);
   lead.sb.rpc = () => requestQuery(() => { throw new Error('network down'); });
-  await assert.rejects(lead.sync(S, { kind: 'move', title: '組長的調整' }), /network down/);
+  await assert.rejects(lead.sync(S, { kind: 'move', title: '組長的調整' }), e=>e.unconfirmed&&/完整重新整理網頁/.test(e.message));
+  assert.equal(lead.hasPendingConfirmations(),true);
   lead.sb.rpc = orig;
   assert.equal(await count('select count(*)::int n from schedule_blocks'), 0, '資料庫沒有任何新方塊');
   const fresh = await lead.load();
   assert.equal(fresh.blocks.length, 0, '重新讀取仍是原版');
   assert.equal(fresh.version, 0, '版本不變');
+  assert.equal(lead.hasPendingConfirmations(),true,'讀回原版不代表原請求已結束');
+  await assert.rejects(lead.sync(fresh),e=>e.unconfirmed===true);
+  assert.equal(await count('select count(*)::int n from schedule_blocks'),0);
 });
 
 test('套用後立即復原（同使用者）不被自己的版本鎖擋住', async () => {
-  const { store, count } = await setup();
+  const { store, count, blk } = await setup();
   const boss = await store('boss@x');
   const S0 = await boss.load();
   S0.blocks.push(blk());

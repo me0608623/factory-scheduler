@@ -1,12 +1,20 @@
 import {transferOrders,transferSummary,batchTotals,FLOW_ACTIONS,validateTransfers,appendFlow,transferPlanWarnings} from './transfers.js';
 import { tx } from './i18n.js';
 
-export function transferUI({state,ui,esc,uid,canEdit,open,close,syncInputs,commit,toast,today,clearUndo}){
+export function transferUI({state,ui,esc,uid,canEdit,open,close,syncInputs,commit,toast,today,clearUndo,owner=()=>({})}){
   const btn=(act,label,id='',extra='')=>'<button class="btn" data-act="'+act+'" data-id="'+esc(id)+'" '+extra+'>'+label+'</button>';
   const field=(key,label,value,type='text',disabled=false)=>'<div class="field"><label for="tf-'+key+'">'+label+'</label><input class="inp" id="tf-'+key+'" data-bind="'+key+'" type="'+type+'" value="'+esc(value??'')+'" '+(disabled?'disabled':'')+'></div>';
   const select=(key,label,values,value,disabled=false)=>'<div class="field"><label for="tf-'+key+'">'+label+'</label><select class="inp" id="tf-'+key+'" data-bind="'+key+'" '+(disabled?'disabled':'')+'>'+values.map(([v,t])=>'<option value="'+v+'" '+(String(v)===String(value)?'selected':'')+'>'+t+'</option>').join('')+'</select></div>';
   const warnings=items=>items.map(t=>'<div class="issue">'+esc(t)+'</div>').join('');
   const current=id=>transferOrders(state()).find(o=>o.id===id);
+  // JSONB reorders object keys; nullable demand fields may be absent in older rows.
+  const canonical=value=>Array.isArray(value)?value.map(canonical):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonical(value[k])])):value;
+  const sourceRow=o=>o?JSON.stringify(canonical({...o,...Object.fromEntries(['totalQty','notified','expectedSend','due','urgentDue'].map(k=>[k,o[k]??null]))})):null;
+  const captureSource=(id,isNew)=>({id,row:isNew?null:sourceRow(current(id)),...owner()});
+  const sourceCurrent=(source,id)=>{
+    const now=owner();
+    return source?.id===id&&['store','client','user','epoch'].every(k=>source[k]===now[k])&&source.row===sourceRow(current(id));
+  };
   const commitOrders=(orders,title)=>{const S=state(),candidate={...S,transferOrders:orders};validateTransfers(candidate,{before:S});S.transferOrders=orders;clearUndo();close();commit({kind:'edit',title,lines:[]});};
   const normalizedDraft=()=>{syncInputs();const m=ui.modal;if(!m?.draft)return null;const D=structuredClone(m.draft);for(const k of ['notified','expectedSend','due','urgentDue'])if(k in D)D[k]=document.getElementById('tf-'+k)?.value||null;if('totalQty' in D)D.totalQty=document.getElementById('tf-totalQty')?.value===''?null:Number(D.totalQty);return D;};
   const safe=f=>()=>{if(!canEdit())return;try{f();}catch(e){toast(e.message);}};
@@ -25,7 +33,7 @@ export function transferUI({state,ui,esc,uid,canEdit,open,close,syncInputs,commi
         o.batches.map(b=>{const n=batchTotals(o,b),linked=(S.workAssignments||[]).filter(a=>a.transferBatchId===b.id);return '<section class="field transfer-card"><h4>'+esc(b.code)+' · 計畫 '+b.plannedQty+' 件</h4><div>交出 '+n.send+' → 點收 '+n.receive+' → 完成良品 '+n.complete+' → 送回 '+n.return+' → 點收合格 '+n.accept+'</div><div>加工不良 '+n.scrap+' · 回廠點收差異 '+n.rejected+'</div>'+(canEdit()&&o.status==='active'?btn('tf-flow','＋登記流轉',b.id)+btn('tf-plan','＋連結人工／設備排班',b.id):'')+
           '<h4>'+tx('相關排班')+'</h4>'+linked.map(a=>'<div>'+btn('general-edit',esc(S.employees.find(e=>e.id===a.emp)?.name||'?')+' · '+esc(S.workContents.find(w=>w.id===a.workId)?.name||'?')+' · '+a.qty+' 件',a.id)+'<div>'+esc(a.date)+' '+String(Math.floor(a.s/60)).padStart(2,'0')+':'+String(a.s%60).padStart(2,'0')+' · '+(a.transferStage==='return'?'回廠後工作':'加工工作')+'</div>'+warnings(transferPlanWarnings(S,a))+'</div>').join('')+(!linked.length?'<div class="hint">'+tx('尚未連結排班。')+'</div>':'')+
           '<h4>'+tx('批次紀錄')+'</h4>'+o.events.filter(e=>e.batchId===b.id).map(e=>'<div class="rline">'+esc(e.at.replace('T',' '))+' · '+FLOW_ACTIONS[e.action]+' '+e.qty+' 件'+(e.badQty?' · 不良／差異 '+e.badQty+' 件':'')+' '+esc(e.note)+'</div>').join('')+'</section>';}).join(''),foot:btn('transfers','返回清單')+(canEdit()?btn('tf-edit','編輯需求',o.id)+(o.status==='active'?btn('tf-batch','＋新增批次',o.id):''):'')+btn('close',tx('關閉'))};},
-    'transfer-edit'(m){m.draft ||= structuredClone(current(m.id)||{id:uid(),code:'XF-'+String(transferOrders(state()).length+1).padStart(3,'0'),itemCode:'',fromFactory:1,toFactory:2,returnFactory:1,totalQty:null,urgentQty:0,notified:today(),expectedSend:null,due:null,urgentDue:null,workIds:[],status:'active',note:'',batches:[],events:[]});const D=m.draft,off=!canEdit();
+    'transfer-edit'(m){if(!m.draft){m.draft=structuredClone(current(m.id)||{id:uid(),code:'XF-'+String(transferOrders(state()).length+1).padStart(3,'0'),itemCode:'',fromFactory:1,toFactory:2,returnFactory:1,totalQty:null,urgentQty:0,notified:today(),expectedSend:null,due:null,urgentDue:null,workIds:[],status:'active',note:'',batches:[],events:[]});m.source=captureSource(m.id||m.draft.id,!m.id);}const D=m.draft,off=!canEdit();
       return {title:m.id?'編輯跨廠需求':'新增加工單',body:'<div class="hint">工作內容由使用者核定，不從品號猜測工序、模具、產能或年份。空白數量／期限保留待確認。</div>'+field('code','加工單號',D.code,'text',off)+field('itemCode','加工品號／產品識別',D.itemCode,'text',off)+
         ['fromFactory','toFactory','returnFactory'].map((k,i)=>select(k,['來源廠','加工廠','回收廠'][i],[[1,'1 廠'],[2,'2 廠']],D[k],off)).join('')+field('totalQty','總需求數量（可留空）',D.totalQty,'number',off)+field('urgentQty','急用數量（總量的一部分）',D.urgentQty,'number',off)+
         [['notified','通知日期'],['expectedSend','預計交料日期'],['due','要求回廠期限'],['urgentDue','急用期限']].map(([k,t])=>field(k,t,D[k],'date',off)).join('')+
@@ -37,7 +45,16 @@ export function transferUI({state,ui,esc,uid,canEdit,open,close,syncInputs,commi
   const actions={
     transfers:()=>open({t:'transfers'}),'tf-new':()=>{if(canEdit())open({t:'transfer-edit'});},'tf-detail':a=>open({t:'transfer-detail',id:a.dataset.id}),'tf-edit':a=>open({t:'transfer-edit',id:a.dataset.id}),
     'tf-work':a=>{if(!canEdit()||!ui.modal?.draft)return;syncInputs();const d=ui.modal.draft;d.workIds=d.workIds.filter(id=>id!==a.dataset.id).concat(d.workIds.includes(a.dataset.id)?[]:[a.dataset.id]);open(ui.modal);},
-    'tf-save':safe(()=>{const D=normalizedDraft();if(!D)return;D.code=D.code.trim();D.itemCode=D.itemCode.trim();for(const k of ['fromFactory','toFactory','returnFactory'])D[k]=Number(D[k]);commitOrders(transferOrders(state()).filter(o=>o.id!==D.id).concat(D),'更新跨廠加工單 '+D.code);}),
+    'tf-save':safe(()=>{
+      const m=ui.modal;if(!m?.draft)return;
+      if(!sourceCurrent(m.source,m.draft.id))throw new Error(tx('這張加工單或登入狀態已變更，未儲存；請關閉後重新開啟最新加工單再調整。'));
+      const D=normalizedDraft();if(!D)return;const existing=current(D.id);
+      // Keep the current JSONB representation of unchanged immutable events.
+      // Actual event edits still reach the existing ledger validator and are rejected.
+      if(existing&&JSON.stringify(canonical(D.events))===JSON.stringify(canonical(existing.events)))D.events=structuredClone(existing.events);
+      D.code=D.code.trim();D.itemCode=D.itemCode.trim();for(const k of ['fromFactory','toFactory','returnFactory'])D[k]=Number(D[k]);
+      commitOrders(transferOrders(state()).filter(o=>o.id!==D.id).concat(D),'更新跨廠加工單 '+D.code);
+    }),
     'tf-batch':a=>{if(canEdit())open({t:'transfer-batch',id:a.dataset.id});},
     'tf-batch-save':safe(()=>{syncInputs();const m=ui.modal;if(!m?.draft)return;const orders=structuredClone(transferOrders(state())),o=orders.find(o=>o.id===m.id);if(!o||o.status!=='active')throw new Error('加工單未啟用');o.batches.push(m.draft);commitOrders(orders,'建立跨廠批次 '+m.draft.code);}),
     'tf-flow':a=>{if(!canEdit())return;const o=transferOrders(state()).find(o=>o.batches.some(b=>b.id===a.dataset.id));if(!o)return;open({t:'transfer-flow',id:o.id,batchId:a.dataset.id});},

@@ -1,3 +1,4 @@
+import {assertOrderReductions} from '../src/manual.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -6,14 +7,14 @@ import {SupabaseStore} from '../src/store/supabase.js';
 import {requestQuery} from './request-query.mjs';
 
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
-const implementation=source.slice(source.indexOf('async function pvApply(){'),source.indexOf('\nObject.assign(MODAL_ACT,{',source.indexOf('async function pvApply(){')));
+const implementation=source.slice(source.indexOf('function samePreviewState('),source.indexOf('function pvDrawerActionsHTML('))+source.slice(source.indexOf('async function pvApply(){'),source.indexOf('\nObject.assign(MODAL_ACT,{',source.indexOf('async function pvApply(){')));
 const receipt='11111111-1111-4111-8111-111111111111';
 function harness(){
   let resolve,reject;const log=[];
   const store={session:{user:{id:'lead'}},authEpoch:0,version:4,applyPlan:()=>{log.push('rpc');return new Promise((a,b)=>{resolve=a;reject=b;});}};
   const option={id:'A',A:{blocks:[]},applicable:true};
   const ctx={STORE:store,PV:{previewId:'preview',cur:'A',opts:[option]},S:{blocks:[]},UI:{},
-    pvOpt:()=>ctx.PV?.opts[0],$:()=>null,assertExecutionProtected:()=>{},
+    pvOpt:()=>ctx.PV?.opts[0],$:()=>null,assertOrderReductions,assertExecutionProtected:()=>{},
     tx:x=>x,toast:x=>log.push(x),render:()=>log.push('render'),pushUndo:()=>log.push('undo'),
     reloadFromStore:async()=>{log.push('reload');return 'applied';},showResult:()=>log.push('success'),lastLocalWrite:0,pendingReload:false};
   vm.createContext(ctx);vm.runInContext(implementation,ctx);

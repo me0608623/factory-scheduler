@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -143,6 +143,7 @@ class Calendar(BaseModel):
     overrides: dict[str, bool] = Field(default_factory=dict)   # 單日改為上班／停工
     overtime: dict[str, bool] = Field(default_factory=dict)    # 開加班的日子
     holidays: dict[str, str] = Field(default_factory=dict)
+    overtime_ends: dict[str, Annotated[int, Field(strict=True, ge=1020, le=1320)] | None] = Field(default_factory=dict)
     windows: list[WindowDef] = Field(default_factory=lambda: list(DEFAULT_WINDOWS))
 
     @model_validator(mode="after")
@@ -203,6 +204,19 @@ class Snapshot(BaseModel):
     blocks: list[Block] = Field(default_factory=list)
     work_assignments: list[WorkAssignment] = Field(default_factory=list, max_length=10000)
     work_execution: list[WorkExecution] = Field(default_factory=list, max_length=10000)
+
+    @model_validator(mode="before")
+    @classmethod
+    def daily_overtime_ends(cls, value):
+        # The DB/frontend envelope keeps daily cutoffs beside calendar. Normalize
+        # once so every Timeline consumer and model_dump round trip retains them.
+        if isinstance(value, dict) and value.get("ot_ends") is not None:
+            calendar = value.get("calendar")
+            if isinstance(calendar, Calendar):
+                calendar = calendar.model_dump()
+            if isinstance(calendar, dict):
+                value = {**value, "calendar": {**calendar, "overtime_ends": value["ot_ends"]}}
+        return value
 
     @model_validator(mode="after")
     def work_references(self):

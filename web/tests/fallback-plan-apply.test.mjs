@@ -1,3 +1,4 @@
+import {assertOrderReductions} from '../src/manual.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -5,7 +6,7 @@ import {readFileSync} from 'node:fs';
 import {LocalStore} from '../src/store/local.js';
 
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
-const applyCode=source.slice(source.indexOf('async function pvApply(){'),source.indexOf('\nObject.assign(MODAL_ACT,{',source.indexOf('async function pvApply(){')));
+const applyCode=source.slice(source.indexOf('function samePreviewState('),source.indexOf('function pvDrawerActionsHTML('))+source.slice(source.indexOf('async function pvApply(){'),source.indexOf('\nObject.assign(MODAL_ACT,{',source.indexOf('async function pvApply(){')));
 const commitCode=source.slice(source.indexOf('function commit('),source.indexOf('\nasync function undo('));
 function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};}
 function harness(){
@@ -14,7 +15,7 @@ function harness(){
   const option={id:'C',name:'Fallback',A:next,state:JSON.stringify(next),applicable:true,lines:[],mt:{shifts:[],lateCodes:[],moved:0,otherDays:0,otH:0}};
   const store={kind:'local',session:null,authEpoch:0};
   const ctx={STORE:store,S:before,PV:{kind:'auto',base:JSON.stringify(before),opts:[option],cur:'C',logTitle:'Fallback'},
-    pvOpt:()=>ctx.PV?.opts[0],withState:(state,fn)=>fn(),pvSummary:()=>'',peopleOf:()=>[],assertExecutionProtected:()=>{},
+    pvOpt:()=>ctx.PV?.opts[0],withState:(state,fn)=>fn(),pvSummary:()=>'',peopleOf:()=>[],assertOrderReductions,assertExecutionProtected:()=>{},
     $:()=>null,canPermissionRaw:()=>true,canPermission:()=>true,tx:x=>x,toast:x=>log.push(x),render:()=>log.push('render'),
     undoStack:[],pushUndo:()=>ctx.undoStack.push(JSON.stringify(ctx.S)),showResult:()=>log.push('success'),
     commit:()=>{log.push('commit');return wait.promise;}};

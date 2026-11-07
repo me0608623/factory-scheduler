@@ -72,6 +72,22 @@ export function auditRoster(p,S){
       if(b&&a.s.id!==b.s.id&&!p.rotationConsentRef.trim()&&Math.floor(ds.indexOf(a.c.date)/7)===Math.floor(ds.indexOf(b.c.date)/7))err(a.c,'同週更換班次缺少勞工同意紀錄');
       for(const c of cs.filter(c=>['regular','rest','holiday','leave'].includes(c.type))){const start=Date.parse(c.date+'T00:00:00Z')/60000;if(a.start<start+1440&&a.end>start)err(a.c,'跨夜班侵入 '+c.date+' '+DAY_TYPES[c.type]+' 的完整休息日');}
     }
+    // Check both sides so editing either stored cycle cannot hide a boundary conflict.
+    for(const other of (S.staffRosters||[]).filter(q=>q.id!==p.id&&q.employees.some(x=>x.emp===e.id))){
+      let work,rest,shift,local;
+      if(addDate(other.start,REGIMES[other.regime].days)===p.start){
+        work=cellOf(other,e.id,addDate(p.start,-1));rest=cs[0];
+        shift=other.shifts.find(s=>s.id===work?.shiftId);local=rest;
+      }else if(addDate(p.start,rule.days)===other.start){
+        work=cs.at(-1);rest=cellOf(other,e.id,other.start);
+        shift=p.shifts.find(s=>s.id===work?.shiftId);local=work;
+      }
+      if(work?.type==='work'&&shift&&['regular','rest','holiday','leave'].includes(rest?.type)){
+        const boundary=Date.parse(rest.date+'T00:00:00Z')/60000,start=Date.parse(work.date+'T00:00:00Z')/60000;
+        if(start+shift.segments[0][0]<boundary+1440&&start+shift.segments.at(-1)[1]>boundary)
+          err(local,'跨週期跨夜班侵入 '+rest.date+' '+DAY_TYPES[rest.type]+' 的完整休息日');
+      }
+    }
     const total=minutes.reduce((a,b)=>a+b,0);totals.push({emp:e.id,minutes:total,days:runs.length});if(total>rule.total)err({emp:e.id},'週期正常工時超過 '+rule.total/60+' 小時');if(p.regime==='two'&&extra>960)err({emp:e.id},'二週調配增加工時超過二日的 16 小時');
     if(cs.filter(c=>['regular','rest'].includes(c.type)).length<rule.rest)err({emp:e.id},'週期例假＋休息日少於 '+rule.rest+' 日（請假不抵充）');
     for(let i=0;i<cs.length;i+=p.regime==='four'?14:7){const part=cs.slice(i,i+(p.regime==='four'?14:7)),regs=part.filter(c=>c.type==='regular').length;if(regs<(p.regime==='four'?2:1))err({emp:e.id,date:part[0].date},'此'+(p.regime==='four'?'二週':'七日')+'週期例假不足');if(p.regime==='fixed'&&!part.some(c=>c.type==='rest'))err({emp:e.id,date:part[0].date},'七日週期缺休息日');}

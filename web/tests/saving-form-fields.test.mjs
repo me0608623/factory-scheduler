@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 function fixture(kind){
-  let elements=[],html='',focused;const modal={},overlay={scrollTop:0,querySelector:()=>modal,addEventListener:()=>{}};
+  let elements=[],html='',focused;const modal={},overlay={scrollTop:0,querySelector:s=>s==='.block-detail'?null:modal,addEventListener:()=>{}};
   const root={querySelector:s=>s==='.overlay'?(html?overlay:null):null,contains:()=>false,
     querySelectorAll:selector=>elements.filter(e=>selector.split(',').some(part=>part.trim().startsWith(e.tag)&&(!part.includes(':not')||e.act!=='close')))};
   Object.defineProperty(root,'innerHTML',{get:()=>html,set:value=>{html=value;elements=[...value.matchAll(/<(input|select|textarea|button)\b([^>]*)>/g)].map(([,tag,attrs])=>({tag,attrs,
@@ -13,7 +13,7 @@ function fixture(kind){
     S:{blocks:[{id:'B',qty:100,date:'2026-10-14',m:'M',s:480,e:540}],setupPending:false},STORE:{employeeId:'E'},PV:null,inFactory:()=>true,mach:()=>({label:'Synthetic'}),emp:()=>({name:'Synthetic'}),canPermission:()=>true,executionOf:()=>({qtyDone:10,status:kind==='execution'?'done':'running'}),canReport:()=>true,reportingRole:()=> 'lead',order:()=>({code:'Synthetic'}),stepName:()=> 'Synthetic',mdw:x=>x,hm:x=>x,reportStatus:()=> 'running',
     shownMachines:()=>[{id:'M',label:'Synthetic'}],shownEmployees:()=>[{id:'E',name:'Synthetic'}],esc:x=>String(x),tx:x=>x,
     document:{activeElement:null},$:s=>s==='#modal-root'?root:s==='#ov'?overlay:null,closeModal:()=>{},modalFocusToken:()=>null,modalFocusFromToken:()=>null,
-    modalFocusable:()=>elements.filter(e=>e.tag==='button'&&!e.disabled)};
+    modalFocusable:()=>elements.filter(e=>e.tag==='button'&&!e.disabled),sizeBlockDetailModal:()=>{}};
   vm.createContext(ctx);
   const begin=source.indexOf(kind==='execution'?'MODALS.execution=':"MODALS['"+kind+"']=");
   const end=source.indexOf(kind==='scenario-list'?"MODALS['scenario-save']":kind==='scenario-save'?'async function saveScenarioFromModal(':kind==='memo-edit'?'function directWriteStatus(':kind==='execution-report'?'async function reportWork(':kind==='execution'?"MODALS['execution-report']":'/* ---------- 員工月曆',begin);
