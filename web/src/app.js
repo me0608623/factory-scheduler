@@ -2048,7 +2048,7 @@ emp(m){
    '<div class="field"><span class="lab">'+tx('請假（點日期切換，紅色 = 請假）')+'</span><div class="toggles">'+days+'</div></div>';
   const foot=ro?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':
    (m.id?'<button class="btn danger" data-act="m-emp-del">'+tx('刪除員工')+'</button>':'')+'<div class="spacer"></div><button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="m-emp-save">'+tx('儲存並自動調整')+'</button>';
-  return {title:m.id?esc(D.name||tx("員工")):tx("新增員工"),body,foot};
+  return {title:m.id?esc(D.name||tx("員工")):tx("新增員工"),ariaLabel:m.id?(D.name||tx("員工")):tx("新增員工"),body,foot};
 },
 /* ---------- 機台 ---------- */
 mach(m){
@@ -2076,7 +2076,7 @@ mach(m){
    (m.fromInc?"":faultBox);
   const foot=rm?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':
    (m.id?'<button class="btn danger" data-act="m-mach-del">'+tx('刪除機台')+'</button>':'')+'<div class="spacer"></div><button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="m-mach-save">'+tx('儲存')+'</button>';
-  return {title:m.id?'<span class="num">'+esc(D.id)+'</span>　'+esc(D.label):tx("新增機台"),body,foot};
+  return {title:m.id?'<span class="num">'+esc(D.id)+'</span>　'+esc(D.label):tx("新增機台"),ariaLabel:m.id?(D.id??'')+'　'+(D.label??''):tx("新增機台"),body,foot};
 },
 /* ---------- 工單 ---------- */
 ord(m){
@@ -3014,7 +3014,7 @@ MODALS.leaveq=m=>{
   let days="";for(let i=0;i<14;i++){const d=addDays(UI.date<todayStr()?todayStr():UI.date,i),di=dayInfo(d);
     days+=tg("lq-date",d,m.date===d,'<span class="num">'+md(d)+'</span><small>'+WD[di.w]+(di.open?"":" 停工")+'</small>',"leave");}
   const n=S.blocks.filter(b=>b.emp===E.id&&b.date===m.date&&futureOf(b)).length;  // 與 lq-go 同口徑：過去時段不計（避免 hint 說有工作、按下卻說沒有）
-  return {title:tx("{name} 請假",{name:esc(E.name)}),body:'<div class="field"><span class="lab">'+tx('哪一天？')+'</span><div class="toggles">'+days+'</div></div>'+
+  return {title:tx("{name} 請假",{name:esc(E.name)}),ariaLabel:tx("{name} 請假",{name:E.name??''}),body:'<div class="field"><span class="lab">'+tx('哪一天？')+'</span><div class="toggles">'+days+'</div></div>'+
     (E.leaves.includes(m.date)?'<div class="okbox">'+tx('這天已經登記請假')+'</div>':'<div class="hint">'+mdw(m.date)+" "+esc(E.name)+" 有 "+n+" 段工作要調整</div>"),
     foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="lq-go" '+(E.leaves.includes(m.date)?"disabled":"")+'>'+tx('看調整方案')+'</button>'};
 };
@@ -3814,7 +3814,7 @@ MODALS['person-day']=m=>{
   const E=emp(m.id);if(!E)return null;
   m.leave ??= E.leaves.includes(m.d);
   const n=S.blocks.filter(b=>b.emp===E.id&&b.date===m.d&&futureOf(b)).length;
-  return {title:esc(E.name)+' · '+mdw(m.d),body:
+  return {title:esc(E.name)+' · '+mdw(m.d),ariaLabel:(E.name??'')+' · '+mdw(m.d),body:
     '<div class="toggles">'+tg("pd-set","leave",!!m.leave,"休假（整天）")+tg("pd-set","work",!m.leave,"上班")+'</div>'+
     '<div class="hint">'+(m.leave&&n?'這天他有 '+n+' 段工作；儲存後系統會先給你調整方案預覽，確認前不會動正式班表。':'臨時休假只記這一天；其他日期不受影響。')+'</div>',
     foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="pd-save">'+tx('儲存')+'</button>'};
@@ -3829,7 +3829,7 @@ MODALS['person-month']=m=>{
     for(let w=0;w<7;w++)if(!S.cal.week[w])m.off.add(w);   // 工廠休息日預設為休假
   }
   const days=monthDates(UI.date).filter(Boolean).filter(d=>d>=todayStr());
-  return {title:tx("{name} 整月班表設定",{name:esc(E.name)}),body:
+  return {title:tx("{name} 整月班表設定",{name:esc(E.name)}),ariaLabel:tx("{name} 整月班表設定",{name:E.name??''}),body:
     '<div class="hint">'+tx('對象月份：{y} 年 {m} 月。勾「休假」的星期，整月都會設為休假；沒勾的代表上班（會取消那幾天已有的休假）。',{y:UI.date.slice(0,4),m:UI.date.slice(5,7)})+'</div>'+
     '<div class="field"><span class="lab">'+tx('這個月哪些星期休假')+'</span><div class="toggles">'+[1,2,3,4,5,6,0].map(w=>tg("pm-week",w,m.off.has(w),tx(WEEK_LABELS[w]))).join("")+'</div></div>'+
     (days.length?'<div class="hint">'+tx('只會改 {a} ～ {b}（今天起，過去的紀錄不動）。當天已排工作的日期會先跳過，請到月曆點該日期逐一處理。',{a:md(days[0]),b:md(days[days.length-1])})+'</div>':'<div class="issue">'+tx('這個月今天之後沒有日期可設定。')+'</div>'),
