@@ -6,7 +6,7 @@ const source=fs.readFileSync(process.env.CLIPBOARD_SOURCE || new URL('../src/app
 const slice=(a,b)=>{const i=source.indexOf(a),j=source.indexOf(b,i);assert.ok(i>=0&&j>i,a);return source.slice(i,j);};
 const fn=n=>{const i=source.indexOf('function '+n+'('),j=source.indexOf('\n}',i);assert.ok(i>=0&&j>i,n);return (source.slice(i-6,i)==='async '?'async ':'')+source.slice(i,j+2);};
 const exportCode=slice(source.includes('function rowsTSV(')?'function rowsTSV(rows){':'function dayTSV(){','/* ===== 12.');
-const code=exportCode+'\n'+['openModal','closeModal','cancelPlanCalculation','endPlanCalculation','planCalculationReady','openPlans'].map(fn).join('\n')+'\nconst actions={'+slice('"x-copy-day":','"x-print-day":')+slice('"x-copy-all":','"x-xlsx":')+'};this.actions=actions;';
+const code=exportCode+'\n'+['openModal','closeModal','cancelPlanCalculation','endPlanCalculation',...(source.includes('function planCalculationCurrent(')?['planCalculationCurrent']:[]),'planCalculationReady','openPlans'].map(fn).join('\n')+'\nconst actions={'+slice('"x-copy-day":','"x-print-day":')+slice('"x-copy-all":','"x-xlsx":')+'};this.actions=actions;';
 function setup(mode='deferred'){
  const messages=[],writes=[],files=[],rendered=[],pending=[];
  const S={machines:[{id:'M1',label:'Machine',factory:1},{id:'M2',label:'Other factory',factory:2}],employees:[{id:'E1',name:'Alice'}],orders:[{id:'O1',code:'ORDER',pid:'P1'}],products:[{id:'P1',name:'Product'}],blocks:[{id:'B1',date:'2026-11-09',m:'M1',emp:'E1',oid:'O1',s:480,e:510,qty:5}]};
