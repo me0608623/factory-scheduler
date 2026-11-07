@@ -45,7 +45,7 @@ test('async action buttons embed a spinner while busy',()=>{
 });
 test('x-xlsx guards re-entry and clears the busy flag',()=>{
   const i=app.indexOf('"x-xlsx":async()=>{');
-  const seg=app.slice(i,i+1000);
+  const seg=app.slice(i,app.indexOf('"x-template":',i));
   assert.ok(/if\(m&&m\.t==="export"\)\{if\(m\.exporting\)return;/.test(seg),'in-dialog re-entry guard');
   assert.ok(seg.includes('m.exporting=true')&&seg.includes('m.exporting=false'),'flag set and cleared');
   assert.ok(/finally\{if\(m&&UI\.modal===m\)/.test(seg),'busy cleared only while same dialog');
