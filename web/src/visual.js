@@ -93,16 +93,21 @@ export function mountBackdrop(container, { interactive = true, className = "" } 
 
   let gl = null;
   try { const cv = document.createElement("canvas"); gl = cv.getContext("webgl", { antialias: false }); } catch (e) { gl = null; }
-  if (!gl || reduced) return { stop() { container.remove?.(); }, mode: reduced ? "reduced-motion" : "css" };
+  if (!gl || reduced) return { stop() { fallback.remove(); }, mode: reduced ? "reduced-motion" : "css" };
 
   const cv = gl.canvas;
   cv.style.cssText = "position:absolute;inset:0;width:100%;height:100%;display:block";
   container.insertBefore(cv, container.firstChild);
   fallback.remove(); // 有 WebGL 時移除靜態漸層
   const ctx = gl;
-  const sh = (type, src) => { const s = ctx.createShader(type); ctx.shaderSource(s, src); ctx.compileShader(s); return ctx.getShaderParameter(s, ctx.COMPILE_STATUS) ? s : null; };
+  const sh = (type, src) => { const s = ctx.createShader(type); ctx.shaderSource(s, src); ctx.compileShader(s); if (ctx.getShaderParameter(s, ctx.COMPILE_STATUS)) return s; ctx.deleteShader(s); return null; };
   const vs = sh(ctx.VERTEX_SHADER, VERT), fs = sh(ctx.FRAGMENT_SHADER, FRAG);
-  if (!vs || !fs) { cv.remove(); container.insertBefore(fallback, container.firstChild); return { stop() {}, mode: "css" }; }
+  if (!vs || !fs) {
+    if (vs) ctx.deleteShader(vs);
+    if (fs) ctx.deleteShader(fs);
+    cv.remove(); container.insertBefore(fallback, container.firstChild);
+    return { stop() { fallback.remove(); }, mode: "css" };
+  }
   const prog = ctx.createProgram();
   ctx.attachShader(prog, vs); ctx.attachShader(prog, fs); ctx.linkProgram(prog); ctx.useProgram(prog);
   const buf = ctx.createBuffer();
@@ -112,6 +117,7 @@ export function mountBackdrop(container, { interactive = true, className = "" } 
   ctx.enableVertexAttribArray(loc);
   ctx.vertexAttribPointer(loc, 2, ctx.FLOAT, false, 0, 0);
   const uRes = ctx.getUniformLocation(prog, "u_res"), uT = ctx.getUniformLocation(prog, "u_t"), uM = ctx.getUniformLocation(prog, "u_m");
+  let stopped = false;
   let raf = 0, mx = 0.5, my = 0.4, tx = 0.5, ty = 0.4;
   const resize = () => {
     const dpr = Math.min(devicePixelRatio || 1, 1.5);
@@ -126,6 +132,7 @@ export function mountBackdrop(container, { interactive = true, className = "" } 
   if (interactive) window.addEventListener("pointermove", onMove, { passive: true });
   const t0 = performance.now();
   const frame = () => {
+    if (stopped) return;
     resize();
     mx += (tx - mx) * 0.06; my += (ty - my) * 0.06;
     ctx.uniform2f(uRes, cv.width, cv.height);
@@ -137,7 +144,14 @@ export function mountBackdrop(container, { interactive = true, className = "" } 
   frame();
   return {
     mode: "webgl",
-    stop() { cancelAnimationFrame(raf); window.removeEventListener("pointermove", onMove); cv.remove(); },
+    stop() {
+      if (stopped) return;
+      stopped = true;
+      cancelAnimationFrame(raf);
+      window.removeEventListener("pointermove", onMove);
+      ctx.deleteBuffer(buf); ctx.deleteProgram(prog); ctx.deleteShader(vs); ctx.deleteShader(fs);
+      cv.remove();
+    },
   };
 }
 
@@ -192,8 +206,9 @@ export async function mount3D(container) {
   const onResize = () => { renderer.setSize(w(), h()); camera.aspect = w() / h(); camera.updateProjectionMatrix(); };
   window.addEventListener("resize", onResize, { passive: true });
   const t0 = performance.now();
-  let raf = 0;
+  let raf = 0, stopped = false;
   const frame = () => {
+    if (stopped) return;
     const t = (performance.now() - t0) / 1000;
     mx += (tx - mx) * 0.05; my += (ty - my) * 0.05;
     group.rotation.y = t * 0.12 + mx * 0.5;
@@ -208,10 +223,13 @@ export async function mount3D(container) {
   return {
     mode: "three",
     stop() {
+      if (stopped) return;
+      stopped = true;
       cancelAnimationFrame(raf);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("resize", onResize);
       renderer.dispose(); ico.geometry.dispose(); core.geometry.dispose(); pgeo.dispose();
+      ico.material.dispose(); core.material.dispose(); pts.material.dispose();
       renderer.domElement.remove();
     },
   };
