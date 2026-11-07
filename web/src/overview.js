@@ -4,7 +4,7 @@ export function orderSignal(order,status,today){
   if(!order?.due||!order?.pid)return 'gray';
   if(status?.k==='done')return 'green';
   if(status?.k==='late'||dayNumber(order.due)<dayNumber(today))return 'red';
-  if(status?.k==='part'||status?.k==='elapsed'||dayNumber(order.due)-dayNumber(today)<=1)return 'yellow';
+  if(status?.k==='none'||status?.k==='part'||status?.k==='elapsed'||dayNumber(order.due)-dayNumber(today)<=1)return 'yellow';
   return 'green';
 }
 
