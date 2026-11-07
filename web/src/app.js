@@ -3469,8 +3469,8 @@ function dayTSV(){
   for(let t=DAY0;t<DAY1;t+=30){
     rows.push([hm(t),...machines.map(M=>{
       if(t>=LUNCH_S&&t<LUNCH_E)return "午休";
-      const b=[...S.blocks,...occupiedWork(S)].find(b=>b.date===d&&b.m===M.id&&b.s<t+30&&b.e>t);
-      return b?(emp(b.emp)?emp(b.emp).name:"")+" "+(b.workId?workName(b):order(b.oid).code+" "+stepName(b)):"";})]);
+      const work=[...S.blocks,...occupiedWork(S)].filter(b=>b.date===d&&b.m===M.id&&b.s<t+30&&b.e>t).sort((a,b)=>a.s-b.s);
+      return work.map(b=>(emp(b.emp)?emp(b.emp).name:"")+" "+(b.workId?workName(b):order(b.oid).code+" "+stepName(b))).join("；");})]);
   }
   return mdw(d)+" 設備排程（純人工見全部明細）\n"+rows.map(r=>r.join("\t")).join("\n");
 }
