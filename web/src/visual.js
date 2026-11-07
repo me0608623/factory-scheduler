@@ -40,9 +40,12 @@ export function ensureVisualStyles() {
   document.head.appendChild(st);
 }
 
-// ?motion=full 可覆寫 reduced-motion（QA 驗證動態路徑用；一般使用者仍尊重系統設定）
+// ?motion=full 可覆寫 reduced-motion（QA 驗證動態路徑用；一般使用者仍尊重裝置偏好與系統設定）
 const motionFull = () => { try { return new URLSearchParams(location.search).get("motion") === "full"; } catch (e) { return false; } };
-const reducedMotion = () => !motionFull() && matchMedia("(prefers-reduced-motion: reduce)").matches;
+const reducedMotion = () => !motionFull() && (
+  globalThis.document?.documentElement?.getAttribute("data-motion") === "reduce" ||
+  matchMedia("(prefers-reduced-motion: reduce)").matches
+);
 
 // —— 品牌字標（保留既有函式名稱相容舊呼叫；輸出為正式、靜態 SVG）——
 export function liquidLogoSVG(text, { size = 34 } = {}) {
