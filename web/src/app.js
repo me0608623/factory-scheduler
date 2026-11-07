@@ -18,7 +18,7 @@ import { markOf, setMark, markRowAttrs, markBtns, MARK_COLORS, changeMarkColor, 
 import { schedZoomState, loadSchedZoom, setZoom, setWheelZoom, SZOOM_STEP, captureZoomAnchor, anchorScroll, rafApply } from './szoom.js';
 import { executionOf, canReport, assertExecutionProtected } from './execution.js';
 import { ExecutionRetries } from './execution-retries.js';
-import { workCatalog,assignments,occupiedWork,assignmentIssues,validateGeneralWork } from './general-work.js';
+import { workCatalog,assignments,occupiedWork,assignmentIssues,validateGeneralWork,assignmentToDb } from './general-work.js';
 import { newNav, navPush, navBack, opKey, suggestList, impactList, dueList, opDetail, dueDetail, boardTarget } from './preview-nav.js';
 import { capturePreviewContext, restorePreviewContext } from './preview-context.js';
 import { syncStatusView } from './cloud-status.js';
@@ -4896,9 +4896,24 @@ function generalChange(el){
   }
   renderModal();
 }
+// Bind only the edited assignment: unrelated changes can still be revalidated.
+function captureGeneralSource(id){
+  const a=assignments(S).find(a=>a.id===id);
+  return {id,row:a?JSON.stringify(assignmentToDb(a)):null,store:STORE,client:STORE?.sb,user:STORE?.session?.user?.id,epoch:STORE?.authEpoch||0};
+}
+function generalSourceCurrent(source){
+  if(!source||source.store!==STORE||source.client!==STORE?.sb||source.user!==STORE?.session?.user?.id||source.epoch!==(STORE?.authEpoch||0))return false;
+  const a=assignments(S).find(a=>a.id===source.id);
+  return source.row===(a?JSON.stringify(assignmentToDb(a)):null);
+}
+function checkGeneralSource(source,id){
+  if(source?.id===id&&generalSourceCurrent(source))return true;
+  toast(tx('這段工作或登入狀態已變更，未套用；請關閉後重新開啟最新工作再調整。'));return false;
+}
 MODALS['general-edit']=m=>{
   const existing=assignments(S).find(a=>a.id===m.id),ro=readOnly||S.setupPending||!!existing&&absOf(existing.date,existing.s)<nowAbs();
   m.draft ||= structuredClone(existing||{id:uid(),workId:workCatalog(S).find(w=>inFactory(w,UI.factory))?.id||'',emp:'',resourceId:null,date:UI.date,s:UI.date===todayStr()?Math.min(1140,Math.max(480,Math.ceil(nowMin()/10)*10)):480,e:UI.date===todayStr()?Math.min(1200,Math.max(540,Math.ceil(nowMin()/10)*10+60)):540,qty:null,orderId:null,note:''});
+  m.source ||= captureGeneralSource(m.draft.id);
   const D=m.draft,w=workCatalog(S).find(w=>w.id===D.workId),off=ro?'disabled':'';
   const select=(id,label,items,value)=>'<div class="field"><label for="'+id+'">'+label+'</label><select class="inp" id="'+id+'" '+off+'><option value="">'+tx('請選擇')+'</option>'+items.map(x=>'<option value="'+esc(x.id)+'" '+(x.id===value?'selected':'')+'>'+esc(x.name||x.label||x.code)+'</option>').join('')+'</select></div>';
   return {title:tx(existing?'一般工作排班':'新增一般工作排班'),body:
@@ -4913,9 +4928,10 @@ MODALS['general-edit']=m=>{
     select('gw-order','參考工單（可不選）',S.orders.concat((S.workReferenceOrders||[]).filter(o=>!S.orders.some(x=>x.id===o.id))),D.orderId)+textInput('gw-note','工作備註',D.note,'text',off),
     foot:(existing&&!ro?'<button class="btn danger" data-act="gw-remove-preview">'+tx('移除此段工作')+'</button>':'')+'<button class="btn" data-act="close">'+tx('取消')+'</button>'+(!ro?'<button class="btn primary" data-act="gw-preview">'+tx('預覽工作排班')+'</button>':'')};
 };
-function previewGeneral(D){
+function previewGeneral(D,source){
+  if(PV||readOnly||S.setupPending||!checkGeneralSource(source,D.id))return;
   const issues=assignmentIssues(S,D,dayInfo(D.date).win,{today:todayStr(),nowMin:nowMin()});
-  openModal({t:'general-preview',draft:structuredClone(D),existed:assignments(S).some(a=>a.id===D.id),issues});
+  openModal({t:'general-preview',draft:structuredClone(D),source,existed:source.row!==null,issues});
 }
 MODALS['general-preview']=m=>({title:tx('一般工作排班預覽'),body:
   '<dl class="kv"><dt>'+tx('工作內容')+'</dt><dd>'+esc(workName(m.draft))+'</dd><dt>'+tx('執行員工')+'</dt><dd>'+esc(emp(m.draft.emp)?.name||'未指定')+'</dd><dt>'+tx('設備／工位')+'</dt><dd>'+esc(mach(m.draft.resourceId)?.label||'不需機台')+'</dd><dt>'+tx('時段')+'</dt><dd>'+esc(m.draft.date)+' '+hm(m.draft.s)+'–'+hm(m.draft.e)+'（'+(m.draft.e-m.draft.s)+' 分）</dd></dl>'+
@@ -4929,7 +4945,7 @@ MODAL_ACT['gw-content-save']=()=>{
   try{validateGeneralWork(candidate,{today:todayStr(),baseAssignments:assignments(S)});validateTransfers(candidate,{before:S});}catch(e){toast(e.message);return;}
   pushUndo();S.workContents=candidate.workContents;closeModal();commit({kind:'edit',title:tx('更新工作內容')+' '+D.name,lines:[]},'work_contents.manage');
 };
-MODAL_ACT['gw-preview']=()=>{if(PV||readOnly||S.setupPending)return;readGeneralFields();previewGeneral(UI.modal.draft);};
+MODAL_ACT['gw-preview']=()=>{if(PV||readOnly||S.setupPending)return;readGeneralFields();previewGeneral(UI.modal.draft,UI.modal.source);};
 MODAL_ACT['gw-remove-preview']=()=>{if(PV||readOnly||S.setupPending||!UI.modal?.id)return;openModal({t:'general-remove',id:UI.modal.id});};
 MODALS['general-remove']=m=>({title:tx('移除工作預覽'),body:'<div class="hint">'+tx('確認後只移除這段一般工作，不動產品排程。可以使用「復原」。')+'</div>',foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn danger" data-act="gw-remove">'+tx('確認移除')+'</button>'});
 MODAL_ACT['gw-remove']=()=>{if(PV||readOnly||S.setupPending||UI.modal?.t!=='general-remove')return;const a=assignments(S).find(a=>a.id===UI.modal.id);if(!a||absOf(a.date,a.s)<nowAbs())return;pushUndo();S.workAssignments=assignments(S).filter(x=>x.id!==a.id);closeModal();commit({kind:'edit',title:tx('移除一般工作')+' '+workName(a),lines:[]});};
@@ -4937,6 +4953,7 @@ MODAL_ACT['gw-apply']=()=>{
   if(PV||readOnly||S.setupPending||UI.modal?.t!=='general-preview')return;const D=UI.modal.draft;
   // 預覽開著時，較早的佇列寫入衝突恢復會前景替換 S：遠端已刪除這段工作時不得用它復活
   if(UI.modal.existed&&!assignments(S).some(a=>a.id===D.id)){toast(tx('這段工作已被別人更新移除，未套用；請確認最新班表後再操作。'));return;}
+  if(!checkGeneralSource(UI.modal.source,D.id))return;
   const issues=assignmentIssues(S,D,dayInfo(D.date).win,{today:todayStr(),nowMin:nowMin()});if(issues.length){toast(issues.join('；'));return;}
   pushUndo();S.workAssignments=assignments(S).filter(a=>a.id!==D.id).concat(D);closeModal();commit({kind:'edit',title:tx('安排')+' '+workName(D)+' · '+emp(D.emp).name,lines:[]});
 };
@@ -4971,7 +4988,7 @@ function workViewHTML(){
 let generalDrag=null;
 document.addEventListener('pointerdown',e=>{
   const el=e.target.closest('.workblk');if(!el||e.button>0||PV)return;const a=assignments(S).find(a=>a.id===el.dataset.gid);if(!a)return;
-  generalDrag={a,el,x:e.clientX,y:e.clientY,originalHeight:parseFloat(el.style.height),resize:!!e.target.closest('[data-gresize]'),moved:false};
+  generalDrag={a:structuredClone(a),source:captureGeneralSource(a.id),el,x:e.clientX,y:e.clientY,originalHeight:parseFloat(el.style.height),resize:!!e.target.closest('[data-gresize]'),moved:false};
 });
 document.addEventListener('pointermove',e=>{
   const d=generalDrag;if(!d||readOnly||S.setupPending||absOf(d.a.date,d.a.s)<nowAbs())return;
@@ -4981,12 +4998,13 @@ document.addEventListener('pointermove',e=>{
 });
 document.addEventListener('pointerup',e=>{
   const d=generalDrag;if(!d)return;generalDrag=null;d.el.style.opacity='';d.el.style.transform='';d.el.style.height=d.originalHeight+'px';
+  if(!checkGeneralSource(d.source,d.a.id))return;
   if(!d.moved){openModal({t:'general-edit',id:d.a.id});return;}
   const delta=Math.round((e.clientY-d.y)/(hourPx()*UI.zoom)*6)*10,A={...d.a};
   if(d.resize)A.e+=delta;
   else{A.s+=delta;A.e+=delta;const col=document.elementFromPoint(e.clientX,e.clientY)?.closest('.gcol');
     if(col?.dataset.gwork===A.workId){if(col.dataset.gemp)A.emp=col.dataset.gemp;if(A.resourceId&&col.dataset.gresource)A.resourceId=col.dataset.gresource;}}
-  previewGeneral(A);
+  previewGeneral(A,d.source);
 });
 document.addEventListener('pointercancel',()=>{if(generalDrag){generalDrag.el.style.opacity='';generalDrag.el.style.transform='';generalDrag.el.style.height=generalDrag.originalHeight+'px';}generalDrag=null;maybeReload();});
 document.addEventListener('keydown',e=>{if(PV)return;const el=e.target.closest?.('.workblk');if(el&&['Enter',' '].includes(e.key)){e.preventDefault();openModal({t:'general-edit',id:el.dataset.gid});}});
