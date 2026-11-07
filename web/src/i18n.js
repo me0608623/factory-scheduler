@@ -155,6 +155,8 @@ export const UI_TEXT = {
   "一句白話（可選）": { en: "One plain sentence (optional)", vi: "Một câu đơn giản (không bắt buộc)", th: "หนึ่งประโยคง่าย ๆ (ไม่บังคับ)" },
   "目前不能套用：": { en: "Cannot apply now: ", vi: "Hiện không thể áp dụng: ", th: "ตอนนี้นำไปใช้ไม่ได้:" },
   "備註（會寫進紀錄）": { en: "Note (logged)", vi: "Ghi chú (lưu vào nhật ký)", th: "หมายเหตุ (บันทึกใน log)" },
+  "這天已有固定的一般工作，無法直接請假；請先手動調整一般工作，再登記休假。": { en: "Fixed general work is scheduled that day. Adjust it manually before registering leave.", vi: "Ngày này đã có công việc chung cố định. Hãy điều chỉnh thủ công trước khi đăng ký nghỉ.", th: "วันนี้มีงานทั่วไปที่กำหนดไว้แล้ว โปรดปรับงานด้วยตนเองก่อนลงทะเบียนลา" },
+  "{dates} 當天有排工作，已先跳過；一般工作請先手動調整": { en: "Skipped scheduled work dates: {dates}. Adjust general work manually first.", vi: "Đã bỏ qua các ngày có công việc: {dates}. Hãy điều chỉnh công việc chung thủ công trước.", th: "ข้ามวันที่มีงานแล้ว: {dates} โปรดปรับงานทั่วไปด้วยตนเองก่อน" },
   "這天已經登記請假": { en: "Leave already registered for this day", vi: "Ngày này đã đăng ký nghỉ", th: "วันนี้ลงทะเบียนลาแล้ว" },
   "機台／操作位置": { en: "Machine / station", vi: "Máy / vị trí", th: "เครื่อง / ตำแหน่ง" },
   "正常運作": { en: "All normal", vi: "Hoạt động bình thường", th: "ทำงานปกติ" },
