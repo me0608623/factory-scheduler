@@ -5,7 +5,8 @@ import { toSnapshot, applyOption, newId } from "./convert.js";
 import { ALL_WEEKDAYS, overtimeAllowed, overtimeDefault, overtimeWeekdays } from "./overtime.js";
 import { capacityIntervals as occupiedCapacityIntervals } from "./capacity.js";
 import { FACTORIES, factoryOf, factoryPreference, factoryName, inFactory, orderRoute, orderInFactory, compatible } from "./factory.js";
-import { batchReadyMinute, effectiveBlockQty, materialFlowIssue, remainingQty, quantityForMinutes } from "./manual.js";
+import { batchReadyMinute, effectiveBlockQty, assertOrderReductions, materialFlowIssue, remainingQty, quantityForMinutes } from "./manual.js";
+import { productRate } from "./product-rate.js";
 import { translateImportError } from "./import-errors.js";
 import { acceptManualPreview, placementConflicts } from "./manual-apply.js";
 import { employeeGroups, groupedEmployees, memberStatus } from "./groups.js";
@@ -18,7 +19,7 @@ import { markOf, setMark, markRowAttrs, markBtns, MARK_COLORS, changeMarkColor, 
 import { schedZoomState, loadSchedZoom, setZoom, setWheelZoom, SZOOM_STEP, captureZoomAnchor, anchorScroll, rafApply } from './szoom.js';
 import { executionOf, canReport, assertExecutionProtected } from './execution.js';
 import { ExecutionRetries } from './execution-retries.js';
-import { workCatalog,assignments,occupiedWork,assignmentIssues,validateGeneralWork } from './general-work.js';
+import { workCatalog,assignments,occupiedWork,assignmentIssues,validateGeneralWork,assignmentToDb } from './general-work.js';
 import { newNav, navPush, navBack, opKey, suggestList, impactList, dueList, opDetail, dueDetail, boardTarget } from './preview-nav.js';
 import { capturePreviewContext, restorePreviewContext } from './preview-context.js';
 import { syncStatusView } from './cloud-status.js';
@@ -221,18 +222,20 @@ function freeSegs(ds,mid,E,fromMin,ex){
   }
   return out;
 }
-// 模擬：從 fromAbs 開始，這台機器＋這個人要花 dur 分鐘，會切成哪些段
-function simulate(mid,E,fromAbs,dur,ex){
-  let need=dur;const segs=[];
+// 模擬：每段只能分配整件產能，剩餘件數須在後續空檔完成。
+function simulate(mid,E,fromAbs,qty,rate,ex){
+  let left=qty;const segs=[];
   const d0=dateOfAbs(fromAbs),m0=Math.ceil((fromAbs-dayNum(d0)*1440)/10)*10;
-  for(let i=0;i<HORIZON&&need>0;i++){
+  for(let i=0;i<HORIZON&&left>0;i++){
     const ds=addDays(d0,i);
     for(const [s,e] of freeSegs(ds,mid,E,i===0?m0:0,ex)){
-      const len=e-s;if(len<30&&len<need)continue;       // 太碎的空檔不排
-      const take=Math.min(need,len);segs.push({date:ds,s,e:s+take});need-=take;if(need<=0)break;
+      const need=durOf(left,rate),len=e-s;if(len<30&&len<need)continue;       // 太碎的空檔不排
+      const take=Math.min(need,len),q=quantityForMinutes(take,rate,left);
+      if(q<=0)continue;
+      segs.push({date:ds,s,e:s+take,qty:q});left-=q;if(left<=0)break;
     }
   }
-  if(need>0)return null;
+  if(left>0||!segs.length)return null;
   const L=segs[segs.length-1];
   return {segs,start:absOf(segs[0].date,segs[0].s),end:absOf(L.date,L.e)};
 }
@@ -264,7 +267,28 @@ function prevEndAbs(oid,k){
 }
 // 找最早完成的「機台＋人」組合，回傳新的時段方塊
 function placeJob(oid,k,qty,fromAbs,opt={}){
-  const o=order(oid),st=prod(o.pid).steps[k],dur=durOf(qty,st.rate),ex=opt.ex||new Set();
+  if(k===0)return placeJobCandidate(oid,k,qty,fromAbs,opt);
+  const o=order(oid),st=prod(o.pid).steps[k],ex=opt.ex||new Set();
+  const retained=S.blocks.filter(b=>!ex.has(b.id)),execution=S.execution||[];
+  const ready=batchReadyMinute(o.qty,st.batch,retained,oid,k,absOf,new Set(),execution);
+  if(!isFinite(ready))return null;
+  const previous=retained.filter(b=>b.oid===oid&&b.step===k-1);
+  const previousEnd=Math.max(...previous.map(bEnd));
+  let from=Math.max(fromAbs,ready);
+  // Keep valid batch overlap. A late finish alone cannot prove material safety:
+  // an intervening fault can hide an earlier downstream production overtake.
+  for(let attempt=0;attempt<2;attempt++){
+    const candidate=placeJobCandidate(oid,k,qty,from,opt);
+    if(!candidate)return null;
+    if(!materialFlowIssue([...retained,...candidate],oid,k,absOf,execution))return candidate;
+    // One conservative retry after upstream completion; never return the last
+    // invalid candidate (including violations in retained/pinned work).
+    from=Math.max(from,previousEnd);
+  }
+  return null;
+}
+function placeJobCandidate(oid,k,qty,fromAbs,opt={}){
+  const o=order(oid),st=prod(o.pid).steps[k],ex=opt.ex||new Set();
   const tail=durOf(Math.min(st.batch||qty,qty),st.rate);
   const pe=prevEndAbs(oid,k);
   let best=null;
@@ -272,7 +296,7 @@ function placeJob(oid,k,qty,fromAbs,opt={}){
     if(opt.onlyM&&M.id!==opt.onlyM)continue;
     let from=fromAbs,r=null;
     for(let t=0;t<4;t++){                       // 下站不能比前站先做完
-      r=simulate(M.id,E,from,dur,ex);if(!r)break;
+      r=simulate(M.id,E,from,qty,st.rate,ex);if(!r)break;
       if(k===0||st.batch<=0||r.end>=pe+tail)break;
       from=r.start+(pe+tail-r.end);
     }
@@ -282,13 +306,21 @@ function placeJob(oid,k,qty,fromAbs,opt={}){
     if(!best||cmp(sc,best.sc)<0)best={...r,m:M.id,emp:E.id,sc};
   }
   if(!best)return null;
-  let left=qty;
-  return best.segs.map((g,i)=>{
-    const q=i===best.segs.length-1?left:Math.min(left,Math.round((g.e-g.s)*st.rate));left-=q;
-    return {id:uid(),oid,step:k,m:best.m,emp:best.emp,date:g.date,s:g.s,e:g.e,qty:q,pin:false};
-  }).filter(b=>b.qty>0);
+  return best.segs.map(g=>({id:uid(),oid,step:k,m:best.m,emp:best.emp,date:g.date,s:g.s,e:g.e,qty:g.qty,pin:false}));
 }
 function cmp(a,b){for(let i=0;i<a.length;i++){if(a[i]!==b[i])return a[i]-b[i];}return 0;}
+
+// A retained, already-full downstream step is skipped by the placement loop.
+// Check those edges too; discard only this order's newly proposed work on failure.
+function rejectUnsafeOrder(oid,before,fails){
+  const o=order(oid),p=prod(o.pid);
+  for(let k=1;k<p.steps.length;k++){
+    if(!materialFlowIssue(S.blocks,oid,k,absOf,S.execution||[]))continue;
+    S.blocks=before;
+    fails.push(o.code+" "+p.steps[k].proc+"：前站累積產量不足，請調整保留的排程");
+    return;
+  }
+}
 
 // 全部重排：保留已過去與「釘選」的方塊，其餘依優先順序→交期重新安排
 function autoPlan(fromAbs,seq){
@@ -296,7 +328,7 @@ function autoPlan(fromAbs,seq){
   const fails=[];
   const list=seq?seq.map(order).filter(Boolean):[...S.orders].sort((a,b)=>a.pri-b.pri||a.due.localeCompare(b.due));
   for(const o of list){
-    const p=prod(o.pid);
+    const p=prod(o.pid),before=[...S.blocks];
     for(let k=0;k<p.steps.length;k++){
       const rem=o.qty-sum(S.blocks.filter(b=>b.oid===o.id&&b.step===k),b=>effectiveBlockQty(b,S.execution||[]));
       if(rem<=0)continue;
@@ -306,13 +338,14 @@ function autoPlan(fromAbs,seq){
       if(!nb){fails.push(o.code+" "+p.steps[k].proc+"：沒有可用的機台或人員");break;}
       S.blocks.push(...nb);
     }
+    rejectUnsafeOrder(o.id,before,fails);
   }
   return fails;
 }
 // 只重排一張工單
 function planOrder(oid,fromAbs){
   S.blocks=S.blocks.filter(b=>b.oid!==oid||b.pin||bAbs(b)<fromAbs);
-  const o=order(oid),p=prod(o.pid),fails=[];
+  const o=order(oid),p=prod(o.pid),fails=[],before=[...S.blocks];
   for(let k=0;k<p.steps.length;k++){
     const rem=o.qty-sum(S.blocks.filter(b=>b.oid===oid&&b.step===k),b=>effectiveBlockQty(b,S.execution||[]));if(rem<=0)continue;
     const from=Math.max(fromAbs,readyAbs(oid,k));
@@ -320,6 +353,7 @@ function planOrder(oid,fromAbs){
     if(!nb){fails.push(o.code+" "+p.steps[k].proc+"：排不進去");break;}
     S.blocks.push(...nb);
   }
+  rejectUnsafeOrder(oid,before,fails);
   return fails;
 }
 
@@ -336,7 +370,9 @@ function slotFree(ds,mid,E,s,e,exId){
 }
 function canDo(E,M,pid,k){const p=prod(pid);return compatible(E,M,p,p.steps[k]);}
 function trySwap(b,mode){
-  const o=order(b.oid);
+  const o=order(b.oid),st=prod(o.pid).steps[b.step];
+  // A split remainder may need more time than its original interval.
+  if(b.qty>Math.floor((b.e-b.s)*st.rate+1e-8))return null;
   const tries=[];
   const sameM=mach(b.m);
   const E0=emp(b.emp);
@@ -353,7 +389,9 @@ function trySwap(b,mode){
 function label(b){const o=order(b.oid);return o.code+" "+stepName(b)+" "+b.qty+"件";}
 function splitAt(b,t){
   if(t<=b.s||t>=b.e)return null;
-  const q1=Math.round(b.qty*(t-b.s)/(b.e-b.s));
+  // Split planned pieces conservatively; this does not record actual production.
+  const q1=Math.floor(b.qty*(t-b.s)/(b.e-b.s));
+  if(q1===0){b.s=t;return b;} // Keep the whole remainder, not an invalid empty prefix.
   const nb={...b,id:uid(),s:t,qty:b.qty-q1};
   b.e=t;b.qty=q1;S.blocks.push(nb);return nb;
 }
@@ -561,7 +599,11 @@ function restoreOrig(ev){
     if(qty>0){
       let from=Math.max(now,readyAbs(g.oid,g.step));if(!isFinite(from))from=now;
       const nb=placeJob(g.oid,g.step,qty,from,{onlyM:ev.mid})||placeJob(g.oid,g.step,qty,from,{});
-      if(!nb){S.blocks.push(...g.cur);lines.push({k:"fail",t:order(g.oid).code+" 排不回去，維持原樣"});continue;}
+      if(!nb){
+        // Roll back this group's provisional original slots before restoring its current work.
+        S.blocks=S.blocks.filter(b=>!placed.includes(b));
+        S.blocks.push(...g.cur);lines.push({k:"fail",t:order(g.oid).code+" 排不回去，維持原樣"});continue;
+      }
       S.blocks.push(...nb);placed.push(...nb);
     }
     const O=order(g.oid),af=Math.max(...placed.map(bEnd));
@@ -1531,7 +1573,7 @@ document.addEventListener("click",e=>{
             const saving=commit({kind:"leave",title:E.name+" "+brushName+" "+md(lo)+"～"+md(hi)+"（"+cnt+" 天）",lines:[]},"incidents.manage");
             const expected=JSON.stringify(S),saved=await saving;
             if(!current()||!sameView()||JSON.stringify(S)!==expected)return;
-            if(!saved){UI.leaveBrushError=tx('排班狀態尚未確認儲存；請按上方儲存狀態重試。');return;}
+            if(!saved){UI.leaveBrushError=tx(STORE.pendingScheduleSaveMessage?.()||'排班狀態尚未確認儲存；請按上方儲存狀態重試。');return;}
             // Release our edit guard only after acknowledgment; the read itself
             // must still refuse newer drafts, previews and in-flight writes.
             if(UI.leaveBrushSaving===operation)UI.leaveBrushSaving=null;
@@ -1573,7 +1615,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "tour":{closeModal();UI.drawer=null;render();setTimeout(()=>startTour(TOUR_STEPS,{tx}),350);break;}
     case "logout":(async a=>{if(STORE.kind!=="supabase"){toast(tx('本機模式沒有登入帳號'));return;}
       // 與 beforeunload 同風險：未確認儲存的變更只在本機，登出即丟失
-      if(syncPending>0||SYNC.state!=="ok"||executionRetries.has(STORE)||STORE.hasPendingConfirmations?.()){toast(tx('有變更尚未確認儲存；請先按上方儲存狀態重試，確認後再登出。'));return;}
+      if(syncPending>0||SYNC.state!=="ok"||executionRetries.has(STORE)||STORE.hasPendingConfirmations?.()){toast(tx(STORE.pendingScheduleSaveMessage?.()||'有變更尚未確認儲存；請先按上方儲存狀態重試，確認後再登出。'));return;}
       closeModal();
       try{await STORE.logout();toast("已登出");}catch(e){toast("登出失敗："+e.message);}
       showLogin();})();break;
@@ -1833,34 +1875,35 @@ function closeDays(){  // 停工日上的工作移走
   const aff=S.blocks.filter(b=>futureOf(b)&&!isOpen(b.date));
   return {aff,lines:aff.length?repair(aff,"ot"):[]};
 }
-// 純探測：在複製狀態上跑 closeDays，檢查 repair 結果是否違反「後站累積產量 ≤ 前站完成」。
-// 違反時直接停工會被伺服器 save_blocks 拒絕（同步失敗、重試也无效），必須先擋下並引導改用自動排程。
-function closeDaysPlanBad(calOverride){
-  const probe=structuredClone(S);
-  if(calOverride)probe.cal=calOverride;
-  return withState(probe,()=>{
-    const aff=S.blocks.filter(b=>futureOf(b)&&!isOpen(b.date));
-    if(aff.length)repair(aff,"ot");
-    const bad=[];
-    for(const b of S.blocks){
-      if(b.step>0&&materialFlowIssue(S.blocks,b.oid,b.step,absOf,S.execution||[]))bad.push(label(b));
-    }
-    return [...new Set(bad)];
+// Plan once on a clone. Rejected calendar edits must not leak into another save.
+function planCalendarChange(change,{repairClosed=true}={}){
+  const before=S,candidate=structuredClone(S);
+  return withState(candidate,()=>{
+    change();
+    const r=repairClosed?closeDays():{aff:[],lines:[]};
+    try{assertExecutionProtected(before,S);}catch{throw new Error(tx("新設定會改動已有現場回報的工作，未儲存。"));}
+    const started=before.blocks.filter(b=>bAbs(b)<nowAbs()&&futureOf(b));
+    if(started.some(b=>JSON.stringify(b)!==JSON.stringify(S.blocks.find(n=>n.id===b.id))))
+      throw new Error(tx("新設定會改動已開始時段的工作，未儲存；請先確認現場進度。"));
+    if(repairClosed&&(r.lines.some(l=>l.k==="fail")||S.blocks.some(b=>futureOf(b)&&!isOpen(b.date))))throw new Error(tx("停工後仍有工作找不到可用時段，未儲存；請先調整排程。"));
+    if(S.blocks.some(b=>b.step>0&&materialFlowIssue(S.blocks,b.oid,b.step,absOf,S.execution||[])))
+      throw new Error(tx("新設定會造成工序產量矛盾，未儲存；請改用自動排程重新安排。"));
+    try{validateGeneralWork(S,{today:todayStr(),baseAssignments:before.workAssignments||[]});}
+    catch{throw new Error(tx("新設定與一般工作排班衝突，未儲存；請先調整一般工作。"));}
+    return {candidate,...r};
   });
 }
 function toggleOpen(d){
   if(!canCalendar())return;
-  const willOpen=!isOpen(d);
-  if(!willOpen&&readOnly&&S.blocks.some(b=>b.date===d&&futureOf(b))){toast("這天已有排程；停工並順延工作還需要「調整與自動排程」權限");return;}
-  pushUndo();
-  const open=willOpen;setOpen(d,open);
+  const open=!isOpen(d);
+  if(!open&&readOnly&&S.blocks.some(b=>b.date===d&&futureOf(b))){toast("這天已有排程；停工並順延工作還需要「調整與自動排程」權限");return;}
+  let r;
+  try{r=planCalendarChange(()=>setOpen(d,open),{repairClosed:!open});}catch(e){toast(e.message);return;}
+  pushUndo();S=r.candidate;
   if(open){
     commit({kind:"ot",title:mdw(d)+" 改為上班",lines:[{k:"info",t:payNote(dayInfo(d))||"一般上班日"}].filter(l=>l.t)},"calendar.manage");
     toast(mdw(d)+" 改為上班。要把工作排進來嗎？","重新排程",runAuto);
   }else{
-    const bad=closeDaysPlanBad();
-    if(bad.length){toast("改為停工會造成工序產量矛盾（"+bad[0]+" 等 "+bad.length+" 段），排程不會改動；請改用「自動排程」重新安排");return;}
-    const r=closeDays();
     commit({kind:"ot",title:mdw(d)+" 改為停工"+(r.aff.length?"，移走 "+r.aff.length+" 段工作":""),lines:r.lines},"calendar.manage");
     if(r.lines.length)showResult();else toast(mdw(d)+" 已改為停工");
   }
@@ -1929,8 +1972,8 @@ function openModal(m){
   UI.modal=m;renderModal();
 }
 function closeModal(){
-  // An import already writing cannot be cancelled by Escape, the overlay or X.
-  if(UI.modal?.t==='import-preview'&&UI.modal.saving)return;
+  // An import or product save in flight cannot be cancelled by Escape, overlay or X.
+  if(['import-preview','products'].includes(UI.modal?.t)&&UI.modal.saving)return;
   cancelPlanCalculation();
   UI.modal=null;const r=$("#modal-root");if(r)r.innerHTML="";maybeReload();
   const target=modalReturnFocus;modalReturnFocus=null;
@@ -1982,7 +2025,9 @@ function setPath(o,path,v){const k=path.split(".");let t=o;for(let i=0;i<k.lengt
 function syncInputs(){
   const m=UI.modal;if(!m||!m.draft)return;
   document.querySelectorAll("#modal-root [data-bind]").forEach(el=>{
-    const v=el.type==="number"?(el.value===""?0:+el.value):el.value;setPath(m.draft,el.dataset.bind,v);});
+    // Product rate text must survive add/delete-step rerenders until validation.
+    const rawRate=m.t==="products"&&el.hasAttribute("data-product-rate");
+    const v=el.type==="number"&&!rawRate?(el.value===""?0:+el.value):el.value;setPath(m.draft,el.dataset.bind,v);});
 }
 function sizeBlockDetailModal(){
   const overlay=document.querySelector('#ov'),modal=overlay?.querySelector('.block-detail');
@@ -2014,7 +2059,7 @@ function renderModal(){
   const c=f(m);if(!c){closeModal();return;}
   const keep=root.querySelector(".overlay"),focusToken=keep&&root.contains(document.activeElement)?modalFocusToken(document.activeElement):null;
   const st=keep?keep.scrollTop:0,bodyScroll=keep?.querySelector('.modal-b')?.scrollTop||0;
-  const importBusy=m.t==='import-preview'&&m.saving;
+  const importBusy=['import-preview','products'].includes(m.t)&&m.saving;
   root.innerHTML='<div class="overlay'+(m.t==='blk'?' block-detail-overlay':'')+'" id="ov"><div class="modal'+(m.t==='catalog-review'?' catalog-review':'')+(m.t==='blk'?' block-detail':'')+'" role="dialog" aria-modal="true" aria-busy="'+!!(m.viewLoading||m.t==='scenario-list'&&m.loading||m.confirmBusy||m.planBusy||importBusy||m.t==='legacy-preview'&&m.saving||['memo-edit','leave-request','scenario-save'].includes(m.t)&&m.saving||m.t==='execution-report'&&m.busy||m.t==='legacy-history'&&m.loading)+'" aria-label="'+esc(c.title)+'" tabindex="-1"><div class="modal-h"><h3>'+c.title+'</h3><button class="iconbtn" data-act="close"'+(importBusy?' disabled':'')+' aria-label="'+tx('關閉')+'">×</button></div><div class="modal-b">'+c.body+(m.planBusy?'<div class="hint" role="status">'+tx('計算中，可取消；班表尚未變更。')+'</div>':'')+'</div>'+(c.foot?'<div class="modal-f">'+c.foot+'</div>':"")+'</div></div>';
   if(importBusy)root.querySelectorAll('input,select,textarea,button').forEach(el=>el.disabled=true);
   if(['memo-edit','leave-request'].includes(m.t)&&m.saving)root.querySelectorAll('input,select,textarea').forEach(el=>el.disabled=true);
@@ -2061,7 +2106,7 @@ function resourceLoadHTML(){
     return '<article class="load-row"><div class="load-row-head"><b>'+esc(r.name)+'</b><span class="tag mute">'+factoryName(r.factory)+'</span><span class="spacer"></span><span>'+rate+'</span></div>'+
       '<div class="load-bar" aria-label="'+tx('{name} 可用時段占用率 {rate}',{name:esc(r.name),rate})+'"><span style="width:'+(r.utilization===null?0:Math.min(100,Math.max(0,r.utilization*100)))+'%"></span></div>'+
       '<div class="hint">'+esc(availability)+' · '+tx('已排 {n} 段',{n:r.blockCount})+' · '+tx('占用 {d}',{d:duration(r.busyMinutes)})+
-      (employee?' · '+tx('工作時段合計 {d}',{d:duration(r.assignedMinutes)})+' · '+tx('最高占用容量 {p}',{p:r.peak})+(r.limit===null?tx('（上限待確認）'):tx('{p} / 顧機上限 {l}',{p:r.peak,l:r.limit})):r.faultMinutes>0?' · '+tx('故障占用 {d}',{d:duration(r.faultMinutes)}):'')+'</div>'+
+      (employee?' · '+tx('工作時段合計 {d}',{d:duration(r.assignedMinutes)})+' · '+(r.limit===null?tx('最高占用容量 {p}',{p:r.peak})+tx('（上限待確認）'):tx('最高占用容量 {p} / 顧機上限 {l}',{p:r.peak,l:r.limit})):r.faultMinutes>0?' · '+tx('故障占用 {d}',{d:duration(r.faultMinutes)}):'')+'</div>'+
       '<div class="hint">'+esc(free)+(r.pending?'':' · '+tx('總空檔 {d}',{d:duration(r.freeMinutes)}))+'</div>'+
       warnings.map(t=>'<div class="issue">'+esc(t)+'</div>').join('')+'</article>';
   }).join('')||'<div class="empty">'+tx('此範圍沒有資源')+'</div>';
@@ -2204,7 +2249,7 @@ ord(m){
       (bl.map(b=>'<button class="rline" data-act="goto" data-d="'+b.date+'" style="border:0;text-align:left;width:100%"><span class="k info">'+esc(stepName(b))+'</span><span class="num">'+mdw(b.date)+" "+hm(b.s)+"–"+hm(b.e)+"　"+esc(b.m)+"　"+esc(emp(b.emp)?emp(b.emp).name:"")+"　"+b.qty+'件</span></button>').join("")||'<div class="empty">'+tx('尚未排入')+'</div>')+'</div></div>';}
   const body=
    '<div class="row2"><div class="field"><label for="f-code">'+tx('工單號')+'</label><input class="inp num" id="f-code" data-bind="code" value="'+esc(D.code)+'" '+(ro?"disabled":"")+'></div>'+
-   '<div class="field"><label for="f-qty">'+tx('數量（件）')+'</label><input class="inp num" type="number" min="1" id="f-qty" data-bind="qty" value="'+D.qty+'" '+(ro?"disabled":"")+'></div></div>'+
+   '<div class="field"><label for="f-qty">'+tx('數量（件）')+'</label><input class="inp num" type="number" min="1" max="2147483647" step="1" id="f-qty" data-bind="qty" value="'+D.qty+'" '+(ro?"disabled":"")+'></div></div>'+
    '<div class="field"><span class="lab">'+tx('產品')+'</span><div class="toggles">'+S.products.filter(x=>x.id===D.pid||UI.factory==="all"||x.steps.some(s=>factoryOf(s)===UI.factory)).map(x=>tg("o-prod",x.id,D.pid===x.id,esc(x.name),"",ro)).join("")+'</div></div>'+
    '<div class="row2"><div class="field"><label for="f-due">'+tx('最晚完成日（硬性期限）')+'</label><input class="inp num" type="date" id="f-due" data-bind="due" value="'+D.due+'" '+(ro?"disabled":"")+'></div>'+
    '<div class="field"><span class="lab">'+tx('優先順序')+'</span><div class="toggles">'+[[0,"特急"],[1,"急"],[2,"一般"],[3,"不急"]].map(([v,t])=>tg("o-pri",v,D.pri===v,t,"",ro)).join("")+'</div></div></div>'+
@@ -2222,19 +2267,24 @@ orders(){
 /* ---------- 產品工序（標準公式） ---------- */
 products(m){
   if(!m.draft)m.draft=JSON.parse(JSON.stringify(S.products));
-  const ro=!canMaster();
+  if(!m.productOwner){m.productOwner={store:STORE,writer:STORE?.session?.user?.id,epoch:STORE?.authEpoch};m.productBase=JSON.stringify(S);}
+  const ro=!canMaster()||!!m.productCandidate||!!m.saving;
   const body=(S.demo?'<div class="issue">目前包含示範產品，不是 1023 已核定的品號／模具。請自行新增現場產品與工序；速率必須由使用者確認。</div>':'')+'<div class="hint">工序名稱可自行輸入。已有工單的產品可改名稱；變更工序／產能請新增產品版本，以保留原排程。此為原生產品工序模型，跨廠加工單與點收紀錄另行管理，尚未自動串接；原生模型的跨廠運送／交接時間仍未設定，不能將它的預測當成實際到料。</div>'+
    m.draft.map((p,pi)=>'<div class="field" style="border:1px solid var(--line2);border-radius:12px;padding:12px">'+
     '<input class="inp" data-bind="'+pi+'.name" value="'+esc(p.name)+'" aria-label="'+tx('產品名稱')+'" '+(ro?"disabled":"")+'>'+
     '<div class="steps">'+p.steps.map((s,si)=>'<div class="step"><span class="no">'+(si+1)+'</span>'+
       '<input class="inp" data-bind="'+pi+'.steps.'+si+'.proc" aria-label="'+tx('工序')+'" value="'+esc(s.proc)+'" '+(ro?'disabled':'')+' placeholder="'+tx('自行輸入工序名稱')+'">'+
       '<select class="inp" data-bind="'+pi+'.steps.'+si+'.factory" aria-label="'+tx('第 {n} 站廠別',{n:si+1})+'" '+(ro?"disabled":"")+'>'+FACTORIES.map(f=>'<option value="'+f+'"'+(factoryOf(s)===f?' selected':'')+'>'+factoryName(f)+'</option>').join('')+'</select>'+
-      '<label class="field" style="gap:2px"><span class="hint">'+tx('件/分')+'</span><input class="inp num" type="number" step="0.1" min="0.1" data-bind="'+pi+'.steps.'+si+'.rate" value="'+s.rate+'" '+(ro?"disabled":"")+'></label>'+
-      '<label class="field" style="gap:2px"><span class="hint">'+tx('幾件可傳下站')+'</span><input class="inp num" type="number" min="0" data-bind="'+pi+'.steps.'+si+'.batch" value="'+s.batch+'" '+(ro?"disabled":"")+'></label>'+
+      '<label class="field" style="gap:2px"><span class="hint">'+tx('件/分')+'</span><input class="inp num" type="number" step="0.001" min="0.001" max="99999.999" data-product-rate data-bind="'+pi+'.steps.'+si+'.rate" value="'+esc(s.rate)+'" '+(ro?"disabled":"")+'></label>'+
+      '<label class="field" style="gap:2px"><span class="hint">'+tx('幾件可傳下站')+'</span><input class="inp num" type="number" min="0" max="2147483647" step="1" data-bind="'+pi+'.steps.'+si+'.batch" value="'+s.batch+'" '+(ro?"disabled":"")+'></label>'+
       (ro?"":'<button class="iconbtn x" data-act="p-delstep" data-v="'+pi+'.'+si+'" aria-label="'+tx('刪除這站')+'">×</button>')+'</div>').join("")+'</div>'+
     (ro?"":'<button class="more" data-act="p-addstep" data-v="'+pi+'">'+tx('＋加一站')+'</button>')+'</div>').join("")+
    (ro?"":'<button class="btn" data-act="p-add">'+tx('＋新增產品')+'</button>');
-  return {title:tx('產品工序（標準公式）'),body,foot:ro?'<button class="btn" data-act="close">'+tx('關閉')+'</button>':'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn primary" data-act="p-save">'+tx('儲存')+'</button>'};
+  const pendingProductSave=STORE.pendingScheduleSaveMessage?.();
+  const status=m.saving?'<div class="hint" role="status">'+tx('正在儲存產品工序，請稍候；此時無法取消。')+'</div>':pendingProductSave||m.productError?'<div class="issue" role="alert">'+esc(pendingProductSave?tx(pendingProductSave):m.productError)+'</div>':'';
+  const close='<button class="btn" data-act="close"'+(m.saving?' disabled':'')+'>'+tx(m.productCandidate?'關閉':'取消')+'</button>';
+  const save=canMaster()&&!pendingProductSave&&(!m.productCandidate||m.productRetryable)?'<button class="btn primary" data-act="p-save"'+(m.saving?' disabled':'')+'>'+tx(m.saving?'正在儲存，請稍候…':m.productCandidate?'重試儲存':'儲存')+'</button>':'';
+  return {title:tx('產品工序（標準公式）'),body:body+status,foot:close+save};
 },
 /* ---------- 單一方塊 ---------- */
 blk(m){
@@ -2321,7 +2371,7 @@ export(){
     !m.errors.length?'<div class="issues"><div class="issue">'+tx('確認後將以 Excel 內容取代現有員工、機台、產品工序與工單，並清空現有 {n} 段排程；上班日設定保留。匯入後再按「自動排程」建立新班表。',{n:S.blocks.length})+'</div></div>':'';
   return {title:tx(m.errors.length?'Excel 匯入 · 請修正檔案':'Excel 匯入 · 確認取代資料'),
     body:'<div class="hint">'+tx('檔案：')+esc(m.filename)+'</div>'+summary+problems+(m.importCandidate?'':warning)+(m.saving?'<div class="hint" role="status">'+tx('正在儲存匯入資料，請稍候；此時無法取消。')+'</div>':'')+(m.importError?'<div class="issues" role="alert"><div class="issue">'+esc(m.importError)+'</div></div>':''),
-    foot:'<button class="btn" data-act="close"'+(m.saving?' disabled':'')+'>'+tx(m.importCandidate?'關閉':'取消')+'</button>'+(m.errors.length||!m.data||hasSecondFactory||hasGroups||hasGeneral||(m.importCandidate&&!m.importRetryable)?'':'<button class="btn primary" data-act="x-import-confirm"'+(m.saving?' disabled':'')+'>'+(m.saving?'<span class="spin" aria-hidden="true"></span>'+tx('儲存中…'):m.importCandidate?tx('重試儲存'):tx('確認匯入並清空舊排程'))+'</button>')};
+    foot:'<button class="btn" data-act="close"'+(m.saving?' disabled':'')+'>'+tx(m.importCandidate?'關閉':'取消')+'</button>'+(STORE.pendingScheduleSaveMessage?.()||m.errors.length||!m.data||hasSecondFactory||hasGroups||hasGeneral||(m.importCandidate&&!m.importRetryable)?'':'<button class="btn primary" data-act="x-import-confirm"'+(m.saving?' disabled':'')+'>'+(m.saving?'<span class="spin" aria-hidden="true"></span>'+tx('儲存中…'):m.importCandidate?tx('重試儲存'):tx('確認匯入並清空舊排程'))+'</button>')};
 },
 "legacy-preview"(m){
   const legacy=m.legacy,day=legacy.days[m.date]||{"1廠":[],"2廠":[],overtime:{}};
@@ -2383,7 +2433,7 @@ Object.assign(MODAL_ACT,{
     await applyManualPreview(P,{
       accepting(){m.applying=true;renderModal();},
       close(e){closeModal();render();if(e)toast(e.message);},
-      fail(pending){render();closeModal();toast(tx(pending?'調整尚未確認儲存；內容已保留，請按上方儲存狀態重試。':'排程未套用，請重新預覽。'));},
+      fail(pending){render();closeModal();toast(tx(STORE.pendingScheduleSaveMessage?.()||(pending?'調整尚未確認儲存；內容已保留，請按上方儲存狀態重試。':'排程未套用，請重新預覽。')));},
       done(moved,P){closeModal();dpApplied(moved,P);}
     });
   },
@@ -2393,11 +2443,12 @@ Object.assign(MODAL_ACT,{
     if(!canCalendar()||!UI.modal?.draft)return;
     const D=UI.modal.draft,openD=d=>{const o=D.over[d];return o?o==="work":!!D.week[parseD(d).getUTCDay()];};
     if(readOnly&&S.blocks.some(b=>futureOf(b)&&!openD(b.date))){toast("新設定會移動既有工作；還需要「調整與自動排程」權限");return;}
-    const bad=closeDaysPlanBad({week:[...UI.modal.draft.week],over:{...UI.modal.draft.over}});
-    if(bad.length){toast("這樣設定會造成工序產量矛盾（"+bad[0]+" 等 "+bad.length+" 段），未儲存；請改用「自動排程」重新安排");return;}
-    pushUndo();S.cal={week:[...UI.modal.draft.week],over:{...UI.modal.draft.over}};
-    for(const d of Object.keys(S.dayOT))if(!isOpen(d))delete S.dayOT[d];
-    const r=closeDays();
+    let r;
+    try{r=planCalendarChange(()=>{
+      S.cal={week:[...D.week],over:{...D.over}};
+      for(const d of Object.keys(S.dayOT))if(!isOpen(d))delete S.dayOT[d];
+    });}catch(e){toast(e.message);return;}
+    pushUndo();S=r.candidate;
     commit({kind:"ot",title:tx('更新上班日設定')+(r.aff.length?"，移走 "+r.aff.length+" 段工作":""),lines:r.lines},"calendar.manage");
     if(r.lines.length)showResult();else{closeModal();toast("已儲存。新開的上班日要排工作嗎？","重新排程",runAuto);}
   }
@@ -2428,7 +2479,8 @@ async function applyManualPreview(P,ui){
   const saved=await commit({kind:"move",title:(P.isNew?"手動排入 ":"手動調整 ")+P.movedLabel+(shifted?"，連帶調整 "+shifted+" 道工序":""),lines});
   if(STORE!==activeStore||STORE.session?.user?.id!==user||(STORE.authEpoch||0)!==authEpoch||S!==next)return;
   if(!saved){
-    // queueSync retries the current S. Rolling it back here silently retries the old board.
+    // Keep the candidate for review or ordinary retry; the Store decides whether
+    // cloud uncertainty instead requires a full page reload.
     // A conflict/permission recovery has already replaced S and returned above.
     if(SYNC.state==='error'){ui.fail(true);return;}
     undoStack.pop();
@@ -2454,7 +2506,7 @@ async function pvApplyManual(){
   await applyManualPreview(P,{
     accepting(){exitManualPreview(false);toast("套用中…");},
     close(e){exitManualPreview(false);if(e)toast(e.message);},
-    fail(pending){render();toast(tx(pending?'調整尚未確認儲存；內容已保留，請按上方儲存狀態重試。':'排程未套用，請重新預覽。'));},
+    fail(pending){render();toast(tx(STORE.pendingScheduleSaveMessage?.()||(pending?'調整尚未確認儲存；內容已保留，請按上方儲存狀態重試。':'排程未套用，請重新預覽。')));},
     done:dpApplied
   });
 }
@@ -2944,7 +2996,7 @@ function openPlansLocal(title,logTitle,kind,applyEvent,strategies,extra={},job){
 }
 function enterPreview({title,logTitle,kind,base,B,opts,ev,extra}){
   const returnContext=PV?.returnContext||capturePreviewContext(UI);
-  for(const o of opts){try{assertExecutionProtected(B,o.A);validateGeneralWork(o.A,{today:todayStr(),baseAssignments:assignments(B)});}catch(e){o.applicable=false;o.diagnostics=[...(o.diagnostics||[]),e.message];}}
+  for(const o of opts){try{assertOrderReductions(B,o.A);assertExecutionProtected(B,o.A);validateGeneralWork(o.A,{today:todayStr(),baseAssignments:assignments(B)});}catch(e){o.applicable=false;o.diagnostics=[...(o.diagnostics||[]),e.message];}}
   {
     const best=opts.find(o=>o.best)||opts[0];
     const fk=f=>[f.date,f.s,f.e].join("|"),faultsNew=[];
@@ -2984,7 +3036,7 @@ async function pvApply(){
   if(!PV||PV.applying||PV.savedScenario)return;
   const o=pvOpt();if(!o)return;
   if(o.applicable===false){toast('這個方案尚無法套用，請查看原因與建議');return;}
-  try{assertExecutionProtected(S,o.A);}catch(e){toast(e.message);return;}
+  try{assertOrderReductions(S,o.A);assertExecutionProtected(S,o.A);}catch(e){toast(e.message);return;}
   const P=PV,noteEl=$("#pv-note");if(noteEl)P.note=noteEl.value.trim();
   if(P.previewId&&STORE.applyPlan){
     if(autoOptionUnchanged(o)){toast(tx('目前班表無需調整'));return;}
@@ -3105,7 +3157,7 @@ async function runRerun(){
     if(!fresh.length){R.busy=false;render();toast("照這些條件算不出新的排法；可以放寬一個條件再試");return;}
     const B=P.B,ev={date:plan.date,oid:P.event&&P.event.order?P.event.order.id:undefined};
     const newOpts=fresh.map(x=>{const A=applyOption(B,x);return {id:x.id,name:x.name,desc:x.desc,lines:x.lines||[],mt:measure(B,A,ev),score:x.score,best:false,applicable:x.applicable!==false,diagnostics:x.diagnostics||[],state:JSON.stringify(A),A,sec:x.solve_seconds,solverMethod:x.solver_method,previewId:plan.preview_id||null,hint:true};});
-    for(const x of newOpts){try{assertExecutionProtected(B,x.A);validateGeneralWork(x.A,{today:todayStr(),baseAssignments:assignments(B)});}catch(e){x.applicable=false;x.diagnostics=[...(x.diagnostics||[]),e.message];}}
+    for(const x of newOpts){try{assertOrderReductions(B,x.A);assertExecutionProtected(B,x.A);validateGeneralWork(x.A,{today:todayStr(),baseAssignments:assignments(B)});}catch(e){x.applicable=false;x.diagnostics=[...(x.diagnostics||[]),e.message];}}
     P.opts=P.opts.filter(x=>!x.hint).concat(newOpts);   // 換掉上一輪的條件方案，原本 A～D 保留
     P.cur=newOpts[0].id;
     P.ai=null;
@@ -3396,7 +3448,9 @@ Object.assign(MODAL_ACT,{
   "o-save":()=>{
     if(!canOrders())return;
     syncInputs();const m=UI.modal,D=m?.draft;if(!D)return;
-    D.code=String(D.code).trim();D.qty=Math.round(+D.qty);
+    const qty=Math.round(+D.qty);
+    if(!Number.isFinite(qty)||qty>2147483647){toast(tx("工單數量不可超過 2147483647，且須為有限數值"));return;}
+    D.code=String(D.code).trim();D.qty=qty;
     if(!D.code||!(D.qty>0)||!D.due||!prod(D.pid)){toast("請填好工單號、數量、期限與產品");return;}
     const isNew=!order(D.id),snap={...D};
     const ev=()=>{
@@ -3432,18 +3486,59 @@ Object.assign(MODAL_ACT,{
     S.employees.forEach(E=>E.leaves=[]);S.machines.forEach(M=>M.faults=[]);
     commit({kind:"edit",title:tx('清除示範工單，開始使用'),lines:[]});closeModal();
   },
-  "p-addstep":a=>{syncInputs();UI.modal.draft[+a.dataset.v].steps.push({proc:'',factory:UI.factory==="all"?1:UI.factory,rate:0,batch:0});rerender();},
-  "p-delstep":a=>{syncInputs();const [pi,si]=a.dataset.v.split(".").map(Number);const st=UI.modal.draft[pi].steps;if(st.length>1)st.splice(si,1);rerender();},
-  "p-add":()=>{syncInputs();UI.modal.draft.push({id:uid(),name:"新產品",steps:[{proc:'',factory:UI.factory==="all"?1:UI.factory,rate:0,batch:0}]});rerender();},
-  "p-save":()=>{
-    syncInputs();const D=UI.modal.draft;
-    for(const p of D){p.name=String(p.name).trim();if(!p.name||p.name.length>80){toast('產品名稱須為 1–80 字');return;}for(const s of p.steps){s.proc=String(s.proc).trim();if(!s.proc||s.proc.length>80){toast('工序名稱須為 1–80 字');return;}s.factory=factoryOf(s);s.rate=+s.rate;s.batch=Math.max(0,Math.round(+s.batch||0));if(!(s.rate>0)){toast(p.name+"：每分鐘件數要大於 0");return;}}}
-    if(new Set(D.map(p=>p.name)).size!==D.length){toast('產品名稱重複，請用明確品號區分');return;}
-    for(const p of D){const old=prod(p.id);if(old&&S.orders.some(o=>o.pid===p.id)&&JSON.stringify(old.steps)!==JSON.stringify(p.steps)){toast('已有工單的產品只能改名稱；工序／產能變更請新增產品版本，以保留原排程');return;}}
-    pushUndo();S.products=D;
-    S.blocks=S.blocks.filter(b=>{const o=order(b.oid);return o&&prod(o.pid)&&b.step<prod(o.pid).steps.length;});
-    commit({kind:"edit",title:tx('修改產品工序'),lines:[]},"master.manage");closeModal();
-    toast("工序已更新。要依新公式重新排程嗎？","重新排程",runAuto);
+  "p-addstep":a=>{if(UI.modal?.t!=="products"||UI.modal.saving||UI.modal.productCandidate||!canMaster())return;syncInputs();UI.modal.draft[+a.dataset.v].steps.push({proc:'',factory:UI.factory==="all"?1:UI.factory,rate:0,batch:0});rerender();},
+  "p-delstep":a=>{if(UI.modal?.t!=="products"||UI.modal.saving||UI.modal.productCandidate||!canMaster())return;syncInputs();const [pi,si]=a.dataset.v.split(".").map(Number);const st=UI.modal.draft[pi].steps;if(st.length>1)st.splice(si,1);rerender();},
+  "p-add":()=>{if(UI.modal?.t!=="products"||UI.modal.saving||UI.modal.productCandidate||!canMaster())return;syncInputs();UI.modal.draft.push({id:uid(),name:"新產品",steps:[{proc:'',factory:UI.factory==="all"?1:UI.factory,rate:0,batch:0}]});rerender();},
+  "p-save":async()=>{
+    const m=UI.modal;if(m?.t!=="products"||m.saving||!canMaster()||!m.productOwner)return;
+    const {store,writer,epoch}=m.productOwner;
+    const owner=()=>STORE===store&&store?.session?.user?.id===writer&&store?.authEpoch===epoch;
+    const retry=!!m.productCandidate;
+    if(!retry)syncInputs(); // Preserve unbound fields even when a newer baseline rejects this draft.
+    // Let earlier writes settle before installing this draft. In particular, an
+    // unknown schedule receipt must not leave an undispatched product edit in S
+    // or undo history. Recheck owner and baseline after the asynchronous barrier.
+    while(syncPending>0){
+      m.saving=true;renderModal();
+      await syncChain;
+      m.saving=false;
+      if(UI.modal!==m)return;
+      if(!owner())break;
+    }
+    const current=()=>S===m.productCandidate&&JSON.stringify(S)===m.productExpected;
+    if(!owner()||!canMaster()||(store?.kind==='supabase'&&!writer)||JSON.stringify(S)!==(retry?m.productExpected:m.productBase)||(retry&&!current())){
+      m.productRetryable=false;m.productError=tx('產品資料或登入狀態已變更，請關閉後重新開啟產品工序。');renderModal();return;
+    }
+    const pendingBeforeSave=store.pendingScheduleSaveMessage?.();
+    if(pendingBeforeSave){m.productRetryable=false;m.productError=tx(pendingBeforeSave);renderModal();return;}
+    if(retry&&!m.productRetryable)return;
+    if(!retry){
+      const D=structuredClone(m.draft);
+      // Reject the whole edit before changing state, undo history, or sending writes.
+      for(const p of D)for(const s of p.steps)if(productRate(s.rate)===null){toast(tx("{product}：每分鐘件數須為 0.001–99999.999，最多 3 位小數",{product:p.name}));return;}
+      // Keep existing rounding/clamping, but reject int32 overflow before any writes.
+      for(const p of D)for(const s of p.steps){const batch=Math.max(0,Math.round(+s.batch||0));if(!Number.isFinite(batch)||batch>2147483647){toast(tx("{product}：交接批量不可超過 2147483647，且須為有限數值",{product:p.name}));return;}}
+      for(const p of D){p.name=String(p.name).trim();if(!p.name||p.name.length>80){toast('產品名稱須為 1–80 字');return;}for(const s of p.steps){s.proc=String(s.proc).trim();if(!s.proc||s.proc.length>80){toast('工序名稱須為 1–80 字');return;}s.factory=factoryOf(s);s.rate=+s.rate;s.batch=Math.max(0,Math.round(+s.batch||0));if(!(s.rate>0)){toast(p.name+"：每分鐘件數要大於 0");return;}}}
+      if(new Set(D.map(p=>p.name)).size!==D.length){toast('產品名稱重複，請用明確品號區分');return;}
+      for(const p of D){const old=prod(p.id);if(old&&S.orders.some(o=>o.pid===p.id)&&JSON.stringify(old.steps)!==JSON.stringify(p.steps)){toast('已有工單的產品只能改名稱；工序／產能變更請新增產品版本，以保留原排程');return;}}
+      pushUndo();S={...S,products:D};
+      S.blocks=S.blocks.filter(b=>{const o=order(b.oid);return o&&prod(o.pid)&&b.step<prod(o.pid).steps.length;});
+      m.productCandidate=S;
+    }
+    // Freeze the submitted draft while this exact candidate is pending/retryable.
+    // Never alias editable modal fields to the live state or duplicate its undo/log.
+    m.saving=true;m.productError='';m.productRetryable=true;renderModal();
+    let saved=false;
+    try{
+      const writing=commit(retry?null:{kind:"edit",title:tx('修改產品工序'),lines:[]},"master.manage");
+      m.productExpected=JSON.stringify(S);saved=await writing;
+    }catch{saved=false;}
+    m.saving=false;
+    if(UI.modal!==m)return;
+    const pendingAfterSave=owner()&&store.pendingScheduleSaveMessage?.();
+    m.productRetryable=owner()&&current()&&canMaster()&&!pendingAfterSave;
+    if(saved&&m.productRetryable){closeModal();toast("工序已更新。要依新公式重新排程嗎？","重新排程",()=>{if(owner()&&current()&&canMaster()&&SYNC.state==='ok')runAuto();else toast(tx('產品資料或登入狀態已變更，請關閉後重新開啟產品工序。'));});return;}
+    m.productError=tx(pendingAfterSave||(m.productRetryable?'產品工序尚未確認儲存；已保留本次內容且暫停編輯，請重試儲存。關閉不會撤銷本次修改。':'產品資料或登入狀態已變更，請關閉後重新開啟產品工序。'));renderModal();
   },
   "b-emp":a=>{const b=UI.modal&&S.blocks.find(x=>x.id===UI.modal.id);if(!b||b.emp===a.dataset.v)return;pushUndo();const from=emp(b.emp);b.emp=a.dataset.v;b.pin=true;
     commit({kind:"move",title:label(b)+"：改由 "+emp(b.emp).name+" 做"+(from?"（原 "+from.name+"）":""),lines:[]});},
@@ -3472,7 +3567,7 @@ Object.assign(MODAL_ACT,{
   "m-undo":()=>{undo();closeModal();},
   "x-copy-day":()=>copyText(dayTSV()),
   "x-print-day":()=>{closeModal();printDaySchedule();},
-  "x-copy-all":()=>copyText(allRows().map(r=>r.join("\t")).join("\n")),
+  "x-copy-all":()=>copyText(rowsTSV(allRows())),
   "x-dl":()=>downloadCSV(),
   "x-xlsx":async()=>{
     // 按鈕載入態只在匯出對話框內生效（按鈕只存在於此）；無對話框情境行為不變
@@ -3496,9 +3591,12 @@ Object.assign(MODAL_ACT,{
     const store=STORE,writer=store?.session?.user?.id,epoch=store?.authEpoch;
     const owner=()=>STORE===store&&store?.session?.user?.id===writer&&store?.authEpoch===epoch;
     const retry=!!m.importCandidate;
-    if(retry&&(!m.importRetryable||m.importOwner.store!==store||m.importOwner.writer!==writer||m.importOwner.epoch!==epoch||S!==m.importCandidate||JSON.stringify(S)!==m.importExpected)){
+    if(retry&&(m.importOwner.store!==store||m.importOwner.writer!==writer||m.importOwner.epoch!==epoch||S!==m.importCandidate||JSON.stringify(S)!==m.importExpected)){
       m.importRetryable=false;m.importError=tx('排程已更新，請重新選擇 Excel 檔案預覽');renderModal();return;
     }
+    const pendingMessage=store.pendingScheduleSaveMessage?.();
+    if(pendingMessage){m.importRetryable=false;m.importError=tx(pendingMessage);renderModal();return;}
+    if(retry&&!m.importRetryable){m.importError=tx('排程已更新，請重新選擇 Excel 檔案預覽');renderModal();return;}
     if(workCatalog(S).length||assignments(S).length||transferOrders(S).length){toast(tx('匯入範本不含一般工作／跨廠加工資料，不能覆蓋目前名冊'));return;}
     if((S.groups||[]).length){toast(tx('目前匯入範本不含分組，不能覆蓋已有分組的正式名冊'));return;}
     if(S.employees.some(e=>factoryOf(e)===2)||S.machines.some(x=>factoryOf(x)===2)||S.products.some(p=>p.steps.some(s=>factoryOf(s)===2))){
@@ -3520,7 +3618,9 @@ Object.assign(MODAL_ACT,{
     if(UI.modal!==m||!owner())return;
     m.importRetryable=S===m.importCandidate&&JSON.stringify(S)===m.importExpected;
     if(saved&&m.importRetryable){closeModal();toast(tx('Excel 匯入完成。請建立新排程'),tx('自動排程'),runAuto);return;}
-    m.importError=tx(m.importRetryable?'匯入尚未確認儲存；資料仍保留，請重試儲存。':'排程已更新，請重新選擇 Excel 檔案預覽');renderModal();
+    const pendingAfterSave=store.pendingScheduleSaveMessage?.();
+    if(pendingAfterSave)m.importRetryable=false;
+    m.importError=tx(pendingAfterSave||(m.importRetryable?'匯入尚未確認儲存；資料仍保留，請重試儲存。':'排程已更新，請重新選擇 Excel 檔案預覽'));renderModal();
   },
   "legacy-save":async()=>{
     const m=UI.modal;if(m?.t!=="legacy-preview"||m.saving||!canArchive())return;
@@ -3599,15 +3699,21 @@ function runAuto(){
 }
 
 /* ===== 11. Excel／試算表 ===== */
+function rowsTSV(rows){
+  return rows.map(row=>row.map(value=>{
+    const text=String(value??"");
+    return /[\t\r\n"]/.test(text)?'"'+text.replace(/"/g,'""')+'"':text;
+  }).join("\t")).join("\n");
+}
 function dayTSV(){
   const d=UI.date,machines=shownMachines(),rows=[["時間",...machines.map(M=>M.id+" "+M.label)]];
   for(let t=DAY0;t<DAY1;t+=30){
     rows.push([hm(t),...machines.map(M=>{
       if(t>=LUNCH_S&&t<LUNCH_E)return "午休";
-      const b=[...S.blocks,...occupiedWork(S)].find(b=>b.date===d&&b.m===M.id&&b.s<t+30&&b.e>t);
-      return b?(emp(b.emp)?emp(b.emp).name:"")+" "+(b.workId?workName(b):order(b.oid).code+" "+stepName(b)):"";})]);
+      const work=[...S.blocks,...occupiedWork(S)].filter(b=>b.date===d&&b.m===M.id&&b.s<t+30&&b.e>t).sort((a,b)=>a.s-b.s);
+      return work.map(b=>(emp(b.emp)?emp(b.emp).name:"")+" "+(b.workId?workName(b):order(b.oid).code+" "+stepName(b))).join("；");})]);
   }
-  return mdw(d)+" 設備排程（純人工見全部明細）\n"+rows.map(r=>r.join("\t")).join("\n");
+  return mdw(d)+" 設備排程（純人工見全部明細）\n"+rowsTSV(rows);
 }
 function allRows(){
   const head=["日期","星期","開始","結束","機台","員工","工單","產品","工序","數量","固定","問題"];
@@ -3712,7 +3818,11 @@ function queueSync(entry){
           toast(e.conflict?"別人剛更新過排程，已載入最新版本，請再做一次你的調整":e.message+"，已還原");
         }else{SYNC.msg=tx('無法載入最新版本，尚未確認儲存；請重試。');toast(SYNC.msg,"重試",()=>queueSync(null));}
       }
-      else toast(e.unconfirmed?tx(e.message):"沒存到："+e.message,"重試",()=>queueSync(null));
+      else{
+        const pendingMessage=activeStore.pendingScheduleSaveMessage?.();
+        if(pendingMessage)toast(tx(pendingMessage));
+        else toast(e.unconfirmed?tx(e.message):"沒存到："+e.message,"重試",()=>queueSync(null));
+      }
       return false;
     }
     finally{
@@ -5031,9 +5141,24 @@ function generalChange(el){
   }
   renderModal();
 }
+// Bind only the edited assignment: unrelated changes can still be revalidated.
+function captureGeneralSource(id){
+  const a=assignments(S).find(a=>a.id===id);
+  return {id,row:a?JSON.stringify(assignmentToDb(a)):null,store:STORE,client:STORE?.sb,user:STORE?.session?.user?.id,epoch:STORE?.authEpoch||0};
+}
+function generalSourceCurrent(source){
+  if(!source||source.store!==STORE||source.client!==STORE?.sb||source.user!==STORE?.session?.user?.id||source.epoch!==(STORE?.authEpoch||0))return false;
+  const a=assignments(S).find(a=>a.id===source.id);
+  return source.row===(a?JSON.stringify(assignmentToDb(a)):null);
+}
+function checkGeneralSource(source,id){
+  if(source?.id===id&&generalSourceCurrent(source))return true;
+  toast(tx('這段工作或登入狀態已變更，未套用；請關閉後重新開啟最新工作再調整。'));return false;
+}
 MODALS['general-edit']=m=>{
   const existing=assignments(S).find(a=>a.id===m.id),ro=readOnly||S.setupPending||!!existing&&absOf(existing.date,existing.s)<nowAbs();
   m.draft ||= structuredClone(existing||{id:uid(),workId:workCatalog(S).find(w=>inFactory(w,UI.factory))?.id||'',emp:'',resourceId:null,date:UI.date,s:UI.date===todayStr()?Math.min(1140,Math.max(480,Math.ceil(nowMin()/10)*10)):480,e:UI.date===todayStr()?Math.min(1200,Math.max(540,Math.ceil(nowMin()/10)*10+60)):540,qty:null,orderId:null,note:''});
+  m.source ||= captureGeneralSource(m.draft.id);
   const D=m.draft,w=workCatalog(S).find(w=>w.id===D.workId),off=ro?'disabled':'';
   const select=(id,label,items,value)=>'<div class="field"><label for="'+id+'">'+label+'</label><select class="inp" id="'+id+'" '+off+'><option value="">'+tx('請選擇')+'</option>'+items.map(x=>'<option value="'+esc(x.id)+'" '+(x.id===value?'selected':'')+'>'+esc(x.name||x.label||x.code)+'</option>').join('')+'</select></div>';
   return {title:tx(existing?'一般工作排班':'新增一般工作排班'),body:
@@ -5048,9 +5173,10 @@ MODALS['general-edit']=m=>{
     select('gw-order','參考工單（可不選）',S.orders.concat((S.workReferenceOrders||[]).filter(o=>!S.orders.some(x=>x.id===o.id))),D.orderId)+textInput('gw-note','工作備註',D.note,'text',off),
     foot:(existing&&!ro?'<button class="btn danger" data-act="gw-remove-preview">'+tx('移除此段工作')+'</button>':'')+'<button class="btn" data-act="close">'+tx('取消')+'</button>'+(!ro?'<button class="btn primary" data-act="gw-preview">'+tx('預覽工作排班')+'</button>':'')};
 };
-function previewGeneral(D){
+function previewGeneral(D,source){
+  if(PV||readOnly||S.setupPending||!checkGeneralSource(source,D.id))return;
   const issues=assignmentIssues(S,D,dayInfo(D.date).win,{today:todayStr(),nowMin:nowMin()});
-  openModal({t:'general-preview',draft:structuredClone(D),existed:assignments(S).some(a=>a.id===D.id),issues});
+  openModal({t:'general-preview',draft:structuredClone(D),source,existed:source.row!==null,issues});
 }
 MODALS['general-preview']=m=>({title:tx('一般工作排班預覽'),body:
   '<dl class="kv"><dt>'+tx('工作內容')+'</dt><dd>'+esc(workName(m.draft))+'</dd><dt>'+tx('執行員工')+'</dt><dd>'+esc(emp(m.draft.emp)?.name||'未指定')+'</dd><dt>'+tx('設備／工位')+'</dt><dd>'+esc(mach(m.draft.resourceId)?.label||'不需機台')+'</dd><dt>'+tx('時段')+'</dt><dd>'+esc(m.draft.date)+' '+hm(m.draft.s)+'–'+hm(m.draft.e)+'（'+(m.draft.e-m.draft.s)+' 分）</dd></dl>'+
@@ -5064,7 +5190,7 @@ MODAL_ACT['gw-content-save']=()=>{
   try{validateGeneralWork(candidate,{today:todayStr(),baseAssignments:assignments(S)});validateTransfers(candidate,{before:S});}catch(e){toast(e.message);return;}
   pushUndo();S.workContents=candidate.workContents;closeModal();commit({kind:'edit',title:tx('更新工作內容')+' '+D.name,lines:[]},'work_contents.manage');
 };
-MODAL_ACT['gw-preview']=()=>{if(PV||readOnly||S.setupPending)return;readGeneralFields();previewGeneral(UI.modal.draft);};
+MODAL_ACT['gw-preview']=()=>{if(PV||readOnly||S.setupPending)return;readGeneralFields();previewGeneral(UI.modal.draft,UI.modal.source);};
 MODAL_ACT['gw-remove-preview']=()=>{if(PV||readOnly||S.setupPending||!UI.modal?.id)return;openModal({t:'general-remove',id:UI.modal.id});};
 MODALS['general-remove']=m=>({title:tx('移除工作預覽'),body:'<div class="hint">'+tx('確認後只移除這段一般工作，不動產品排程。可以使用「復原」。')+'</div>',foot:'<button class="btn" data-act="close">'+tx('取消')+'</button><button class="btn danger" data-act="gw-remove">'+tx('確認移除')+'</button>'});
 MODAL_ACT['gw-remove']=()=>{if(PV||readOnly||S.setupPending||UI.modal?.t!=='general-remove')return;const a=assignments(S).find(a=>a.id===UI.modal.id);if(!a||absOf(a.date,a.s)<nowAbs())return;pushUndo();S.workAssignments=assignments(S).filter(x=>x.id!==a.id);closeModal();commit({kind:'edit',title:tx('移除一般工作')+' '+workName(a),lines:[]});};
@@ -5072,6 +5198,7 @@ MODAL_ACT['gw-apply']=()=>{
   if(PV||readOnly||S.setupPending||UI.modal?.t!=='general-preview')return;const D=UI.modal.draft;
   // 預覽開著時，較早的佇列寫入衝突恢復會前景替換 S：遠端已刪除這段工作時不得用它復活
   if(UI.modal.existed&&!assignments(S).some(a=>a.id===D.id)){toast(tx('這段工作已被別人更新移除，未套用；請確認最新班表後再操作。'));return;}
+  if(!checkGeneralSource(UI.modal.source,D.id))return;
   const issues=assignmentIssues(S,D,dayInfo(D.date).win,{today:todayStr(),nowMin:nowMin()});if(issues.length){toast(issues.join('；'));return;}
   pushUndo();S.workAssignments=assignments(S).filter(a=>a.id!==D.id).concat(D);closeModal();commit({kind:'edit',title:tx('安排')+' '+workName(D)+' · '+emp(D.emp).name,lines:[]});
 };
@@ -5106,7 +5233,7 @@ function workViewHTML(){
 let generalDrag=null;
 document.addEventListener('pointerdown',e=>{
   const el=e.target.closest('.workblk');if(!el||e.button>0||PV)return;const a=assignments(S).find(a=>a.id===el.dataset.gid);if(!a)return;
-  generalDrag={a,el,x:e.clientX,y:e.clientY,originalHeight:parseFloat(el.style.height),resize:!!e.target.closest('[data-gresize]'),moved:false};
+  generalDrag={a:structuredClone(a),source:captureGeneralSource(a.id),el,x:e.clientX,y:e.clientY,originalHeight:parseFloat(el.style.height),resize:!!e.target.closest('[data-gresize]'),moved:false};
 });
 document.addEventListener('pointermove',e=>{
   const d=generalDrag;if(!d||readOnly||S.setupPending||absOf(d.a.date,d.a.s)<nowAbs())return;
@@ -5116,12 +5243,13 @@ document.addEventListener('pointermove',e=>{
 });
 document.addEventListener('pointerup',e=>{
   const d=generalDrag;if(!d)return;generalDrag=null;d.el.style.opacity='';d.el.style.transform='';d.el.style.height=d.originalHeight+'px';
+  if(!checkGeneralSource(d.source,d.a.id))return;
   if(!d.moved){openModal({t:'general-edit',id:d.a.id});return;}
   const delta=Math.round((e.clientY-d.y)/(hourPx()*UI.zoom)*6)*10,A={...d.a};
   if(d.resize)A.e+=delta;
   else{A.s+=delta;A.e+=delta;const col=document.elementFromPoint(e.clientX,e.clientY)?.closest('.gcol');
     if(col?.dataset.gwork===A.workId){if(col.dataset.gemp)A.emp=col.dataset.gemp;if(A.resourceId&&col.dataset.gresource)A.resourceId=col.dataset.gresource;}}
-  previewGeneral(A);
+  previewGeneral(A,d.source);
 });
 document.addEventListener('pointercancel',()=>{if(generalDrag){generalDrag.el.style.opacity='';generalDrag.el.style.transform='';generalDrag.el.style.height=generalDrag.originalHeight+'px';}generalDrag=null;maybeReload();});
 document.addEventListener('keydown',e=>{if(PV)return;const el=e.target.closest?.('.workblk');if(el&&['Enter',' '].includes(e.key)){e.preventDefault();openModal({t:'general-edit',id:el.dataset.gid});}});
@@ -5151,7 +5279,7 @@ async function start(){
   // 每分鐘刷新「今天」看板；表格內嵌編輯中（cellinp 未 blur）與頁面檢視不得被背景重繪清掉未提交輸入
   setInterval(()=>{if(!drag&&!generalDrag&&!UI.editCell&&!UI.page&&!UI.modal&&!PV&&UI.view==="day"&&UI.date===todayStr())render();},60000);
 }
-const crossFactoryUI=transferUI({state:()=>S,ui:UI,esc,uid,canEdit:()=>canPermission('transfers.manage'),open:openModal,close:closeModal,syncInputs,commit:entry=>commit(entry,'transfers.manage'),toast,today:todayStr,clearUndo:()=>{undoStack=[];}});
+const crossFactoryUI=transferUI({state:()=>S,owner:()=>({store:STORE,client:STORE?.sb,user:STORE?.session?.user?.id,epoch:STORE?.authEpoch||0}),ui:UI,esc,uid,canEdit:()=>canPermission('transfers.manage'),open:openModal,close:closeModal,syncInputs,commit:entry=>commit(entry,'transfers.manage'),toast,today:todayStr,clearUndo:()=>{undoStack=[];}});
 Object.assign(MODALS,crossFactoryUI.modals);Object.assign(MODAL_ACT,crossFactoryUI.actions);
 const staffRosterUI=rosterUI({state:()=>S,ui:UI,esc,uid,canEdit:()=>canPermission('rosters.manage'),canMaster,open:openModal,close:closeModal,syncInputs,commit:entry=>commit(entry,'rosters.manage'),toast,today:todayStr,clearUndo:()=>{undoStack=[];},jwt:()=>STORE.jwt()});
 Object.assign(MODALS,staffRosterUI.modals);Object.assign(MODAL_ACT,staffRosterUI.actions);
