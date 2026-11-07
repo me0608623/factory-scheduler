@@ -18,12 +18,16 @@ export const TOUR_DONE_KEY = "fsched-tour-done";
 
 export function tourDone() { try { return !!localStorage.getItem(TOUR_DONE_KEY); } catch (e) { return true; } }
 
+let activeTour = null;
+
 export function startTour(steps, { tx = (k) => k, onFinish, markDone = true, label } = {}) {
-  document.querySelectorAll(".tour-spot,.tour-card").forEach((e) => e.remove());
+  // 替換只清理舊實例，不把被取代的導覽當作完成／跳過。
+  activeTour?.();
   const visible = (sel) => { const el = document.querySelector(sel); return el && el.offsetParent !== null ? el : null; };
   // 有 pre（前置動作）的步驟保留——目標由 pre 開抽屜／切頁後才出現；其餘隱藏中自動跳過
   const list = steps.filter((s) => s.pre || visible(s.sel));
-  let i = 0;
+  let i = 0, stopped = false, generation = 0, preTried = false, waitingForPre = false;
+  const timers = new Set();
   const spot = document.createElement("div");
   spot.className = "tour-spot";
   const card = document.createElement("div");
@@ -31,47 +35,78 @@ export function startTour(steps, { tx = (k) => k, onFinish, markDone = true, lab
   card.setAttribute("role", "dialog");
   card.setAttribute("aria-label", tx(label || "新手導覽"));
   document.body.append(spot, card);
-  let onResize;
-
-  const stop = (finished) => {
+  const invalidate = () => {
+    generation++;
+    timers.forEach((timer) => clearTimeout(timer));
+    timers.clear();
+    waitingForPre = false;
+  };
+  const isCurrent = (version) => !stopped && activeTour === dispose && version === generation;
+  const later = (fn, delay, version = generation) => {
+    if (!isCurrent(version)) return;
+    const timer = setTimeout(() => {
+      timers.delete(timer);
+      if (isCurrent(version)) fn();
+    }, delay);
+    timers.add(timer);
+  };
+  const dispose = () => {
+    if (stopped) return false;
+    stopped = true;
+    invalidate();
+    if (activeTour === dispose) activeTour = null;
     removeEventListener("resize", onResize);
     removeEventListener("scroll", onResize, true);
+    card.removeEventListener("click", onClick);
     spot.remove(); card.remove();
+    return true;
+  };
+
+  const stop = (finished) => {
+    if (!dispose()) return;
     if (markDone) { try { localStorage.setItem(TOUR_DONE_KEY, "1"); } catch (e) {} }
     onFinish?.(finished);
   };
 
   let rendering = false;
   const render = () => {
-    if (rendering) return;
+    if (stopped || rendering) return;
     rendering = true;
     try { _render(); } finally { rendering = false; }
   };
   const _render = () => {
+    if (stopped) return;
     const st = list[i];
     if (!st) return stop(true);
-    let el = visible(st.sel);
-    if (!el && st.pre && !st._preTried) {
+    const el = visible(st.sel);
+    // 滾動／縮放可提前定位已出現的目標，但不能提早跳過仍在等待的步驟。
+    if (!el && waitingForPre) return;
+    invalidate();
+    const version = generation, stepIndex = i;
+    if (!el && st.pre && !preTried) {
       // 前置動作（開抽屜／切頁面）→ 等 UI 重繪後再定位；失敗視同跳過
-      st._preTried = true;
+      preTried = true;
+      waitingForPre = true;
       try { st.pre(); } catch (e) { /* ignore */ }
-      setTimeout(render, 320);
+      later(() => { waitingForPre = false; render(); }, 320, version);
       return;
     }
-    if (!el) { st._preTried = false; i++; return _render(); }
-    st._preTried = false;
+    if (!el) { preTried = false; i++; return _render(); }
+    preTried = false;
     try { el.scrollIntoView({ block: "center" }); } catch (e) { /* older engines */ }
-    setTimeout(() => { try {
+    later(() => { try {
+      // App 重繪會替換節點；舊目標不能替目前步驟量尺寸或更新卡片。
+      if (visible(st.sel) !== el) return render();
       const r = el.getBoundingClientRect(), v = { w: innerWidth, h: innerHeight };
       Object.assign(spot.style, { left: r.left - 6 + "px", top: r.top - 6 + "px", width: r.width + 12 + "px", height: r.height + 12 + "px" });
       // 卡片先量尺寸再定位
       card.innerHTML =
-        '<div class="tour-step">' + (i + 1) + " / " + list.length + "</div>" +
+        '<div class="tour-step">' + (stepIndex + 1) + " / " + list.length + "</div>" +
         "<b>" + tx(st.title) + "</b><p>" + tx(st.text) + "</p>" +
         '<div class="tour-btns">' +
         '<button class="btn" data-tour="skip">' + tx("跳過導覽") + "</button>" +
-        (i > 0 ? '<button class="btn" data-tour="prev">' + tx("上一步") + "</button>" : "") +
-        '<button class="btn primary" data-tour="next">' + (i === list.length - 1 ? tx("完成") : tx("下一步")) + "</button></div>";
+        (stepIndex > 0 ? '<button class="btn" data-tour="prev">' + tx("上一步") + "</button>" : "") +
+        '<button class="btn primary" data-tour="next">' + (stepIndex === list.length - 1 ? tx("完成") : tx("下一步")) + "</button></div>";
       const p = computePlacement(r, { w: Math.min(340, v.w - 24), h: card.offsetHeight || 180 }, v);
       Object.assign(card.style, { top: p.top + "px", left: p.left + "px", maxWidth: Math.min(340, v.w - 24) + "px" });
       card.querySelector(".tour-arrow")?.remove();
@@ -79,18 +114,23 @@ export function startTour(steps, { tx = (k) => k, onFinish, markDone = true, lab
       arrow.className = "tour-arrow tour-" + p.arrow;
       arrow.style.left = p.arrowLeft + "px";
       card.appendChild(arrow);
-    } catch (e) { console.error('tour render:', e); } }, 50);
+    } catch (e) { console.error('tour render:', e); } }, 50, version);
   };
-  onResize = () => render();
-  addEventListener("resize", onResize, { passive: true });
-  addEventListener("scroll", onResize, { passive: true, capture: true });
-  card.addEventListener("click", (e) => {
+  const onResize = () => render();
+  const onClick = (e) => {
+    if (stopped) return;
     const b = e.target.closest("[data-tour]");
     if (!b) return;
-    if (b.dataset.tour === "next") { list.forEach((s) => { s._preTried = false; }); i++; i >= list.length ? stop(true) : render(); }
-    else if (b.dataset.tour === "prev") { list.forEach((s) => { s._preTried = false; }); i = Math.max(0, i - 1); render(); }
+    invalidate();
+    preTried = false;
+    if (b.dataset.tour === "next") { i++; i >= list.length ? stop(true) : render(); }
+    else if (b.dataset.tour === "prev") { i = Math.max(0, i - 1); render(); }
     else stop(false);
-  });
+  };
+  activeTour = dispose;
+  addEventListener("resize", onResize, { passive: true });
+  addEventListener("scroll", onResize, { passive: true, capture: true });
+  card.addEventListener("click", onClick);
   render();
   return { stop };
 }
