@@ -33,13 +33,16 @@ function applyGeom(el, g) {
   el.style.bottom = "auto";
 }
 
-function suppressClick(el) {
+function suppressClick(el, signal) {
   const kill = e => { e.stopPropagation(); e.preventDefault(); };
-  el.addEventListener("click", kill, { capture: true, once: true });
-  setTimeout(() => el.removeEventListener("click", kill, true), 250);
+  el.addEventListener("click", kill, { capture: true, once: true, signal });
+  const timer=setTimeout(() => { el.removeEventListener("click", kill, true); signal?.removeEventListener("abort", cancel); }, 250);
+  const cancel=()=>{clearTimeout(timer);el.removeEventListener("click", kill, true);};
+  signal?.addEventListener("abort", cancel, {once:true});
 }
 
-function startDrag(ev, onMove, onEnd) {
+function startDrag(ev, onMove, onEnd, signal) {
+  if(signal?.aborted)return;
   const sx = ev.clientX, sy = ev.clientY;
   let started = false;
   const move = e => {
@@ -48,12 +51,14 @@ function startDrag(ev, onMove, onEnd) {
     started = true;
     onMove(e, dx, dy);
   };
-  const up = () => {
+  const cleanup = () => {
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", up);
     window.removeEventListener("pointercancel", up);
-    onEnd(!!started);
+    signal?.removeEventListener("abort", cleanup);
   };
+  const up = () => {cleanup();onEnd(!!started);};
+  signal?.addEventListener("abort", cleanup, {once:true});
   window.addEventListener("pointermove", move, { passive: false });
   window.addEventListener("pointerup", up);
   window.addEventListener("pointercancel", up);
@@ -86,6 +91,7 @@ export function floatWindow(el, opts) {
   let s = st.get(opts.key);
   if (!s) { s = { geom: load(opts.key, opts.defaults), max: false, saved: null, moveOnly: !!opts.moveOnly }; st.set(opts.key, s); }
   st.set(opts.key + ":el", el);
+  opts.signal?.addEventListener("abort",()=>{if(st.get(opts.key + ":el")===el)st.delete(opts.key + ":el");},{once:true});
 
   const applyMove = (el2, g) => {
     el2.style.left = g.x + "px";
@@ -101,6 +107,7 @@ export function floatWindow(el, opts) {
   };
 
   const paint = () => {
+    if(opts.signal?.aborted)return;
     if (MOBILE()) {
       el.classList.remove("float-win", "win-max");
       el.style.cssText = el.style.cssText.replace(/(^|;)\s*(left|top|width|height|right|bottom):[^;]*/g, "$1");
@@ -123,6 +130,7 @@ export function floatWindow(el, opts) {
   if (handle && !handle.dataset.winBound) {
     handle.dataset.winBound = "1";
     handle.addEventListener("pointerdown", ev => {
+      if(opts.signal?.aborted)return;
       const onCtl = ev.target.closest("button,input,select,textarea");
       if ((onCtl && !opts.dragOnButton) || MOBILE()) return;
       bringToFront(el);
@@ -132,15 +140,15 @@ export function floatWindow(el, opts) {
         const c = opts.moveOnly ? clampMove({ ...g0, x: g0.x + dx, y: g0.y + dy })
                                 : clampRect(g0.x + dx, g0.y + dy, g0.w, g0.h, innerWidth, innerHeight);
         (opts.moveOnly ? applyMove : applyGeom)(el, c); s.geom = c;
-      }, moved => { if (moved) { suppressClick(handle); save(opts.key, s.geom); } });
-    });
+      }, moved => { if (moved) { suppressClick(handle, opts.signal); save(opts.key, s.geom); } }, opts.signal);
+    }, {signal:opts.signal});
     handle.addEventListener("dblclick", () => { // 一鍵回預設位置
       if (MOBILE()) return;
       s.max = false; s.geom = { ...opts.defaults };
       save(opts.key, s.geom); paint();
-    });
+    }, {signal:opts.signal});
   }
-  el.addEventListener("pointerdown", () => { if (!MOBILE()) bringToFront(el); }, { capture: true });
+  el.addEventListener("pointerdown", () => { if (!MOBILE()) bringToFront(el); }, { capture: true, signal:opts.signal });
   if (!opts.moveOnly) el.querySelectorAll(".win-rh").forEach(h => {
     if (h.dataset.winBound) return;
     h.dataset.winBound = "1";
@@ -157,8 +165,8 @@ export function floatWindow(el, opts) {
         if (dir.includes("n")) { hh = g0.h - dy; y = g0.y + dy; }
         const c = clampRect(x, y, w, hh, innerWidth, innerHeight);
         applyGeom(el, c); s.geom = c;
-      }, moved => { if (moved) save(opts.key, s.geom); });
-    });
+      }, moved => { if (moved) save(opts.key, s.geom); }, opts.signal);
+    }, {signal:opts.signal});
   });
   if (opts.maxBtn && !opts.maxBtn.dataset.winBound) {
     opts.maxBtn.dataset.winBound = "1";
@@ -168,7 +176,7 @@ export function floatWindow(el, opts) {
       paint();
       opts.maxBtn.textContent = s.max ? "❐" : "□";
       opts.maxBtn.setAttribute("aria-label", s.max ? "還原視窗" : "最大化視窗");
-    });
+    }, {signal:opts.signal});
   }
   return { repaint: paint, state: s };
 }
