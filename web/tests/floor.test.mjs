@@ -122,3 +122,93 @@ test('floor：畫布「故障」標籤走 tx()（canvas 文字 i18n）', () => {
   assert.ok(src.includes('tx("故障")'), 'canvas 內「故障」應包 tx()');
   assert.ok(!/"故障"\s*:/.test(src.replace(/tx\("故障"\)/g, '')), '不應殘留未翻譯的故障字串');
 });
+
+// Saved layout coordinates are inclusive 0–100 (migration 0036).
+// The canvas grows vertically, but its normalized width remains 100.
+function edgeState(positions, autoCount = 0) {
+  return {
+    machines: [...positions.map((_, i) => ({ id: `p${i}`, factory: 1 })),
+      ...Array.from({ length: autoCount }, (_, i) => ({ id: `auto${i}`, factory: 1 }))],
+    machineLayout: positions.map(([x, y], i) => ({ machineId: `p${i}`, x, y })),
+    blocks: [], orders: [], employees: [],
+  };
+}
+
+function freezeState(value) {
+  Object.values(value).forEach(v => { if (v && typeof v === 'object') freezeState(v); });
+  return Object.freeze(value);
+}
+
+test('saved right-edge coordinates keep the full footprint visible without changing state', () => {
+  for (const x of [90, 90.01, 95, 99.99, 100]) {
+    const state = freezeState(edgeState([[x, 50]]));
+    const before = structuredClone(state);
+    const [cell] = floorCells(state, 1, day);
+    assert.equal(cell.x, Math.min(x, 90));
+    assert.equal(cell.y, 50);
+    assert.equal(cell.w, 10);
+    assert.equal(cell.h, 8);
+    assert.deepEqual(state, before);
+  }
+});
+
+test('saved corners, zero and interior coordinates preserve vertical positions and state', () => {
+  const state = freezeState(edgeState([[0, 0], [100, 0], [0, 100], [100, 100], [50, 50]]));
+  const before = structuredClone(state);
+  const cells = floorCells(state, 1, day);
+  assert.deepEqual(cells.map(({ x, y }) => [x, y]), [[0, 0], [90, 0], [0, 100], [90, 100], [50, 50]]);
+  assert.deepEqual(state, before);
+});
+
+test('auto layout reserves the visible right-edge footprint at every supported column count', () => {
+  for (const cols of [1, 3, 5, 9]) {
+    const state = freezeState(edgeState([[100, 0], [100, 18]], 20));
+    const before = structuredClone(state);
+    const cells = floorCells(state, 1, day, cols);
+    assert.equal(cells.length, 22);
+    for (const [i, cell] of cells.entries()) {
+      assert.ok(cell.x >= 0 && cell.x + cell.w <= 100);
+      for (const other of cells.slice(i + 1)) {
+        assert.ok(!(cell.x < other.x + other.w && cell.x + cell.w > other.x &&
+          cell.y < other.y + other.h && cell.y + cell.h > other.y), `${cols} cols: ${cell.id} overlaps ${other.id}`);
+      }
+    }
+    assert.deepEqual(state, before);
+  }
+});
+
+test('saved edge cells render inside the canvas and their visible centers remain hittable', () => {
+  const prevGCS = globalThis.getComputedStyle, prevDoc = globalThis.document;
+  globalThis.getComputedStyle = () => ({ getPropertyValue: () => '' });
+  globalThis.document = { documentElement: {} };
+  try {
+    for (const [width, cols] of [[320, 3], [600, 5], [900, 9]]) {
+      for (const pixelRatio of [1, 2]) {
+        const state = freezeState(edgeState([[0, 0], [100, 0], [0, 100], [100, 100], [99.99, 50]], 12));
+        const before = structuredClone(state);
+        const cells = floorCells(state, 1, day, cols);
+        const drawn = [];
+        const ctx = { scale() {}, beginPath() {}, fill() {}, stroke() {}, fillText() {},
+          roundRect: (x, y, w, h) => drawn.push({ x, y, w, h }) };
+        const canvas = { clientWidth: width, style: {}, getContext: () => ctx };
+        const rects = renderFloor(canvas, cells, { pixelRatio });
+        assert.equal(rects.length, state.machines.length);
+        assert.deepEqual(drawn, rects.map(({ x, y, w, h }) => ({ x, y, w, h })));
+        for (const rect of rects) {
+          assert.ok(rect.x >= 0 && rect.x + rect.w <= canvas.width / pixelRatio + 1e-9);
+          assert.ok(rect.y >= 40 && rect.y + rect.h <= canvas.height / pixelRatio);
+          assert.equal(hitFloor(rects, rect.x + rect.w / 2, rect.y + rect.h / 2)?.cell.id, rect.cell.id);
+        }
+        if (width === 900) {
+          const right = rects.find(r => r.cell.id === 'p1');
+          assert.deepEqual([right.x, right.w], [810, 90]);
+          assert.equal(hitFloor(rects, 899, right.y + right.h / 2)?.cell.id, 'p1');
+        }
+        assert.deepEqual(state, before);
+      }
+    }
+  } finally {
+    globalThis.getComputedStyle = prevGCS;
+    globalThis.document = prevDoc;
+  }
+});
