@@ -4073,7 +4073,8 @@ function printDaySchedule(){
   const machs=shownMachines();
   const emps=shownEmployees();
   const leave=emps.filter(e=>e.leaves.includes(d));
-  const blocks=S.blocks.filter(b=>b.date===d&&machs.some(m=>m.id===b.m));
+  const equipmentWork=(S.workAssignments||[]).filter(a=>a.resourceId!=null).map(a=>({...a,m:a.resourceId}));
+  const blocks=[...S.blocks,...equipmentWork].filter(b=>b.date===d&&machs.some(m=>m.id===b.m));
   const byMach={};
   for(const m of machs) byMach[m.id]=[];
   for(const b of blocks){ if(byMach[b.m]) byMach[b.m].push(b); }
@@ -4088,13 +4089,14 @@ function printDaySchedule(){
       continue;
     }
     for(let i=0;i<bs.length;i++){
-      const b=bs[i], o=order(b.oid), E=emp(b.emp);
+      const b=bs[i], isGeneral=!!b.workId, o=isGeneral?null:order(b.oid), E=emp(b.emp);
+      const work=isGeneral?(S.workContents||[]).find(w=>w.id===b.workId):null;
       const machTd=i===0?'<td rowspan="'+bs.length+'"><b>'+esc(m.label)+'</b><br><small>'+esc(m.id)+(m.reviewStatus==='pending'?' · 待確認':'')+'</small></td>':'';
       rows+='<tr>'+machTd+
         '<td>'+(E?'<b>'+esc(E.name)+'</b>':'—')+'</td>'+
         '<td>'+hm(b.s)+'–'+hm(b.e)+(b.pin?' ◆':'')+'</td>'+
-        '<td>'+(o?esc(o.code)+' '+esc(prod(o.pid)?.name||''):'')+' '+esc(stepName(b))+'</td>'+
-        '<td>'+b.qty+'</td><td></td></tr>';
+        '<td>'+(isGeneral?esc(work?.name||'?'):(o?esc(o.code)+' '+esc(prod(o.pid)?.name||''):'')+' '+esc(stepName(b)))+'</td>'+
+        '<td>'+(isGeneral?(b.qty==null?'—':tx('參考')+' '+esc(b.qty)):b.qty)+'</td><td>'+(isGeneral?esc(b.note||''):'')+'</td></tr>';
     }
   }
 
