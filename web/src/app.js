@@ -1833,6 +1833,7 @@ function modalFocusFromToken(root,token){
   return [...root.querySelectorAll("[data-"+token.kind+"]")].find(el=>el.dataset[token.kind]===token.value)||null;
 }
 function openModal(m){
+  if(UI.modal!==m)UI.modalLifetime=(UI.modalLifetime||0)+1;
   if(UI.modal!==m)cancelPlanCalculation();
   if(m.t==='execution-report'){
     const pending=executionRetries.get(STORE,m.id);
@@ -1847,6 +1848,7 @@ function openModal(m){
 function closeModal(){
   // An import already writing cannot be cancelled by Escape, the overlay or X.
   if(UI.modal?.t==='import-preview'&&UI.modal.saving)return;
+  UI.modalLifetime=(UI.modalLifetime||0)+1;
   cancelPlanCalculation();
   UI.modal=null;const r=$("#modal-root");if(r)r.innerHTML="";maybeReload();
   const target=modalReturnFocus;modalReturnFocus=null;
@@ -3481,9 +3483,15 @@ function allRows(){
     return [b.date,WD[parseD(b.date).getUTCDay()],hm(b.s),hm(b.e),b.m,emp(b.emp)?emp(b.emp).name:"",o.code,prod(o.pid).name,stepName(b),b.qty,b.pin?"是":"",issuesOf(b).join("；")];}),
     ...assignments(S).filter(a=>inFactory(workCatalog(S).find(w=>w.id===a.workId)||{},UI.factory)).map(a=>[a.date,WD[parseD(a.date).getUTCDay()],hm(a.s),hm(a.e),a.resourceId||'不需機台',emp(a.emp)?.name||'',referenceOrder(a.orderId)?.code||'','',workName(a),a.qty??'','是','一般工作，件數僅供參考；'+assignmentIssues(S,a,dayInfo(a.date).win).join('；')])];
 }
+let clipboardRequest=0;
 async function copyText(t){
-  try{await navigator.clipboard.writeText(t);toast("已複製，到試算表 A1 貼上即可");}
-  catch(e){openModal({t:"copybox",text:t});}
+  const request=++clipboardRequest,modal=UI.modal,lifetime=UI.modalLifetime;
+  const store=STORE,user=store?.session?.user?.id,epoch=store?.authEpoch;
+  // Completion owns feedback only, not the already dispatched clipboard write.
+  const owns=()=>request===clipboardRequest&&UI.modal===modal&&UI.modalLifetime===lifetime&&
+    STORE===store&&store?.session?.user?.id===user&&store?.authEpoch===epoch;
+  try{await navigator.clipboard.writeText(t);if(owns())toast("已複製，到試算表 A1 貼上即可");}
+  catch(e){if(owns())openModal({t:"copybox",text:t});}
 }
 MODALS.copybox=m=>({title:tx('請手動複製'),body:'<textarea id="cbx" class="inp" style="height:240px;font-size:14px;font-family:var(--mono)" readonly>'+esc(m.text)+'</textarea><div class="hint">'+tx('已全選，按 Ctrl+C（手機長按）複製。')+'</div>'});
 async function downloadCSV(){
