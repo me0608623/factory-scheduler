@@ -1833,6 +1833,7 @@ function modalFocusFromToken(root,token){
   return [...root.querySelectorAll("[data-"+token.kind+"]")].find(el=>el.dataset[token.kind]===token.value)||null;
 }
 function openModal(m){
+  UI.leaveSaveNotice=null;   // A newer dialog owns the UI, even if it closes before a leave ACK.
   if(UI.modal!==m)cancelPlanCalculation();
   if(m.t==='execution-report'){
     const pending=executionRetries.get(STORE,m.id);
@@ -3008,6 +3009,24 @@ MODALS.incident=m=>{
     '<button class="inc" data-act="inc-rush"><b>'+tx('急單／插單')+'</b><small>'+tx('新工單優先做，看會影響誰')+'</small></button></div>';
   return {title:tx('突發狀況'),body,foot:m.step?'<button class="btn" data-act="inc-back">'+tx('上一步')+'</button>':""};
 };
+async function saveLeaveWithNotice(entry,message){
+  const store=STORE,client=store?.sb,user=store?.session?.user?.id,epoch=store?.authEpoch,state=S,preview=PV;
+  const viewKey=()=>JSON.stringify([UI.date,UI.view,UI.layout,UI.factory,UI.group,UI.page,UI.drawer,UI.focus,UI.returnTo,UI.editCell,UI.leaveBrush,UI.brushStart]);
+  const operation={};UI.leaveSaveNotice=operation;
+  let json=JSON.stringify(state),modal=UI.modal,view=viewKey();
+  const current=()=>UI.leaveSaveNotice===operation&&STORE===store&&store?.sb===client&&
+    store?.session?.user?.id===user&&store?.authEpoch===epoch&&canPermissionRaw('incidents.manage')&&
+    S===state&&JSON.stringify(S)===json&&UI.modal===modal&&PV===preview&&viewKey()===view;
+  try{
+    const pending=commit(entry,"incidents.manage");
+    json=JSON.stringify(state);   // commit adds the log before queuing its snapshot.
+    closeModal();modal=UI.modal;view=viewKey();
+    // Keep the optimistic candidate and existing queueSync failure/retry flow.
+    // Only this action's unchanged post-close view may announce its ACK.
+    if(await pending&&current())toast(message);
+  }catch(e){if(current())toast("沒存到："+e.message);}
+  finally{if(UI.leaveSaveNotice===operation)UI.leaveSaveNotice=null;}
+}
 MODALS.leaveq=m=>{
   const E=emp(m.id);if(!E)return null;
   if(!m.date)m.date=UI.date;
@@ -3029,7 +3048,7 @@ Object.assign(MODAL_ACT,{
     if(!canIncidents()||UI.modal?.t!=="leaveq")return;
     const eid=UI.modal.id,d=UI.modal.date,E=emp(eid);
     const n=S.blocks.filter(b=>b.emp===eid&&b.date===d&&futureOf(b)).length;
-    if(!n){pushUndo();E.leaves.push(d);commit({kind:"leave",title:E.name+" "+md(d)+" 請假（當天沒有排工作）",lines:[]},"incidents.manage");closeModal();toast("已登記，當天沒有他的工作");return;}
+    if(!n){pushUndo();E.leaves.push(d);return saveLeaveWithNotice({kind:"leave",title:E.name+" "+md(d)+" 請假（當天沒有排工作）",lines:[]},"已登記，當天沒有他的工作");}
     const ev=()=>{const X=emp(eid);X.leaves.push(d);return {date:d,mode:"leave",aff:S.blocks.filter(b=>b.emp===eid&&b.date===d&&futureOf(b))};};
     openPlans(E.name+" "+mdw(d)+" 請假，"+n+" 段工作要調整",E.name+" "+md(d)+" 請假","leave",ev,STRAT_EVENT,{event:{type:"leave",employee:eid,date:d}});
   }
@@ -3859,10 +3878,9 @@ Object.assign(MODAL_ACT,{
       if(wantOff){if(!E.leaves.includes(d))E.leaves.push(d);added++;}
       else{E.leaves=E.leaves.filter(x=>x!==d);removed++;}
     }
-    closeModal();
-    if(!added&&!removed&&!blocked.length){undoStack.pop();toast('沒有變更');return;}
-    commit({kind:"leave",title:E.name+" 整月班表設定"+(added?"：新增 "+added+" 天休假":"")+(removed?"：取消 "+removed+" 天休假":""),lines:[]},"incidents.manage");
-    toast(blocked.length?blocked.map(md).join('、')+" 當天有排工作，已先跳過；請到月曆點單日處理":"已套用整月設定");
+    if(!added&&!removed&&!blocked.length){closeModal();undoStack.pop();toast('沒有變更');return;}
+    return saveLeaveWithNotice({kind:"leave",title:E.name+" 整月班表設定"+(added?"：新增 "+added+" 天休假":"")+(removed?"：取消 "+removed+" 天休假":""),lines:[]},
+      blocked.length?blocked.map(md).join('、')+" 當天有排工作，已先跳過；請到月曆點單日處理":"已套用整月設定");
   }
 });
 
