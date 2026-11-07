@@ -1106,6 +1106,11 @@ export const UI_TEXT = {
   "放大": { en: "Zoom in", vi: "Phóng to", th: "ขยาย" },
   "滾輪縮放已開啟（在排程表上滾動即可縮放）": { en: "Wheel zoom on (scroll on the schedule to zoom)", vi: "Đã bật cuộn zoom (cuộn trên bảng lịch để thu/phóng)", th: "เปิดซูมล้อเมาส์ (เลื่อนบนตารางเพื่อซูม)" },
   "滾輪縮放已關閉（排程表恢復一般捲動）": { en: "Wheel zoom off (schedule scrolls normally)", vi: "Đã tắt cuộn zoom (bảng lịch cuộn bình thường)", th: "ปิดซูมล้อเมาส์ (ตารางเลื่อนปกติ)" },
+  "新設定會改動已有現場回報的工作，未儲存。": { en: "These settings would change work with recorded progress. Nothing was saved.", vi: "Cài đặt này sẽ thay đổi công việc đã ghi nhận tiến độ. Chưa lưu.", th: "การตั้งค่านี้จะเปลี่ยนงานที่รายงานความคืบหน้าแล้ว ยังไม่ได้บันทึก" },
+  "停工後仍有工作找不到可用時段，未儲存；請先調整排程。": { en: "Some work has no available slot after closing. Nothing was saved; adjust the schedule first.", vi: "Một số công việc không có khung giờ sau khi nghỉ. Chưa lưu; hãy điều chỉnh lịch trước.", th: "บางงานไม่มีช่วงเวลาว่างหลังปิดวันทำงาน ยังไม่ได้บันทึก กรุณาปรับตารางก่อน" },
+  "新設定會造成工序產量矛盾，未儲存；請改用自動排程重新安排。": { en: "These settings would violate production flow. Nothing was saved; use automatic scheduling to rearrange work.", vi: "Cài đặt này gây mâu thuẫn sản lượng giữa các công đoạn. Chưa lưu; hãy dùng xếp lịch tự động.", th: "การตั้งค่านี้ทำให้ปริมาณผลิตระหว่างขั้นตอนขัดแย้งกัน ยังไม่ได้บันทึก กรุณาจัดตารางอัตโนมัติใหม่" },
+  "新設定與一般工作排班衝突，未儲存；請先調整一般工作。": { en: "These settings conflict with general-work assignments. Nothing was saved; adjust those assignments first.", vi: "Cài đặt này xung đột với lịch công việc chung. Chưa lưu; hãy điều chỉnh công việc chung trước.", th: "การตั้งค่านี้ขัดแย้งกับตารางงานทั่วไป ยังไม่ได้บันทึก กรุณาปรับงานทั่วไปก่อน" },
+  "新設定會改動已開始時段的工作，未儲存；請先確認現場進度。": { en: "These settings would change work whose scheduled time has started. Nothing was saved; check floor progress first.", vi: "Cài đặt này sẽ thay đổi công việc đã đến giờ bắt đầu. Chưa lưu; hãy kiểm tra tiến độ thực tế trước.", th: "การตั้งค่านี้จะเปลี่ยนงานที่ถึงเวลาเริ่มแล้ว ยังไม่ได้บันทึก กรุณาตรวจสอบความคืบหน้าหน้างานก่อน" },
 };
 
 export function tx(k, params) {
