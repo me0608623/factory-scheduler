@@ -5016,7 +5016,7 @@ async function start(){
   // 每分鐘刷新「今天」看板；表格內嵌編輯中（cellinp 未 blur）與頁面檢視不得被背景重繪清掉未提交輸入
   setInterval(()=>{if(!drag&&!generalDrag&&!UI.editCell&&!UI.page&&!UI.modal&&!PV&&UI.view==="day"&&UI.date===todayStr())render();},60000);
 }
-const crossFactoryUI=transferUI({state:()=>S,ui:UI,esc,uid,canEdit:()=>canPermission('transfers.manage'),open:openModal,close:closeModal,syncInputs,commit:entry=>commit(entry,'transfers.manage'),toast,today:todayStr,clearUndo:()=>{undoStack=[];}});
+const crossFactoryUI=transferUI({state:()=>S,owner:()=>({store:STORE,client:STORE?.sb,user:STORE?.session?.user?.id,epoch:STORE?.authEpoch||0}),ui:UI,esc,uid,canEdit:()=>canPermission('transfers.manage'),open:openModal,close:closeModal,syncInputs,commit:entry=>commit(entry,'transfers.manage'),toast,today:todayStr,clearUndo:()=>{undoStack=[];}});
 Object.assign(MODALS,crossFactoryUI.modals);Object.assign(MODAL_ACT,crossFactoryUI.actions);
 const staffRosterUI=rosterUI({state:()=>S,ui:UI,esc,uid,canEdit:()=>canPermission('rosters.manage'),canMaster,open:openModal,close:closeModal,syncInputs,commit:entry=>commit(entry,'rosters.manage'),toast,today:todayStr,clearUndo:()=>{undoStack=[];},jwt:()=>STORE.jwt()});
 Object.assign(MODALS,staffRosterUI.modals);Object.assign(MODAL_ACT,staffRosterUI.actions);
