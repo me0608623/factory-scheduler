@@ -1,5 +1,6 @@
 // 本機模式：資料存在這台電腦的瀏覽器（沒有設定 Supabase 時使用）
 
+import { assertOrderReductions } from '../manual.js';
 import { assertExecutionProtected, transitionExecution } from '../execution.js';
 import { validateScenario } from '../scenarios.js';
 import { validateGeneralWork } from '../general-work.js';
@@ -39,6 +40,7 @@ export class LocalStore {
   async sync(S) {
     const old=await this.load();
     try {
+      assertOrderReductions(old,S);
       validateTransfers(S,{before:old});
       validateRush(S.rushOrders||[]);
       validateWorkLog(S.workLog||[]);
