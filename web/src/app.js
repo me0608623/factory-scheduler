@@ -4999,7 +4999,8 @@ async function start(){
   readOnly=STORE.kind==="supabase"&&!STORE.can("schedule.manage");
   let s=null;
   try{s=await STORE.load();}catch(e){if(STORE.kind==='supabase')throw e;toast(e.message);}
-  const madeDemo=!(s&&(STORE.kind==="supabase"||s.employees.length));
+  // An empty saved roster is valid data; only an absent snapshot needs a demo.
+  const madeDemo=!s;
   if(madeDemo)makeDemo();else S=s;
   normalizeState();
   if(madeDemo&&STORE.kind==="local")queueSync(null);
