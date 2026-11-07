@@ -47,6 +47,21 @@ class Supabase:
             raise SupabaseError("登入已過期，請重新登入")
         return r.json()["id"]
 
+    async def line_notify_settings(self, jwt: str, user_id: str) -> dict | None:
+        """Read only this caller's settings, retaining their JWT/RLS scope."""
+        try:
+            async with httpx.AsyncClient(timeout=10) as c:
+                r = await c.get(f"{self.url}/rest/v1/line_notify_settings",
+                                headers=self._user_headers(jwt), params={
+                                    "select": "enabled,events,line_user_id,line_group_id",
+                                    "user_id": f"eq.{user_id}", "limit": "1"})
+            if r.status_code != 200:
+                raise SupabaseError("無法讀取 LINE 通知設定")
+            rows = r.json()
+            return rows[0] if rows else None
+        except httpx.RequestError as exc:
+            raise SupabaseError("無法讀取 LINE 通知設定") from exc
+
     async def role(self, jwt: str) -> str | None:
         return await self._post("/rest/v1/rpc/app_role", self._user_headers(jwt), {})
 
