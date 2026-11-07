@@ -905,7 +905,7 @@ function ordersDrawerHTML(){
     const p=prod(o.pid),selected=UI.focus?.type==='order'&&UI.focus.id===o.id;
     const reports=(S.execution||[]).filter(r=>S.blocks.some(b=>b.oid===o.id&&b.id===r.blockId));
     const phase=status.k==='done'?'已完成':reports.some(r=>r.status==='running')?'進行中':reports.length?'已有回報':'未做';
-    const detail=signal==='gray'?'資料不足，暫不自動判斷':status.k==='done'?'實際件數已達工單量':status.k==='part'?'有未排或完工短少':status.k==='late'?'預計逾期':status.k==='elapsed'?'排定時間已過，待回報':'照目前排程可完成';
+    const detail=signal==='gray'?'資料不足，暫不自動判斷':status.k==='done'?'實際件數已達工單量':status.k==='none'||status.k==='part'?'有未排或完工短少':status.k==='late'?'預計逾期':status.k==='elapsed'?'排定時間已過，待回報':'照目前排程可完成';
     return '<button class="order-card'+(selected?' selected':'')+'" data-act="focus-order" data-id="'+esc(o.id)+'"><i class="deadline '+signal+'"></i><span><b>'+esc(o.code)+'　'+esc(p?.name||'未設定產品')+' '+o.qty+'件</b><mark class="order-phase '+signal+'">'+phase+'</mark><small>'+esc(detail)+'</small>'+(o.note?'<small class="order-note">備註：'+esc(String(o.note).slice(0,40))+'</small>':'')+'</span><strong>'+esc(o.due?md(o.due):'—')+'</strong></button>';
   }).join('');
   return '<div class="drawer-metrics"><div><b>'+summary.unfinished+'</b><span>'+tx('未完成')+'</span></div><div class="bad"><b>'+summary.late+'</b><span>'+tx('會晚')+'</span></div><div class="warn"><b>'+summary.dueToday+'</b><span>'+tx('今日要交')+'</span></div></div>'+
