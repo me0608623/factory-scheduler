@@ -2742,10 +2742,13 @@ function endPlanCalculation(job,renderCurrent=true){
   cancelPlanCalculation();
   if(renderCurrent&&job.modal&&UI.modal===job.modal)renderModal();
 }
+function planCalculationCurrent(job){
+  return planCalculationJob===job&&UI.modal===job.modal&&PV===job.preview&&STORE===job.store&&STORE.session?.user?.id===job.user&&STORE.authEpoch===job.epoch&&S===job.state&&STORE.version===job.version&&JSON.stringify(S)===job.base;
+}
 function planCalculationReady(job){
   if(planCalculationJob!==job)return false;
   const sameOwner=UI.modal===job.modal&&PV===job.preview&&STORE===job.store&&STORE.session?.user?.id===job.user&&STORE.authEpoch===job.epoch;
-  if(sameOwner&&S===job.state&&STORE.version===job.version&&JSON.stringify(S)===job.base)return true;
+  if(planCalculationCurrent(job))return true;
   endPlanCalculation(job,sameOwner);
   if(sameOwner)toast(tx('排程資料已改變，請重新計算。'));
   return false;
@@ -2780,7 +2783,8 @@ async function openPlansSolver(title,logTitle,kind,applyEvent,strategies,extra,j
   const now={date:todayStr(),min:nowMin()};
   let plan;
   try{
-    plan=STORE.kind==="supabase"?await SOLVER.plansDb(extra.event,now,STORE.jwt(),timeLimit):await SOLVER.plans(toSnapshot(S,HOLI),extra.event,now,timeLimit);
+    const requestOwner={isCurrent:()=>planCalculationCurrent(job)};
+    plan=STORE.kind==="supabase"?await SOLVER.plansDb(extra.event,now,STORE.jwt(),timeLimit,null,requestOwner):await SOLVER.plans(toSnapshot(S,HOLI),extra.event,now,timeLimit,null,requestOwner);
   }catch(e){
     if(!planCalculationReady(job))return;
     if(e.status&&e.status<500){toast(e.message);return;}
