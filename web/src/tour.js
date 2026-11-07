@@ -110,6 +110,12 @@ export const TOUR_STEPS = [
 // —— 功能解說：主題式逐步導覽（左側獨立入口）——
 // pre：點左側導覽開抽屜／切頁，目標出現後引擎自動定位；步驟隱藏時自動跳過。
 const navTo = (v) => () => { document.querySelector('[data-act="drawer"][data-v="' + v + '"]')?.click(); };
+// 共用表格選擇器必須限定在所屬頁面；缺少唯讀／空資料目標時也不要重新切頁。
+const pageTourSteps = (page, navigate, steps) => {
+  const owner = '.fullpage[data-tour-page="' + page + '"]';
+  const pre = () => { if (!document.querySelector(owner)) navigate(); };
+  return steps.map((step) => ({ ...step, sel: owner + ' ' + step.sel, pre }));
+};
 export const FEATURE_TOUR_TOPICS = [
   { key: "board",  icon: "today",   title: "排程表觀看" },
   { key: "people", icon: "people",  title: "員工設定" },
@@ -142,8 +148,10 @@ export const FEATURE_TOURS = {
   ],
   worklog: [
     { sel: '[data-act="drawer"][data-v="worklog"]', title: "工作紀錄入口", text: "點左側「工作紀錄」開啟完整紀錄頁。" },
-    { sel: ".sheettable", title: "紀錄表格", text: "日期、加工編號、合格與不良、工時都可線上編輯。", pre: navTo("worklog") },
-    { sel: ".pageback", title: "返回看板", text: "看完按「回今天」回到排程看板。", pre: navTo("worklog") },
+    ...pageTourSteps("worklog", navTo("worklog"), [
+      { sel: ".sheettable", title: "紀錄表格", text: "日期、加工編號、合格與不良、工時都可線上編輯。" },
+      { sel: ".pageback", title: "返回看板", text: "看完按「回今天」回到排程看板。" },
+    ]),
   ],
   notes: [
     { sel: '[data-act="drawer"][data-v="notes"]', title: "備忘入口", text: "點左側「備忘」張貼便條。" },
@@ -166,18 +174,22 @@ FEATURE_TOUR_TOPICS.push(
 Object.assign(FEATURE_TOURS, {
   shortage: [
     { sel: ".pagelink.shortage", title: "欠缺品項入口", text: "點上方「欠缺品項」開啟專頁。" },
-    { sel: ".page-title h1", title: "欠貨與補貨對照", text: "左邊一廠欠貨，右邊二廠何時補；同一列是同一張單。", pre: pageTo("shortage") },
-    { sel: ".statstrip", title: "統計列", text: "未補、已補與逾期數量一眼掌握。", pre: pageTo("shortage") },
-    { sel: ".addrow-head", title: "新增資料", text: "「＋加一列」新增一筆欠缺品項。", pre: pageTo("shortage") },
-    { sel: ".sheettable", title: "查看與修改", text: "點儲存格直接修改；狀態欄顯示待補／已補／逾期。", pre: pageTo("shortage") },
-    { sel: ".tf-toggle", title: "篩選與歸檔", text: "勾選切換「顯示已歸檔」；完成的事項可歸檔保存。", pre: pageTo("shortage") },
+    ...pageTourSteps("shortage", pageTo("shortage"), [
+      { sel: ".page-title h1", title: "欠貨與補貨對照", text: "左邊一廠欠貨，右邊二廠何時補；同一列是同一張單。" },
+      { sel: ".statstrip", title: "統計列", text: "未補、已補與逾期數量一眼掌握。" },
+      { sel: ".addrow-head", title: "新增資料", text: "「＋加一列」新增一筆欠缺品項。" },
+      { sel: ".sheettable", title: "查看與修改", text: "點儲存格直接修改；狀態欄顯示待補／已補／逾期。" },
+      { sel: ".tf-toggle", title: "篩選與歸檔", text: "勾選切換「顯示已歸檔」；完成的事項可歸檔保存。" },
+    ]),
   ],
   transfer: [
     { sel: ".pagelink.transfer", title: "給二廠／回一廠入口", text: "點上方「給二廠／回一廠」開啟跨廠加工專頁。" },
-    { sel: ".page-title h1", title: "跨廠加工單", text: "料送二廠加工、何時回一廠；與欠缺品項分開管理。", pre: pageTo("transfer") },
-    { sel: ".sheettable", title: "單據與進度", text: "每一列一張跨廠單：交料日、點收、預計回廠與進度都在列上編輯。", pre: pageTo("transfer") },
-    { sel: ".addrow-head", title: "建立單據", text: "「＋加一列」建立新的跨廠加工單。", pre: pageTo("transfer") },
-    { sel: ".tf-toggle", title: "歸檔與紀錄", text: "切換已歸檔查看歷史單據；完成的單可還原或刪除。", pre: pageTo("transfer") },
+    ...pageTourSteps("transferflow", pageTo("transfer"), [
+      { sel: ".page-title h1", title: "跨廠加工單", text: "料送二廠加工、何時回一廠；與欠缺品項分開管理。" },
+      { sel: ".sheettable", title: "單據與進度", text: "每一列一張跨廠單：交料日、點收、預計回廠與進度都在列上編輯。" },
+      { sel: ".addrow-head", title: "建立單據", text: "「＋加一列」建立新的跨廠加工單。" },
+      { sel: ".tf-toggle", title: "歸檔與紀錄", text: "切換已歸檔查看歷史單據；完成的單可還原或刪除。" },
+    ]),
   ],
   more: [
     { sel: '[data-act="drawer"][data-v="more"]', title: "更多選單", text: "左側「更多」收納管理與現場功能。" },
