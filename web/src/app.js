@@ -4153,7 +4153,15 @@ function initFloor(){
   const w=canvas.clientWidth||900;
   const rects=renderFloor(canvas,floorCells(S,fac,UI.date,w<520?3:w<800?5:9));
   const tip=$('#floor-tip');
-  const at=e=>{const r=canvas.getBoundingClientRect();return hitFloor(rects,e.clientX-r.left,e.clientY-r.top);};
+  // Hit rectangles use drawing units, not the current CSS or DPR bitmap pixels.
+  // Capture the rendered extent now; CSS resize/zoom can later scale each axis.
+  const transform=canvas.getContext('2d').getTransform();
+  const renderW=canvas.width/transform.a,renderH=canvas.height/transform.d;
+  const at=e=>{const r=canvas.getBoundingClientRect();
+    if(!(r.width>0&&r.height>0))return null;
+    const x=e.clientX-r.left,y=e.clientY-r.top;
+    if(x<0||y<0||x>r.width||y>r.height)return null;
+    return hitFloor(rects,x*renderW/r.width,y*renderH/r.height);};
   canvas.onmousemove=e=>{const hit=at(e);
     if(hit){tip.style.display='block';tip.style.left=Math.min(e.clientX+12,innerWidth-220)+'px';tip.style.top=(e.clientY+14)+'px';
       tip.innerHTML='<b>'+esc(hit.cell.label)+'</b>（'+esc(hit.cell.process||'—')+'）<br>'+(hit.cell.detail?esc(hit.cell.detail):tx('當日無排程'));}
