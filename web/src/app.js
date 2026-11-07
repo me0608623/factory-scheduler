@@ -4726,6 +4726,7 @@ async function saveScenarioFromModal(button){
     canPermissionRaw('scenarios.manage')&&UI.modal===m&&PV===preview&&S===state&&JSON.stringify(S)===json&&
     UI.date===date&&UI.factory===factory&&UI.page===page&&UI.drawer===drawer&&JSON.stringify(UI.focus)===focus;
   const scenSession=user+'@'+epoch;
+  let submittedItem=null;
   try{m.name=$('#scenario-name').value;
     const scenKey='scenario-unknown:'+m.name.trim();
     const priorUnknown=UI.scenarioUnknown?.get(scenKey);
@@ -4733,13 +4734,15 @@ async function saveScenarioFromModal(button){
     if(priorUnknown&&priorUnknown.sk===scenSession)item={...item,id:priorUnknown.id};   // 同名重試沿用未知結果的原 id：RPC 冪等，不產生重複列
     m.item=item;
     m.error=null;m.saving=true;UI.scenarioSaving=operation;button.disabled=true;renderModal();
+    submittedItem=item;
     await store.saveScenario(item);if(!current())return;
     if(UI.scenarioUnknown?.get(scenKey)?.id===item.id)UI.scenarioUnknown.delete(scenKey);
     closeModal();toast(tx(store.kind==='local'?'情境已保存在這台裝置，班表沒有改變':'情境已保存，正式班表沒有改變'));
   }catch(e){
     if(current()){m.error=e.message;toast(tx(e.message));}
     const sk2=user+'@'+(STORE.authEpoch||0);
-    if(STORE===store&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===epoch)(UI.scenarioUnknown??=new Map()).set('scenario-unknown:'+m.name.trim(),{id:m.item.id,sk:sk2});
+    // Validation failures have no submitted identity, even if a prior attempt left m.item.
+    if(submittedItem&&STORE===store&&STORE.session?.user?.id===user&&(STORE.authEpoch||0)===epoch)(UI.scenarioUnknown??=new Map()).set('scenario-unknown:'+submittedItem.name,{id:submittedItem.id,sk:sk2});
   }
   finally{if(UI.scenarioSaving===operation)UI.scenarioSaving=null;m.saving=false;button.disabled=false;if(current())renderModal();maybeReload();}
 }
