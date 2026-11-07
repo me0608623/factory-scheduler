@@ -12,7 +12,7 @@ function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve
 function harness(local=false){
   const request=deferred(),calls=[],previews=[],timers=[],messages=[];
   const store={kind:local?'local':'supabase',version:4,authEpoch:1,session:{user:{id:'test-user'}},can:()=>true,jwt:()=> 'synthetic-token'};
-  const ctx={AbortController,S:{setupPending:false,blocks:[],orders:[],machines:[]},UI:{modal:{t:'auto'}},PV:null,STORE:store,
+  const ctx={assertPlanSource(){},AbortController,S:{setupPending:false,blocks:[],orders:[],machines:[]},UI:{modal:{t:'auto'}},PV:null,STORE:store,
     SOLVER:{up:!local,capabilities:[],check:async()=>false,plansDb:()=>{calls.push('request');return request.promise;}},
     assignments:()=>[],planTimeLimit:()=>3,todayStr:()=> '2026-10-15',nowMin:()=>480,
     toast:x=>messages.push(x),tx:x=>x,renderModal:()=>{},maybeReload:()=>{},$:()=>null,
