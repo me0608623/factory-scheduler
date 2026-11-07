@@ -3130,6 +3130,12 @@ function nextCode(){let n=S.orders.length+1;const used=new Set(S.orders.map(o=>o
 function confirmStep(a,act){const m=UI.modal;if(!m)return false;if(m.confirm===act)return true;m.confirm=act;a.textContent="再按一次確認";return false;}
 function toggleIn(arr,v){const i=arr.indexOf(v);if(i>=0)arr.splice(i,1);else arr.push(v);}
 function showResult(){openModal({t:"logone",id:S.log[0].id});}
+function faultGeneralWorkConflicts(mid,d,s,e){
+  // The direct fault path does not change assignments. Match store validation:
+  // prior dates stay historical, but elapsed work earlier today still conflicts.
+  const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Taipei'}).format(new Date());
+  return d>=today&&(S.workAssignments||[]).some(a=>a.resourceId===mid&&a.date===d&&a.s<e&&a.e>s);
+}
 function captureFault(m){const fs=$("#f-fs"),nt=$("#f-note");if(fs)m.fs=+fs.value;if(nt)m.note=nt.value;}
 Object.assign(MODAL_ACT,{
   "ot-day":a=>{if(!canCalendar()||!UI.modal)return;UI.modal.open=a.dataset.v==="1";rerender();},
@@ -3206,7 +3212,10 @@ Object.assign(MODAL_ACT,{
     };
     const title=mid+" 機台故障 "+mdw(d)+" "+hm(s)+"–"+hm(e);
     const n=S.blocks.filter(b=>b.m===mid&&b.date===d&&b.e>s&&b.s<e).length;
-    if(!n){pushUndo();ev();commit({kind:"fault",title:title+"（這段時間沒有排工作）",lines:[]},"incidents.manage");closeModal();toast("已記錄故障，這段時間沒有工作受影響");return;}
+    if(!n){
+      if(faultGeneralWorkConflicts(mid,d,s,e)){toast(tx('這段時間已有固定的一般工作，無法直接登記故障；請先手動調整一般工作，再登記故障。'));return;}
+      pushUndo();ev();commit({kind:"fault",title:title+"（這段時間沒有排工作）",lines:[]},"incidents.manage");closeModal();toast("已記錄故障，這段時間沒有工作受影響");return;
+    }
     if(STORE&&STORE.kind==="supabase"&&SOLVER?.url)sendLineNotify(SOLVER.url,STORE.jwt(),"fault",mid+" 機台故障 "+mdw(d)+" "+hm(s)+"–"+hm(e)).catch(()=>{});
     openPlans(title+"，"+n+" 段工作受影響",title,"fault",ev,STRAT_EVENT,{fid,event:{type:"fault",machine:mid,date:d,start:s,end:e,note}});
   },
