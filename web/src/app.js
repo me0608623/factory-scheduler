@@ -4165,9 +4165,12 @@ function initFloor(){
 function analyticsPageHTML(){
   const today=todayStr();
   const monthStart=today.slice(0,7)+'-01';
-  // 本月的排程方塊
-  const mBlocks=S.blocks.filter(b=>b.date>=monthStart&&b.date<=today);
   const mMachs=shownMachines();
+  // 排程統計與設備採相同廠別範圍；跨廠保留全部排程。
+  const machineIds=new Set(mMachs.map(m=>m.id));
+  const scopeBlocks=UI.factory==='all'?S.blocks:S.blocks.filter(b=>machineIds.has(b.m));
+  // 本月的排程方塊
+  const mBlocks=scopeBlocks.filter(b=>b.date>=monthStart&&b.date<=today);
   const mEmps=shownEmployees();
   const mOrders=shownOrders();
 
@@ -4206,7 +4209,7 @@ function analyticsPageHTML(){
   const daily=[];
   for(let i=13;i>=0;i--){
     const d=addDays(today,-i);
-    const cnt=S.blocks.filter(b=>b.date===d).length;
+    const cnt=scopeBlocks.filter(b=>b.date===d).length;
     daily.push({date:d,cnt});
   }
   const maxDaily=Math.max(...daily.map(x=>x.cnt),1);
