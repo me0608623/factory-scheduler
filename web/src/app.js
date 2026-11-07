@@ -175,6 +175,9 @@ function makeDemo(){
 function pushUndo(){undoStack.push(JSON.stringify(S));if(undoStack.length>40)undoStack.shift();}
 function commit(entry,permission="schedule.manage"){
   if(!canPermission(permission))return Promise.resolve(false);
+  // Schedule Undo holds whole-state snapshots, not independent table history.
+  // Clear before queuing, including failed saves whose dirty records need retry.
+  if(permission==="worklog.manage"||permission==="rush.manage")undoStack.length=0;
   const store=STORE,writer=store?.session?.user?.id,epoch=store?.authEpoch;
   if(entry){entry.id=uid();entry.t=Date.now();S.log.unshift(entry);if(S.log.length>200)S.log.length=200;}
   render();
