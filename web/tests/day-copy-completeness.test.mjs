@@ -8,7 +8,7 @@ import {inFactory} from '../src/factory.js';
 // Execute the real dayTSV and x-copy-day source. Clipboard delivery is captured,
 // not exercised in a browser; display helpers below use deterministic fixtures.
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
-const functionStart=source.indexOf('function dayTSV(){');
+const functionStart=source.indexOf('function rowsTSV(rows){');
 const functionEnd=source.indexOf('function allRows(){',functionStart);
 const actionStart=source.indexOf('"x-copy-day":');
 const actionEnd=source.indexOf('"x-print-day":',actionStart);

@@ -3337,7 +3337,7 @@ Object.assign(MODAL_ACT,{
   "m-undo":()=>{undo();closeModal();},
   "x-copy-day":()=>copyText(dayTSV()),
   "x-print-day":()=>{closeModal();printDaySchedule();},
-  "x-copy-all":()=>copyText(allRows().map(r=>r.join("\t")).join("\n")),
+  "x-copy-all":()=>copyText(rowsTSV(allRows())),
   "x-dl":()=>downloadCSV(),
   "x-xlsx":async()=>{
     // 按鈕載入態只在匯出對話框內生效（按鈕只存在於此）；無對話框情境行為不變
@@ -3464,6 +3464,12 @@ function runAuto(){
 }
 
 /* ===== 11. Excel／試算表 ===== */
+function rowsTSV(rows){
+  return rows.map(row=>row.map(value=>{
+    const text=String(value??"");
+    return /[\t\r\n"]/.test(text)?'"'+text.replace(/"/g,'""')+'"':text;
+  }).join("\t")).join("\n");
+}
 function dayTSV(){
   const d=UI.date,machines=shownMachines(),rows=[["時間",...machines.map(M=>M.id+" "+M.label)]];
   for(let t=DAY0;t<DAY1;t+=30){
@@ -3472,7 +3478,7 @@ function dayTSV(){
       const work=[...S.blocks,...occupiedWork(S)].filter(b=>b.date===d&&b.m===M.id&&b.s<t+30&&b.e>t).sort((a,b)=>a.s-b.s);
       return work.map(b=>(emp(b.emp)?emp(b.emp).name:"")+" "+(b.workId?workName(b):order(b.oid).code+" "+stepName(b))).join("；");})]);
   }
-  return mdw(d)+" 設備排程（純人工見全部明細）\n"+rows.map(r=>r.join("\t")).join("\n");
+  return mdw(d)+" 設備排程（純人工見全部明細）\n"+rowsTSV(rows);
 }
 function allRows(){
   const head=["日期","星期","開始","結束","機台","員工","工單","產品","工序","數量","固定","問題"];
