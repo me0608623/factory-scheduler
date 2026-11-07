@@ -15,12 +15,13 @@ function harness(state){
   const ctx={STORE:{kind:'supabase',hasPendingConfirmations:()=>state.confirmations||false},
     toast:t=>events.push(['toast',t]),tx:x=>x,closeModal:()=>events.push(['closeModal']),
     showLogin:()=>events.push(['showLogin']),
+    scheduleChat:{destroy:()=>events.push(['destroyChat'])},
     syncPending:state.pending??0,SYNC:{state:state.sync||'ok'},executionRetries:new Map(),
     STORE_logout:undefined};
   ctx.STORE.logout=async()=>{events.push(['logout'])};
   vm.createContext(ctx);
   vm.runInContext('switch("logout"){\n'+slice+'\n}',ctx);
-  return {events,wait:async()=>{await new Promise(r=>setTimeout(r,5));}};
+  return {events,ctx,wait:async()=>{await new Promise(r=>setTimeout(r,5));}};
 }
 
 test('logout proceeds normally when everything is saved',async()=>{
@@ -28,12 +29,15 @@ test('logout proceeds normally when everything is saved',async()=>{
   await h.wait();
   assert.ok(h.events.some(e=>e[0]==='logout'),'logout runs');
   assert.ok(h.events.some(e=>e[0]==='showLogin'),'login screen shown');
+  assert.ok(h.events.findIndex(e=>e[0]==='destroyChat')<h.events.findIndex(e=>e[0]==='logout'),'chat is disposed before awaiting logout');
+  assert.equal(h.ctx.scheduleChat,null);
 });
 
 test('logout is blocked while a write is in flight',async()=>{
   const h=harness({pending:1});
   await h.wait();
   assert.equal(h.events.some(e=>e[0]==='logout'),false,'must not log out');
+  assert.equal(h.events.some(e=>e[0]==='destroyChat'),false,'blocked logout preserves chat');
   assert.equal(h.events.some(e=>e[0]==='toast'),true,'user is warned');
 });
 
@@ -41,6 +45,7 @@ test('logout is blocked when the last sync failed (unsaved local changes)',async
   const h=harness({sync:'error'});
   await h.wait();
   assert.equal(h.events.some(e=>e[0]==='logout'),false,'must not log out');
+  assert.equal(h.events.some(e=>e[0]==='destroyChat'),false,'blocked logout preserves chat');
   assert.equal(h.events.some(e=>e[0]==='toast'),true,'user is warned');
 });
 
@@ -48,5 +53,6 @@ test('logout is blocked when execution reports are unconfirmed',async()=>{
   const h=harness({confirmations:true});
   await h.wait();
   assert.equal(h.events.some(e=>e[0]==='logout'),false,'must not log out');
+  assert.equal(h.events.some(e=>e[0]==='destroyChat'),false,'blocked logout preserves chat');
   assert.equal(h.events.some(e=>e[0]==='toast'),true,'user is warned');
 });

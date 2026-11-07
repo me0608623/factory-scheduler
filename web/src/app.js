@@ -1490,7 +1490,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "logout":(async a=>{if(STORE.kind!=="supabase"){toast(tx('本機模式沒有登入帳號'));return;}
       // 與 beforeunload 同風險：未確認儲存的變更只在本機，登出即丟失
       if(syncPending>0||SYNC.state!=="ok"||executionRetries.has(STORE)||STORE.hasPendingConfirmations?.()){toast(tx('有變更尚未確認儲存；請先按上方儲存狀態重試，確認後再登出。'));return;}
-      closeModal();
+      closeModal();scheduleChat?.destroy();scheduleChat=null;
       try{await STORE.logout();toast("已登出");}catch(e){toast("登出失敗："+e.message);}
       showLogin();})();break;
     case "access":{if(STORE.role!=='boss'){toast("只有老闆可以管理權限");break;}openModal({t:'access-accounts',loading:true,accounts:[]});const m=UI.modal,store=STORE,user=store.session?.user?.id,epoch=store.authEpoch;const owns=()=>STORE===store&&STORE.session?.user?.id===user&&STORE.authEpoch===epoch;(async()=>{try{const accounts=await store.listAccessAccounts();if(UI.modal===m&&UI.modal?.t==='access-accounts'){UI.modal.loading=false;UI.modal.accounts=accounts;renderModal();}}catch(e){if(owns())toast(e.message);if(UI.modal===m)closeModal();}})();break;}
@@ -4616,6 +4616,7 @@ async function mountViz3D(el) {
 
 // ---------- 登入畫面 ----------
 function showLogin(err="",email="",signup=false){
+  scheduleChat?.destroy();scheduleChat=null;
   ensureVisualStyles();
   $("#app").innerHTML='<main class="login" style="position:relative;min-height:100vh"><div id="login-bg" style="position:absolute;inset:0;z-index:0"></div>'+
     '<form class="login-card vg-glass" id="loginf" style="position:relative;z-index:1">'+environmentHTML()+
@@ -4993,6 +4994,7 @@ document.addEventListener('keydown',e=>{if(PV)return;const el=e.target.closest?.
 
 // ---------- 啟動 ----------
 async function start(){
+  scheduleChat?.destroy();scheduleChat=null;
   stopLoginViz(); // 登入成功→停掉背景動畫 rAF（防洩漏）
   const r=await STORE.init();
   if(r.needLogin){showLogin();return;}
@@ -5011,7 +5013,7 @@ async function start(){
   if(UI.page)flashReturnRow();
   if(!tourDone()&&!UI.tv&&!UI.page)setTimeout(()=>startTour(TOUR_STEPS,{tx}),600);
   STORE.subscribe(onRemoteChange,onRealtimeStatus);
-  scheduleChat?.destroy();scheduleChat=installScheduleChat({snapshot:()=>({...toSnapshot(S,HOLI),work_execution:structuredClone(S.execution||[])}),view:()=>({date:UI.date,factory:UI.factory}),store:()=>STORE,enabled:()=>!UI.tv&&canPermission('schedule.manage'),stamp:()=>scenarioKey(S)+'|'+UI.date+'|'+UI.factory});
+  scheduleChat=installScheduleChat({snapshot:()=>({...toSnapshot(S,HOLI),work_execution:structuredClone(S.execution||[])}),view:()=>({date:UI.date,factory:UI.factory}),store:()=>STORE,enabled:()=>!UI.tv&&canPermission('schedule.manage'),stamp:()=>scenarioKey(S)+'|'+UI.date+'|'+UI.factory});
   SOLVER.check().then(up=>{updateSyncChip();scheduleChat?.refresh();if(up)toast("已連上 OR-Tools 排程服務");});
   // 每分鐘刷新「今天」看板；表格內嵌編輯中（cellinp 未 blur）與頁面檢視不得被背景重繪清掉未提交輸入
   setInterval(()=>{if(!drag&&!generalDrag&&!UI.editCell&&!UI.page&&!UI.modal&&!PV&&UI.view==="day"&&UI.date===todayStr())render();},60000);

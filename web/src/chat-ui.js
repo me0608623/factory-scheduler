@@ -3,6 +3,8 @@ import { tx, I18N } from './i18n.js';
 import {SOLVER} from './solver.js';
 import {floatWindow} from './win.js';
 
+let activeChatSpeech=null;
+
 function focusAfterChatClose(launch){
   // Mobile sheets hide the closed launcher. Return to the visible sheet instead
   // of attempting to focus a display:none control and losing keyboard context.
@@ -11,6 +13,15 @@ function focusAfterChatClose(launch){
 }
 
 export function installScheduleChat({snapshot,view,store,enabled,stamp}){
+  // The callbacks read live state, but this instance may only act for its original owner.
+  const owner=store(),client=owner.sb,user=owner.session?.user?.id,epoch=owner.authEpoch||0;
+  let destroyed=false;
+  const owns=()=>!destroyed&&store()===owner&&owner.sb===client&&owner.session?.user?.id===user&&(owner.authEpoch||0)===epoch;
+  const active=()=>owns()&&enabled();
+  const lifetime=new AbortController(),timers=new Set();
+  const later=(fn,ms)=>{const id=setTimeout(()=>{timers.delete(id);if(owns())fn();},ms);timers.add(id);return id;};
+  const cancelLater=id=>{clearTimeout(id);timers.delete(id);};
+  let resetVoice=()=>{};
   const root=document.createElement('aside');root.id='schedule-chat';root.setAttribute('aria-label','排程聊天室');document.body.append(root);
   root.innerHTML='<button class="chat-launch" aria-label="'+tx('開啟排程 AI 聊天室')+'" aria-expanded="false" aria-controls="schedule-chat-panel">'+tx('✦ 排程助理')+'</button><section id="schedule-chat-panel" class="chat-panel" hidden aria-label="'+tx('排程 AI 聊天室')+'"><header><strong>'+tx('排程助理')+'</strong><button class="btn chat-tts" aria-pressed="false" title="'+tx('新回答自動唸出來')+'">🔊</button><button class="btn chat-clear">'+tx('清除')+'</button><button class="btn chat-close" aria-label="'+tx('關閉聊天室')+'">×</button></header><div class="chat-log" role="log" aria-live="polite" aria-label="'+tx('排程對話')+'"></div><form><textarea id="schedule-chat-question" maxlength="1000" rows="2" placeholder="'+tx('問我排程、請假、趕貨…')+'"></textarea><button class="btn primary" type="submit">'+tx('送出')+'</button></form><div class="chat-quick"><button class="btn">'+tx('目前排程有哪些問題？')+'</button><button class="btn">'+tx('誰請假？')+'</button><button class="btn">'+tx('哪些機台故障？')+'</button><button class="btn">'+tx('輪班人力缺口')+'</button><button class="btn">'+tx('跨廠流轉進度')+'</button><button class="btn">'+tx('特別趕貨欠什麼？')+'</button></div></section>';
   const launch=root.querySelector('.chat-launch'),panel=root.querySelector('.chat-panel'),log=root.querySelector('.chat-log'),input=root.querySelector('textarea'),submit=root.querySelector('[type="submit"]'),ttsBtn=root.querySelector('.chat-tts');
@@ -19,6 +30,7 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
   let chatFloat=null;
   // 面板邊緣錨定與垂直可見性：靠近左緣時面板改從根左緣向右展開；展開空間不足時下移藥丸
   const positionPanel=()=>{
+    if(!owns())return;
     if(window.matchMedia('(max-width:800px)').matches){
       // 手機：回到 CSS 錨定（清掉桌面浮動的 inline 定位與錨定 class）
       root.classList.remove('panel-left','float-win');
@@ -41,13 +53,13 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
     launch.style.width='fit-content';
     const w=launch.offsetWidth||150,h=launch.offsetHeight||52;
     launch.style.width=prevW;
-    chatFloat=floatWindow(root,{key:'fsched-float-chat',defaults:{x:Math.max(8,innerWidth-w-18),y:Math.max(8,innerHeight-h-18),w,h},handle:launch,moveOnly:true,dragOnButton:true});
+    chatFloat=floatWindow(root,{key:'fsched-float-chat',defaults:{x:Math.max(8,innerWidth-w-18),y:Math.max(8,innerHeight-h-18),w,h},handle:launch,moveOnly:true,dragOnButton:true,signal:lifetime.signal});
     chatHead.addEventListener('pointerdown',ev=>{
-      if(ev.target.closest('button')||window.matchMedia('(max-width:800px)').matches)return;
+      if(!active()||ev.target.closest('button')||window.matchMedia('(max-width:800px)').matches)return;
       launch.dispatchEvent(new PointerEvent('pointerdown',{clientX:ev.clientX,clientY:ev.clientY,bubbles:false}));
-    });
-    addEventListener('resize',()=>positionPanel());
-    addEventListener('pointerup',()=>{if(!panel.hidden)setTimeout(positionPanel,0);},{passive:true});
+    },{signal:lifetime.signal});
+    addEventListener('resize',positionPanel,{signal:lifetime.signal});
+    addEventListener('pointerup',()=>{if(!panel.hidden)later(positionPanel,0);},{passive:true,signal:lifetime.signal});
     // 載入當下就要定位：否則手機沿用桌機存下的浮動座標（如 x=1114）會把藥丸放到畫面外，且使用者無從點它補救
     positionPanel();
   }
@@ -55,13 +67,26 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
   let ttsAuto=false;try{ttsAuto=localStorage.getItem('fsched-chat-tts')==='1';}catch{}
   const synthOK=typeof window!=='undefined'&&'speechSynthesis' in window;
   const zhVoice=()=>{const vs=window.speechSynthesis.getVoices();return vs.find(v=>/zh[-_]TW/i.test(v.lang))||vs.find(v=>/^zh/i.test(v.lang))||null;};
-  const speak=text=>{if(!synthOK)return;window.speechSynthesis.cancel();const clean=String(text).replace(/\s+/g,' ').slice(0,600);const u=new SpeechSynthesisUtterance(clean);u.lang='zh-TW';const v=zhVoice();if(v)u.voice=v;u.onend=u.onerror=()=>{for(const b of log.querySelectorAll('.chat-speak')){b.textContent='🔊 播報';b.dataset.on='';}};window.speechSynthesis.speak(u);};
-  const stopSpeak=()=>{if(synthOK)window.speechSynthesis.cancel();};
+  let utterance=null;
+  const stopSpeak=()=>{
+    if(utterance&&activeChatSpeech===utterance){activeChatSpeech=null;window.speechSynthesis.cancel();}
+    if(utterance)utterance.onend=utterance.onerror=null;
+    utterance=null;
+  };
+  const speak=text=>{
+    if(!synthOK||!active())return;
+    stopSpeak();window.speechSynthesis.cancel();
+    const clean=String(text).replace(/\s+/g,' ').slice(0,600),u=new SpeechSynthesisUtterance(clean);
+    u.lang='zh-TW';const v=zhVoice();if(v)u.voice=v;
+    utterance=activeChatSpeech=u;
+    u.onend=u.onerror=()=>{if(utterance!==u)return;utterance=null;if(activeChatSpeech===u)activeChatSpeech=null;if(!active())return;for(const b of log.querySelectorAll('.chat-speak')){b.textContent='🔊 播報';b.dataset.on='';}};
+    window.speechSynthesis.speak(u);
+  };
   if(!synthOK)ttsBtn.hidden=true;
   ttsBtn.setAttribute('aria-pressed',String(ttsAuto));ttsBtn.classList.toggle('on',ttsAuto);
-  ttsBtn.onclick=()=>{ttsAuto=!ttsAuto;try{localStorage.setItem('fsched-chat-tts',ttsAuto?'1':'0');}catch{}ttsBtn.setAttribute('aria-pressed',String(ttsAuto));ttsBtn.classList.toggle('on',ttsAuto);if(!ttsAuto)stopSpeak();else toastMini('開啟播報：新的回答會唸出來');};
-  const toastMini=t=>{const p=document.createElement('p');p.className='chat-notice';p.textContent=t;log.append(p);setTimeout(()=>p.remove(),4000);};
-  const attachSpeak=(el,text)=>{if(!synthOK)return;const b=document.createElement('button');b.className='btn chat-speak';b.textContent='🔊 播報';b.onclick=()=>{if(b.dataset.on){stopSpeak();b.textContent='🔊 播報';b.dataset.on='';}else{speak(text);b.dataset.on='1';b.textContent='■ 停止';}};el.append(b);};
+  ttsBtn.onclick=()=>{if(!active())return;ttsAuto=!ttsAuto;try{localStorage.setItem('fsched-chat-tts',ttsAuto?'1':'0');}catch{}ttsBtn.setAttribute('aria-pressed',String(ttsAuto));ttsBtn.classList.toggle('on',ttsAuto);if(!ttsAuto)stopSpeak();else toastMini('開啟播報：新的回答會唸出來');};
+  const toastMini=t=>{const p=document.createElement('p');p.className='chat-notice';p.textContent=t;log.append(p);later(()=>p.remove(),4000);};
+  const attachSpeak=(el,text)=>{if(!synthOK)return;const b=document.createElement('button');b.className='btn chat-speak';b.textContent='🔊 播報';b.onclick=()=>{if(!active())return;if(b.dataset.on){stopSpeak();b.textContent='🔊 播報';b.dataset.on='';}else{speak(text);b.dataset.on='1';b.textContent='■ 停止';}};el.append(b);};
   const from={value:view().date},to={value:view().date};let lastViewDate='';
   let busy=false,generation=0,lastStamp='',messages=[];
   const QUICK=['目前排程有哪些問題？','誰請假？','哪些機台故障？','輪班人力缺口','跨廠流轉進度','特別趕貨欠什麼？'];
@@ -78,15 +103,15 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
   };
   let lastLang=I18N.lang;
   const add=(who,text)=>{const el=document.createElement('div');el.className='chat-message '+who;el.textContent=text;log.append(el);while(log.children.length>30)log.firstElementChild.remove();log.scrollTop=log.scrollHeight;return el;};
-  const hide=()=>{panel.hidden=true;launch.setAttribute('aria-expanded','false');focusAfterChatClose(launch);};
+  const hide=()=>{if(!active())return;panel.hidden=true;launch.setAttribute('aria-expanded','false');focusAfterChatClose(launch);};
   const scopeStamp=()=>stamp()+'|'+from.value+'|'+to.value;
-  const refresh=()=>{const v=view();root.hidden=!enabled();if(I18N.lang!==lastLang){lastLang=I18N.lang;retranslate();}if(v.date!==lastViewDate){from.value=to.value=v.date;lastViewDate=v.date;}};
-  from.onchange=to.onchange=()=>refresh();  launch.onclick=()=>{refresh();panel.hidden=!panel.hidden;launch.setAttribute('aria-expanded',String(!panel.hidden));positionPanel();if(!panel.hidden)input.focus();};
+  const refresh=()=>{if(!owns()){destroy();return;}const v=view();root.hidden=!enabled();if(root.hidden){generation++;busy=false;submit.disabled=false;submit.textContent=tx('送出');resetVoice();stopSpeak();}if(I18N.lang!==lastLang){lastLang=I18N.lang;retranslate();}if(v.date!==lastViewDate){from.value=to.value=v.date;lastViewDate=v.date;}};
+  from.onchange=to.onchange=()=>refresh();  launch.onclick=()=>{refresh();if(!active())return;panel.hidden=!panel.hidden;launch.setAttribute('aria-expanded',String(!panel.hidden));positionPanel();if(!panel.hidden)input.focus();};
   root.querySelector('.chat-close').onclick=hide;
-  panel.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();hide();}});
-  root.querySelector('.chat-clear').onclick=()=>{generation++;log.replaceChildren();messages=[];lastStamp='';busy=false;submit.disabled=false;submit.textContent=tx('送出');input.value='';input.focus();};
+  panel.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();hide();}},{signal:lifetime.signal});
+  root.querySelector('.chat-clear').onclick=()=>{if(!active())return;generation++;resetVoice();stopSpeak();log.replaceChildren();messages=[];lastStamp='';busy=false;submit.disabled=false;submit.textContent=tx('送出');input.value='';input.focus();};
   async function send(question){
-    const q=question.trim();if(!q||busy)return;refresh();if(!enabled())return;
+    const q=question.trim();if(!q||busy||!active())return;refresh();if(!active())return;resetVoice();
     const v={...view(),date:from.value,end_date:to.value,question:q},base=scopeStamp(),token=++generation;busy=true;submit.disabled=true;
     // 送出鈕載入態：轉圈＋鎖住防止連點；等待回覆期間顯示打字點點（長度未知）
     submit.innerHTML='<span class="spin" aria-hidden="true"></span>';
@@ -96,9 +121,9 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
     const dots=document.createElement('span');dots.className='dots';dots.setAttribute('aria-hidden','true');dots.innerHTML='<i></i><i></i><i></i>';pending.append(dots);
     try{
       let result;
-      if(store().kind==='local'){const context=chatContext(snapshot(),v);result={...answerFromFacts(q,context),context};}
-      else result=await SOLVER.chat({question:q,date:v.date,end_date:v.end_date,factory:v.factory,generate:false,history:[],...(store().kind==='local'?{snapshot:snapshot()}: {})},store().jwt());
-      if(token!==generation)return;
+      if(owner.kind==='local'){const context=chatContext(snapshot(),v);result={...answerFromFacts(q,context),context};}
+      else result=await SOLVER.chat({question:q,date:v.date,end_date:v.end_date,factory:v.factory,generate:false,history:[],...(owner.kind==='local'?{snapshot:snapshot()}: {})},owner.jwt());
+      if(token!==generation||!active())return;
       if(base!==scopeStamp()){pending.textContent='回答期間排程或日期／廠別已改變。這份結果已捨棄，請重新提問。';return;}
       pending.textContent=result.engine+'\n'+result.answer;
       attachSpeak(pending,result.answer);
@@ -108,8 +133,8 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
       pending.append(details);messages.push({role:'user',content:q},{role:'assistant',content:result.answer.slice(0,2000)});messages=messages.slice(-6);
       if(context.truncated)add('notice','本次最多提供 100 筆依據；請縮小範圍，不能據此宣稱沒有其他問題。');
       if(result.answerTruncated)add('notice','畫面先列出 12 筆；還有其他符合的資料，請縮小日期或指定員工後查詢。');
-    }catch(e){if(token===generation)pending.textContent='無法回答：'+e.message+'。沒有修改排程；也未將查詢失敗當成沒有問題。';}
-    finally{if(token===generation){busy=false;submit.disabled=false;submit.textContent=tx('送出');log.scrollTop=log.scrollHeight;}}
+    }catch(e){if(token===generation&&active())pending.textContent='無法回答：'+e.message+'。沒有修改排程；也未將查詢失敗當成沒有問題。';}
+    finally{if(token===generation&&owns()){busy=false;submit.disabled=false;submit.textContent=tx('送出');log.scrollTop=log.scrollHeight;}}
   }
   root.querySelector('form').onsubmit=e=>{e.preventDefault();send(input.value);};
   // 語音輸入：按住說話，放開自動送出（Chrome/Edge 支援）
@@ -119,23 +144,42 @@ export function installScheduleChat({snapshot,view,store,enabled,stamp}){
     micBtn.setAttribute('aria-label','語音輸入');
     submit.before(micBtn);
     const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-    let rec=null,listening=false;
+    let rec=null,listening=false,voiceTimer=null;
+    const idle=()=>{listening=false;micBtn.textContent='🎤';micBtn.classList.remove('rec');input.placeholder=tx('問我排程、請假、趕貨…');};
+    resetVoice=()=>{
+      cancelLater(voiceTimer);voiceTimer=null;
+      const old=rec;rec=null;
+      if(old){old.onstart=old.onresult=old.onerror=old.onend=null;try{old.abort();}catch{}}
+      idle();
+    };
     micBtn.onclick=()=>{
-      if(listening){rec&&rec.stop();return;}
-      rec=new SR();
-      rec.lang='zh-TW';rec.interimResults=true;rec.continuous=false;
-      rec.onstart=()=>{listening=true;micBtn.textContent='🔴';micBtn.classList.add('rec');input.placeholder='說話中…';};
-      rec.onresult=e=>{
-        let txt='';
-        for(const r of e.results)txt+=r[0].transcript;
+      if(!active()||busy)return;
+      if(listening){rec?.stop();return;}
+      resetVoice();
+      const current=rec=new SR(),base=scopeStamp();
+      const valid=()=>rec===current&&active()&&base===scopeStamp();
+      current.lang='zh-TW';current.interimResults=true;current.continuous=false;
+      current.onstart=()=>{if(!valid())return;listening=true;micBtn.textContent='🔴';micBtn.classList.add('rec');input.placeholder='說話中…';};
+      current.onresult=e=>{
+        if(!valid())return;
+        let txt='';for(const r of e.results)txt+=r[0].transcript;
         input.value=txt;
-        if(e.results[e.results.length-1].isFinal){micBtn.click();setTimeout(()=>{if(input.value.trim())send(input.value);},200);}
+        if(e.results[e.results.length-1].isFinal){
+          current.stop();cancelLater(voiceTimer);
+          voiceTimer=later(()=>{voiceTimer=null;if(valid()&&input.value===txt)send(txt);},200);
+        }
       };
-      rec.onerror=()=>{listening=false;micBtn.textContent='🎤';micBtn.classList.remove('rec');input.placeholder=tx('問我排程、請假、趕貨…');};
-      rec.onend=()=>{listening=false;micBtn.textContent='🎤';micBtn.classList.remove('rec');input.placeholder=tx('問我排程、請假、趕貨…');};
-      rec.start();
+      current.onerror=()=>{if(rec===current)resetVoice();};
+      current.onend=()=>{if(rec===current&&owns())idle();};
+      try{current.start();}catch{resetVoice();}
     };
   }
   for(const button of root.querySelectorAll('.chat-quick button'))button.onclick=()=>send(button.textContent);
-  refresh();return {refresh,destroy:()=>{generation++;root.remove();}};
+  function destroy(){
+    if(destroyed)return;
+    destroyed=true;generation++;resetVoice();stopSpeak();lifetime.abort();
+    for(const timer of timers)clearTimeout(timer);timers.clear();
+    root.remove();
+  }
+  refresh();return {refresh,destroy};
 }
