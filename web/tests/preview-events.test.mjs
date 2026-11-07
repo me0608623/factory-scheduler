@@ -1,3 +1,4 @@
+import {assertOrderReductions} from '../src/manual.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -8,6 +9,8 @@ import * as previewContext from '../src/preview-context.js';
 import {SupabaseStore} from '../src/store/supabase.js';
 import {createClient} from '@supabase/supabase-js';
 import {makeDb,FakeSupabase} from './fake-supabase.mjs';
+import {workingDate} from './working-date.mjs';
+import {pendingBlockStore} from './pending-block-store.mjs';
 
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8').replace(/\r\n/g,'\n');
 const manual=source.slice(source.indexOf('async function applyManualPreview('),source.indexOf('\nfunction diffOf('));
@@ -18,7 +21,7 @@ function harness(){
   const P={base:JSON.stringify(before),B:before,after,move:{...after.blocks[0]},oldId:'b1',ops:[],problems:[],unpinned:[],lines:[],movedLabel:'A01',source:'old',target:'new'};
   const ctx={...nav,...previewContext,acceptManualPreview,S:before,UI:{date:'2026-10-12',view:'day',modal:null},PV:{kind:'manual',P,opts:[{id:'manual',applicable:true}],cur:'manual',nav:nav.newNav()},
     STORE:{kind:'local'},SYNC:{state:'ok'},pvOpt:()=>ctx.PV?.opts[0],readOnly:false,undoStack:[],pushUndo:()=>ctx.undoStack.push(JSON.stringify(ctx.S)),
-    assertExecutionProtected:()=>{},validateGeneralWork:()=>{},assignments:()=>[],todayStr:()=> '2026-10-11',
+    assertOrderReductions,assertExecutionProtected:()=>{},validateGeneralWork:()=>{},assignments:()=>[],todayStr:()=> '2026-10-11',
     commit:async()=>{log.push('commit');return true;},render:()=>log.push('render'),renderModal:()=>{},closeModal:()=>{},
     toast:msg=>log.push(msg),maybeReload:()=>{},document:{addEventListener:(t,f)=>events[t]=f,querySelector:()=>null,activeElement:null},
     window:{scrollY:0,scrollTo:()=>{}},history:{go:()=>{}},addEventListener:()=>{},setTimeout:fn=>timers.push(fn),
@@ -63,7 +66,7 @@ test('successful apply persists once and completes callback; failed save restore
   }
 });
 
-test('unconfirmed manual apply preserves the candidate and undo for explicit retry',async()=>{
+test('ordinary failed manual apply preserves the candidate and undo for explicit retry',async()=>{
   const h=harness();h.ctx.commit=async()=>{h.ctx.SYNC.state='error';return false;};
   await h.ctx.applyManualPreview(h.P,{accepting(){h.ctx.PV=null;},fail:pending=>h.log.push(['failed',pending]),done:()=>h.log.push('done')});
   assert.equal(h.ctx.S.blocks[0].s,540);assert.equal(h.ctx.undoStack.length,1);
@@ -88,14 +91,14 @@ test('manual late result never changes state or UI for another store or auth lif
   }
 });
 
-test('actual SDK SQL manual apply retries the retained candidate once after an offline failure',async()=>{
+test('actual SDK SQL manual apply keeps an uncertain candidate gated until a fresh page store is used',async()=>{
   const db=await makeDb();try{
     const actor='44444444-4444-4444-8444-444444444444';
     await db.query("insert into auth.users(id,email) values($1,'synthetic-manual@invalid')",[actor]);
     await db.query("update profiles set role='boss' where user_id=$1",[actor]);
     const fake=new FakeSupabase(db,{});fake.uid=actor;
     const reader=new SupabaseStore(fake);await reader.init();const before=await reader.load();
-    const date=new Date(Date.now()+86400000).toISOString().slice(0,10);
+    const date=await workingDate(db);
     before.blocks=[{id:'55555555-5555-4555-8555-555555555555',oid:'00000000-0000-4000-8000-0000000000b1',step:0,m:'a',emp:'00000000-0000-4000-8000-0000000000e1',date,s:480,e:540,qty:120,pin:false}];
     await reader.sync(before,{kind:'move',title:'Synthetic baseline'});
     const base=await reader.load(),after=structuredClone(base);after.blocks[0].s=540;after.blocks[0].e=600;
@@ -113,12 +116,20 @@ test('actual SDK SQL manual apply retries the retained candidate once after an o
       syncEpoch:0,syncPending:0,syncChain:Promise.resolve(),lastSyncState:'ok',lastLocalWrite:0,updateSyncChip:()=>{}});
     const syncAt=source.indexOf('function queueSync(entry){'),commitAt=source.indexOf('function commit(');
     vm.runInContext(source.slice(syncAt,source.indexOf('// ---------- 別人改了',syncAt))+source.slice(commitAt,source.indexOf('\nasync function undo(',commitAt)),h.ctx);
-    await h.ctx.applyManualPreview(h.P,{accepting(){h.ctx.PV=null;},fail:()=>h.log.push('failed'),done:()=>h.log.push('done')});
-    assert.equal(h.ctx.SYNC.state,'error');assert.equal(sqlWrites,0);assert.equal(h.ctx.S.blocks[0].s,540,'candidate remains visible for retry');
-    offline=false;assert.equal(await h.ctx.queueSync(null),true);
+    await h.ctx.pvApplyManual();
+    assert.equal(h.log.at(-1),store.pendingScheduleSaveMessage(),'actual manual failure callback must preserve full-page recovery instructions');
+    assert.equal(h.ctx.SYNC.state,'error');assert.equal(sqlWrites,0);assert.equal(h.ctx.S.blocks[0].s,540,'candidate remains visible but cannot be blindly retried');
+    assert.equal(store.hasPendingConfirmations(),true);assert.match(store.pendingScheduleSaveMessage(),/完整重新整理網頁/);
+    offline=false;assert.equal(await h.ctx.queueSync(null),false);assert.equal(dispatches,1);assert.equal(sqlWrites,0);
+    const observed=await reader.load();assert.equal(observed.blocks[0].s,480);store.acceptLoaded(observed);
+    assert.equal(await h.ctx.queueSync(null),false);assert.equal(store.hasPendingConfirmations(),true);
+    // A full page reload creates a fresh Store and reads cloud state. The user
+    // then makes the adjustment again; ordinary confirmed saving still works.
+    const freshStore=new SupabaseStore(sdk);freshStore.session={user:{id:actor},access_token:'synthetic'};freshStore.acceptLoaded(observed);
+    assert.equal(freshStore.hasPendingConfirmations(),false);observed.blocks[0].s=540;observed.blocks[0].e=600;await freshStore.sync(observed);
     const fresh=await reader.load();assert.equal(fresh.blocks[0].s,540);assert.equal(fresh.blocks[0].e,600);
     assert.equal(fresh.version,base.version+1);assert.equal(sqlWrites,1);assert.equal(dispatches,2);
-    assert.equal(h.ctx.SYNC.state,'ok');assert.ok(!h.log.includes('done'),'failed original attempt never announces success');
+    assert.equal(h.ctx.SYNC.state,'error');assert.ok(!h.log.includes('done'),'failed original attempt never announces success');
   }finally{await db.close();}
 });
 test('stale proposal or unresolved issue never calls accepting or commit',async()=>{
@@ -209,4 +220,16 @@ test('real manual preview enter/exit restores context on cancel, not while accep
     assert.equal(h.preferences.factory,cancel?'2':'1');
     assert.equal(JSON.stringify(h.ctx.S),before);assert.ok(!h.log.includes('commit'));
   }
+});
+
+for(const mode of ['full-screen','drag-dialog'])for(const pending of [true,false])test(mode+' manual failure uses the real Store pending message or its ordinary fallback',async()=>{
+  const f=await pendingBlockStore({pending}),h=harness();h.ctx.STORE=f.store;
+  h.ctx.commit=async()=>{h.ctx.SYNC.state='error';return false;};
+  if(mode==='drag-dialog'){
+    h.ctx.UI.modal={t:'drag-preview',proposal:h.P};
+    const at=source.indexOf('  "drag-confirm":async()=>{'),end=source.indexOf('  "c-week":',at);
+    vm.runInContext('Object.assign(MODAL_ACT,{'+source.slice(at,end)+'});',h.ctx);
+    await h.ctx.MODAL_ACT['drag-confirm']();
+  }else await h.ctx.pvApplyManual();
+  assert.equal(h.log.at(-1),pending?f.store.pendingScheduleSaveMessage():'調整尚未確認儲存；內容已保留，請按上方儲存狀態重試。');
 });
