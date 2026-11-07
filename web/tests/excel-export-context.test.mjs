@@ -10,7 +10,7 @@ test('switching date and factory during workbook generation cannot relabel the r
   const pending=deferred(),started=deferred(),files=[],calls=[];
   const ctx={UI:{date:'2026-10-16',factory:1},S:{machines:[{id:'m1',factory:1},{id:'m2',factory:2}],blocks:[],workAssignments:[]},
     shownMachines:()=>ctx.S.machines.filter(m=>m.factory===ctx.UI.factory),assignments:s=>s.workAssignments,workCatalog:()=>[],inFactory:()=>true,
-    factoryName:n=>'Plant '+n,Blob,saveFile:(name,blob)=>files.push({name,blob}),toast:m=>assert.fail(m),
+    factoryName:n=>'Plant '+n,Blob,structuredClone,saveFile:(name,blob)=>files.push({name,blob}),toast:m=>assert.fail(m),
     loadExcel:async()=>({scheduleXlsx:(state,date)=>{calls.push({state,date});started.resolve();return pending.promise;}})};
   vm.createContext(ctx);vm.runInContext(code,ctx);
   const task=ctx.exportXlsx();await started.promise;
@@ -24,7 +24,7 @@ test('overlapping exports retain their own names when completed in reverse order
   const jobs=[],files=[];
   const ctx={UI:{date:'2026-10-16',factory:1},S:{blocks:[],workAssignments:[]},
     shownMachines:()=>[],assignments:()=>[],workCatalog:()=>[],inFactory:()=>true,
-    factoryName:n=>'Plant '+n,Blob,saveFile:(name,blob)=>files.push({name,blob}),toast:m=>assert.fail(m),
+    factoryName:n=>'Plant '+n,Blob,structuredClone,saveFile:(name,blob)=>files.push({name,blob}),toast:m=>assert.fail(m),
     loadExcel:async()=>({scheduleXlsx:()=>{const d=deferred();jobs.push(d);return d.promise;}})};
   vm.createContext(ctx);vm.runInContext(code,ctx);
   const first=ctx.exportXlsx();await new Promise(setImmediate);
