@@ -353,6 +353,7 @@ export const UI_TEXT = {
   "已排 {n} 段": { en: "{n} blocks", vi: "{n} khối", th: "{n} ช่วง" },
   "占用 {d}": { en: "Busy {d}", vi: "Bận {d}", th: "ใช้งาน {d}" },
   "工作時段合計 {d}": { en: "work time total {d}", vi: "tổng giờ làm {d}", th: "รวมเวลางาน {d}" },
+  "最高占用容量 {p} / 顧機上限 {l}": { en: "peak load {p} / machine limit {l}", vi: "đỉnh {p} / giới hạn máy {l}", th: "พีค {p} / ขีดเครื่อง {l}" },
   "最高占用容量 {p}": { en: "peak load {p}", vi: "đỉnh {p}", th: "พีค {p}" },
   "（上限待確認）": { en: " (limit TBD)", vi: " (hạn mức chờ xác nhận)", th: " (ขีดจำกัดรอยืนยัน)" },
   "{p} / 顧機上限 {l}": { en: "{p} / machine limit {l}", vi: "{p} / giới hạn máy {l}", th: "{p} / ขีดเครื่อง {l}" },

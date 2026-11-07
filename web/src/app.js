@@ -1949,7 +1949,7 @@ function resourceLoadHTML(){
     return '<article class="load-row"><div class="load-row-head"><b>'+esc(r.name)+'</b><span class="tag mute">'+factoryName(r.factory)+'</span><span class="spacer"></span><span>'+rate+'</span></div>'+
       '<div class="load-bar" aria-label="'+tx('{name} 可用時段占用率 {rate}',{name:esc(r.name),rate})+'"><span style="width:'+(r.utilization===null?0:Math.min(100,Math.max(0,r.utilization*100)))+'%"></span></div>'+
       '<div class="hint">'+esc(availability)+' · '+tx('已排 {n} 段',{n:r.blockCount})+' · '+tx('占用 {d}',{d:duration(r.busyMinutes)})+
-      (employee?' · '+tx('工作時段合計 {d}',{d:duration(r.assignedMinutes)})+' · '+tx('最高占用容量 {p}',{p:r.peak})+(r.limit===null?tx('（上限待確認）'):tx('{p} / 顧機上限 {l}',{p:r.peak,l:r.limit})):r.faultMinutes>0?' · '+tx('故障占用 {d}',{d:duration(r.faultMinutes)}):'')+'</div>'+
+      (employee?' · '+tx('工作時段合計 {d}',{d:duration(r.assignedMinutes)})+' · '+(r.limit===null?tx('最高占用容量 {p}',{p:r.peak})+tx('（上限待確認）'):tx('最高占用容量 {p} / 顧機上限 {l}',{p:r.peak,l:r.limit})):r.faultMinutes>0?' · '+tx('故障占用 {d}',{d:duration(r.faultMinutes)}):'')+'</div>'+
       '<div class="hint">'+esc(free)+(r.pending?'':' · '+tx('總空檔 {d}',{d:duration(r.freeMinutes)}))+'</div>'+
       warnings.map(t=>'<div class="issue">'+esc(t)+'</div>').join('')+'</article>';
   }).join('')||'<div class="empty">'+tx('此範圍沒有資源')+'</div>';
