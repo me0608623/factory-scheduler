@@ -476,6 +476,7 @@ export const UI_TEXT = {
   "機台／工位": { en: "Machine / station", vi: "Máy / trạm", th: "เครื่อง / สถานี" },
   "工單／工作": { en: "Order / work", vi: "Đơn / công việc", th: "ใบสั่งงาน / งาน" },
   "件數": { en: "Qty", vi: "Số cái", th: "จำนวนชิ้น" },
+  "參考": { en: "Ref.", vi: "Tham khảo", th: "อ้างอิง" },
   "機台稼動率（本月）": { en: "Machine utilization (this month)", vi: "Tỷ lệ chạy máy (tháng này)", th: "อัตราการใช้เครื่อง (เดือนนี้)" },
   "視覺效果": { en: "Visual effects", vi: "Hiệu ứng thị giác", th: "เอฟเฟกต์ภาพ" },
   "帳號由管理者邀請。收到邀請信，先開啟信中的連結，再到「帳號與連線」設定密碼。": { en: "Accounts are invited by the admin: open the link in the email, then set a password under Account & connection.", vi: "Tài khoản do quản trị mời: mở liên kết trong thư, rồi đặt mật khẩu ở Tài khoản & kết nối.", th: "บัญชีถูกเชิญโดยผู้ดูแล เปิดลิงก์ในอีเมลแล้วไปตั้งรหัสผ่านที่ บัญชีและการเชื่อมต่อ" },
