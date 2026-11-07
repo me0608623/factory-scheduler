@@ -1316,18 +1316,25 @@ document.addEventListener("pointerup",()=>{
   enterManualPreview(dragPreview(d.b,d.target.m,d.target.s));
 });
 document.addEventListener("pointercancel",()=>{endDrag();drag=null;});
+function beginCellEdit(btn){
+  const cur=document.querySelector(".cellinp");
+  if(cur&&cur!==btn){saveCellEdit(cur);}
+  UI.editCell={table:btn.dataset.cell,id:btn.dataset.id,key:btn.dataset.key};
+  render();
+}
 // 切格競態修復：mousedown 階段就先存目前格並切到新格，阻止 blur→render→click 消失的競態
 document.addEventListener("mousedown",e=>{
   const btn=e.target.closest('[data-act="cell-edit"]');
   if(!btn)return;
   // 阻止預設的 focus 移轉（否則 input blur → saveCellEdit → render() 把 DOM 全換掉、click 永遠不會觸發）
   e.preventDefault();
-  const cur=document.querySelector(".cellinp");
-  if(cur&&cur!==btn){saveCellEdit(cur);}
-  UI.editCell={table:btn.dataset.cell,id:btn.dataset.id,key:btn.dataset.key};
-  render();
+  beginCellEdit(btn);
 });
 document.addEventListener("keydown",e=>{
+  // 時間格按鈕不是已開啟的輸入格；攔截原生 click，避免同一次按鍵重複開啟。
+  if(e.target.tagName==="BUTTON"&&e.target.dataset?.act==="cell-edit"&&(e.key==="Enter"||e.key===" ")){
+    e.preventDefault();if(!e.repeat)beginCellEdit(e.target);return;
+  }
   if(e.key==="Enter"&&e.target.dataset?.cell){e.preventDefault();e.target.blur();return;}
   if(e.key==="Escape"&&!UI.modal&&PV&&PV.kind==="manual"){
     e.preventDefault();if(PV.nav?.stack.length)dpBack();else exitManualPreview(true);return;
