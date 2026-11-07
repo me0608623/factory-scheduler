@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
+import {assertOrderReductions} from '../src/manual.js';
 import {capturePreviewContext,restorePreviewContext} from '../src/preview-context.js';
 
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
@@ -17,7 +18,7 @@ function harness({kind='auto',cloud=false,changes=[()=>{}]}={}){
     UI:{date:'2026-10-23'},SAMPLE:null,STORE:{kind:cloud?'supabase':'local',applyPlan:async()=>{events.push('rpc');}},
     keyB:b=>[b.oid,b.step,b.date,b.s,b.e,b.m,b.emp].join('|'),esc:String,tx:(s,p)=>s.replace(/\{(\w+)\}/g,(m,k)=>p?.[k]??m),md:x=>x,WD:['日','一','二','三','四','五','六'],parseD:x=>new Date(x),
     planCardMetrics:()=>({late:0,people:0,ot:false}),planEngineLabel:()=> '瀏覽器',ganttHTML:()=>'<div>時間比較</div>',peopleHTML:()=>'<div>人員比較</div>',resultHTML:()=>'',rerunHTML:()=>'',emp:()=>({name:'A'}),
-    canPermissionRaw:()=>true,assertExecutionProtected:()=>{},$:()=>null,toast:s=>events.push(s),render:()=>events.push('render'),
+    assertOrderReductions,canPermissionRaw:()=>true,assertExecutionProtected:()=>{},$:()=>null,toast:s=>events.push(s),render:()=>events.push('render'),
     peopleOf:()=>[],pushUndo:()=>events.push('undo'),commit:async()=>{ctx.S.log.push({kind});events.push('commit');return true;},reloadFromStore:async()=>{events.push('reload');return 'applied';},showResult:()=>events.push('result')};
   ctx.pvOpt=()=>ctx.PV?.opts.find(o=>o.id===ctx.PV.cur);
   ctx.withState=(state,fn)=>fn();
