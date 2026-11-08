@@ -2,8 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
+import {rafApply} from '../src/szoom.js';
 
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+// Reset also cancels pinch work; execute its real declarations in this extracted harness.
+const pinchSource=['let pinchActive=','let pinch0=','const applyPinch='].map(prefix=>{
+  const line=source.split('\n').find(line=>line.startsWith(prefix));
+  assert.ok(line,`Missing pinch declaration: ${prefix}`);
+  return line;
+}).join('\n');
 function fixture(){
   const body={classList:{toggle(){}}};
   const document={body,activeElement:body};
@@ -30,7 +37,7 @@ function fixture(){
     const act=selector.match(/\[data-act="([^"]+)"\]/)?.[1];
     return buttons.get(act)||null;
   };
-  const env={document,$:document.querySelector,window:{scrollY:0,scrollTo(){}},
+  const env={rafApply,document,$:document.querySelector,window:{scrollY:0,scrollTo(){}},
     UI:{prefs:{language:'zh-TW'},view:'day'},PV:null,I18N:{},SZ:zoom,
     ensureVisualStyles(){},topHTML:()=>'',appNavHTML:()=>'',bannerHTML:()=>'',
     dayHTML:()=>'<details class="day-board-tools"></details>',weekHTML:()=>'',workViewHTML:()=>'',
@@ -41,7 +48,7 @@ function fixture(){
   const renderStart=source.indexOf('function render(){');
   const zoomStart=source.indexOf('function applyZoom(');
   const actionsStart=source.indexOf('    case "sz-in":');
-  vm.runInContext(source.slice(renderStart,source.indexOf('let _hdrRO=',renderStart))+
+  vm.runInContext(pinchSource+'\n'+source.slice(renderStart,source.indexOf('let _hdrRO=',renderStart))+
     source.slice(zoomStart,source.indexOf('const zoomWheel=',zoomStart))+
     'function click(act){switch(act){'+source.slice(actionsStart,source.indexOf('    case "nav-toggle":',actionsStart))+'}}',env);
   return {document,ui:env.UI,render:()=>env.render(),
