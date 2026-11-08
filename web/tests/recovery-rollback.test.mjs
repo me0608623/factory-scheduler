@@ -67,7 +67,7 @@ function setup(){
   let saved=JSON.stringify(c.S);
   c.storage={getItem:()=>saved,setItem:(k,v)=>{saved=v;}};
   c.saved=()=>JSON.parse(saved);
-  Object.assign(c,{UI:{date:day},STORE:store,assertExecutionProtected,canIncidents:()=>true,canPermissionRaw:()=>true,
+  Object.assign(c,{UI:{date:day},STORE:store,syncEpoch:0,assertExecutionProtected,canIncidents:()=>true,canPermissionRaw:()=>true,
     captureFault:()=>{},syncInputs:()=>{},pushUndo:()=>{},closeModal:()=>{},toast:()=>{},showResult:()=>{},
     todayStr:()=>day,nowMin:()=>480,$:()=>null,pvOpt:()=>c.PV.opts[0],pvSummary:()=>'',peopleOf:()=>[],
     commit:()=>{c.lastSave=store.sync(c.S).then(()=>true);return c.lastSave;},
@@ -80,6 +80,15 @@ function setup(){
   vm.runInContext(source.slice(source.indexOf('function diffOf('),source.indexOf('function fmtDelta(')),c);
   vm.runInContext(source.slice(source.indexOf('function samePreviewState('),source.indexOf('function pvDrawerActionsHTML(')),c);
   vm.runInContext(source.slice(source.indexOf('async function pvApply(){'),source.indexOf('Object.assign(MODAL_ACT,{',source.indexOf('async function pvApply(){'))),c);
+  // A composed direct-fault action must execute its real optional preflight and
+  // save-notice helpers, not an invented replacement or an incomplete handler.
+  const helperStarts=['async function saveFaultWithNotice(','function faultGeneralWorkConflicts(']
+    .map(marker=>source.indexOf(marker)).filter(index=>index>=0);
+  if(helperStarts.length){
+    const start=Math.min(...helperStarts),end=source.indexOf('function captureFault(',start);
+    assert.ok(end>start,'complete direct-fault helper source');
+    vm.runInContext(source.slice(start,end),c);
+  }
   const a=source.indexOf('  "m-fault":()=>{'),b=source.indexOf('  "m-mach-save":',a);
   vm.runInContext('var handlers={'+source.slice(a,b)+'};',c);
   c.fault=(start,duration)=>{
