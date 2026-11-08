@@ -93,7 +93,7 @@ const shownMachines=()=>S.machines.filter(m=>inFactory(m,UI.factory));
 const shownOrders=()=>S.orders.filter(o=>orderInFactory(o,S.products,UI.factory));
 // 畫面縮放：每台電腦各自記住
 const ZOOMS=[0.6,0.7,0.75,0.8,0.85,0.9,1,1.1,1.25,1.4];
-function persistPreferences(){try{UI.prefs=savePreferences(UI.prefs);}catch(e){toast('這台裝置無法保存設定');}applyPreferences(UI.prefs);UI.zoom=UI.prefs.scale;UI.theme=UI.prefs.theme;}
+function persistPreferences(){let saved=true;try{UI.prefs=savePreferences(UI.prefs);}catch(e){saved=false;toast('這台裝置無法保存設定');}applyPreferences(UI.prefs);UI.zoom=UI.prefs.scale;UI.theme=UI.prefs.theme;return saved;}
 function setUiZoom(z){UI.prefs=patchPreference(UI.prefs,'scale',z);persistPreferences();try{localStorage.setItem("fsched-zoom",String(UI.zoom));}catch(e){}}
 // 淺色／深色：每台電腦各自記住（auto = 跟著系統）
 const THEMES=["auto","light","dark"];
@@ -990,7 +990,7 @@ function showDeviceNotification(title){
 }
 async function requestNotificationPermission(){
   if(typeof Notification==='undefined'){toast('這個瀏覽器不支援系統通知');return;}
-  try{const result=await Notification.requestPermission();UI.prefs=patchPreference(UI.prefs,'notifications.desktop',result==='granted');persistPreferences();render();toast(result==='granted'?'已允許系統通知':'未允許系統通知');}
+  try{const result=await Notification.requestPermission();UI.prefs=patchPreference(UI.prefs,'notifications.desktop',result==='granted');const saved=persistPreferences();render();if(saved)toast(result==='granted'?'已允許系統通知':'未允許系統通知');}
   catch{toast('無法開啟系統通知，請檢查瀏覽器設定');}
 }
 async function toggleDeviceSetting(button){
@@ -1387,7 +1387,7 @@ document.addEventListener("click",e=>{
     case "setting-toggle":toggleDeviceSetting(a);break;
     case "notification-permission":requestNotificationPermission();break;
     case "profile-save":saveOwnProfile(a);break;
-    case "settings-reset":UI.prefs=structuredClone(DEFAULT_PREFERENCES);persistPreferences();render();toast('已恢復這台裝置的預設設定');break;
+    case "settings-reset":{UI.prefs=structuredClone(DEFAULT_PREFERENCES);const saved=persistPreferences();render();if(saved)toast('已恢復這台裝置的預設設定');break;}
     case "focus-order":UI.focus={type:'order',id};UI.drawer=null;render();requestAnimationFrame(()=>$('.board')?.scrollIntoView({behavior:'smooth',block:'start'}));break;
     case "focus-person":UI.focus={type:'employee',id};render();break;
     case "person-day":{
