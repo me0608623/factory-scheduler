@@ -21,7 +21,7 @@ function setup(mode='deferred'){
  HTMLElement:class{},document:{activeElement:null,body:{}},$:()=>({innerHTML:''}),maybeReload:()=>{},requestAnimationFrame:cb=>cb()};
  if(mode==='unavailable')delete c.navigator.clipboard;
  if(mode==='missing-write')c.navigator.clipboard={};
- vm.createContext(c);vm.runInContext(code,c);
+ vm.createContext(c);if(source.includes("let pendingTourLaunch="))vm.runInContext(slice("let pendingTourLaunch=","// End pending tour launch ownership."),c);vm.runInContext(code,c);
  return {c,S,UI,messages,writes,files,rendered,pending};
 }
 for(const action of ['x-copy-day','x-copy-all']){
