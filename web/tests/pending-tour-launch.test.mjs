@@ -192,6 +192,7 @@ function harness(t, { editable = true } = {}) {
     visibleMemos: () => [], factoryOf: () => 1,
   };
   env.STORE={kind:"local"};
+  env.scheduleChat=null;
   vm.createContext(env);
   vm.runInContext(tourSource.replace(/^export /gm, '') + '\nglobalThis.TOURS = FEATURE_TOURS;globalThis.ONBOARDING = TOUR_STEPS;', env);
   vm.runInContext(
