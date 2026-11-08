@@ -20,6 +20,9 @@ function harness(local=false){
     setTimeout:fn=>timers.push(fn),applyOption:B=>structuredClone(B),measure:()=>({}),HOLI:{},
     enterPreview:P=>previews.push(P),buildPlans:()=>{calls.push('build');const base=JSON.stringify(ctx.S);return {base,ev:{date:'2026-10-15'},opts:[{state:base}]};}};
   vm.createContext(ctx);
+  const pendingStart=source.indexOf("let pendingTourLaunch="),pendingEnd=source.indexOf("// End pending tour launch ownership.",pendingStart);
+  assert.ok(pendingStart>=0&&pendingEnd>pendingStart);
+  vm.runInContext(source.slice(pendingStart,pendingEnd),ctx);
   const start=source.includes('let planCalculationJob=')?source.indexOf('let planCalculationJob='):source.indexOf('function openPlans(');
   vm.runInContext(source.slice(start,source.indexOf('\nfunction enterPreview(',start)),ctx);
   vm.runInContext(functionText('openModal')+'\n'+functionText('closeModal'),ctx);
@@ -107,4 +110,20 @@ test('missing solver work capability cannot expose whole-board fallback to incid
   const h=harness();h.ctx.STORE.can=()=>false;h.ctx.assignments=()=>[{id:'work'}];
   const p=h.run();h.timers.forEach(f=>f());await p;
   assert.equal(h.timers.length,0);assert.equal(h.previews.length,0);assert.equal(h.calls.length,0);
+});
+
+
+test('actual modal helper cancels a queued tour even when its callback was dequeued',()=>{
+  const h=harness();let starts=0,clears=0;
+  h.ctx.clearTimeout=()=>{clears++;};
+  h.ctx.startTour=()=>{starts++;};
+  h.ctx.closeModal();
+  h.ctx.scheduleTourLaunch([],{},300);
+  const dequeued=h.timers.at(-1);assert.equal(typeof dequeued,'function');
+  h.ctx.openModal({t:'settings',draft:{text:'newer work'}});
+  const before=JSON.stringify({S:h.ctx.S,UI:h.ctx.UI});
+  dequeued();
+  assert.equal(clears,1,'actual cancellation clears the owned timer');
+  assert.equal(starts,0,'an already dequeued callback cannot launch after the real modal opens');
+  assert.equal(JSON.stringify({S:h.ctx.S,UI:h.ctx.UI}),before);
 });
