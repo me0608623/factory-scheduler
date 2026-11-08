@@ -8,6 +8,7 @@ const app=fs.readFileSync(new URL('app.js',base),'utf8');
 function harness(){
  const timers=new Map(),requests=[],events=[];let next=0;
  const ctx=vm.createContext({AbortController,JSON,Number,Array,Promise,Error,console,RUNTIME:{solverUrl:'https://mock.invalid',solverKey:'',mode:'local'},setTimeout:(fn,ms)=>{const id=++next;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),fetch:(url,opt)=>new Promise((resolve,reject)=>{requests.push({url,opt,resolve,reject});opt.signal.addEventListener('abort',()=>reject(new Error('mock request-specific abort')),{once:true});}),UI:{modal:{t:'synthetic'}},PV:null,S:{},STORE:{kind:'local',version:1,can:()=>true},renderModal:()=>{},toast:x=>events.push(x),tx:x=>x,assignments:()=>[],planTimeLimit:()=>3,todayStr:()=> '2026-11-07',nowMin:()=>480,toSnapshot:x=>x,HOLI:{},$:()=>null,maybeReload:()=>{},requestAnimationFrame:()=>{},modalReturnFocus:null});
+ if(app.includes("let pendingTourLaunch=")){const start=app.indexOf("let pendingTourLaunch="),end=app.indexOf("// End pending tour launch ownership.",start);assert.ok(end>start);vm.runInContext(app.slice(start,end),ctx);}
  vm.runInContext(solver.replace("import { RUNTIME } from './runtime-config.js';",'').replace('export const SOLVER','globalThis.SOLVER'),ctx);
  vm.runInContext(app.slice(app.indexOf('let planCalculationJob=null;'),app.indexOf('function openPlansLocal(')),ctx);
  for(const name of ['openModal','closeModal']){const start=app.indexOf('function '+name+'(');vm.runInContext(app.slice(start,app.indexOf('\n}',start)+2),ctx);}
