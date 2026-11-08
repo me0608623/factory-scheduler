@@ -12,16 +12,17 @@ function element(){
 }
 function fixture(legacyPosition=null){
   let mount=element(),allowed=true;
+  const store={kind:'local'};
   const nodes=new Map(['.chat-launch','.chat-panel','.chat-log','textarea','[type="submit"]','.chat-tts',
     '.chat-clear','.chat-close','form','.chat-panel header strong'].map(s=>[s,element()]));
   nodes.get('.chat-panel').hidden=true;
   const root=element();root.querySelector=s=>nodes.get(s);root.querySelectorAll=()=>[];
   const document={body:element(),createElement:()=>root,querySelector:s=>s==='.schedule-chat-slot'?mount:null};
-  const env={document,window:{},localStorage:{getItem:key=>key==='fsched-float-chat'?legacyPosition:null},I18N:{lang:'zh-TW'},tx:x=>x};
+  const env={AbortController,document,window:{},localStorage:{getItem:key=>key==='fsched-float-chat'?legacyPosition:null},I18N:{lang:'zh-TW'},tx:x=>x};
   vm.createContext(env);
   vm.runInContext(source.replace(/^import .*;\r?\n/gm,'').replace('export function','function'),env);
   const chat=env.installScheduleChat({snapshot:()=>({}),view:()=>({date:'2026-10-26'}),
-    store:()=>({kind:'local'}),enabled:()=>allowed,stamp:()=> 'same'});
+    store:()=>store,enabled:()=>allowed,stamp:()=> 'same'});
   return {root,nodes,chat,env,get mount(){return mount;},replaceMount(){mount=element();},setAllowed(v){allowed=v;}};
 }
 
