@@ -36,6 +36,7 @@ for(const [key,a,b] of [['emp','emp(m){','/* ---------- 機台 ---------- */'],[
  let chunk=src.slice(start,end).trim();if(chunk.endsWith(','))chunk=chunk.slice(0,-1);
  vm.runInContext('Object.assign(MODALS,{'+chunk+'});',env);
 }
+if(src.includes('function personDayGeneralWork('))run('function personDayGeneralWork(', 'function applyPersonDay(');
 run('MODALS.leaveq=', 'Object.assign(MODAL_ACT,');
 run("MODALS['person-day']=", 'Object.assign(MODAL_ACT,');
 return {env,S,render(t,id=t==='mach'?'m':'e'){
