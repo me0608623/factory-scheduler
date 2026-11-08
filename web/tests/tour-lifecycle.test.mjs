@@ -78,6 +78,7 @@ function harness(){
     SYNC:{state:'ok'},pageSaveState:()=>'',
   };
   vm.createContext(env);
+  if(app.includes("let pendingTourLaunch="))vm.runInContext(between("let pendingTourLaunch=", "// End pending tour launch ownership."),env);
   vm.runInContext('"use strict";\n'+tour.replace(/^export /gm,'')+'\nglobalThis.TOURS=FEATURE_TOURS;globalThis.STEPS=TOUR_STEPS;',env);
   vm.runInContext(between('function notesDrawerHTML(){','function settingChoices(')+between('function ordersDrawerHTML(){','function monthDates(')+between('function pageShell(','function tfArchiveMonth('),env);
   const realStart=env.startTour;
