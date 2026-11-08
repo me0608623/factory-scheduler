@@ -1351,6 +1351,10 @@ document.addEventListener("keydown",e=>{
 });
 
 /* ===== 8. 按鈕動作 ===== */
+// Typing, keyboard navigation and form changes supersede only pending launches.
+// Capture runs before handlers that may request a new tour in the same event.
+for(const event of ["click","keydown","input","change","mousedown","pointerdown"])document.addEventListener(event,cancelPendingTourLaunch,true);
+
 const PV_BLOCK=new Set(["transfers","tf-new","tf-detail","tf-edit","tf-save","tf-work","tf-batch","tf-batch-save","tf-flow","tf-flow-preview","tf-flow-apply","tf-plan","mach-products","work-contents","work-content-new","work-content-edit","general-add","general-edit","layout","work-queue","scenarios","execution","report-open","report-work","groups","group-edit","group-new","emp","emp-new","mach","mach-new","ord","ord-new","orders","products","cal","open","ot","issues","incident","auto","manual-add","undo","save"]);
 document.addEventListener("click",e=>{
   // 手動預覽模式：點排程表上的方塊 → 切換到該工序的詳情（檢視操作，不影響正式排程）
@@ -1486,7 +1490,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "view":zoomWheel.cancel();applyPinch.cancel();pinch0=null;pinchActive=false;UI.wkFit=false;UI.view=a.dataset.v;render();break;
     case "factory":{const v=a.dataset.v==="all"?"all":Number(a.dataset.v);setFactory(v);render();if(v==="all")openModal({t:'transfer-board'});break;}
     case "groups":openModal({t:'groups'});break;
-    case "tour":{closeModal();UI.drawer=null;render();setTimeout(()=>startTour(TOUR_STEPS,{tx}),350);break;}
+    case "tour":{closeModal();if(UI.modal)break;UI.drawer=null;render();scheduleTourLaunch(TOUR_STEPS,{tx},350);break;}
     case "logout":(async a=>{if(STORE.kind!=="supabase"){toast(tx('本機模式沒有登入帳號'));return;}
       // 與 beforeunload 同風險：未確認儲存的變更只在本機，登出即丟失
       if(syncPending>0||SYNC.state!=="ok"||executionRetries.has(STORE)||STORE.hasPendingConfirmations?.()){toast(tx('有變更尚未確認儲存；請先按上方儲存狀態重試，確認後再登出。'));return;}
@@ -1642,7 +1646,7 @@ case "person-month":{if(canIncidents())openModal({t:'person-month',id});break;}
     case "incident":if(canIncidents())openModal({t:"incident"});break;
     case "help":openModal({t:"help",sec:0});break;
     case "feature-tour":openModal({t:"feature-topics"});break;
-    case "feature-topic":{const key=a.dataset.v,steps=FEATURE_TOURS[key];closeModal();if(steps)setTimeout(()=>startTour(steps,{tx,label:"功能解說",markDone:false}),300);break;}
+    case "feature-topic":{const key=a.dataset.v,steps=FEATURE_TOURS[key];closeModal();if(steps&&!UI.modal)scheduleTourLaunch(steps,{tx,label:"功能解說",markDone:false},300);break;}
     case "feedback":openModal({t:"feedback"});break;
     case "schedule-diff":openModal({t:"schedule-diff"});break;
     case "diff-run":{
@@ -1833,6 +1837,7 @@ function modalFocusFromToken(root,token){
   return [...root.querySelectorAll("[data-"+token.kind+"]")].find(el=>el.dataset[token.kind]===token.value)||null;
 }
 function openModal(m){
+  cancelPendingTourLaunch();
   if(UI.modal!==m)cancelPlanCalculation();
   if(m.t==='execution-report'){
     const pending=executionRetries.get(STORE,m.id);
@@ -1848,10 +1853,36 @@ function closeModal(){
   // An import already writing cannot be cancelled by Escape, the overlay or X.
   if(UI.modal?.t==='import-preview'&&UI.modal.saving)return;
   cancelPlanCalculation();
+  cancelPendingTourLaunch();
   UI.modal=null;const r=$("#modal-root");if(r)r.innerHTML="";maybeReload();
   const target=modalReturnFocus;modalReturnFocus=null;
   requestAnimationFrame(()=>{if(!UI.modal&&target?.isConnected&&!target.matches?.(":disabled"))target.focus();});
 }
+// Only deferred app launches are owned here; an active tour retains its own lifecycle.
+let pendingTourLaunch=null;
+function cancelPendingTourLaunch(){
+  const pending=pendingTourLaunch;
+  pendingTourLaunch=null;
+  if(pending)clearTimeout(pending.timer);
+}
+function scheduleTourLaunch(steps,options,delay,{automatic=false}={}){
+  cancelPendingTourLaunch();
+  if(UI.modal)return;
+  const store=STORE,user=store?.session?.user?.id,epoch=store?.authEpoch;
+  const pending={timer:null};
+  pendingTourLaunch=pending;
+  pending.timer=setTimeout(()=>{
+    if(pendingTourLaunch!==pending)return;
+    // Release before startTour: its prerequisite navigation belongs to this tour.
+    pendingTourLaunch=null;
+    if(STORE!==store||STORE?.session?.user?.id!==user||STORE?.authEpoch!==epoch||UI.modal)return;
+    if(automatic&&(tourDone()||UI.tv||UI.page))return;
+    startTour(steps,options);
+  },delay);
+}
+
+// End pending tour launch ownership.
+
 function ownsLegacyRequest(request,store,user,epoch){
   return UI.modal===request&&STORE===store&&store?.session?.user?.id===user&&store?.authEpoch===epoch&&canArchive();
 }
@@ -2376,6 +2407,7 @@ function exitManualPreview(notify=true,byPop=false){
   if(notify){toast("已取消，排程沒有改變");maybeReload();}
 }
 addEventListener("popstate",()=>{
+  cancelPendingTourLaunch();
   if(PV&&PV.kind==="manual"){PV.hist=0;exitManualPreview(false,true);toast("已離開預覽，排程沒有改變");}
 });
 // 依目前選取對齊看板：定位日期＋聚焦工單（其他工單變淡，選中可辨識）
@@ -4616,6 +4648,7 @@ async function mountViz3D(el) {
 
 // ---------- 登入畫面 ----------
 function showLogin(err="",email="",signup=false){
+  cancelPendingTourLaunch();
   ensureVisualStyles();
   $("#app").innerHTML='<main class="login" style="position:relative;min-height:100vh"><div id="login-bg" style="position:absolute;inset:0;z-index:0"></div>'+
     '<form class="login-card vg-glass" id="loginf" style="position:relative;z-index:1">'+environmentHTML()+
@@ -5009,7 +5042,7 @@ async function start(){
   try{const v=new URLSearchParams(location.search).get("view");UI.page={shortage:"shortage",transfer:"transferflow",worklog:"worklog",review:"review",catalog:"catalog",analytics:"analytics",floor:"floor","visual-demo":"visual-demo"}[v]||null;if(UI.page==="review")UI.reviewStep ??= 1;}catch{}
   render();
   if(UI.page)flashReturnRow();
-  if(!tourDone()&&!UI.tv&&!UI.page)setTimeout(()=>startTour(TOUR_STEPS,{tx}),600);
+  if(!tourDone()&&!UI.tv&&!UI.page)scheduleTourLaunch(TOUR_STEPS,{tx},600,{automatic:true});
   STORE.subscribe(onRemoteChange,onRealtimeStatus);
   scheduleChat?.destroy();scheduleChat=installScheduleChat({snapshot:()=>({...toSnapshot(S,HOLI),work_execution:structuredClone(S.execution||[])}),view:()=>({date:UI.date,factory:UI.factory}),store:()=>STORE,enabled:()=>!UI.tv&&canPermission('schedule.manage'),stamp:()=>scenarioKey(S)+'|'+UI.date+'|'+UI.factory});
   SOLVER.check().then(up=>{updateSyncChip();scheduleChat?.refresh();if(up)toast("已連上 OR-Tools 排程服務");});
@@ -5022,6 +5055,7 @@ const staffRosterUI=rosterUI({state:()=>S,ui:UI,esc,uid,canEdit:()=>canPermissio
 Object.assign(MODALS,staffRosterUI.modals);Object.assign(MODAL_ACT,staffRosterUI.actions);
 MODAL_ACT['mach-products']=()=>{if(!canMaster())return;syncInputs();const m=UI.modal;if(!m.id||JSON.stringify(m.draft)!==JSON.stringify(mach(m.id))){toast('請先儲存或取消設備設定，再開啟產品設定');return;}openModal({t:'products'});};
 export async function boot(store,authLinkType=""){
+  cancelPendingTourLaunch();
   STORE=store;
   configureTableMarks(()=>STORE);
   await start();
