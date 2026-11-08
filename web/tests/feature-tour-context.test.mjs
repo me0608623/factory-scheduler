@@ -188,7 +188,9 @@ function harness(t, { editable = true } = {}) {
     SYNC: { state: 'ok' }, pageSaveState: () => '', directWriteStatus: () => '',
     visibleMemos: () => [], factoryOf: () => 1,
   };
+  env.STORE={kind:"local"};
   vm.createContext(env);
+  vm.runInContext(between("let pendingTourLaunch=", "// End pending tour launch ownership."),env);
   vm.runInContext(tourSource.replace(/^export /gm, '') + '\nglobalThis.TOURS = FEATURE_TOURS;', env);
   vm.runInContext(
     between('function pageShell(', 'function tfArchiveMonth(') +
