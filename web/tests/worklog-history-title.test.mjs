@@ -29,7 +29,7 @@ async function harness(){
   const S={employees:[],machines:[],products:[],orders:[],blocks:[],cal:{week:[],over:{}},
     workLog:[{id:'wl-1',date:'2026-11-02',code:'A',goodQty:120,badQty:3,reworkMin:15,startH:8,startM:30,endH:17,endM:45,worker:'QA',note:'Keep quantities'}],log:[]};
   await store.sync(S);
-  const ctx={S,STORE:store,UI:{editCell:null,tableSort:{wl:null}},SYNC:{state:'idle'},
+  const ctx={S,STORE:store,undoStack:[],UI:{editCell:null,tableSort:{wl:null}},SYNC:{state:'idle'},
     validateWorkLog,tx,applySort,WL_SORT,sortBar,sortTh,structuredClone,
     esc:s=>String(s??''),pad:s=>String(s).padStart(2,'0'),md:s=>s,
     LOGIC:{edit:'edit'},canPermission:()=>true,uid:()=>`log-${S.log.length}`,
@@ -40,6 +40,8 @@ async function harness(){
   vm.createContext(ctx);
   vm.runInContext([
     setter,sorted,
+    // Include the shared production helper when composed with keyboard cell activation.
+    source.includes('function beginCellEdit(btn){')?section('function beginCellEdit(btn){', '// 切格競態修復'): '',
     section('function pageSaveState(', 'function flashReturnRow('),
     section('function pageShell(', 'function tfArchiveMonth('),
     section('function workLogPageHTML(', "\nMODALS['memo-edit']"),
