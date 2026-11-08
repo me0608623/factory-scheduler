@@ -92,6 +92,9 @@ function fixture({local=false,speech=false,tts=false,mobile=true}={}){
     $:s=>{if(!loginNodes.has(s))loginNodes.set(s,new El());return loginNodes.get(s);}});
   env.SOLVER.check=async()=>false;
   env.vizBg=null;
+  // Composed login/start may own deferred tours; load the complete real helper.
+  const pendingAt=appSource.indexOf('let pendingTourLaunch=null;');
+  if(pendingAt>=0)vm.runInContext(appSource.slice(pendingAt,appSource.indexOf('// End pending tour launch ownership.',pendingAt)),env);
   for(const [begin,end] of [['async function start(){','const crossFactoryUI='],['function showLogin(err=','// ---------- 未排工作']]){
     const at=appSource.indexOf(begin);vm.runInContext(appSource.slice(at,appSource.indexOf(end,at)),env);
   }
